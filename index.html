@@ -2380,7 +2380,11 @@ function generateSchedule(protocol, startDate, cowId) {
 }
 
 // ===== INIT =====
-// Firebase認証後にinitAppが呼ばれる。ローカルのみの場合はDOMContentLoadedで起動
+// Firebase認証後にinitAppが呼ばれる。
+document.addEventListener('DOMContentLoaded', () => {
+  // Firebase認証完了まではlogin-screenを表示（window.onload内のonAuthStateChangedが制御）
+});
+
 function initApp() {
   document.getElementById('reg-date').value = today();
   initCowsFromMaster();
@@ -2389,11 +2393,6 @@ function initApp() {
   renderAll();
   initSwipe();
 }
-document.addEventListener('DOMContentLoaded', () => {
-  // Firebase認証が完了するまで待つ（onAuthStateChangedが呼ぶ）
-  // ただし認証に時間がかかる場合の保険としてlogin-screenを表示しておく
-  document.getElementById('login-screen').classList.add('active');
-});
 
 // localStorageに保存済みのUTCずれ日付を修正するパッチ
 function migrateDates() {
@@ -3415,6 +3414,19 @@ function onTwinCheckChange(cowId, baseDueDate) {
 }
 
 // ===== COW LIST =====
+// 品種フィルター
+let cowBreedFilter = 'all';
+
+function setCowBreedFilter(breed) {
+  cowBreedFilter = breed;
+  renderCowList();
+}
+
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.breed-filter-btn');
+  if (btn) { setCowBreedFilter(btn.dataset.breed); return; }
+});
+
 function renderCowList() {
   const todayStr = today();
 
@@ -3468,6 +3480,30 @@ function renderCowList() {
     return c.id.toLowerCase().includes(search.toLowerCase()) || name.includes(search);
   }) : [...cows];
 
+  // 品種サマリーボタンを生成
+  const breedCount = {};
+  cows.forEach(c => {
+    const b = c.breed || '未設定';
+    breedCount[b] = (breedCount[b] || 0) + 1;
+  });
+  const breedIcon = {'黒毛':'⬛','褐毛':'🟥','F1':'🐄'};
+  const summaryEl = document.getElementById('cow-breed-summary');
+  if (summaryEl) {
+    const allActive = cowBreedFilter === 'all';
+    summaryEl.innerHTML =
+      `<button class="breed-filter-btn" data-breed="all" style="background:${allActive?'var(--accent2)':'var(--bg3)'};color:${allActive?'#000':'var(--muted)'};border:${allActive?'none':'1px solid var(--border)'};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;">全て ${cows.length}頭</button>` +
+      Object.entries(breedCount).sort((a,b)=>b[1]-a[1]).map(([b,n]) => {
+        const active = cowBreedFilter === b;
+        const icon = breedIcon[b] || '🐄';
+        return `<button class="breed-filter-btn" data-breed="${b}" style="background:${active?'var(--accent2)':'var(--bg3)'};color:${active?'#000':'var(--muted)'};border:${active?'none':'1px solid var(--border)'};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;">${icon} ${b} ${n}頭</button>`;
+      }).join('');
+  }
+
+  // 品種フィルター適用
+  if (cowBreedFilter !== 'all') {
+    filtered = filtered.filter(c => (c.breed || '未設定') === cowBreedFilter);
+  }
+
   // ソート
   const getDob = c => { const m = getMasterCow(c.id); return (m ? m.dob : c.dob) || '9999-99-99'; };
   if (sortKey === 'age_asc')    filtered.sort((a,b) => getDob(b).localeCompare(getDob(a))); // 若い=生年月日が新しい
@@ -3483,28 +3519,6 @@ function renderCowList() {
 
   document.getElementById('cow-count').textContent = `${filtered.length}頭`;
 
-  // 品種サマリー（全頭対象）
-  const breedCount = {};
-  cows.forEach(c => {
-    const b = c.breed || '';
-    if (b) breedCount[b] = (breedCount[b]||0) + 1;
-  });
-  const breedColors = { '黒毛':'#374151', '褐毛':'#7f1d1d', 'F1':'#1e3a5f', 'その他':'#1e293b' };
-  const breedTextColors = { '黒毛':'#d1d5db', '褐毛':'#fca5a5', 'F1':'#60a5fa', 'その他':'#94a3b8' };
-  const breedEmoji = { '黒毛':'⬛', '褐毛':'🟥', 'F1':'🐄', 'その他':'🐮' };
-  const unset = cows.filter(c=>!c.breed).length;
-  const summaryEl = document.getElementById('cow-breed-summary');
-  if (Object.keys(breedCount).length || unset) {
-    summaryEl.innerHTML = [
-      ...Object.entries(breedCount).map(([b,n])=>
-        `<div style="background:${breedColors[b]||'#1e293b'};border:1px solid ${breedTextColors[b]||'#94a3b8'};color:${breedTextColors[b]||'#94a3b8'};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;">${breedEmoji[b]||'🐄'} ${b} ${n}頭</div>`),
-      unset ? `<div style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:5px 12px;border-radius:20px;">未設定 ${unset}頭</div>` : ''
-    ].join('');
-    summaryEl.style.display = 'flex';
-  } else {
-    summaryEl.innerHTML = '';
-    summaryEl.style.display = 'none';
-  }
   const container = document.getElementById('cow-list-container');
   const empty = document.getElementById('cow-empty');
   if (!filtered.length) { container.innerHTML=''; empty.style.display=''; return; }
@@ -8991,6 +9005,7 @@ try {
 </div><!-- /app-root -->
 
 <script>
+window.addEventListener('load', function() {
 // ===== Firebase 設定 =====
 const firebaseConfig = {
   apiKey: "AIzaSyCer9Gz8nMbP3hBod3O_66oVQGEKsUfXVo",
@@ -9011,7 +9026,7 @@ let isSyncing = false;
 let syncTimer = null;
 
 // ===== ログイン =====
-function doLogin() {
+window.doLogin = function() {
   const email = document.getElementById('login-email').value.trim();
   const pass  = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
@@ -9021,14 +9036,13 @@ function doLogin() {
   document.getElementById('login-btn').style.display = 'none';
   loadEl.style.display = 'block';
   auth.signInWithEmailAndPassword(email, pass)
-    .catch(e => {
+    .catch(() => {
       loadEl.style.display = 'none';
       document.getElementById('login-btn').style.display = 'block';
       errEl.textContent = 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
     });
-}
+};
 
-// Enterキーでログイン
 document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
@@ -9050,12 +9064,12 @@ auth.onAuthStateChanged(user => {
 });
 
 // ===== ログアウト =====
-function logout() {
+window.logout = function() {
   if (!confirm('ログアウトしますか？')) return;
   auth.signOut();
-}
+};
 
-// ===== Firebase同期 =====
+// ===== 同期ステータス =====
 function setSyncStatus(state) {
   const el = document.getElementById('sync-status');
   if (!el) return;
@@ -9063,22 +9077,20 @@ function setSyncStatus(state) {
   el.textContent = state === 'synced' ? '✓ 同期済' : state === 'syncing' ? '⟳ 同期中' : '✗ エラー';
 }
 
+// ===== Firebase同期 =====
 function initFirebaseSync() {
   setSyncStatus('syncing');
-  // Firebaseからデータを読み込み（初回）
   dbRef.once('value').then(snapshot => {
     const remote = snapshot.val();
     if (remote) {
-      // リモートデータをlocalStorageに書き込んでからアプリ初期化
       Object.keys(remote).forEach(k => _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k])));
     }
     setSyncStatus('synced');
-    // アプリ初期化（データロード後）
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
-    // リモートの変更をリアルタイムで受信
+    // リアルタイム受信
     dbRef.on('value', snapshot => {
-      if (isSyncing) return; // 自分の書き込み中は無視
+      if (isSyncing) return;
       const remote = snapshot.val();
       if (!remote) return;
       Object.keys(remote).forEach(k => _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k])));
@@ -9088,29 +9100,23 @@ function initFirebaseSync() {
   }).catch(() => setSyncStatus('error'));
 }
 
-// save()をラップしてFirebaseにも書き込む
-const _origSave = typeof save === 'function' ? save : null;
 function saveToFirebase() {
   if (!dbRef || !currentUser) return;
   clearTimeout(syncTimer);
   setSyncStatus('syncing');
   syncTimer = setTimeout(() => {
     isSyncing = true;
-    // localStorageの全データをFirebaseに書き込む
     const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','etRecords','fatteningRecords','data_version'];
     const payload = {};
-    keys.forEach(k => {
-      const v = _store.getItem(k);
-      if (v !== null) payload[k] = v;
-    });
+    keys.forEach(k => { const v = _store.getItem(k); if (v !== null) payload[k] = v; });
     dbRef.set(payload)
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); })
       .finally(() => { isSyncing = false; });
-  }, 800); // 800ms debounce
+  }, 800);
 }
 
-// save関数をオーバーライドしてFirebaseにも保存
+// save関数をオーバーライド
 if (typeof save === 'function') {
   const _localSave = save;
   window.save = function() {
@@ -9118,6 +9124,11 @@ if (typeof save === 'function') {
     saveToFirebase();
   };
 }
+
+// ログイン画面を表示（認証確認中）
+document.getElementById('login-screen').classList.add('active');
+
+}); // window.onload end
 </script>
 </body>
 </html>
