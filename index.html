@@ -7556,7 +7556,7 @@ function renderReport() {
         const m = h.date.slice(5,7);
         if (!monthData[m]) return;
         if (!monthData[m].breakdown[name]) monthData[m].breakdown[name] = {in:0,use:0,transfer:0,discard:0};
-        if (h.type === 'restock') {
+        if (h.type === 'restock' || h.type === 'carryover') {
           monthData[m].in += h.count;
           monthData[m].breakdown[name].in += h.count;
         } else if (h.type === 'use') {
@@ -7576,7 +7576,7 @@ function renderReport() {
     let startStock = 0;
     inventory.forEach(item => {
       (item.history||[]).filter(h=>h.date && h.date < `${selectedYear}-01-01`).forEach(h => {
-        startStock += h.type === 'restock' ? h.count : -h.count;
+        startStock += (h.type === 'restock' || h.type === 'carryover') ? h.count : -h.count;
       });
     });
 
