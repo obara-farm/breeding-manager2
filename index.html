@@ -1290,7 +1290,12 @@ textarea{resize:vertical;}
     <input type="hidden" id="history-edit-kind">
     <input type="hidden" id="history-edit-id">
     <input type="hidden" id="history-edit-idx">
+    <input type="hidden" id="history-edit-type">
     <div id="history-edit-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;"></div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>種別</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;" id="history-edit-type-btns"></div>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group">
         <label>日付</label>
@@ -3429,6 +3434,17 @@ document.addEventListener('click', function(e) {
   if (btn) { setCowBreedFilter(btn.dataset.breed); return; }
   const hBtn = e.target.closest('.history-edit-btn');
   if (hBtn) { openHistoryEdit(hBtn.dataset.kind, hBtn.dataset.id, parseInt(hBtn.dataset.idx)); return; }
+  const htBtn = e.target.closest('.hist-type-btn');
+  if (htBtn) {
+    document.getElementById('history-edit-type').value = htBtn.dataset.type;
+    document.querySelectorAll('.hist-type-btn').forEach(b => {
+      const isActive = b.dataset.type === htBtn.dataset.type;
+      b.style.background = isActive ? b.dataset.c0 : 'var(--bg3)';
+      b.style.borderColor = isActive ? b.dataset.c1 : 'var(--border)';
+      b.style.color = isActive ? b.dataset.c2 : 'var(--muted)';
+    });
+    return;
+  }
 });
 
 function renderCowList() {
@@ -7122,9 +7138,24 @@ function openHistoryEdit(kind, id, idx) {
   document.getElementById('history-edit-kind').value = kind;
   document.getElementById('history-edit-id').value = id;
   document.getElementById('history-edit-idx').value = idx;
+  document.getElementById('history-edit-type').value = h.type;
   document.getElementById('history-edit-date').value = h.date;
   document.getElementById('history-edit-count').value = h.count;
   document.getElementById('history-edit-memo').value = h.memo || '';
+
+  // タイプボタン生成
+  const types = [
+    {key:'restock',   label:'🤝 譲受', c:['#0d2a1a','var(--accent2)','var(--accent)']},
+    {key:'carryover', label:'📦 繰越', c:['#1a1a0a','var(--warn)','var(--warn)']},
+    {key:'use',       label: kind==='embryo'?'🧬 使用':'💉 使用', c:['#0a1a0a','var(--accent2)','var(--accent)']},
+    {key:'transfer',  label:'📤 譲渡', c:['#0a1a2a','var(--info)','var(--info)']},
+    {key:'discard',   label:'🗑 廃棄', c:['#1a0808','var(--danger)','var(--danger)']},
+  ];
+  document.getElementById('history-edit-type-btns').innerHTML = types.map(t => {
+    const active = h.type === t.key;
+    return `<button class="hist-type-btn" data-type="${t.key}" data-c0="${t.c[0]}" data-c1="${t.c[1]}" data-c2="${t.c[2]}" style="background:${active?t.c[0]:'var(--bg3)'};border:2px solid ${active?t.c[1]:'var(--border)'};color:${active?t.c[2]:'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;">${t.label}</button>`;
+  }).join('');
+
   openModal('modal-history-edit');
 }
 
@@ -7135,18 +7166,24 @@ function saveHistoryEdit() {
   const newDate = document.getElementById('history-edit-date').value;
   const newCount = parseInt(document.getElementById('history-edit-count').value);
   const newMemo = document.getElementById('history-edit-memo').value.trim();
+  const newType = document.getElementById('history-edit-type').value;
   if (!newDate || !newCount) { alert('日付と本数を入力してください'); return; }
   const item = kind === 'semen'
     ? semenInventory.find(s=>s.id===id)
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
-  const diff = newCount - h.count;
-  // 在庫を差分調整
-  if (h.type === 'restock') item.stock = (item.stock||0) + diff;
-  else item.stock = (item.stock||0) - diff;
-  h.date = newDate;
+  const wasIn = h.type === 'restock' || h.type === 'carryover';
+  const isIn  = newType === 'restock' || newType === 'carryover';
+  // 元の影響を取り消してから新しい影響を反映
+  if (wasIn) item.stock = (item.stock||0) - h.count;
+  else       item.stock = (item.stock||0) + h.count;
+  if (isIn)  item.stock = (item.stock||0) + newCount;
+  else       item.stock = (item.stock||0) - newCount;
+  h.date  = newDate;
   h.count = newCount;
+  h.type  = newType;
+  h.memo  = newMemo || null;
   h.memo = newMemo || null;
   save();
   closeModal('modal-history-edit');
