@@ -3425,6 +3425,8 @@ function setCowBreedFilter(breed) {
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('.breed-filter-btn');
   if (btn) { setCowBreedFilter(btn.dataset.breed); return; }
+  const hBtn = e.target.closest('.history-edit-btn');
+  if (hBtn) { openHistoryEdit(hBtn.dataset.kind, hBtn.dataset.id, parseInt(hBtn.dataset.idx)); return; }
 });
 
 function renderCowList() {
@@ -7071,20 +7073,26 @@ function openUseRecord(kind, id) {
     document.getElementById('use-record-history').innerHTML =
       '<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px;">取引履歴がありません</div>';
   } else {
-    document.getElementById('use-record-history').innerHTML = history.map(h => {
+    // 元のhistory配列のindexを保持したまま新しい順にソート
+    const historyWithIdx = (item.history||[]).map((h,i)=>({h,i})).sort((a,b)=>(b.h.date||'').localeCompare(a.h.date||''));
+    const kind = isSemen ? 'semen' : 'embryo';
+    document.getElementById('use-record-history').innerHTML = historyWithIdx.map(({h,i}) => {
       const t = typeMap[h.type] || { label: h.type, color:'var(--muted)' };
       const isIn = h.type === 'restock';
       const cowName = h.cowId ? ` → ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid var(--border);">
-        <div>
+        <div style="flex:1;min-width:0;">
           <span style="font-size:13px;font-weight:700;color:${t.color};">${t.label}</span>
           ${h.usage ? `<span style="font-size:11px;color:var(--muted);margin-left:4px;">${h.usage}</span>` : ''}
           ${cowName ? `<span style="font-size:11px;color:var(--muted);">${cowName}</span>` : ''}
           ${h.memo ? `<div style="font-size:11px;color:var(--muted);margin-top:1px;">${h.memo}</div>` : ''}
         </div>
-        <div style="text-align:right;flex-shrink:0;margin-left:12px;">
-          <div style="font-size:16px;font-weight:900;color:${t.color};">${isIn?'+':'-'}${h.count}本</div>
-          <div style="font-size:11px;color:var(--muted);">${fmtDate(h.date)||''}</div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px;display:flex;align-items:center;gap:8px;">
+          <div>
+            <div style="font-size:16px;font-weight:900;color:${t.color};">${isIn?'+':'-'}${h.count}本</div>
+            <div style="font-size:11px;color:var(--muted);">${fmtDate(h.date)||''}</div>
+          </div>
+          <button class="history-edit-btn" data-kind="${kind}" data-id="${item.id}" data-idx="${i}" style="background:none;border:1px solid var(--info);color:var(--info);font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;flex-shrink:0;">✏</button>
         </div>
       </div>`;
     }).join('');
