@@ -7330,12 +7330,14 @@ function renderEmbryo() {
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:700;">直近の履歴</div>
         <div style="font-size:11px;line-height:2;">
           ${recentHistory.map((h,i)=>{
-            const realIdx = (e.history||[]).length - 1 - i;
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
-            const col = h.type==='restock'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
+            const histLen = (e.history||[]).length;
+            const sliceStart = Math.max(0, histLen - 5);
+            const realIdx = sliceStart + (recentHistory.length - 1 - i);
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
+            const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.cowId?' ('+cowDisplayName(h.cowId)+')':''}${h.memo?' ('+h.memo+')':''}</span>
-              <button onclick="openHistoryEdit('embryo','${e.id}',${realIdx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
+              <button class="history-edit-btn" data-kind="embryo" data-id="${e.id}" data-idx="${realIdx}" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
             </span>`;
           }).join('')}
         </div>` : ''}
@@ -7835,12 +7837,14 @@ function renderSemen() {
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;">直近の履歴</div>
         <div style="font-size:11px;line-height:2;">
           ${recentHistory.map((h,i)=>{
-            const realIdx = (s.history||[]).length - 1 - i;
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
-            const col = h.type==='restock'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
+            const histLen = (s.history||[]).length;
+            const sliceStart = Math.max(0, histLen - 5);
+            const realIdx = sliceStart + (recentHistory.length - 1 - i);
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
+            const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.memo?' ('+h.memo+')':''}</span>
-              <button onclick="openHistoryEdit('semen','${s.id}',${realIdx})" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
+              <button class="history-edit-btn" data-kind="semen" data-id="${s.id}" data-idx="${realIdx}" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
             </span>`;
           }).join('')}
         </div>` : ''}
