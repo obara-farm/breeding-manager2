@@ -7184,10 +7184,10 @@ function saveHistoryEdit() {
   h.count = newCount;
   h.type  = newType;
   h.memo  = newMemo || null;
-  h.memo = newMemo || null;
   save();
   closeModal('modal-history-edit');
-  if (kind === 'semen') renderSemen(); else renderEmbryo();
+  if (kind === 'semen') { renderSemen(); openUseRecord('semen', id); }
+  else { renderEmbryo(); openUseRecord('embryo', id); }
 }
 
 function deleteHistoryEdit() {
@@ -7199,13 +7199,14 @@ function deleteHistoryEdit() {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
-  // 在庫を元に戻す
-  if (h.type === 'restock') item.stock = (item.stock||0) - h.count;
+  // 在庫を元に戻す（繰越もプラス扱い）
+  if (h.type === 'restock' || h.type === 'carryover') item.stock = (item.stock||0) - h.count;
   else item.stock = (item.stock||0) + h.count;
   item.history.splice(idx, 1);
   save();
   closeModal('modal-history-edit');
-  if (kind === 'semen') renderSemen(); else renderEmbryo();
+  if (kind === 'semen') { renderSemen(); openUseRecord('semen', id); }
+  else { renderEmbryo(); openUseRecord('embryo', id); }
 }
 
 function onQrSemenNameInput() {
