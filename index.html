@@ -1185,6 +1185,7 @@ textarea{resize:vertical;}
       <label>取引種別</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button type="button" id="ert-btn-restock" onclick="setEmbryoRestockType('restock')" style="background:#0a1a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
+        <button type="button" id="ert-btn-carryover" onclick="setEmbryoRestockType('carryover')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
         <button type="button" id="ert-btn-use" onclick="setEmbryoRestockType('use')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🧬 使用</button>
         <button type="button" id="ert-btn-transfer" onclick="setEmbryoRestockType('transfer')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
         <button type="button" id="ert-btn-discard" onclick="setEmbryoRestockType('discard')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🗑 廃棄</button>
@@ -1324,6 +1325,7 @@ textarea{resize:vertical;}
       <label>取引種別</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button type="button" id="rt-btn-restock" onclick="setRestockType('restock')" style="background:#0d2a1a;border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
+        <button type="button" id="rt-btn-carryover" onclick="setRestockType('carryover')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
         <button type="button" id="rt-btn-use" onclick="setRestockType('use')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">💉 使用</button>
         <button type="button" id="rt-btn-transfer" onclick="setRestockType('transfer')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
         <button type="button" id="rt-btn-discard" onclick="setRestockType('discard')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🗑 廃棄</button>
@@ -7063,10 +7065,11 @@ function openUseRecord(kind, id) {
   // 全履歴を新しい順で表示
   const history = [...(item.history||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const typeMap = {
-    restock:  { label:'🤝 譲受',   color:'var(--accent)' },
-    use:      { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
-    transfer: { label:'📤 譲渡',   color:'var(--warn)' },
-    discard:  { label:'🗑 廃棄',   color:'var(--danger)' },
+    restock:   { label:'🤝 譲受',   color:'var(--accent)' },
+    carryover: { label:'📦 繰越',   color:'var(--warn)' },
+    use:       { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
+    transfer:  { label:'📤 譲渡',   color:'var(--warn)' },
+    discard:   { label:'🗑 廃棄',   color:'var(--danger)' },
   };
 
   if (!history.length) {
@@ -7078,7 +7081,7 @@ function openUseRecord(kind, id) {
     const kind = isSemen ? 'semen' : 'embryo';
     document.getElementById('use-record-history').innerHTML = historyWithIdx.map(({h,i}) => {
       const t = typeMap[h.type] || { label: h.type, color:'var(--muted)' };
-      const isIn = h.type === 'restock';
+      const isIn = h.type === 'restock' || h.type === 'carryover';
       const cowName = h.cowId ? ` → ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid var(--border);">
         <div style="flex:1;min-width:0;">
@@ -7111,7 +7114,7 @@ function openHistoryEdit(kind, id, idx) {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history || !item.history[idx]) return;
   const h = item.history[idx];
-  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
+  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
   const itemName = kind==='semen' ? item.name : `${item.dam?item.dam+'×':''}${item.sire}`;
   document.getElementById('history-edit-title').textContent = `📋 履歴を編集 — ${itemName}`;
   document.getElementById('history-edit-info').innerHTML =
@@ -7389,8 +7392,14 @@ function saveEmbryo() {
 
 function setEmbryoRestockType(type) {
   document.getElementById('embryo-restock-type').value = type;
-  const types = ['restock','use','transfer','discard'];
-  const activeColors = {restock:['#0a1a2a','var(--purple)','var(--purple)'], use:['#0a1a0a','var(--accent2)','var(--accent)'], transfer:['#0a1a2a','var(--info)','var(--info)'], discard:['#1a0808','var(--danger)','var(--danger)']};
+  const types = ['restock','carryover','use','transfer','discard'];
+  const activeColors = {
+    restock:   ['#0a1a2a','var(--purple)','var(--purple)'],
+    carryover: ['#1a1a0a','var(--warn)','var(--warn)'],
+    use:       ['#0a1a0a','var(--accent2)','var(--accent)'],
+    transfer:  ['#0a1a2a','var(--info)','var(--info)'],
+    discard:   ['#1a0808','var(--danger)','var(--danger)']
+  };
   types.forEach(t => {
     const btn = document.getElementById(`ert-btn-${t}`);
     if (!btn) return;
@@ -7405,7 +7414,9 @@ function setEmbryoRestockType(type) {
     }
   });
   const countLabel = document.getElementById('embryo-restock-count-label');
-  if (countLabel) countLabel.textContent = type === 'restock' ? '譲受本数' : type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
+  if (countLabel) countLabel.textContent =
+    type === 'restock' ? '譲受本数' : type === 'carryover' ? '繰越本数' :
+    type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
 }
 
 function openEmbryoRestock(id) {
@@ -7428,7 +7439,7 @@ function saveEmbryoRestock() {
   if (!count || count < 1) { alert('本数を入力してください'); return; }
   const e = embryoInventory.find(e=>e.id===id);
   if (!e) return;
-  if (type === 'restock') {
+  if (type === 'restock' || type === 'carryover') {
     e.stock = (e.stock||0) + count;
   } else {
     e.stock = (e.stock||0) - count;
@@ -7905,9 +7916,14 @@ function saveSemen() {
 
 function setRestockType(type) {
   document.getElementById('restock-type').value = type;
-  const types = ['restock','use','transfer','discard'];
-  const labels = {restock:'🤝 譲受', use:'💉 使用', transfer:'📤 譲渡', discard:'🗑 廃棄'};
-  const activeColors = {restock:['#0d2a1a','var(--accent2)','var(--accent)'], use:['#0a1a0a','var(--accent2)','var(--accent)'], transfer:['#0a1a2a','var(--info)','var(--info)'], discard:['#1a0808','var(--danger)','var(--danger)']};
+  const types = ['restock','carryover','use','transfer','discard'];
+  const activeColors = {
+    restock:   ['#0d2a1a','var(--accent2)','var(--accent)'],
+    carryover: ['#1a1a0a','var(--warn)','var(--warn)'],
+    use:       ['#0a1a0a','var(--accent2)','var(--accent)'],
+    transfer:  ['#0a1a2a','var(--info)','var(--info)'],
+    discard:   ['#1a0808','var(--danger)','var(--danger)']
+  };
   types.forEach(t => {
     const btn = document.getElementById(`rt-btn-${t}`);
     if (!btn) return;
@@ -7922,7 +7938,9 @@ function setRestockType(type) {
     }
   });
   const countLabel = document.getElementById('restock-count-label');
-  if (countLabel) countLabel.textContent = type === 'restock' ? '譲受本数' : type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
+  if (countLabel) countLabel.textContent =
+    type === 'restock' ? '譲受本数' : type === 'carryover' ? '繰越本数' :
+    type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
 }
 
 function openRestock(id) {
@@ -7945,8 +7963,8 @@ function saveRestock() {
   if (!count || count < 1) { alert('本数を入力してください'); return; }
   const s = semenInventory.find(s=>s.id===id);
   if (!s) return;
-  // 譲受は在庫増加、それ以外（使用・譲渡・廃棄）は減少
-  if (type === 'restock') {
+  // 譲受・繰越は在庫増加、それ以外（使用・譲渡・廃棄）は減少
+  if (type === 'restock' || type === 'carryover') {
     s.stock = (s.stock || 0) + count;
   } else {
     s.stock = (s.stock||0) - count;
