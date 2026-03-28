@@ -7243,15 +7243,14 @@ function onQrEmbryoSelectChange() {
 // historyから在庫数を再計算してstockを同期
 function syncStockFromHistory(item) {
   if (!item.history || !item.history.length) return;
-  // historyにrestockが1件もない場合はitem.stockを初期値として使う
-  const hasRestock = item.history.some(h => h.type === 'restock');
+  // restockまたはcarryoverが1件もない場合はitem.stockを初期値として使う
+  const hasRestock = item.history.some(h => h.type === 'restock' || h.type === 'carryover');
   let stock = hasRestock ? 0 : (item._baseStock ?? item.stock ?? 0);
-  // _baseStockがまだない場合はitem.stockを保存しておく
   if (!hasRestock && item._baseStock === undefined) {
     item._baseStock = item.stock ?? 0;
   }
   item.history.forEach(h => {
-    if (h.type === 'restock') stock += h.count;
+    if (h.type === 'restock' || h.type === 'carryover') stock += h.count;
     else stock -= h.count;
   });
   item.stock = stock;
