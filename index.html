@@ -656,6 +656,7 @@ textarea{resize:vertical;}
             <button type="button" id="calf-size-btn-大" onclick="setCalfSize('大')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">大</button>
             <button type="button" id="calf-size-btn-中" onclick="setCalfSize('中')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">中</button>
             <button type="button" id="calf-size-btn-小" onclick="setCalfSize('小')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">小</button>
+            <button type="button" id="calf-size-btn-不明" onclick="setCalfSize('不明')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">不明</button>
           </div>
           <input type="hidden" id="calf-weight" value="">
         </div>
@@ -693,6 +694,23 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">メモ</span>
         <div class="lf-val"><input type="text" id="calf-memo" placeholder="例: 難産、虚弱など"></div>
+      </div>
+    </div>
+
+    <!-- AI/ET年月日 -->
+    <div class="lf-list" style="margin-top:10px;">
+      <div class="lf-row">
+        <span class="lf-label">授精種別</span>
+        <div class="lf-val">
+          <select id="calf-insem-type" style="font-size:13px;">
+            <option value="ai">💉 AI</option>
+            <option value="et">🧬 ET</option>
+          </select>
+        </div>
+      </div>
+      <div class="lf-row">
+        <span class="lf-label">授精年月日</span>
+        <div class="lf-val"><input type="date" id="calf-insem-date"></div>
       </div>
     </div>
 
@@ -1109,6 +1127,12 @@ textarea{resize:vertical;}
         <input type="number" id="embryo-alert-threshold" min="1" placeholder="例: 2" value="2">
       </div>
     </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <input type="checkbox" id="embryo-no-alert" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;color:var(--muted);">アラート通知しない（追加注文予定なし）</span>
+      </label>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group">
         <label>採卵日</label>
@@ -1185,6 +1209,7 @@ textarea{resize:vertical;}
       <label>取引種別</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button type="button" id="ert-btn-restock" onclick="setEmbryoRestockType('restock')" style="background:#0a1a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
+        <button type="button" id="ert-btn-selfcollect" onclick="setEmbryoRestockType('selfcollect')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🥚 自家採卵</button>
         <button type="button" id="ert-btn-carryover" onclick="setEmbryoRestockType('carryover')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
         <button type="button" id="ert-btn-use" onclick="setEmbryoRestockType('use')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🧬 使用</button>
         <button type="button" id="ert-btn-transfer" onclick="setEmbryoRestockType('transfer')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
@@ -1265,6 +1290,12 @@ textarea{resize:vertical;}
         <label>単価（円）任意</label>
         <input type="number" id="semen-price" min="0" placeholder="例: 5000">
       </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <input type="checkbox" id="semen-no-alert" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;color:var(--muted);">アラート通知しない（追加注文予定なし）</span>
+      </label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group">
@@ -2040,6 +2071,7 @@ textarea{resize:vertical;}
         <button type="button" id="cr-size-large" onclick="setCrSize('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
         <button type="button" id="cr-size-normal" onclick="setCrSize('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
         <button type="button" id="cr-size-small" onclick="setCrSize('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
+        <button type="button" id="cr-size-unknown" onclick="setCrSize('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
       </div>
       <input type="hidden" id="cr-size" value="normal">
       <div style="display:flex;gap:8px;">
@@ -2079,6 +2111,7 @@ textarea{resize:vertical;}
         <button type="button" id="cr-size2-large" onclick="setCrSize2('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
         <button type="button" id="cr-size2-normal" onclick="setCrSize2('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
         <button type="button" id="cr-size2-small" onclick="setCrSize2('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
+        <button type="button" id="cr-size2-unknown" onclick="setCrSize2('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
       </div>
       <input type="hidden" id="cr-size2" value="normal">
       <div style="display:flex;gap:8px;">
@@ -2403,26 +2436,15 @@ function initApp() {
 
 // localStorageに保存済みのUTCずれ日付を修正するパッチ
 function migrateDates() {
-  // 旧addDaysはtoISOString()でUTC日付を返していた。
-  // 日本時間UTC+9では toISOString() が常に9時間前のUTC時刻なので
-  // 「2026-03-14T00:00:00 JST」→ toISOString() → 「2026-03-13T15:00:00Z」→ .slice(0,10) → 「2026-03-13」
-  // つまり生成されたタスクの日付が全部1日ずれている可能性がある。
-  // 対策: tasks内の全dateを1日後ろにずらしてみて、今日付近のタスクが増えるかチェック
-  // ただし安全のため「done=falseで今日より前」のタスクについてのみ、
-  // 現在のaddDays(d, 1)の結果が今日以降になるなら修正する
   const todayStr = today();
   let migrated = false;
 
   tasks.forEach(t => {
     if (!t._dateMigrated) {
-      // このタスクが旧addDaysで生成された可能性をチェック
-      // 旧処理: addDays('2026-03-14', 0) → '2026-03-13'（1日ずれ）
-      // 修正: t.dateを+1日してみて、それが今日以降でdoneAtが今日のローカル日付なら修正
       if (t.doneAt) {
         const doneLocal = new Date(t.doneAt);
         const doneLocalStr = `${doneLocal.getFullYear()}-${String(doneLocal.getMonth()+1).padStart(2,'0')}-${String(doneLocal.getDate()).padStart(2,'0')}`;
         if (doneLocalStr === todayStr && t.date < todayStr) {
-          // チェックしたのが今日なのにtask.dateが昨日→1日ずれ修正
           const fixed = addDays(t.date, 1);
           if (fixed === todayStr) {
             t.date = todayStr;
@@ -2433,6 +2455,24 @@ function migrateDates() {
       t._dateMigrated = true;
     }
   });
+
+  // 既存子牛のinsemDateを母牛eventsから補完
+  calves.forEach(c => {
+    if (c.insemDate) return; // 既にある場合はスキップ
+    const dam = cows.find(cow => cow.id === c.damId);
+    if (!dam || !dam.events) return;
+    // 分娩日以前の最後のAI/ETイベントを取得
+    const insemEvts = dam.events.filter(e =>
+      ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) &&
+      (!c.dob || e.date <= c.dob)
+    ).sort((a,b) => b.date.localeCompare(a.date));
+    if (insemEvts.length) {
+      c.insemDate = insemEvts[0].date;
+      c.insemType = ['et_done','estrus_et'].includes(insemEvts[0].type) ? 'et' : 'ai';
+      migrated = true;
+    }
+  });
+
   if (migrated) { save(); }
 }
 
@@ -2921,7 +2961,7 @@ function renderToday() {
 
   if (isToday) {
     overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
-    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後') && !(t.done && t.action === '🏠 産室移動'));
+    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後'));
   } else {
     overdueUndone = [];
     dayTasks = tasks.filter(t => t.date === viewDate);
@@ -4579,7 +4619,7 @@ function clearAllTasksIncludingDoneFromEdit() {
   document.getElementById('confirm-ok-btn').style.cssText = 'background:var(--danger);border-color:var(--danger);color:#fff;';
   document.getElementById('confirm-ok-btn').onclick = () => {
     tasks = tasks.filter(t=>t.cowId!==cowId);
-    if (cow) { cow.status='open'; cow.dueDate=null; cow.events=[]; }
+    if (cow) { cow.status='open'; cow.dueDate=null; }
     save(); closeModal('modal-confirm'); closeModal('modal-edit-cow'); renderAll();
   };
   closeModal('modal-edit-cow');
@@ -4611,7 +4651,7 @@ function deleteAllTasksForCow(cowId) {
   document.getElementById('confirm-ok-btn').onclick = () => {
     tasks = tasks.filter(t=>t.cowId!==cowId);
     const cow = cows.find(c=>c.id===cowId);
-    if (cow) { cow.status='open'; cow.events=[]; }
+    if (cow) { cow.status='open'; }
     save();
     closeModal('modal-confirm');
     closeModal('modal-cow');
@@ -4853,24 +4893,27 @@ function renderStats() {
       const semenMap = {}; // semenName -> {total, pos}
       // 胚ステージ別受胎率
       const stageMap = {}; // stageName -> {total, pos}
-      // 季節別受胎率
-      const seasonMap = {'春(3-5月)':{total:0,pos:0},'夏(6-8月)':{total:0,pos:0},'秋(9-11月)':{total:0,pos:0},'冬(12-2月)':{total:0,pos:0}};
+      // 月別受胎率（AI/ET別）
+      const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+      const monthMap = {};
+      monthNames.forEach(m => { monthMap[m] = {ai:{total:0,pos:0}, et:{total:0,pos:0}}; });
 
       cows.forEach(c => {
         const evts = c.events || [];
         evts.forEach((ev, i) => {
           if (ev.type !== 'preg_positive' && ev.type !== 'preg_negative') return;
           const isPos = ev.type === 'preg_positive';
-          // 直前の受精イベントを探す
           const prev = evts.slice(0, i).reverse();
           const insem = prev.find(e => ['ai_done','estrus','estrus_ai','et_done'].includes(e.type));
           if (!insem) return;
 
-          // 季節
           const month = parseInt((insem.date||'').slice(5,7));
-          const season = month>=3&&month<=5?'春(3-5月)':month>=6&&month<=8?'夏(6-8月)':month>=9&&month<=11?'秋(9-11月)':'冬(12-2月)';
-          seasonMap[season].total++;
-          if (isPos) seasonMap[season].pos++;
+          if (!month) return;
+          const mLabel = monthNames[month - 1];
+          const isEt = insem.type === 'et_done';
+          const kind = isEt ? 'et' : 'ai';
+          monthMap[mLabel][kind].total++;
+          if (isPos) monthMap[mLabel][kind].pos++;
 
           // 精液番号 / 胚番号（メモから抽出）
           const memo = insem.memo || '';
@@ -4907,17 +4950,69 @@ function renderStats() {
         </div>`;
       };
 
-      const semenRows = Object.entries(semenMap).sort((a,b)=>b[1].total-a[1].total).slice(0,10).map(([name,d])=>`
-        <div style="margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
-          ${rateBar(d.pos,d.total)}
-        </div>`).join('');
+      const semenRows = (() => {
+        // 精液在庫の品種情報を参照
+        const getSemenBreed = name => {
+          const s = semenInventory.find(s => s.name && name.startsWith(s.name.slice(0,4)));
+          return s?.breed || '不明';
+        };
+        const byBreed = {};
+        Object.entries(semenMap).sort((a,b)=>b[1].total-a[1].total).slice(0,15).forEach(([name,d]) => {
+          const breed = getSemenBreed(name);
+          if (!byBreed[breed]) byBreed[breed] = [];
+          byBreed[breed].push({name,d});
+        });
+        const breedOrder = ['黒毛','褐毛','その他','不明'];
+        const breedLabel = {'黒毛':'⬛ 黒毛和種','褐毛':'🟥 褐毛和種','その他':'その他','不明':'品種不明'};
+        return Object.entries(byBreed)
+          .sort((a,b) => (breedOrder.indexOf(a[0])||99) - (breedOrder.indexOf(b[0])||99))
+          .map(([breed, entries]) => `
+            <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${breedLabel[breed]||breed}</div>
+            ${entries.map(({name,d}) => `
+              <div style="margin-bottom:8px;">
+                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
+                ${rateBar(d.pos,d.total)}
+              </div>`).join('')}
+          `).join('');
+      })();
 
-      const seasonRows = Object.entries(seasonMap).map(([name,d])=>`
-        <div style="margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
-          ${rateBar(d.pos,d.total)}
-        </div>`).join('');
+      const monthRows = (() => {
+        const hasAny = monthNames.some(m => monthMap[m].ai.total > 0 || monthMap[m].et.total > 0);
+        if (!hasAny) return '';
+        const aiHas = monthNames.some(m => monthMap[m].ai.total > 0);
+        const etHas = monthNames.some(m => monthMap[m].et.total > 0);
+        return `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead>
+                <tr>
+                  <th style="padding:5px 4px;border:1px solid var(--border);text-align:left;color:var(--muted);">月</th>
+                  ${aiHas ? `<th style="padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--info);">💉 AI</th>` : ''}
+                  ${etHas ? `<th style="padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--purple);">🧬 ET</th>` : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${monthNames.map(m => {
+                  const ai = monthMap[m].ai;
+                  const et = monthMap[m].et;
+                  if (!ai.total && !et.total) return '';
+                  const aiRate = ai.total ? Math.round(ai.pos/ai.total*100) : null;
+                  const etRate = et.total ? Math.round(et.pos/et.total*100) : null;
+                  const col = r => r===null ? 'var(--muted)' : r>=60 ? 'var(--accent)' : r>=40 ? 'var(--warn)' : 'var(--danger)';
+                  return `<tr>
+                    <td style="padding:5px 4px;border:1px solid var(--border);font-weight:700;">${m}</td>
+                    ${aiHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
+                      ${aiRate !== null ? `<span style="font-weight:700;color:${col(aiRate)};">${aiRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${ai.pos}/${ai.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
+                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      })();
 
       const stageRows = Object.entries(stageMap).sort((a,b)=>b[1].total-a[1].total).map(([name,d])=>`
         <div style="margin-bottom:8px;">
@@ -4926,7 +5021,7 @@ function renderStats() {
         </div>`).join('');
 
       const hasData = Object.values(semenMap).length || Object.values(stageMap).length;
-      if (!hasData && !Object.values(seasonMap).some(v=>v.total>0)) return '';
+      if (!hasData && !monthNames.some(m => monthMap[m].ai.total > 0 || monthMap[m].et.total > 0)) return '';
 
       return `
         <div class="stats-card">
@@ -4935,9 +5030,9 @@ function renderStats() {
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">種雄牛別受胎率</div>
             ${semenRows}
             <div style="height:1px;background:var(--border);margin:14px 0;"></div>` : ''}
-          ${Object.values(seasonMap).some(v=>v.total>0) ? `
-            <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">季節別受胎率</div>
-            ${seasonRows}
+          ${monthRows ? `
+            <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">月別受胎率（AI / ET）</div>
+            ${monthRows}
             <div style="height:1px;background:var(--border);margin:14px 0;"></div>` : ''}
           ${Object.values(stageMap).length ? `
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">胚ステージ別受胎率</div>
@@ -4949,10 +5044,10 @@ function renderStats() {
     <!-- 種雄牛別産仔分析 -->
     ${(() => {
       // calvesに参照されているレコードのみ集計（孤立した旧データを除外）
-      const validRecordIds = new Set(calves.map(c => c.calvingRecordId).filter(Boolean));
-      const activeCalvingRecords = calvingRecords.filter(r => validRecordIds.has(r.id));
+      // calvesを直接集計（calvingRecordIdの有無に関わらず全子牛を対象）
+      const validCalves = calves.filter(c => c.damId && !c.deathDate);
 
-      if (!activeCalvingRecords.length) return `
+      if (!validCalves.length) return `
         <div class="stats-card">
           <div class="stats-title">🐄 種雄牛別産仔分析</div>
           <div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">
@@ -4963,13 +5058,44 @@ function renderStats() {
 
       // 種雄牛ごとに集計
       const sireMap = {};
-      activeCalvingRecords.forEach(r => {
-        const key = r.sire || '（種雄牛未記録）';
+      validCalves.forEach(c => {
+        const key = c.sire || '（種雄牛未記録）';
         if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
-        sireMap[key].recs.push(r);
-        if (r.sizeScore) sireMap[key].sizes.push(r.sizeScore);
-        if (r.birthTiming) sireMap[key].timings[r.birthTiming] = (sireMap[key].timings[r.birthTiming]||0) + 1;
-        if (r.weight) sireMap[key].weights.push(r.weight);
+        const rec = calvingRecords.find(r => r.id === c.calvingRecordId);
+
+        // birthTimingの決定：calvingRecord → 授精履歴から推定 の順
+        let birthTiming = rec?.birthTiming || null;
+        if (!birthTiming && c.dob) {
+          // 母牛の授精イベントから分娩予定日を推定
+          const dam = cows.find(cow => cow.id === c.damId);
+          if (dam) {
+            const evts = (dam.events || []).filter(e =>
+              ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && e.date <= c.dob
+            ).sort((a,b) => b.date.localeCompare(a.date));
+            if (evts.length) {
+              const lastInsem = evts[0];
+              const estimatedDue = addDays(lastInsem.date, lastInsem.type.includes('et') ? 278 : 285);
+              const diff = diffDays(c.dob, estimatedDue); // 分娩日 - 予定日
+              birthTiming = diff <= -10 ? '早産' : diff >= 10 ? '遅産' : '正常';
+            }
+          }
+        }
+        birthTiming = birthTiming || '不明';
+
+        const pseudoRec = {
+          sire: key,
+          sizeScore: rec?.sizeScore ?? null,
+          birthTiming,
+          weight: rec?.weight ?? null,
+        };
+        sireMap[key].recs.push(pseudoRec);
+        if (pseudoRec.sizeScore) sireMap[key].sizes.push(pseudoRec.sizeScore);
+        if (pseudoRec.birthTiming && pseudoRec.birthTiming !== '不明') {
+          sireMap[key].timings[pseudoRec.birthTiming] = (sireMap[key].timings[pseudoRec.birthTiming]||0) + 1;
+        } else {
+          sireMap[key].timings['不明'] = (sireMap[key].timings['不明']||0) + 1;
+        }
+        if (pseudoRec.weight) sireMap[key].weights.push(pseudoRec.weight);
       });
 
       const sizeLabel = s => {
@@ -4995,7 +5121,9 @@ function renderStats() {
         </div>`;
       };
 
+      const sireSearchQ = (document.getElementById('sire-search')?.value || '').trim();
       const rows = Object.entries(sireMap)
+        .filter(([name]) => !sireSearchQ || name.includes(sireSearchQ))
         .sort((a,b) => b[1].recs.length - a[1].recs.length)
         .map(([name, d]) => {
           const avgSize = d.sizes.length ? d.sizes.reduce((a,b)=>a+b,0)/d.sizes.length : null;
@@ -5025,18 +5153,19 @@ function renderStats() {
             </div>`;
         }).join('');
 
-      // 全体集計
-      const allSizes = activeCalvingRecords.filter(r=>r.sizeScore).map(r=>r.sizeScore);
+      // 全体集計（validCalvesのcalvingRecordから集計）
+      const allSizes = validCalves.map(c => calvingRecords.find(r=>r.id===c.calvingRecordId)?.sizeScore).filter(Boolean);
       const overallAvg = allSizes.length ? (allSizes.reduce((a,b)=>a+b,0)/allSizes.length).toFixed(1) : null;
       const allTimings = {早産:0,正常:0,遅産:0};
-      activeCalvingRecords.forEach(r=>{ if(r.birthTiming && allTimings[r.birthTiming]!==undefined) allTimings[r.birthTiming]++; });
+      validCalves.forEach(c=>{ const r=calvingRecords.find(x=>x.id===c.calvingRecordId); if(r?.birthTiming && allTimings[r.birthTiming]!==undefined) allTimings[r.birthTiming]++; });
 
       return `
         <div class="stats-card">
           <div class="stats-title" style="display:flex;justify-content:space-between;">
             <span>🐄 種雄牛別産仔分析</span>
-            <span style="font-size:11px;font-weight:500;color:var(--muted);">全${calvingRecords.length}頭分</span>
+            <span style="font-size:11px;font-weight:500;color:var(--muted);">全${validCalves.length}頭分</span>
           </div>
+          <input type="text" id="sire-search" placeholder="🔍 種雄牛名で検索..." oninput="renderStats()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;margin-bottom:12px;outline:none;">
           ${overallAvg ? `
             <div style="background:linear-gradient(135deg,#0d2a1a,#1a2a1a);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px;">
               <div style="font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px;">全体集計</div>
@@ -5908,9 +6037,10 @@ function renderPreCalvingAlerts() {
   const todayStr = today();
   const alerts = cows.filter(cow => {
     if (!cow.dueDate) return false;
-    if (cow.status === 'fresh') return false; // 分娩済みは消す
-    if (cow.status !== 'pregnant') return false; // 妊娠中のみ
-    return true; // 予定日に関わらず妊娠中は常に表示
+    if (cow.status === 'fresh') return false;
+    if (cow.status !== 'pregnant') return false;
+    const daysUntil = diffDays(cow.dueDate, todayStr);
+    return daysUntil <= 10; // 10日前以内（超過も含む）のみ表示
   }).map(cow => {
     const moveDone = tasks.some(t => t.cowId===cow.id && t.action==='🏠 産室移動' && t.done);
     // 最終受精・移植情報
@@ -6385,11 +6515,12 @@ function toggleCrTwin() {
 function setCrSize2(size) {
   document.getElementById('cr-size2').value = size;
   const styles = {
-    large:  ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal: ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:  ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small'].forEach(s => {
+  ['large','normal','small','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size2-${s}`);
     if (!btn) return;
     if (s === size) {
@@ -6418,11 +6549,12 @@ function setCrCoat2(coat) {
 function setCrSize(size) {
   document.getElementById('cr-size').value = size;
   const styles = {
-    large:  ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal: ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:  ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small'].forEach(s => {
+  ['large','normal','small','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size-${s}`);
     if (!btn) return;
     if (s === size) {
@@ -6502,12 +6634,18 @@ function saveCalvingRecord() {
   }
 
   const size = document.getElementById('cr-size').value || 'normal';
-  const sizeScore = size === 'large' ? 4 : size === 'small' ? 2 : 3;
+  const sizeScore = size === 'large' ? 4 : size === 'small' ? 2 : size === 'unknown' ? null : 3;
   const coat = document.getElementById('cr-coat').value;
   const sex = document.getElementById('cr-sex').value;
   const weight = parseFloat(document.getElementById('cr-weight').value) || null;
   const insemType = document.getElementById('cr-insem-type').value;
   const isTwin = document.getElementById('cr-twin').checked;
+
+  // 授精日：母牛のeventsから最後のAI/ETイベントを取得
+  const insemEvtsForDate = (cow?.events||[]).filter(e =>
+    ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
+  ).sort((a,b) => b.date.localeCompare(a.date));
+  const insemDate = insemEvtsForDate.length ? insemEvtsForDate[0].date : null;
 
   // 種雄牛名・ドナー牛名を精液/受精卵在庫から取得
   let sire = document.getElementById('cr-sire').value.trim();
@@ -6526,19 +6664,31 @@ function saveCalvingRecord() {
     }
   }
 
-  // 分娩タイミング自動計算
+  // 分娩タイミング自動計算（dueDate優先、なければ授精履歴から推定）
   let birthTiming = '不明';
   const dueDate = cow ? cow.dueDate : null;
   if (dueDate && calvingDate) {
     const diff = diffDays(calvingDate, dueDate);
     birthTiming = diff <= -10 ? '早産' : diff >= 10 ? '遅産' : '正常';
+  } else if (calvingDate && cow) {
+    // dueDateがない場合は授精履歴から分娩予定日を推定
+    const insemEvts = (cow.events||[]).filter(e =>
+      ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && e.date <= calvingDate
+    ).sort((a,b) => b.date.localeCompare(a.date));
+    if (insemEvts.length) {
+      const lastInsem = insemEvts[0];
+      const isEt = ['et_done','estrus_et'].includes(lastInsem.type);
+      const estimatedDue = addDays(lastInsem.date, isEt ? 278 : 285);
+      const diff = diffDays(calvingDate, estimatedDue);
+      birthTiming = diff <= -10 ? '早産' : diff >= 10 ? '遅産' : '正常';
+    }
   }
 
   // 子牛の「母の父」= 母牛の父（cow.sire）
   const maternalSire = cow?.sire || '';
 
   // 大きさ（大/中/小）
-  const sizeLabel3 = size === 'large' ? '大' : size === 'small' ? '小' : '中';
+  const sizeLabel3 = size === 'large' ? '大' : size === 'small' ? '小' : size === 'unknown' ? '不明' : '中';
 
   // calvingRecords に保存
   const rec = {
@@ -6562,7 +6712,7 @@ function saveCalvingRecord() {
     sex: sexLabel(sex),
     breed: coatToBreed(coat),
     weight: sizeLabel3, memo,
-    insemType,
+    insemType, insemDate,
     status: 'active',
     calvingRecordId: rec.id,
     ...(isStillbirthRecord ? { deathDate: calvingDate, deathMemo: '死産' } : {}),
@@ -6584,7 +6734,7 @@ function saveCalvingRecord() {
       breed: coatToBreed(coat2),
       weight: sizeLabel3b, memo: isStillbirthRecord ? '死産（双子）' : '双子',
       size: size2, sizeScore: sizeScore2,
-      insemType,
+      insemType, insemDate,
       status: 'active',
       calvingRecordId: rec.id,
       ...(isStillbirthRecord ? { deathDate: calvingDate, deathMemo: '死産' } : {}),
@@ -6750,6 +6900,7 @@ function renderCalves() {
           <div style="flex:1;min-width:0;">
             <div style="font-size:15px;font-weight:900;color:var(--text);">
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);">${calf.earTagId}</span> ` : ''}
+              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);font-weight:400;margin-right:4px;">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
               <span style="color:var(--muted);font-size:13px;">母: </span><strong>${calf.damId}${damName?' '+damName:''}</strong>${pedigreeStr ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:400;">${pedigreeStr}</span>` : ''}
             </div>
             ${(statusBadge||etBadge) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${statusBadge}${etBadge}</div>` : ''}
@@ -6757,6 +6908,7 @@ function renderCalves() {
               生年月日: ${calf.dob ? fmtDate(calf.dob) : '—'}
               ${ageDays !== null ? ` (生後<strong style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'}">${ageDays}日</strong>)` : ''}
             </div>
+            ${calf.insemDate ? `<div style="font-size:11px;color:var(--muted);margin-top:1px;">${calf.insemType==='et'?'🧬 ET':'💉 AI'}年月日: <strong style="color:var(--text);">${fmtDate(calf.insemDate)}</strong></div>` : ''}
           </div>
           <div style="text-align:right;flex-shrink:0;margin-left:8px;">
             ${calf.sex ? `<div style="font-size:20px;">${calf.sex==='雄'?'♂':'♀'}</div>` : ''}
@@ -6963,13 +7115,13 @@ function selectCalfDam(id, name) {
 
 function setCalfSize(val) {
   document.getElementById('calf-weight').value = val;
-  ['大','中','小'].forEach(s => {
+  ['大','中','小','不明'].forEach(s => {
     const btn = document.getElementById(`calf-size-btn-${s}`);
     if (!btn) return;
     if (s === val) {
-      btn.style.background = s==='大' ? '#1a2a0a' : s==='小' ? '#1a0a0a' : '#0a1a2a';
-      btn.style.borderColor = s==='大' ? 'var(--accent2)' : s==='小' ? 'var(--warn)' : 'var(--info)';
-      btn.style.color = s==='大' ? 'var(--accent)' : s==='小' ? 'var(--warn)' : 'var(--info)';
+      btn.style.background = s==='大' ? '#1a2a0a' : s==='小' ? '#1a0a0a' : s==='不明' ? 'var(--bg3)' : '#0a1a2a';
+      btn.style.borderColor = s==='大' ? 'var(--accent2)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--muted)' : 'var(--info)';
+      btn.style.color = s==='大' ? 'var(--accent)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--text)' : 'var(--info)';
     } else {
       btn.style.background = 'var(--bg3)';
       btn.style.borderColor = 'var(--border)';
@@ -7019,7 +7171,7 @@ function openEditCalfModal(id) {
   document.getElementById('calf-maternal-grand-sire').value = calf.maternalGrandSire || '';
   document.getElementById('calf-sex').value = calf.sex || '';
   document.getElementById('calf-breed').value = calf.breed || '黒毛';
-  if (calf.weight && ['大','中','小'].includes(String(calf.weight))) {
+  if (calf.weight && ['大','中','小','不明'].includes(String(calf.weight))) {
     setCalfSize(String(calf.weight));
   } else {
     clearCalfSize();
@@ -7027,6 +7179,8 @@ function openEditCalfModal(id) {
   document.getElementById('calf-id').value = calf.earTagId || '';
   setNatId('calf-national-id', calf.nationalId || '');
   document.getElementById('calf-memo').value = calf.memo || '';
+  document.getElementById('calf-insem-type').value = calf.insemType || 'ai';
+  document.getElementById('calf-insem-date').value = calf.insemDate || '';
   // 繁殖候補保留中で個体識別番号未入力の場合はヒントを表示
   const hint = document.getElementById('calf-id-hint');
   if (hint) hint.style.display = (calf.status === 'kept' && !calf.nationalId) ? '' : 'none';
@@ -7046,10 +7200,12 @@ function saveCalf() {
     maternalGrandSire: document.getElementById('calf-maternal-grand-sire').value.trim(),
     sex: document.getElementById('calf-sex').value,
     breed: document.getElementById('calf-breed').value,
-    weight: parseFloat(document.getElementById('calf-weight').value)||null,
+    weight: document.getElementById('calf-weight').value || null,
     earTagId: document.getElementById('calf-id').value.trim(),
     nationalId: getNatId('calf-national-id'),
     memo: document.getElementById('calf-memo').value.trim(),
+    insemType: document.getElementById('calf-insem-type').value,
+    insemDate: document.getElementById('calf-insem-date').value || null,
   };
   if (id) {
     const calf = calves.find(c=>c.id===id);
@@ -7081,11 +7237,12 @@ function openUseRecord(kind, id) {
   // 全履歴を新しい順で表示
   const history = [...(item.history||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const typeMap = {
-    restock:   { label:'🤝 譲受',   color:'var(--accent)' },
-    carryover: { label:'📦 繰越',   color:'var(--warn)' },
-    use:       { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
-    transfer:  { label:'📤 譲渡',   color:'var(--warn)' },
-    discard:   { label:'🗑 廃棄',   color:'var(--danger)' },
+    restock:     { label:'🤝 譲受',   color:'var(--accent)' },
+    selfcollect: { label:'🥚 自家採卵', color:'var(--accent)' },
+    carryover:   { label:'📦 繰越',   color:'var(--warn)' },
+    use:         { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
+    transfer:    { label:'📤 譲渡',   color:'var(--warn)' },
+    discard:     { label:'🗑 廃棄',   color:'var(--danger)' },
   };
 
   if (!history.length) {
@@ -7097,7 +7254,7 @@ function openUseRecord(kind, id) {
     const kind = isSemen ? 'semen' : 'embryo';
     document.getElementById('use-record-history').innerHTML = historyWithIdx.map(({h,i}) => {
       const t = typeMap[h.type] || { label: h.type, color:'var(--muted)' };
-      const isIn = h.type === 'restock' || h.type === 'carryover';
+      const isIn = h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect';
       const cowName = h.cowId ? ` → ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid var(--border);">
         <div style="flex:1;min-width:0;">
@@ -7130,7 +7287,7 @@ function openHistoryEdit(kind, id, idx) {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history || !item.history[idx]) return;
   const h = item.history[idx];
-  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
+  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
   const itemName = kind==='semen' ? item.name : `${item.dam?item.dam+'×':''}${item.sire}`;
   document.getElementById('history-edit-title').textContent = `📋 履歴を編集 — ${itemName}`;
   document.getElementById('history-edit-info').innerHTML =
@@ -7145,11 +7302,12 @@ function openHistoryEdit(kind, id, idx) {
 
   // タイプボタン生成
   const types = [
-    {key:'restock',   label:'🤝 譲受', c:['#0d2a1a','var(--accent2)','var(--accent)']},
-    {key:'carryover', label:'📦 繰越', c:['#1a1a0a','var(--warn)','var(--warn)']},
-    {key:'use',       label: kind==='embryo'?'🧬 使用':'💉 使用', c:['#0a1a0a','var(--accent2)','var(--accent)']},
-    {key:'transfer',  label:'📤 譲渡', c:['#0a1a2a','var(--info)','var(--info)']},
-    {key:'discard',   label:'🗑 廃棄', c:['#1a0808','var(--danger)','var(--danger)']},
+    {key:'restock',     label:'🤝 譲受',   c:['#0d2a1a','var(--accent2)','var(--accent)']},
+    {key:'selfcollect', label:'🥚 自家採卵', c:['#0a2a1a','var(--accent2)','var(--accent)']},
+    {key:'carryover',   label:'📦 繰越',   c:['#1a1a0a','var(--warn)','var(--warn)']},
+    {key:'use',         label: kind==='embryo'?'🧬 使用':'💉 使用', c:['#0a1a0a','var(--accent2)','var(--accent)']},
+    {key:'transfer',    label:'📤 譲渡',   c:['#0a1a2a','var(--info)','var(--info)']},
+    {key:'discard',     label:'🗑 廃棄',   c:['#1a0808','var(--danger)','var(--danger)']},
   ];
   document.getElementById('history-edit-type-btns').innerHTML = types.map(t => {
     const active = h.type === t.key;
@@ -7173,8 +7331,8 @@ function saveHistoryEdit() {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
-  const wasIn = h.type === 'restock' || h.type === 'carryover';
-  const isIn  = newType === 'restock' || newType === 'carryover';
+  const wasIn = h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect';
+  const isIn  = newType === 'restock' || newType === 'carryover' || newType === 'selfcollect';
   // 元の影響を取り消してから新しい影響を反映
   if (wasIn) item.stock = (item.stock||0) - h.count;
   else       item.stock = (item.stock||0) + h.count;
@@ -7200,7 +7358,7 @@ function deleteHistoryEdit() {
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
   // 在庫を元に戻す（繰越もプラス扱い）
-  if (h.type === 'restock' || h.type === 'carryover') item.stock = (item.stock||0) - h.count;
+  if (h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect') item.stock = (item.stock||0) - h.count;
   else item.stock = (item.stock||0) + h.count;
   item.history.splice(idx, 1);
   save();
@@ -7244,13 +7402,13 @@ function onQrEmbryoSelectChange() {
 function syncStockFromHistory(item) {
   if (!item.history || !item.history.length) return;
   // restockまたはcarryoverが1件もない場合はitem.stockを初期値として使う
-  const hasRestock = item.history.some(h => h.type === 'restock' || h.type === 'carryover');
+  const hasRestock = item.history.some(h => h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect');
   let stock = hasRestock ? 0 : (item._baseStock ?? item.stock ?? 0);
   if (!hasRestock && item._baseStock === undefined) {
     item._baseStock = item.stock ?? 0;
   }
   item.history.forEach(h => {
-    if (h.type === 'restock' || h.type === 'carryover') stock += h.count;
+    if (h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect') stock += h.count;
     else stock -= h.count;
   });
   item.stock = stock;
@@ -7272,7 +7430,7 @@ function renderEmbryo() {
   // historyから在庫数を再計算して同期
   embryoInventory.forEach(syncStockFromHistory);
 
-  const lowItems = embryoInventory.filter(e => e.stock <= (e.alertThreshold || 2));
+  const lowItems = embryoInventory.filter(e => !e.noAlert && e.stock <= (e.alertThreshold || 2));
   const alertEl = document.getElementById('embryo-low-alert');
   if (lowItems.length) {
     alertEl.style.display = '';
@@ -7332,7 +7490,7 @@ function renderEmbryo() {
             const histLen = (e.history||[]).length;
             const sliceStart = Math.max(0, histLen - 5);
             const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
             const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.cowId?' ('+cowDisplayName(h.cowId)+')':''}${h.memo?' ('+h.memo+')':''}</span>
@@ -7376,6 +7534,7 @@ function openEditEmbryo(id) {
   document.getElementById('embryo-stage').value = e.stage||'';
   document.getElementById('embryo-stock').value = e.stock??'';
   document.getElementById('embryo-alert-threshold').value = e.alertThreshold||2;
+  document.getElementById('embryo-no-alert').checked = !!e.noAlert;
   document.getElementById('embryo-dam').value = e.dam||'';
   document.getElementById('embryo-collection-date').value = e.collectionDate||'';
   document.getElementById('embryo-location').value = e.location||'';
@@ -7395,6 +7554,7 @@ function saveEmbryo() {
     stage: document.getElementById('embryo-stage').value,
     stock: parseInt(document.getElementById('embryo-stock').value)||0,
     alertThreshold: parseInt(document.getElementById('embryo-alert-threshold').value)||2,
+    noAlert: document.getElementById('embryo-no-alert').checked,
     dam: document.getElementById('embryo-dam').value.trim(),
     collectionDate: document.getElementById('embryo-collection-date').value,
     location: document.getElementById('embryo-location').value.trim(),
@@ -7431,13 +7591,14 @@ function saveEmbryo() {
 
 function setEmbryoRestockType(type) {
   document.getElementById('embryo-restock-type').value = type;
-  const types = ['restock','carryover','use','transfer','discard'];
+  const types = ['restock','selfcollect','carryover','use','transfer','discard'];
   const activeColors = {
-    restock:   ['#0a1a2a','var(--purple)','var(--purple)'],
-    carryover: ['#1a1a0a','var(--warn)','var(--warn)'],
-    use:       ['#0a1a0a','var(--accent2)','var(--accent)'],
-    transfer:  ['#0a1a2a','var(--info)','var(--info)'],
-    discard:   ['#1a0808','var(--danger)','var(--danger)']
+    restock:     ['#0a1a2a','var(--purple)','var(--purple)'],
+    selfcollect: ['#0a2a1a','var(--accent2)','var(--accent)'],
+    carryover:   ['#1a1a0a','var(--warn)','var(--warn)'],
+    use:         ['#0a1a0a','var(--accent2)','var(--accent)'],
+    transfer:    ['#0a1a2a','var(--info)','var(--info)'],
+    discard:     ['#1a0808','var(--danger)','var(--danger)']
   };
   types.forEach(t => {
     const btn = document.getElementById(`ert-btn-${t}`);
@@ -7454,7 +7615,8 @@ function setEmbryoRestockType(type) {
   });
   const countLabel = document.getElementById('embryo-restock-count-label');
   if (countLabel) countLabel.textContent =
-    type === 'restock' ? '譲受本数' : type === 'carryover' ? '繰越本数' :
+    type === 'restock' ? '譲受本数' : type === 'selfcollect' ? '採卵本数' :
+    type === 'carryover' ? '繰越本数' :
     type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
 }
 
@@ -7478,7 +7640,7 @@ function saveEmbryoRestock() {
   if (!count || count < 1) { alert('本数を入力してください'); return; }
   const e = embryoInventory.find(e=>e.id===id);
   if (!e) return;
-  if (type === 'restock' || type === 'carryover') {
+  if (type === 'restock' || type === 'carryover' || type === 'selfcollect') {
     e.stock = (e.stock||0) + count;
   } else {
     e.stock = (e.stock||0) - count;
@@ -7730,7 +7892,7 @@ function showBkdDetail(id, detail, name, month) {
 }
 
 function updateSemenBadge() {
-  const lowCount = semenInventory.filter(s => s.stock <= (s.alertThreshold || 3)).length;
+  const lowCount = semenInventory.filter(s => !s.noAlert && s.stock <= (s.alertThreshold || 3)).length;
   const badge = document.getElementById('semen-low-badge');
   if (!badge) return;
   if (lowCount > 0) { badge.textContent = lowCount; badge.style.display = ''; }
@@ -7744,7 +7906,7 @@ function renderSemen() {
   updateSemenBadge();
 
   // 在庫僅少アラート
-  const lowItems = semenInventory.filter(s => s.stock <= (s.alertThreshold || 3));
+  const lowItems = semenInventory.filter(s => !s.noAlert && s.stock <= (s.alertThreshold || 3));
   const alertEl = document.getElementById('semen-low-alert');
   if (lowItems.length) {
     alertEl.style.display = '';
@@ -7785,7 +7947,14 @@ function renderSemen() {
 
   if (!filtered.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">「${q}」に一致する精液がありません</div>`; return; }
 
-  container.innerHTML = filtered.map(s => {
+  // 品種別グループ化
+  const breedGroups = [
+    { breed: '黒毛', label: '⬛ 黒毛和種', items: filtered.filter(s => s.breed === '黒毛' || (!s.breed && s.name)) },
+    { breed: '褐毛', label: '🟥 褐毛和種', items: filtered.filter(s => s.breed === '褐毛') },
+    { breed: 'その他', label: '🐄 その他', items: filtered.filter(s => s.breed && s.breed !== '黒毛' && s.breed !== '褐毛') },
+  ].filter(g => g.items.length > 0);
+
+  const renderCard = s => {
     const isLow = s.stock <= (s.alertThreshold || 3);
     const totalUsed = (s.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
     // 受胎率：cow.eventsからai_doneで精液名が一致するものを集計
@@ -7846,7 +8015,7 @@ function renderSemen() {
             const histLen = (s.history||[]).length;
             const sliceStart = Math.max(0, histLen - 5);
             const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
             const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.memo?' ('+h.memo+')':''}</span>
@@ -7861,7 +8030,14 @@ function renderSemen() {
         <button onclick="confirmDeleteSemen('${s.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">削除</button>
       </div>
     </div>`;
-  }).join('');
+  };
+
+  container.innerHTML = q
+    ? filtered.map(renderCard).join('')
+    : breedGroups.map(g => `
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:14px 0 6px;padding-left:2px;">${g.label} ${g.items.length}種</div>
+        ${g.items.map(renderCard).join('')}
+      `).join('');
 }
 
 function deleteInventoryHistory(kind, id, idx) {
@@ -7913,6 +8089,7 @@ function openEditSemen(id) {
   document.getElementById('semen-lot').value = s.lot || '';
   document.getElementById('semen-stock').value = s.stock ?? '';
   document.getElementById('semen-alert-threshold').value = s.alertThreshold || 3;
+  document.getElementById('semen-no-alert').checked = !!s.noAlert;
   document.getElementById('semen-price').value = s.price || '';
   document.getElementById('semen-location').value = s.location || '';
   document.getElementById('semen-memo').value = s.memo || '';
@@ -7930,6 +8107,7 @@ function saveSemen() {
     lot: document.getElementById('semen-lot').value.trim(),
     stock,
     alertThreshold: parseInt(document.getElementById('semen-alert-threshold').value) || 3,
+    noAlert: document.getElementById('semen-no-alert').checked,
     price: parseInt(document.getElementById('semen-price').value) || null,
     location: document.getElementById('semen-location').value.trim(),
     memo: document.getElementById('semen-memo').value.trim(),
