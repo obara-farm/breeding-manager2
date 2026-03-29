@@ -5023,7 +5023,10 @@ function renderStats() {
       const validRecordIds = new Set(calves.map(c => c.calvingRecordId).filter(Boolean));
       const activeCalvingRecords = calvingRecords.filter(r => validRecordIds.has(r.id));
 
-      if (!activeCalvingRecords.length) return `
+      // calvingRecordIdがないcalvesも含めて集計（calvingRecordsに紐付いていない分娩記録）
+      const calvesWithoutRecord = calves.filter(c => !c.calvingRecordId && c.damId);
+
+      if (!activeCalvingRecords.length && !calvesWithoutRecord.length) return `
         <div class="stats-card">
           <div class="stats-title">🐄 種雄牛別産仔分析</div>
           <div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">
@@ -5041,6 +5044,14 @@ function renderStats() {
         if (r.sizeScore) sireMap[key].sizes.push(r.sizeScore);
         if (r.birthTiming) sireMap[key].timings[r.birthTiming] = (sireMap[key].timings[r.birthTiming]||0) + 1;
         if (r.weight) sireMap[key].weights.push(r.weight);
+      });
+
+      // calvingRecordIdがないcalvesも集計（sireフィールドを直接参照）
+      calvesWithoutRecord.forEach(c => {
+        const key = c.sire || '（種雄牛未記録）';
+        if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
+        const pseudoRec = { sire: c.sire, sizeScore: null, birthTiming: null };
+        sireMap[key].recs.push(pseudoRec);
       });
 
       const sizeLabel = s => {
@@ -6824,6 +6835,7 @@ function renderCalves() {
           <div style="flex:1;min-width:0;">
             <div style="font-size:15px;font-weight:900;color:var(--text);">
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);">${calf.earTagId}</span> ` : ''}
+              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);font-weight:400;margin-right:4px;">${String(calf.nationalId).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
               <span style="color:var(--muted);font-size:13px;">母: </span><strong>${calf.damId}${damName?' '+damName:''}</strong>${pedigreeStr ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:400;">${pedigreeStr}</span>` : ''}
             </div>
             ${(statusBadge||etBadge) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${statusBadge}${etBadge}</div>` : ''}
