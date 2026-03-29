@@ -5104,17 +5104,17 @@ function renderStats() {
             </div>`;
         }).join('');
 
-      // 全体集計
-      const allSizes = activeCalvingRecords.filter(r=>r.sizeScore).map(r=>r.sizeScore);
+      // 全体集計（validCalvesのcalvingRecordから集計）
+      const allSizes = validCalves.map(c => calvingRecords.find(r=>r.id===c.calvingRecordId)?.sizeScore).filter(Boolean);
       const overallAvg = allSizes.length ? (allSizes.reduce((a,b)=>a+b,0)/allSizes.length).toFixed(1) : null;
       const allTimings = {早産:0,正常:0,遅産:0};
-      activeCalvingRecords.forEach(r=>{ if(r.birthTiming && allTimings[r.birthTiming]!==undefined) allTimings[r.birthTiming]++; });
+      validCalves.forEach(c=>{ const r=calvingRecords.find(x=>x.id===c.calvingRecordId); if(r?.birthTiming && allTimings[r.birthTiming]!==undefined) allTimings[r.birthTiming]++; });
 
       return `
         <div class="stats-card">
           <div class="stats-title" style="display:flex;justify-content:space-between;">
             <span>🐄 種雄牛別産仔分析</span>
-            <span style="font-size:11px;font-weight:500;color:var(--muted);">全${calvingRecords.length}頭分</span>
+            <span style="font-size:11px;font-weight:500;color:var(--muted);">全${validCalves.length}頭分</span>
           </div>
           ${overallAvg ? `
             <div style="background:linear-gradient(135deg,#0d2a1a,#1a2a1a);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px;">
