@@ -5074,7 +5074,9 @@ function renderStats() {
         </div>`;
       };
 
+      const sireSearchQ = (document.getElementById('sire-search')?.value || '').trim();
       const rows = Object.entries(sireMap)
+        .filter(([name]) => !sireSearchQ || name.includes(sireSearchQ))
         .sort((a,b) => b[1].recs.length - a[1].recs.length)
         .map(([name, d]) => {
           const avgSize = d.sizes.length ? d.sizes.reduce((a,b)=>a+b,0)/d.sizes.length : null;
@@ -5116,6 +5118,7 @@ function renderStats() {
             <span>🐄 種雄牛別産仔分析</span>
             <span style="font-size:11px;font-weight:500;color:var(--muted);">全${validCalves.length}頭分</span>
           </div>
+          <input type="text" id="sire-search" placeholder="🔍 種雄牛名で検索..." oninput="renderStats()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;margin-bottom:12px;outline:none;">
           ${overallAvg ? `
             <div style="background:linear-gradient(135deg,#0d2a1a,#1a2a1a);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px;">
               <div style="font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px;">全体集計</div>
@@ -7874,7 +7877,14 @@ function renderSemen() {
 
   if (!filtered.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">「${q}」に一致する精液がありません</div>`; return; }
 
-  container.innerHTML = filtered.map(s => {
+  // 品種別グループ化
+  const breedGroups = [
+    { breed: '黒毛', label: '⬛ 黒毛和種', items: filtered.filter(s => s.breed === '黒毛' || (!s.breed && s.name)) },
+    { breed: '褐毛', label: '🟥 褐毛和種', items: filtered.filter(s => s.breed === '褐毛') },
+    { breed: 'その他', label: '🐄 その他', items: filtered.filter(s => s.breed && s.breed !== '黒毛' && s.breed !== '褐毛') },
+  ].filter(g => g.items.length > 0);
+
+  const renderCard = s => {
     const isLow = s.stock <= (s.alertThreshold || 3);
     const totalUsed = (s.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
     // 受胎率：cow.eventsからai_doneで精液名が一致するものを集計
@@ -7950,7 +7960,14 @@ function renderSemen() {
         <button onclick="confirmDeleteSemen('${s.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">削除</button>
       </div>
     </div>`;
-  }).join('');
+  };
+
+  container.innerHTML = q
+    ? filtered.map(renderCard).join('')
+    : breedGroups.map(g => `
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:14px 0 6px;padding-left:2px;">${g.label} ${g.items.length}種</div>
+        ${g.items.map(renderCard).join('')}
+      `).join('');
 }
 
 function deleteInventoryHistory(kind, id, idx) {
