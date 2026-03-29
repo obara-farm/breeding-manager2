@@ -1967,11 +1967,13 @@ textarea{resize:vertical;}
         <input type="text" id="qr-embryo" placeholder="例: ET-001">
       </div>
     </div>
-    <!-- 術者フィールド -->
-    <div class="form-group" style="margin-bottom:8px;">
-      <label>術者（空欄 = 自分）</label>
-      <input type="text" id="qr-operator" placeholder="例: 山田先生、農協　※空欄なら自分が実施" style="font-size:13px;">
-      <div style="font-size:11px;color:var(--warn);margin-top:4px;">自分以外の場合、精液・受精卵在庫は「譲渡」として処理されます</div>
+    <!-- 術者フィールド（AI/ET時のみ表示） -->
+    <div id="qr-operator-group" style="display:none;margin-bottom:8px;">
+      <div style="background:#1a1200;border:1px solid var(--warn);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:11px;color:var(--warn);font-weight:700;margin-bottom:6px;">👤 術者（空欄 = 自分が実施）</div>
+        <input type="text" id="qr-operator" placeholder="例: 山田先生、農協 ※自分以外の場合は入力" style="font-size:13px;width:100%;">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">自分以外の場合、精液・受精卵在庫は「譲渡」として処理されます</div>
+      </div>
     </div>
     <div class="form-group" style="margin-bottom:14px;">
       <label>フリーメモ</label>
@@ -4080,6 +4082,8 @@ function addEventForCow(cowId, defaultEvent) {
     document.getElementById('qr-date-label').textContent = defaultEvent === 'ai_done' ? 'AI実施日' : 'ET実施日';
     // AIパネルを直接表示
     document.getElementById('qr-aiet-panel').style.display = '';
+    const opGrp = document.getElementById('qr-operator-group');
+    if (opGrp) opGrp.style.display = '';
     document.getElementById('qr-preg-result').value = 'pending';
     const isAI = defaultEvent === 'ai_done';
     // 精液/胚パネル切り替え
@@ -4310,6 +4314,9 @@ function onQrEventChange() {
   const isET = ['et_done','et_recipient','estrus_et'].includes(ev);
 
   document.getElementById('qr-aiet-panel').style.display = isAiEt ? '' : 'none';
+  // 術者グループはAI/ET時のみ表示
+  const opGroup = document.getElementById('qr-operator-group');
+  if (opGroup) opGroup.style.display = (isAI || isET) ? '' : 'none';
   document.getElementById('qr-date-label').textContent =
     ev === 'calving' ? '分娩日' :
     ev === 'cidr_ai_start' || ev === 'et_recipient' || ev === 'donor_et_start' ? 'プログラム開始日（D0）' :
@@ -6080,6 +6087,21 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
     h.count = value;
   } else if (field === 'date') {
     h.date = value;
+  } else if (field === 'operator') {
+    // memoの術者部分を更新
+    const currentMemo = h.memo || '';
+    const cleanMemo = currentMemo.replace(/\s*術者:[^／\s]+/, '').trim();
+    h.memo = value ? (cleanMemo ? cleanMemo + ' ／ 術者:' + value : '術者:' + value) : cleanMemo;
+    // use/transferの切り替え
+    const isOther = value !== '';
+    const newType = h.type === 'use' && isOther ? 'transfer' : h.type === 'transfer' && !isOther ? 'use' : h.type;
+    if (newType !== h.type) {
+      // 在庫の再計算
+      const isInType = t => ['restock','carryover','selfcollect'].includes(t);
+      if (!isInType(h.type)) item.stock = (item.stock||0) + h.count; // 元に戻す
+      if (!isInType(newType)) item.stock = (item.stock||0) - h.count; // 新タイプ適用
+      h.type = newType;
+    }
   } else if (field === 'type') {
     // 元のタイプの在庫影響を取り消し→新しいタイプで再適用
     if (isIn(h.type)) item.stock = (item.stock||0) - h.count;
@@ -8163,7 +8185,7 @@ function renderReport() {
                   <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:48px;">
                   <span style="color:var(--muted);">本</span>
                   ${cowName?`<span style="color:var(--muted);font-size:10px;">${cowName}</span>`:''}
-                  ${op?`<span style="color:var(--warn);font-size:10px;">術者:${op}</span>`:''}
+                  <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg3);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:70px;">
                   ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
               }).join('')}
