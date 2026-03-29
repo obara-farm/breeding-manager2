@@ -5020,13 +5020,10 @@ function renderStats() {
     <!-- 種雄牛別産仔分析 -->
     ${(() => {
       // calvesに参照されているレコードのみ集計（孤立した旧データを除外）
-      const validRecordIds = new Set(calves.map(c => c.calvingRecordId).filter(Boolean));
-      const activeCalvingRecords = calvingRecords.filter(r => validRecordIds.has(r.id));
+      // calvesを直接集計（calvingRecordIdの有無に関わらず全子牛を対象）
+      const validCalves = calves.filter(c => c.damId && !c.deathDate);
 
-      // calvingRecordIdがないcalvesも含めて集計（calvingRecordsに紐付いていない分娩記録）
-      const calvesWithoutRecord = calves.filter(c => !c.calvingRecordId && c.damId);
-
-      if (!activeCalvingRecords.length && !calvesWithoutRecord.length) return `
+      if (!validCalves.length) return `
         <div class="stats-card">
           <div class="stats-title">🐄 種雄牛別産仔分析</div>
           <div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">
@@ -5037,21 +5034,21 @@ function renderStats() {
 
       // 種雄牛ごとに集計
       const sireMap = {};
-      activeCalvingRecords.forEach(r => {
-        const key = r.sire || '（種雄牛未記録）';
-        if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
-        sireMap[key].recs.push(r);
-        if (r.sizeScore) sireMap[key].sizes.push(r.sizeScore);
-        if (r.birthTiming) sireMap[key].timings[r.birthTiming] = (sireMap[key].timings[r.birthTiming]||0) + 1;
-        if (r.weight) sireMap[key].weights.push(r.weight);
-      });
-
-      // calvingRecordIdがないcalvesも集計（sireフィールドを直接参照）
-      calvesWithoutRecord.forEach(c => {
+      validCalves.forEach(c => {
         const key = c.sire || '（種雄牛未記録）';
         if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
-        const pseudoRec = { sire: c.sire, sizeScore: null, birthTiming: null };
+        // calvingRecordからsizeScore・birthTimingを取得
+        const rec = calvingRecords.find(r => r.id === c.calvingRecordId);
+        const pseudoRec = {
+          sire: key,
+          sizeScore: rec?.sizeScore ?? null,
+          birthTiming: rec?.birthTiming ?? null,
+          weight: rec?.weight ?? null,
+        };
         sireMap[key].recs.push(pseudoRec);
+        if (pseudoRec.sizeScore) sireMap[key].sizes.push(pseudoRec.sizeScore);
+        if (pseudoRec.birthTiming) sireMap[key].timings[pseudoRec.birthTiming] = (sireMap[key].timings[pseudoRec.birthTiming]||0) + 1;
+        if (pseudoRec.weight) sireMap[key].weights.push(pseudoRec.weight);
       });
 
       const sizeLabel = s => {
@@ -6835,7 +6832,7 @@ function renderCalves() {
           <div style="flex:1;min-width:0;">
             <div style="font-size:15px;font-weight:900;color:var(--text);">
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);">${calf.earTagId}</span> ` : ''}
-              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);font-weight:400;margin-right:4px;">${String(calf.nationalId).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
+              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);font-weight:400;margin-right:4px;">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
               <span style="color:var(--muted);font-size:13px;">母: </span><strong>${calf.damId}${damName?' '+damName:''}</strong>${pedigreeStr ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:400;">${pedigreeStr}</span>` : ''}
             </div>
             ${(statusBadge||etBadge) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${statusBadge}${etBadge}</div>` : ''}
