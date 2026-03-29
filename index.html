@@ -1110,25 +1110,45 @@ textarea{resize:vertical;}
         <input type="text" id="embryo-lot" placeholder="例: 25L11B1">
       </div>
       <div class="form-group">
-        <label>胚ステージ</label>
+        <label>胚ステージ（デフォルト）</label>
         <select id="embryo-stage">
           <option value="">不明</option>
+          <option value="CM">CM（胚盤胞）</option>
+          <option value="EB">EB（初期胚盤胞）</option>
+          <option value="BL">BL（拡張胚盤胞）</option>
+          <option value="EX">EX（孵化胚盤胞）</option>
           <option value="MO">MO（桑実胚）</option>
-          <option value="EBL">EBL（初期胚盤胞）</option>
-          <option value="BL">BL（胚盤胞）</option>
-          <option value="XBL">XBL（拡張胚盤胞）</option>
-          <option value="HBL">HBL（孵化胚盤胞）</option>
         </select>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
       <div class="form-group">
         <label>現在の在庫本数</label>
-        <input type="number" id="embryo-stock" min="0" placeholder="例: 8">
+        <input type="number" id="embryo-stock" min="0" placeholder="例: 8" oninput="onEmbryoStockInput(this.value)">
       </div>
       <div class="form-group">
         <label>アラート本数</label>
         <input type="number" id="embryo-alert-threshold" min="1" placeholder="例: 2" value="2">
+      </div>
+    </div>
+    <!-- 胚ごとの詳細入力欄（本数入力で展開） -->
+    <div id="embryo-detail-panel" style="display:none;background:#0a0a1a;border:1px solid var(--purple);border-radius:8px;padding:10px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;">📋 胚ごとの詳細（任意）</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 6px;color:var(--muted);text-align:left;">#</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:left;">胚番号</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:left;">ケーン番号</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:left;">ステージ</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:left;">ランク</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:center;">凍結</th>
+              <th style="padding:4px 6px;color:var(--muted);text-align:center;">新鮮</th>
+            </tr>
+          </thead>
+          <tbody id="embryo-detail-tbody"></tbody>
+        </table>
       </div>
     </div>
     <div style="margin-bottom:12px;">
@@ -6241,6 +6261,117 @@ function renderInsemBook() {
   }).join('');
 }
 
+
+// ===== 採卵記録簿 Sheet2データ =====
+const EMBRYO_SHEET2_DATA = [{"collect_date": "R5年06月20日", "name": "にわか×光晴重5/4", "donor_id": "15015-3232-8", "lot": "01L237R7-0", "embryos": [{"no": "01L237R7-0002", "cane": "25E04B2A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0003", "cane": "25E04B2A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0004", "cane": "25E04B2A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0005", "cane": "25E04B2A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0006", "cane": "25E04B2A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0001", "cane": "25E04B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0007", "cane": "25F24B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0008", "cane": "25F24B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0009", "cane": "25F24B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0010", "cane": "25F24B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0011", "cane": "25F24B1A", "stage": "EX", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0012", "cane": "25F26B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0013", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0014", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0015", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0016", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0017", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0018", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0019", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0020", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0021", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0022", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0023", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0024", "cane": "25I09B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0025", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0026", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0027", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0028", "cane": "25I09B1B", "stage": "EB", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0029", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0030", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0031", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0032", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0033", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0034", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0035", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0036", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}]}, {"collect_date": "R6年05月12日", "name": "にわか×光晴重5/4", "donor_id": "15015-3232-8", "lot": "25E04B2", "embryos": [{"no": "01L237-25E04B2-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-5", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-6", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-7", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-8", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×福勝鶴5/4", "donor_id": "15758-3484-7", "lot": "25E04B1", "embryos": [{"no": "01L237-25E04B1-1", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25E04B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みひえ×菊鶴ETI5/19", "donor_id": "13576-3040-7", "lot": "25E19B1", "embryos": [{"no": "01L237-25E19B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "わかつる×幸泉5/19", "donor_id": "14773-0655-8", "lot": "25E19B2", "embryos": [{"no": "01L237-25E19B2-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×暁之藤6/23", "donor_id": "15758-3484-7", "lot": "25F23B1", "embryos": [{"no": "01L237-25F23B1-1", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25F23B1-2", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25F23B1-3", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "にわか×光晴重6/24", "donor_id": "15015-3232-8", "lot": "25F24B1", "embryos": [{"no": "01L237-25F24B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-4", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-5", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-6", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みなと×幸泉6/26", "donor_id": "15015-3232-8", "lot": "25F26B1", "embryos": [{"no": "01L237-25F26B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みなと×幸泉9/8", "donor_id": "15015-3232-8", "lot": "25I08B1", "embryos": [{"no": "01L237-25I08B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "にわか×光晴重9/9", "donor_id": "15015-3232-8", "lot": "25I09B1", "embryos": [{"no": "01L237-25I09B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I09B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×福勝鶴10/9", "donor_id": "15015-3232-8", "lot": "25J09B1", "embryos": [{"no": "01L237-25J09B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}];
+
+// 本数入力時に胚詳細欄を展開
+function onEmbryoStockInput(val) {
+  const n = parseInt(val) || 0;
+  const panel = document.getElementById('embryo-detail-panel');
+  const tbody = document.getElementById('embryo-detail-tbody');
+  if (!panel || !tbody) return;
+  if (n <= 0) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  // 既存の行数を確認して増減
+  const existing = tbody.querySelectorAll('tr').length;
+  if (existing < n) {
+    for (let i = existing; i < n; i++) {
+      const row = document.createElement('tr');
+      row.style.borderBottom = '1px solid var(--border)';
+      row.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;">${i+1}</td>
+        <td style="padding:2px 3px;"><input type="text" class="ed-no" placeholder="胚番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;"></td>
+        <td style="padding:2px 3px;"><input type="text" class="ed-cane" placeholder="ケーン番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
+        <td style="padding:2px 3px;"><select class="ed-stage" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="CM">CM</option><option value="EB">EB</option><option value="BL">BL</option><option value="EX">EX</option><option value="MO">MO</option>
+        </select></td>
+        <td style="padding:2px 3px;"><select class="ed-rank" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="A">A</option><option value="B">B</option><option value="C">C</option>
+        </select></td>
+        <td style="padding:2px 3px;text-align:center;"><input type="checkbox" class="ed-frozen" style="width:14px;height:14px;"></td>
+        <td style="padding:2px 3px;text-align:center;"><input type="checkbox" class="ed-fresh" style="width:14px;height:14px;"></td>`;
+      tbody.appendChild(row);
+    }
+  } else if (existing > n) {
+    for (let i = existing - 1; i >= n; i--) tbody.deleteRow(i);
+  }
+}
+
+// 胚詳細欄からdetailsを取得
+function getEmbryoDetails() {
+  const rows = document.querySelectorAll('#embryo-detail-tbody tr');
+  const details = [];
+  rows.forEach(row => {
+    const no = row.querySelector('.ed-no')?.value.trim() || '';
+    const cane = row.querySelector('.ed-cane')?.value.trim() || '';
+    const stage = row.querySelector('.ed-stage')?.value || '';
+    const rank = row.querySelector('.ed-rank')?.value || '';
+    const frozen = row.querySelector('.ed-frozen')?.checked || false;
+    const fresh = row.querySelector('.ed-fresh')?.checked || false;
+    if (no || cane || stage || rank) details.push({no, cane, stage, rank, frozen, fresh});
+  });
+  return details.length ? details : null;
+}
+
+// 胚詳細欄に既存データを復元
+function setEmbryoDetails(details) {
+  if (!details || !details.length) return;
+  onEmbryoStockInput(details.length);
+  const rows = document.querySelectorAll('#embryo-detail-tbody tr');
+  details.forEach((d, i) => {
+    if (!rows[i]) return;
+    const r = rows[i];
+    if (r.querySelector('.ed-no')) r.querySelector('.ed-no').value = d.no || '';
+    if (r.querySelector('.ed-cane')) r.querySelector('.ed-cane').value = d.cane || '';
+    if (r.querySelector('.ed-stage')) r.querySelector('.ed-stage').value = d.stage || '';
+    if (r.querySelector('.ed-rank')) r.querySelector('.ed-rank').value = d.rank || '';
+    if (r.querySelector('.ed-frozen')) r.querySelector('.ed-frozen').checked = !!d.frozen;
+    if (r.querySelector('.ed-fresh')) r.querySelector('.ed-fresh').checked = !!d.fresh;
+  });
+}
+
+// Sheet2データから在庫ロットと照合してdetailsを取得
+function getSheet2DetailsForLot(lot) {
+  if (!lot) return null;
+  const found = EMBRYO_SHEET2_DATA.find(d =>
+    d.lot === lot ||
+    d.embryos.some(e => e.no.startsWith(lot)) ||
+    lot.startsWith(d.lot)
+  );
+  return found ? found.embryos : null;
+}
+
+// 受精卵カードに詳細内訳を表示
+function renderEmbryoDetails(details) {
+  if (!details || !details.length) return '';
+  const frozen = details.filter(d => d.frozen);
+  const fresh = details.filter(d => d.fresh);
+  const stageBadge = s => ({CM:'胚盤胞',EB:'初期胚盤胞',BL:'拡張胚盤胞',EX:'孵化胚盤胞',MO:'桑実胚'}[s]||s||'');
+  const rows = details.map((d, i) => `<tr>
+    <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${i+1}</td>
+    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text);">${d.no||'—'}</td>
+    <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${stageBadge(d.stage)}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄':''}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'💧':''}</td>
+  </tr>`).join('');
+  return `<div style="margin-top:8px;">
+    <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">📋 胚内訳 凍結${frozen.length}本 / 新鮮${fresh.length}本</div>
+    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:var(--bg3);">
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">#</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);text-align:left;">胚番号</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ケーン番号</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ステージ</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ランク</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">💧</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
 // ===== SETTINGS =====
 function openModal(id) {
   // 確認ダイアログが開いたまま別のモーダルを開く場合は先に閉じる
@@ -7873,6 +8004,7 @@ function renderEmbryo() {
         </div>
       </div>
       ${e.memo?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">📝 ${e.memo}</div>`:''}
+      ${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); return det ? renderEmbryoDetails(det) : ''; })()}
       ${recentHistory.length ? `
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:700;">直近の履歴</div>
         <div style="font-size:11px;line-height:2;">
@@ -7909,6 +8041,11 @@ function openAddEmbryo() {
   document.getElementById('embryo-alert-threshold').value = '2';
   document.getElementById('embryo-price').value = '';
   document.getElementById('embryo-collection-date').value = '';
+  // 詳細欄リセット
+  const tbody2 = document.getElementById('embryo-detail-tbody');
+  if (tbody2) tbody2.innerHTML = '';
+  const panel2 = document.getElementById('embryo-detail-panel');
+  if (panel2) panel2.style.display = 'none';
   openModal('modal-embryo-edit');
 }
 
@@ -7930,6 +8067,13 @@ function openEditEmbryo(id) {
   document.getElementById('embryo-location').value = e.location||'';
   document.getElementById('embryo-price').value = e.price||'';
   document.getElementById('embryo-memo').value = e.memo||'';
+  // 胚詳細の復元（保存済みdetails or Sheet2から照合）
+  const tbody = document.getElementById('embryo-detail-tbody');
+  if (tbody) tbody.innerHTML = '';
+  const panel = document.getElementById('embryo-detail-panel');
+  if (panel) panel.style.display = 'none';
+  const savedDetails = e.embryoDetails || getSheet2DetailsForLot(e.lot);
+  if (savedDetails && savedDetails.length) setEmbryoDetails(savedDetails);
   openModal('modal-embryo-edit');
 }
 
@@ -7951,6 +8095,9 @@ function saveEmbryo() {
     price: parseInt(document.getElementById('embryo-price').value)||null,
     memo: document.getElementById('embryo-memo').value.trim(),
   };
+  // 胚詳細（任意）
+  const details = getEmbryoDetails();
+  if (details) data.embryoDetails = details;
   let newEmbItem;
   if (id) {
     const e = embryoInventory.find(e=>e.id===id);
