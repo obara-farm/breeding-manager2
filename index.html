@@ -2053,6 +2053,7 @@ textarea{resize:vertical;}
         <button type="button" id="cr-size-large" onclick="setCrSize('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
         <button type="button" id="cr-size-normal" onclick="setCrSize('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
         <button type="button" id="cr-size-small" onclick="setCrSize('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
+        <button type="button" id="cr-size-unknown" onclick="setCrSize('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
       </div>
       <input type="hidden" id="cr-size" value="normal">
       <div style="display:flex;gap:8px;">
@@ -2092,6 +2093,7 @@ textarea{resize:vertical;}
         <button type="button" id="cr-size2-large" onclick="setCrSize2('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
         <button type="button" id="cr-size2-normal" onclick="setCrSize2('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
         <button type="button" id="cr-size2-small" onclick="setCrSize2('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
+        <button type="button" id="cr-size2-unknown" onclick="setCrSize2('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
       </div>
       <input type="hidden" id="cr-size2" value="normal">
       <div style="display:flex;gap:8px;">
@@ -6454,11 +6456,12 @@ function toggleCrTwin() {
 function setCrSize2(size) {
   document.getElementById('cr-size2').value = size;
   const styles = {
-    large:  ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal: ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:  ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small'].forEach(s => {
+  ['large','normal','small','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size2-${s}`);
     if (!btn) return;
     if (s === size) {
@@ -6487,11 +6490,12 @@ function setCrCoat2(coat) {
 function setCrSize(size) {
   document.getElementById('cr-size').value = size;
   const styles = {
-    large:  ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal: ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:  ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
+    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small'].forEach(s => {
+  ['large','normal','small','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size-${s}`);
     if (!btn) return;
     if (s === size) {
@@ -6571,7 +6575,7 @@ function saveCalvingRecord() {
   }
 
   const size = document.getElementById('cr-size').value || 'normal';
-  const sizeScore = size === 'large' ? 4 : size === 'small' ? 2 : 3;
+  const sizeScore = size === 'large' ? 4 : size === 'small' ? 2 : size === 'unknown' ? null : 3;
   const coat = document.getElementById('cr-coat').value;
   const sex = document.getElementById('cr-sex').value;
   const weight = parseFloat(document.getElementById('cr-weight').value) || null;
@@ -6607,7 +6611,7 @@ function saveCalvingRecord() {
   const maternalSire = cow?.sire || '';
 
   // 大きさ（大/中/小）
-  const sizeLabel3 = size === 'large' ? '大' : size === 'small' ? '小' : '中';
+  const sizeLabel3 = size === 'large' ? '大' : size === 'small' ? '小' : size === 'unknown' ? '不明' : '中';
 
   // calvingRecords に保存
   const rec = {
