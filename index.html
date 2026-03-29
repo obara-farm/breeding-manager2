@@ -1109,6 +1109,12 @@ textarea{resize:vertical;}
         <input type="number" id="embryo-alert-threshold" min="1" placeholder="例: 2" value="2">
       </div>
     </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <input type="checkbox" id="embryo-no-alert" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;color:var(--muted);">アラート通知しない（追加注文予定なし）</span>
+      </label>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group">
         <label>採卵日</label>
@@ -1185,6 +1191,7 @@ textarea{resize:vertical;}
       <label>取引種別</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <button type="button" id="ert-btn-restock" onclick="setEmbryoRestockType('restock')" style="background:#0a1a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
+        <button type="button" id="ert-btn-selfcollect" onclick="setEmbryoRestockType('selfcollect')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🥚 自家採卵</button>
         <button type="button" id="ert-btn-carryover" onclick="setEmbryoRestockType('carryover')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
         <button type="button" id="ert-btn-use" onclick="setEmbryoRestockType('use')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🧬 使用</button>
         <button type="button" id="ert-btn-transfer" onclick="setEmbryoRestockType('transfer')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
@@ -1265,6 +1272,12 @@ textarea{resize:vertical;}
         <label>単価（円）任意</label>
         <input type="number" id="semen-price" min="0" placeholder="例: 5000">
       </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+        <input type="checkbox" id="semen-no-alert" style="width:16px;height:16px;cursor:pointer;">
+        <span style="font-size:13px;color:var(--muted);">アラート通知しない（追加注文予定なし）</span>
+      </label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <div class="form-group">
@@ -4907,11 +4920,31 @@ function renderStats() {
         </div>`;
       };
 
-      const semenRows = Object.entries(semenMap).sort((a,b)=>b[1].total-a[1].total).slice(0,10).map(([name,d])=>`
-        <div style="margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
-          ${rateBar(d.pos,d.total)}
-        </div>`).join('');
+      const semenRows = (() => {
+        // 精液在庫の品種情報を参照
+        const getSemenBreed = name => {
+          const s = semenInventory.find(s => s.name && name.startsWith(s.name.slice(0,4)));
+          return s?.breed || '不明';
+        };
+        const byBreed = {};
+        Object.entries(semenMap).sort((a,b)=>b[1].total-a[1].total).slice(0,15).forEach(([name,d]) => {
+          const breed = getSemenBreed(name);
+          if (!byBreed[breed]) byBreed[breed] = [];
+          byBreed[breed].push({name,d});
+        });
+        const breedOrder = ['黒毛','褐毛','その他','不明'];
+        const breedLabel = {'黒毛':'⬛ 黒毛和種','褐毛':'🟥 褐毛和種','その他':'その他','不明':'品種不明'};
+        return Object.entries(byBreed)
+          .sort((a,b) => (breedOrder.indexOf(a[0])||99) - (breedOrder.indexOf(b[0])||99))
+          .map(([breed, entries]) => `
+            <div style="font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border);">${breedLabel[breed]||breed}</div>
+            ${entries.map(({name,d}) => `
+              <div style="margin-bottom:8px;">
+                <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
+                ${rateBar(d.pos,d.total)}
+              </div>`).join('')}
+          `).join('');
+      })();
 
       const seasonRows = Object.entries(seasonMap).map(([name,d])=>`
         <div style="margin-bottom:8px;">
@@ -7082,11 +7115,12 @@ function openUseRecord(kind, id) {
   // 全履歴を新しい順で表示
   const history = [...(item.history||[])].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const typeMap = {
-    restock:   { label:'🤝 譲受',   color:'var(--accent)' },
-    carryover: { label:'📦 繰越',   color:'var(--warn)' },
-    use:       { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
-    transfer:  { label:'📤 譲渡',   color:'var(--warn)' },
-    discard:   { label:'🗑 廃棄',   color:'var(--danger)' },
+    restock:     { label:'🤝 譲受',   color:'var(--accent)' },
+    selfcollect: { label:'🥚 自家採卵', color:'var(--accent)' },
+    carryover:   { label:'📦 繰越',   color:'var(--warn)' },
+    use:         { label: isSemen ? '💉 使用' : '🧬 使用', color:'var(--text)' },
+    transfer:    { label:'📤 譲渡',   color:'var(--warn)' },
+    discard:     { label:'🗑 廃棄',   color:'var(--danger)' },
   };
 
   if (!history.length) {
@@ -7098,7 +7132,7 @@ function openUseRecord(kind, id) {
     const kind = isSemen ? 'semen' : 'embryo';
     document.getElementById('use-record-history').innerHTML = historyWithIdx.map(({h,i}) => {
       const t = typeMap[h.type] || { label: h.type, color:'var(--muted)' };
-      const isIn = h.type === 'restock' || h.type === 'carryover';
+      const isIn = h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect';
       const cowName = h.cowId ? ` → ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 2px;border-bottom:1px solid var(--border);">
         <div style="flex:1;min-width:0;">
@@ -7131,7 +7165,7 @@ function openHistoryEdit(kind, id, idx) {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history || !item.history[idx]) return;
   const h = item.history[idx];
-  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
+  const typeLabel = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':kind==='embryo'?'🧬使用':'💉使用';
   const itemName = kind==='semen' ? item.name : `${item.dam?item.dam+'×':''}${item.sire}`;
   document.getElementById('history-edit-title').textContent = `📋 履歴を編集 — ${itemName}`;
   document.getElementById('history-edit-info').innerHTML =
@@ -7146,11 +7180,12 @@ function openHistoryEdit(kind, id, idx) {
 
   // タイプボタン生成
   const types = [
-    {key:'restock',   label:'🤝 譲受', c:['#0d2a1a','var(--accent2)','var(--accent)']},
-    {key:'carryover', label:'📦 繰越', c:['#1a1a0a','var(--warn)','var(--warn)']},
-    {key:'use',       label: kind==='embryo'?'🧬 使用':'💉 使用', c:['#0a1a0a','var(--accent2)','var(--accent)']},
-    {key:'transfer',  label:'📤 譲渡', c:['#0a1a2a','var(--info)','var(--info)']},
-    {key:'discard',   label:'🗑 廃棄', c:['#1a0808','var(--danger)','var(--danger)']},
+    {key:'restock',     label:'🤝 譲受',   c:['#0d2a1a','var(--accent2)','var(--accent)']},
+    {key:'selfcollect', label:'🥚 自家採卵', c:['#0a2a1a','var(--accent2)','var(--accent)']},
+    {key:'carryover',   label:'📦 繰越',   c:['#1a1a0a','var(--warn)','var(--warn)']},
+    {key:'use',         label: kind==='embryo'?'🧬 使用':'💉 使用', c:['#0a1a0a','var(--accent2)','var(--accent)']},
+    {key:'transfer',    label:'📤 譲渡',   c:['#0a1a2a','var(--info)','var(--info)']},
+    {key:'discard',     label:'🗑 廃棄',   c:['#1a0808','var(--danger)','var(--danger)']},
   ];
   document.getElementById('history-edit-type-btns').innerHTML = types.map(t => {
     const active = h.type === t.key;
@@ -7174,8 +7209,8 @@ function saveHistoryEdit() {
     : embryoInventory.find(e=>e.id===id);
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
-  const wasIn = h.type === 'restock' || h.type === 'carryover';
-  const isIn  = newType === 'restock' || newType === 'carryover';
+  const wasIn = h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect';
+  const isIn  = newType === 'restock' || newType === 'carryover' || newType === 'selfcollect';
   // 元の影響を取り消してから新しい影響を反映
   if (wasIn) item.stock = (item.stock||0) - h.count;
   else       item.stock = (item.stock||0) + h.count;
@@ -7201,7 +7236,7 @@ function deleteHistoryEdit() {
   if (!item || !item.history[idx]) return;
   const h = item.history[idx];
   // 在庫を元に戻す（繰越もプラス扱い）
-  if (h.type === 'restock' || h.type === 'carryover') item.stock = (item.stock||0) - h.count;
+  if (h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect') item.stock = (item.stock||0) - h.count;
   else item.stock = (item.stock||0) + h.count;
   item.history.splice(idx, 1);
   save();
@@ -7245,13 +7280,13 @@ function onQrEmbryoSelectChange() {
 function syncStockFromHistory(item) {
   if (!item.history || !item.history.length) return;
   // restockまたはcarryoverが1件もない場合はitem.stockを初期値として使う
-  const hasRestock = item.history.some(h => h.type === 'restock' || h.type === 'carryover');
+  const hasRestock = item.history.some(h => h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect');
   let stock = hasRestock ? 0 : (item._baseStock ?? item.stock ?? 0);
   if (!hasRestock && item._baseStock === undefined) {
     item._baseStock = item.stock ?? 0;
   }
   item.history.forEach(h => {
-    if (h.type === 'restock' || h.type === 'carryover') stock += h.count;
+    if (h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect') stock += h.count;
     else stock -= h.count;
   });
   item.stock = stock;
@@ -7273,7 +7308,7 @@ function renderEmbryo() {
   // historyから在庫数を再計算して同期
   embryoInventory.forEach(syncStockFromHistory);
 
-  const lowItems = embryoInventory.filter(e => e.stock <= (e.alertThreshold || 2));
+  const lowItems = embryoInventory.filter(e => !e.noAlert && e.stock <= (e.alertThreshold || 2));
   const alertEl = document.getElementById('embryo-low-alert');
   if (lowItems.length) {
     alertEl.style.display = '';
@@ -7333,7 +7368,7 @@ function renderEmbryo() {
             const histLen = (e.history||[]).length;
             const sliceStart = Math.max(0, histLen - 5);
             const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
             const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.cowId?' ('+cowDisplayName(h.cowId)+')':''}${h.memo?' ('+h.memo+')':''}</span>
@@ -7377,6 +7412,7 @@ function openEditEmbryo(id) {
   document.getElementById('embryo-stage').value = e.stage||'';
   document.getElementById('embryo-stock').value = e.stock??'';
   document.getElementById('embryo-alert-threshold').value = e.alertThreshold||2;
+  document.getElementById('embryo-no-alert').checked = !!e.noAlert;
   document.getElementById('embryo-dam').value = e.dam||'';
   document.getElementById('embryo-collection-date').value = e.collectionDate||'';
   document.getElementById('embryo-location').value = e.location||'';
@@ -7396,6 +7432,7 @@ function saveEmbryo() {
     stage: document.getElementById('embryo-stage').value,
     stock: parseInt(document.getElementById('embryo-stock').value)||0,
     alertThreshold: parseInt(document.getElementById('embryo-alert-threshold').value)||2,
+    noAlert: document.getElementById('embryo-no-alert').checked,
     dam: document.getElementById('embryo-dam').value.trim(),
     collectionDate: document.getElementById('embryo-collection-date').value,
     location: document.getElementById('embryo-location').value.trim(),
@@ -7432,13 +7469,14 @@ function saveEmbryo() {
 
 function setEmbryoRestockType(type) {
   document.getElementById('embryo-restock-type').value = type;
-  const types = ['restock','carryover','use','transfer','discard'];
+  const types = ['restock','selfcollect','carryover','use','transfer','discard'];
   const activeColors = {
-    restock:   ['#0a1a2a','var(--purple)','var(--purple)'],
-    carryover: ['#1a1a0a','var(--warn)','var(--warn)'],
-    use:       ['#0a1a0a','var(--accent2)','var(--accent)'],
-    transfer:  ['#0a1a2a','var(--info)','var(--info)'],
-    discard:   ['#1a0808','var(--danger)','var(--danger)']
+    restock:     ['#0a1a2a','var(--purple)','var(--purple)'],
+    selfcollect: ['#0a2a1a','var(--accent2)','var(--accent)'],
+    carryover:   ['#1a1a0a','var(--warn)','var(--warn)'],
+    use:         ['#0a1a0a','var(--accent2)','var(--accent)'],
+    transfer:    ['#0a1a2a','var(--info)','var(--info)'],
+    discard:     ['#1a0808','var(--danger)','var(--danger)']
   };
   types.forEach(t => {
     const btn = document.getElementById(`ert-btn-${t}`);
@@ -7455,7 +7493,8 @@ function setEmbryoRestockType(type) {
   });
   const countLabel = document.getElementById('embryo-restock-count-label');
   if (countLabel) countLabel.textContent =
-    type === 'restock' ? '譲受本数' : type === 'carryover' ? '繰越本数' :
+    type === 'restock' ? '譲受本数' : type === 'selfcollect' ? '採卵本数' :
+    type === 'carryover' ? '繰越本数' :
     type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
 }
 
@@ -7479,7 +7518,7 @@ function saveEmbryoRestock() {
   if (!count || count < 1) { alert('本数を入力してください'); return; }
   const e = embryoInventory.find(e=>e.id===id);
   if (!e) return;
-  if (type === 'restock' || type === 'carryover') {
+  if (type === 'restock' || type === 'carryover' || type === 'selfcollect') {
     e.stock = (e.stock||0) + count;
   } else {
     e.stock = (e.stock||0) - count;
@@ -7731,7 +7770,7 @@ function showBkdDetail(id, detail, name, month) {
 }
 
 function updateSemenBadge() {
-  const lowCount = semenInventory.filter(s => s.stock <= (s.alertThreshold || 3)).length;
+  const lowCount = semenInventory.filter(s => !s.noAlert && s.stock <= (s.alertThreshold || 3)).length;
   const badge = document.getElementById('semen-low-badge');
   if (!badge) return;
   if (lowCount > 0) { badge.textContent = lowCount; badge.style.display = ''; }
@@ -7745,7 +7784,7 @@ function renderSemen() {
   updateSemenBadge();
 
   // 在庫僅少アラート
-  const lowItems = semenInventory.filter(s => s.stock <= (s.alertThreshold || 3));
+  const lowItems = semenInventory.filter(s => !s.noAlert && s.stock <= (s.alertThreshold || 3));
   const alertEl = document.getElementById('semen-low-alert');
   if (lowItems.length) {
     alertEl.style.display = '';
@@ -7847,7 +7886,7 @@ function renderSemen() {
             const histLen = (s.history||[]).length;
             const sliceStart = Math.max(0, histLen - 5);
             const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
+            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
             const col = h.type==='restock'||h.type==='carryover'?'var(--accent)':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':'var(--text)';
             return `<span style="display:flex;align-items:center;gap:6px;">
               <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.memo?' ('+h.memo+')':''}</span>
@@ -7914,6 +7953,7 @@ function openEditSemen(id) {
   document.getElementById('semen-lot').value = s.lot || '';
   document.getElementById('semen-stock').value = s.stock ?? '';
   document.getElementById('semen-alert-threshold').value = s.alertThreshold || 3;
+  document.getElementById('semen-no-alert').checked = !!s.noAlert;
   document.getElementById('semen-price').value = s.price || '';
   document.getElementById('semen-location').value = s.location || '';
   document.getElementById('semen-memo').value = s.memo || '';
@@ -7931,6 +7971,7 @@ function saveSemen() {
     lot: document.getElementById('semen-lot').value.trim(),
     stock,
     alertThreshold: parseInt(document.getElementById('semen-alert-threshold').value) || 3,
+    noAlert: document.getElementById('semen-no-alert').checked,
     price: parseInt(document.getElementById('semen-price').value) || null,
     location: document.getElementById('semen-location').value.trim(),
     memo: document.getElementById('semen-memo').value.trim(),
