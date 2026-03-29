@@ -1209,10 +1209,25 @@ textarea{resize:vertical;}
       <label id="insem-edit-date-label">新しい実施日</label>
       <input type="date" id="insem-edit-date" style="font-size:13px;">
     </div>
-    <div class="form-group" style="margin-bottom:14px;">
-      <label>種雄牛名 / 精液名（メモ）</label>
-      <input type="text" id="insem-edit-memo" placeholder="例: 精液:マンジャロ" style="font-size:13px;">
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>種雄牛名 / 胚番号（メモ）</label>
+      <input type="text" id="insem-edit-memo" placeholder="例: 精液:光晴重 または 胚番号:01L237R7-0001" style="font-size:13px;">
     </div>
+
+    <!-- 妊鑑結果 -->
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>妊娠鑑定の結果</label>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button type="button" id="ie-preg-pos" onclick="setInsemEditPreg('positive')"
+          style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">✓ 陽性</button>
+        <button type="button" id="ie-preg-neg" onclick="setInsemEditPreg('negative')"
+          style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">✗ 陰性</button>
+        <button type="button" id="ie-preg-pend" onclick="setInsemEditPreg('pending')"
+          style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--accent2);background:rgba(74,222,128,.08);color:var(--accent);">未実施</button>
+      </div>
+      <input type="hidden" id="insem-edit-preg" value="pending">
+    </div>
+
     <div id="insem-edit-note" style="background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--accent);margin-bottom:14px;">
       🗓 日付の修正：精液本数はそのまま、妊鑑日・分娩予定日を新しい日付で再計算します
     </div>
@@ -5601,6 +5616,13 @@ function openInsemEventEdit(cowId, evIdx) {
     `<strong style="color:var(--info);">${evTypeLabel[ev.type]||ev.type}</strong>　現在の日付: <strong style="color:var(--warn);">${fmtDate(ev.date)}</strong>`;
   document.getElementById('insem-edit-date').value = ev.date;
   document.getElementById('insem-edit-memo').value = ev.memo || '';
+  // 現在の妊鑑状態を読み込む
+  const isET = ev.type === 'et_done';
+  const pregEv = (cow.events||[]).find(e =>
+    (e.type==='preg_positive'||e.type==='preg_negative') &&
+    e.date >= ev.date
+  );
+  setInsemEditPreg(pregEv ? (pregEv.type==='preg_positive'?'positive':'negative') : 'pending');
   setInsemEditMode('fix');
   openModal('modal-insem-edit');
 }
@@ -5623,8 +5645,28 @@ function openInsemEdit(cowId, taskId) {
   document.getElementById('insem-edit-memo').value = task.memo || '';
   // taskIdをdatasetに保存
   document.getElementById('insem-edit-cowid').dataset.taskId = taskId;
+  // 現在の妊鑑状態を読み込む
+  const pregEvT = (cow.events||[]).find(e =>
+    (e.type==='preg_positive'||e.type==='preg_negative') && e.date >= task.date
+  );
+  setInsemEditPreg(pregEvT ? (pregEvT.type==='preg_positive'?'positive':'negative') : 'pending');
   setInsemEditMode('fix');
   openModal('modal-insem-edit');
+}
+
+function setInsemEditPreg(result) {
+  document.getElementById('insem-edit-preg').value = result;
+  const colors = {
+    positive: {border:'var(--accent2)', bg:'rgba(74,222,128,.15)', color:'var(--accent)'},
+    negative: {border:'var(--danger)',   bg:'rgba(239,68,68,.12)',  color:'var(--danger)'},
+    pending:  {border:'var(--accent2)',  bg:'rgba(74,222,128,.08)', color:'var(--accent)'},
+  };
+  ['positive','negative','pending'].forEach(r => {
+    const btn = document.getElementById(`ie-preg-${r === 'positive' ? 'pos' : r === 'negative' ? 'neg' : 'pend'}`);
+    if (!btn) return;
+    const c = r === result ? colors[r] : {border:'var(--border)', bg:'var(--bg3)', color:'var(--muted)'};
+    btn.style.borderColor = c.border; btn.style.background = c.bg; btn.style.color = c.color;
+  });
 }
 
 function setInsemEditMode(mode) {
@@ -5687,6 +5729,25 @@ function saveInsemEdit() {
             color: '#a78bfa', priority: 'high', done: false, timeOfDay: '',
           });
         }
+      }
+      // 妊鑑結果を適用
+      const newPregT = document.getElementById('insem-edit-preg')?.value || 'pending';
+      const todayStrT = today();
+      cow.events = cow.events.filter(e => e.type!=='preg_positive' && e.type!=='preg_negative');
+      if (newPregT === 'positive') {
+        cow.status = 'pregnant';
+        cow.events.push({type:'preg_positive', date:todayStrT, memo:''});
+        const isEtT = ['et_done','estrus_et'].includes(cow.events[evIdx]?.type);
+        const dueT = addDays(newDate, isEtT ? 278 : 285);
+        cow.dueDate = dueT;
+        tasks = tasks.filter(t=>!(t.cowId===cowId&&t.action==='🏠 産室移動'));
+        tasks.push({id:Math.random().toString(36).slice(2),cowId,date:addDays(dueT,-10),action:'🏠 産室移動',detail:`分娩予定日（${fmtDate(dueT)}）の10日前`,color:'#a78bfa',priority:'high',done:false,timeOfDay:''});
+        tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')));
+      } else if (newPregT === 'negative') {
+        cow.status = 'open';
+        cow.events.push({type:'preg_negative', date:todayStrT, memo:''});
+        cow.dueDate = null;
+        tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')));
       }
     }
     save();
@@ -5788,7 +5849,40 @@ function saveInsemEdit() {
     if (cow.status !== 'pregnant') cow.status = 'program';
   }
 
-  save();
+  // ── 妊鑑結果・メモを共通で適用 ──────────────────────────
+  const newPreg = document.getElementById('insem-edit-preg')?.value || 'pending';
+  const todayStr = today();
+  const isEtFinal = ['et_done','estrus_et'].includes(cow.events?.[evIdx]?.type);
+
+  // 既存のpreg_positive/negativeを一旦削除（この授精より後のもの）
+  cow.events = (cow.events||[]).filter(e =>
+    e.type !== 'preg_positive' && e.type !== 'preg_negative'
+  );
+
+  if (newPreg === 'positive') {
+    cow.status = 'pregnant';
+    cow.events.push({type:'preg_positive', date:todayStr, memo:''});
+    const dueDate = addDays(newDate, isEtFinal ? 278 : 285);
+    cow.dueDate = dueDate;
+    tasks = tasks.filter(t=>!(t.cowId===cowId&&t.action==='🏠 産室移動'));
+    tasks.push({
+      id:Math.random().toString(36).slice(2), cowId,
+      date:addDays(dueDate,-10), action:'🏠 産室移動',
+      detail:`分娩予定日（${fmtDate(dueDate)}）の10日前`,
+      color:'#a78bfa', priority:'high', done:false, timeOfDay:'',
+    });
+    tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')));
+  } else if (newPreg === 'negative') {
+    cow.status = 'open';
+    cow.events.push({type:'preg_negative', date:todayStr, memo:''});
+    cow.dueDate = null;
+    tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')));
+  }
+
+  // メモを最新に更新（evIdxがあれば）
+  if (evIdx >= 0 && cow.events?.[evIdx] && newMemo) {
+    cow.events[evIdx].memo = newMemo;
+  }
   closeModal('modal-insem-edit');
   renderAll();
   renderSemen();
