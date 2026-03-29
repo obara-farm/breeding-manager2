@@ -6073,18 +6073,30 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
   const item = semenInventory.find(x=>x.id===itemId) || embryoInventory.find(x=>x.id===itemId);
   if (!item || hIdx < 0 || !item.history[hIdx]) return;
   const h = item.history[hIdx];
+  const isIn = t => ['restock','carryover','selfcollect'].includes(t);
   if (field === 'count') {
     const diff = value - h.count;
-    const isIn = ['restock','carryover','selfcollect'].includes(h.type);
-    item.stock = (item.stock||0) + (isIn ? diff : -diff);
+    item.stock = (item.stock||0) + (isIn(h.type) ? diff : -diff);
     h.count = value;
   } else if (field === 'date') {
     h.date = value;
+  } else if (field === 'type') {
+    // 元のタイプの在庫影響を取り消し→新しいタイプで再適用
+    if (isIn(h.type)) item.stock = (item.stock||0) - h.count;
+    else              item.stock = (item.stock||0) + h.count;
+    if (isIn(value))  item.stock = (item.stock||0) + h.count;
+    else              item.stock = (item.stock||0) - h.count;
+    h.type = value;
+    // selectのスタイルも更新
+    const tColor = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
+    if (el) { el.style.borderColor = tColor(value); el.style.color = tColor(value); }
   }
   save();
-  renderSemen(); // 集計を再描画
-  if (el) el.style.outline = '2px solid var(--accent)';
-  setTimeout(() => { if (el) el.style.outline = ''; }, 1000);
+  renderSemen();
+  if (el && field !== 'type') {
+    el.style.outline = '2px solid var(--accent)';
+    setTimeout(() => { if (el) el.style.outline = ''; }, 1000);
+  }
 }
 
 // 授精簿に新規記録を追加
@@ -8127,6 +8139,9 @@ function renderReport() {
 
       const tLabel = t => ({restock:'🤝譲受',carryover:'📦繰越',selfcollect:'🥚採卵',use:isEmbryo?'🧬使用':'💉使用',transfer:'📤譲渡',discard:'🗑廃棄'}[t]||t);
       const tColor = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
+      const typeOptions = isEmbryo
+        ? ['restock','carryover','selfcollect','use','transfer','discard']
+        : ['restock','carryover','use','transfer','discard'];
 
       const detailHTML = monthEntries.length ? `
         <tr id="${detailId}" style="display:none;">
@@ -8138,15 +8153,17 @@ function renderReport() {
                 const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
                 const invItem = inventory.find(x=>x.id===h.itemId);
                 const hIdx = invItem ? (invItem.history||[]).findIndex(x=>x===h || (x.date===h.date&&x.type===h.type&&x.count===h.count&&x.cowId===h.cowId)) : -1;
-                const editKey = `mdet-edit-${detailId}-${hi}`;
-                return `<div id="${editKey}-row" style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--border);font-size:11px;flex-wrap:wrap;">
+                const typeOpts = typeOptions.map(t =>
+                  `<option value="${t}" ${t===h.type?'selected':''}>${tLabel(t)}</option>`
+                ).join('');
+                return `<div style="display:flex;align-items:center;gap:5px;padding:5px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
                   <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
-                  <span style="color:${tColor(h.type)};font-weight:700;white-space:nowrap;">${tLabel(h.type)}</span>
-                  <strong style="color:var(--text);">${h.itemName}</strong>
-                  <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:50px;">
+                  <select onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'type',this.value,this)" style="background:var(--bg3);border:1px solid ${tColor(h.type)};color:${tColor(h.type)};font-size:11px;font-weight:700;padding:2px 4px;border-radius:4px;">${typeOpts}</select>
+                  <strong style="color:var(--text);font-size:11px;">${h.itemName}</strong>
+                  <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:48px;">
                   <span style="color:var(--muted);">本</span>
-                  ${cowName?`<span style="color:var(--muted);">${cowName}</span>`:''}
-                  ${op?`<span style="color:var(--warn);">術者:${op}</span>`:''}
+                  ${cowName?`<span style="color:var(--muted);font-size:10px;">${cowName}</span>`:''}
+                  ${op?`<span style="color:var(--warn);font-size:10px;">術者:${op}</span>`:''}
                   ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
               }).join('')}
