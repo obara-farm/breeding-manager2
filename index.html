@@ -6056,6 +6056,37 @@ function syncInsemBookToCows() {
   resultEl.style.display = '';
 }
 
+function toggleMonthDetail(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isHidden = el.style.display === 'none';
+  el.style.display = isHidden ? '' : 'none';
+  // ▶/▼の切り替え
+  const tr = el.previousElementSibling;
+  if (tr) {
+    const arrow = tr.querySelector('span[style*="color:var(--info)"]');
+    if (arrow) arrow.textContent = isHidden ? '▼' : '▶';
+  }
+}
+
+function updateMonthDetEntry(itemId, hIdx, field, value, el) {
+  const item = semenInventory.find(x=>x.id===itemId) || embryoInventory.find(x=>x.id===itemId);
+  if (!item || hIdx < 0 || !item.history[hIdx]) return;
+  const h = item.history[hIdx];
+  if (field === 'count') {
+    const diff = value - h.count;
+    const isIn = ['restock','carryover','selfcollect'].includes(h.type);
+    item.stock = (item.stock||0) + (isIn ? diff : -diff);
+    h.count = value;
+  } else if (field === 'date') {
+    h.date = value;
+  }
+  save();
+  renderSemen(); // 集計を再描画
+  if (el) el.style.outline = '2px solid var(--accent)';
+  setTimeout(() => { if (el) el.style.outline = ''; }, 1000);
+}
+
 // 授精簿に新規記録を追加
 function addInsemBookRecord(cowId, date, memo, type) {
   // 同日同牛の重複チェック
@@ -8081,15 +8112,57 @@ function renderReport() {
     const rows = months.map(m => {
       const d = monthData[m];
       runStock += d.in + d.carryover - d.use - d.transfer - d.discard;
-      return `<tr>
-        <td style="padding:5px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);white-space:nowrap;">${parseInt(m)}月</td>
+      const hasActivity = d.in || d.carryover || d.use || d.transfer || d.discard;
+      const detailId = `mdet-${isEmbryo?'e':'s'}-${selectedYear}-${m}`;
+
+      // この月の全履歴を日付順でまとめる
+      const ym = `${selectedYear}-${m}`;
+      const monthEntries = [];
+      inventory.forEach(item => {
+        (item.history||[]).filter(h=>(h.date||'').startsWith(ym)).forEach(h => {
+          monthEntries.push({ ...h, itemName: nameOf(item), itemId: item.id });
+        });
+      });
+      monthEntries.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+      const tLabel = t => ({restock:'🤝譲受',carryover:'📦繰越',selfcollect:'🥚採卵',use:isEmbryo?'🧬使用':'💉使用',transfer:'📤譲渡',discard:'🗑廃棄'}[t]||t);
+      const tColor = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
+
+      const detailHTML = monthEntries.length ? `
+        <tr id="${detailId}" style="display:none;">
+          <td colspan="7" style="padding:0;border:1px solid var(--info);">
+            <div style="background:var(--bg2);padding:8px;">
+              <div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:6px;">${parseInt(m)}月の明細 （${monthEntries.length}件）</div>
+              ${monthEntries.map((h,hi) => {
+                const cowName = h.cowId ? (cowDisplayName(h.cowId)||h.cowId) : '';
+                const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
+                const invItem = inventory.find(x=>x.id===h.itemId);
+                const hIdx = invItem ? (invItem.history||[]).findIndex(x=>x===h || (x.date===h.date&&x.type===h.type&&x.count===h.count&&x.cowId===h.cowId)) : -1;
+                const editKey = `mdet-edit-${detailId}-${hi}`;
+                return `<div id="${editKey}-row" style="display:flex;align-items:center;gap:6px;padding:5px 4px;border-bottom:1px solid var(--border);font-size:11px;flex-wrap:wrap;">
+                  <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
+                  <span style="color:${tColor(h.type)};font-weight:700;white-space:nowrap;">${tLabel(h.type)}</span>
+                  <strong style="color:var(--text);">${h.itemName}</strong>
+                  <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:50px;">
+                  <span style="color:var(--muted);">本</span>
+                  ${cowName?`<span style="color:var(--muted);">${cowName}</span>`:''}
+                  ${op?`<span style="color:var(--warn);">術者:${op}</span>`:''}
+                  ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
+                </div>`;
+              }).join('')}
+            </div>
+          </td>
+        </tr>` : '';
+
+      return `<tr style="cursor:${hasActivity?'pointer':'default'};" onclick="${hasActivity?`toggleMonthDetail('${detailId}')`:''}" >
+        <td style="padding:5px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);white-space:nowrap;">${parseInt(m)}月${hasActivity?'<span style="font-size:9px;color:var(--info);margin-left:3px;">▶</span>':''}</td>
         ${d.carryover ? `<td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--warn);">${d.carryover}</td>` : `<td style="padding:5px 3px;text-align:center;border:1px solid var(--border);color:var(--muted);">—</td>`}
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--accent);">${d.in||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--danger);">${d.use||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--warn);">${d.transfer||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--muted);">${d.discard||'—'}</td>
         <td style="padding:5px 3px;font-size:14px;font-weight:900;text-align:center;border:1px solid var(--border);">${runStock}</td>
-      </tr>`;
+      </tr>${detailHTML}`;
     });
     rows.push(`<tr style="background:var(--bg3);">
       <td style="padding:6px 3px;font-size:12px;font-weight:700;border:1px solid var(--border);">年計</td>
