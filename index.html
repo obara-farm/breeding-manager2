@@ -2921,7 +2921,7 @@ function renderToday() {
 
   if (isToday) {
     overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
-    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後') && !(t.done && t.action === '🏠 産室移動'));
+    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後'));
   } else {
     overdueUndone = [];
     dayTasks = tasks.filter(t => t.date === viewDate);
@@ -5908,9 +5908,10 @@ function renderPreCalvingAlerts() {
   const todayStr = today();
   const alerts = cows.filter(cow => {
     if (!cow.dueDate) return false;
-    if (cow.status === 'fresh') return false; // 分娩済みは消す
-    if (cow.status !== 'pregnant') return false; // 妊娠中のみ
-    return true; // 予定日に関わらず妊娠中は常に表示
+    if (cow.status === 'fresh') return false;
+    if (cow.status !== 'pregnant') return false;
+    const daysUntil = diffDays(cow.dueDate, todayStr);
+    return daysUntil <= 10; // 10日前以内（超過も含む）のみ表示
   }).map(cow => {
     const moveDone = tasks.some(t => t.cowId===cow.id && t.action==='🏠 産室移動' && t.done);
     // 最終受精・移植情報
