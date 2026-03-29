@@ -656,6 +656,7 @@ textarea{resize:vertical;}
             <button type="button" id="calf-size-btn-大" onclick="setCalfSize('大')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">大</button>
             <button type="button" id="calf-size-btn-中" onclick="setCalfSize('中')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">中</button>
             <button type="button" id="calf-size-btn-小" onclick="setCalfSize('小')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">小</button>
+            <button type="button" id="calf-size-btn-不明" onclick="setCalfSize('不明')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">不明</button>
           </div>
           <input type="hidden" id="calf-weight" value="">
         </div>
@@ -7036,13 +7037,13 @@ function selectCalfDam(id, name) {
 
 function setCalfSize(val) {
   document.getElementById('calf-weight').value = val;
-  ['大','中','小'].forEach(s => {
+  ['大','中','小','不明'].forEach(s => {
     const btn = document.getElementById(`calf-size-btn-${s}`);
     if (!btn) return;
     if (s === val) {
-      btn.style.background = s==='大' ? '#1a2a0a' : s==='小' ? '#1a0a0a' : '#0a1a2a';
-      btn.style.borderColor = s==='大' ? 'var(--accent2)' : s==='小' ? 'var(--warn)' : 'var(--info)';
-      btn.style.color = s==='大' ? 'var(--accent)' : s==='小' ? 'var(--warn)' : 'var(--info)';
+      btn.style.background = s==='大' ? '#1a2a0a' : s==='小' ? '#1a0a0a' : s==='不明' ? 'var(--bg3)' : '#0a1a2a';
+      btn.style.borderColor = s==='大' ? 'var(--accent2)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--muted)' : 'var(--info)';
+      btn.style.color = s==='大' ? 'var(--accent)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--text)' : 'var(--info)';
     } else {
       btn.style.background = 'var(--bg3)';
       btn.style.borderColor = 'var(--border)';
