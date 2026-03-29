@@ -2457,18 +2457,58 @@ function migrateDates() {
   });
 
   // 既存子牛のinsemDateを母牛eventsから補完
+  // 授精簿から確認済みのデータを優先的に使用
+  const insemBook = {
+    "ni98gtix6i": {insemDate:"2025-06-23", insemType:"ai"},
+    "x5cgjf0a2xe": {insemDate:"2025-06-01", insemType:"ai"},
+    "bt262v9m0ds": {insemDate:"2025-06-01", insemType:"ai"},
+    "o5q28bpf0hi": {insemDate:"2025-04-20", insemType:"ai"},
+    "50qfvczbwiy": {insemDate:"2025-03-10", insemType:"ai"},
+    "ww7klkizsy":  {insemDate:"2025-04-02", insemType:"ai"},
+    "syaeo1xcas":  {insemDate:"2025-02-25", insemType:"ai"},
+    "fdpkimpp09":  {insemDate:"2025-02-18", insemType:"ai"},
+    "of333pcb2uq": {insemDate:"2025-02-03", insemType:"ai"},
+    "7ah87pixzw7": {insemDate:"2025-02-17", insemType:"ai"},
+    "i07bt6suvz":  {insemDate:"2025-02-03", insemType:"ai"},
+    "uttx3pookq8": {insemDate:"2025-02-08", insemType:"ai"},
+    "xolunhrwqip": {insemDate:"2025-02-07", insemType:"ai"},
+    "ik1c80js12":  {insemDate:"2025-02-01", insemType:"ai"},
+    "a5wvox9on8":  {insemDate:"2025-02-02", insemType:"ai"},
+    "0y22eib3okz": {insemDate:"2025-01-31", insemType:"ai"},
+    "e7vl1prtrsw": {insemDate:"2025-02-03", insemType:"ai"},
+    "74qt5gsi0f":  {insemDate:"2025-01-31", insemType:"ai"},
+    "tv752kkt7z":  {insemDate:"2025-02-08", insemType:"ai"},
+    "s5qe6rn2679": {insemDate:"2025-02-07", insemType:"ai"},
+    "4degwzv3uf3": {insemDate:"2025-01-21", insemType:"ai"},
+    "y9xkoums95":  {insemDate:"2025-01-24", insemType:"ai"},
+    "cvim9mgwtn":  {insemDate:"2025-01-29", insemType:"ai"},
+    "pc04myo87h":  {insemDate:"2025-01-22", insemType:"ai"},
+    "01clkqz7n0so":{insemDate:"2025-01-22", insemType:"ai"},
+    "hcmjq0spb":   {insemDate:"2025-01-22", insemType:"ai"},
+    "z4gdc0y6mw":  {insemDate:"2025-01-07", insemType:"ai"},
+    "7yk9ybb7emi": {insemDate:"2025-01-25", insemType:"ai"},
+  };
+
   calves.forEach(c => {
     if (c.insemDate) return; // 既にある場合はスキップ
+    // まず母牛eventsから補完（手入力データを優先）
     const dam = cows.find(cow => cow.id === c.damId);
-    if (!dam || !dam.events) return;
-    // 分娩日以前の最後のAI/ETイベントを取得
-    const insemEvts = dam.events.filter(e =>
-      ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) &&
-      (!c.dob || e.date <= c.dob)
-    ).sort((a,b) => b.date.localeCompare(a.date));
-    if (insemEvts.length) {
-      c.insemDate = insemEvts[0].date;
-      c.insemType = ['et_done','estrus_et'].includes(insemEvts[0].type) ? 'et' : 'ai';
+    if (dam && dam.events) {
+      const insemEvts = dam.events.filter(e =>
+        ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) &&
+        (!c.dob || e.date <= c.dob)
+      ).sort((a,b) => b.date.localeCompare(a.date));
+      if (insemEvts.length) {
+        c.insemDate = insemEvts[0].date;
+        c.insemType = ['et_done','estrus_et'].includes(insemEvts[0].type) ? 'et' : 'ai';
+        migrated = true;
+        return;
+      }
+    }
+    // eventsにない場合のみ授精簿データで補完
+    if (insemBook[c.id]) {
+      c.insemDate = insemBook[c.id].insemDate;
+      c.insemType = insemBook[c.id].insemType;
       migrated = true;
     }
   });
