@@ -1967,6 +1967,12 @@ textarea{resize:vertical;}
         <input type="text" id="qr-embryo" placeholder="例: ET-001">
       </div>
     </div>
+    <!-- 術者フィールド -->
+    <div class="form-group" style="margin-bottom:8px;">
+      <label>術者（空欄 = 自分）</label>
+      <input type="text" id="qr-operator" placeholder="例: 山田先生、農協　※空欄なら自分が実施" style="font-size:13px;">
+      <div style="font-size:11px;color:var(--warn);margin-top:4px;">自分以外の場合、精液・受精卵在庫は「譲渡」として処理されます</div>
+    </div>
     <div class="form-group" style="margin-bottom:14px;">
       <label>フリーメモ</label>
       <input type="text" id="qr-memo" placeholder="特記事項など">
@@ -4060,6 +4066,7 @@ function addEventForCow(cowId, defaultEvent) {
   document.getElementById('qr-memo').value = '';
   document.getElementById('qr-semen').value = '';
   document.getElementById('qr-embryo').value = '';
+  if (document.getElementById('qr-operator')) document.getElementById('qr-operator').value = '';
 
   const isInsemDone = defaultEvent === 'ai_done' || defaultEvent === 'et_done';
   const eventGroup = document.getElementById('qr-event-group');
@@ -4400,6 +4407,11 @@ function submitQuickReg() {
   if (!date)  { alert('日付を入力してください'); return; }
   if (!validateDate(date, cowId, event)) return;
 
+  // 術者取得（空欄=自分）
+  const operator = document.getElementById('qr-operator')?.value.trim() || '';
+  const isOther = operator !== ''; // 自分以外かどうか
+  const invType = isOther ? 'transfer' : 'use'; // 自分以外は譲渡
+
   // メモ組み立て
   const parts = [];
   const semen = document.getElementById('qr-semen').value.trim();
@@ -4407,51 +4419,50 @@ function submitQuickReg() {
   const free = document.getElementById('qr-memo').value.trim();
   if (semen) parts.push('精液:'+semen);
   if (embryo) parts.push('胚番号:'+embryo);
+  if (operator) parts.push('術者:'+operator);
   if (free) parts.push(free);
 
-  // 精液在庫から減算（AI系）
+  // 精液在庫から減算または譲渡（AI系）
   const semenSelId = document.getElementById('qr-semen-select')?.value;
   const semenNameInput = document.getElementById('qr-semen-name-input')?.value.trim();
   const semenCount = parseInt(document.getElementById('qr-semen-count')?.value)||1;
   if (semenSelId) {
-    // 在庫選択あり → 即減算
     const s = semenInventory.find(x=>x.id===semenSelId);
     if (s) {
       if (!parts.some(p=>p.startsWith('精液:'))) parts.push('精液:'+s.name);
       s.stock = (s.stock||0) - semenCount;
       s.history = s.history||[];
-      s.history.push({ date, type:'use', count:semenCount, usage:'AI', cowId, memo:free||null });
+      s.history.push({ date, type: invType, count:semenCount, usage: isOther ? null : 'AI', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : (free||null) });
     }
   } else if (semenNameInput) {
-    // 手入力のみ → pending記録として保存（後から在庫登録時に自動紐付け）
     if (!parts.some(p=>p.startsWith('精液:'))) parts.push('精液:'+semenNameInput);
-    pendingUseRecords.push({
-      id: Math.random().toString(36).slice(2),
-      kind: 'semen', name: semenNameInput,
-      date, count: semenCount, cowId, usage:'AI', memo:free||null
-    });
+    if (!isOther) {
+      pendingUseRecords.push({
+        id: Math.random().toString(36).slice(2),
+        kind: 'semen', name: semenNameInput,
+        date, count: semenCount, cowId, usage:'AI', memo:free||null
+      });
+    }
   }
 
-  // 受精卵在庫から減算（ET系）
+  // 受精卵在庫から減算または譲渡（ET系）
   const embryoSelId = document.getElementById('qr-embryo-select')?.value;
   const embryoNameInput = document.getElementById('qr-embryo-name-input')?.value.trim();
   const embryoDamInput = document.getElementById('qr-embryo-dam-input')?.value.trim();
   const embryoCount = parseInt(document.getElementById('qr-embryo-count')?.value)||1;
   if (embryoSelId) {
-    // 在庫選択あり → 即減算
     const e = embryoInventory.find(x=>x.id===embryoSelId);
     if (e) {
       const embryoLabel = (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
       if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
       e.stock = (e.stock||0) - embryoCount;
       e.history = e.history||[];
-      e.history.push({ date, type:'use', count:embryoCount, usage:'ET', cowId, memo:free||null });
+      e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? null : 'ET', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : (free||null) });
     }
   } else if (embryoNameInput || embryoDamInput) {
-    // 手入力のみ → pending記録として保存
     const embryoLabel = (embryoDamInput ? embryoDamInput+'×' : '') + (embryoNameInput || '');
     if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
-    if (embryoNameInput) pendingUseRecords.push({
+    if (embryoNameInput && !isOther) pendingUseRecords.push({
       id: Math.random().toString(36).slice(2),
       kind: 'embryo', name: embryoNameInput,
       dam: embryoDamInput || null,
@@ -4489,7 +4500,7 @@ function submitQuickReg() {
       semenMemoVal = semenNameInput;
     }
     document.getElementById('memo-semen').value = semenMemoVal;
-    document.getElementById('memo-operator').value = '';
+    document.getElementById('memo-operator').value = operator;
     document.getElementById('memo-bcs').value = '';
   } else {
     document.getElementById('reg-cowid').value = cowId;
@@ -4498,7 +4509,7 @@ function submitQuickReg() {
     document.getElementById('reg-memo').value = free;
     document.getElementById('memo-semen').value = semen;
     document.getElementById('memo-embryo').value = embryo;
-    document.getElementById('memo-operator').value = '';
+    document.getElementById('memo-operator').value = operator;
     document.getElementById('memo-bcs').value = '';
   }
 
@@ -5921,8 +5932,24 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     return;
   }
 
+  // 授精簿から術者を取得
+  const allRecs = [
+    ...INSEM_BOOK_DATA.map((r,i)=>({...r,_src:'static',_idx:i})),
+    ...insemBookRecords.map((r,i)=>({...r,_src:'dynamic',_idx:i})),
+  ];
+  const bookRec = allRecs.find(r => r.t === cowId && r.d === date);
+  let operator = '';
+  if (bookRec) {
+    const ekey = bookRec._src + '_' + bookRec._idx;
+    const edit = insemBookEdits[ekey] || {};
+    operator = edit.op !== undefined ? edit.op : (bookRec.op || '');
+  }
+  const isOther = operator !== '';
+  const invType = isOther ? 'transfer' : 'use';
+
   const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
-  cow.events.push({ type: eventType, date, memo });
+  if (operator) { cow.events.push({ type: eventType, date, memo: memo + ' ／ 術者:' + operator }); }
+  else { cow.events.push({ type: eventType, date, memo }); }
   if (!isET) cow.aiDate = date;
 
   // 妊鑑タスク生成（種付けタブと同じ）
@@ -5949,17 +5976,16 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     });
   }
 
-  // 精液在庫に使用記録を追加（addInventory=trueの場合のみ）
+  // 精液在庫に使用/譲渡記録を追加（addInventory=trueの場合のみ）
   if (addInventory && !isET) {
     const sireName = sire.trim();
     const inv = semenInventory.find(s => s.name === sireName);
     if (inv) {
-      // 同日同牛の使用記録が既にないか確認
-      const alreadyInInv = (inv.history||[]).some(h => h.type==='use' && h.date===date && h.cowId===cowId);
+      const alreadyInInv = (inv.history||[]).some(h => h.type===invType && h.date===date && h.cowId===cowId);
       if (!alreadyInInv) {
         inv.stock = (inv.stock || 0) - 1;
         inv.history = inv.history || [];
-        inv.history.push({ date, type: 'use', count: 1, usage: 'AI', cowId, memo: null });
+        inv.history.push({ date, type: invType, count: 1, usage: isOther ? null : 'AI', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : null });
       }
     }
   }
@@ -5969,7 +5995,9 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   renderAll();
 
   const resultEl = document.getElementById('insembook-sync-result');
-  resultEl.innerHTML = `✅ ${cowId} ${fmtDate(date)} ${isET?'🧬ET':'💉AI'} ${sire} を反映しました${addInventory && !isET ? '（精液在庫も更新）' : ''}`;
+  const invLabel = addInventory && !isET ? (isOther ? '（在庫→譲渡）' : '（在庫→使用）') : '';
+  const opLabel = operator ? ` 術者:${operator}` : '';
+  resultEl.innerHTML = `✅ ${cowId} ${fmtDate(date)} ${isET?'🧬ET':'💉AI'} ${sire}${opLabel} を反映しました${invLabel}`;
   resultEl.style.display = '';
   setTimeout(() => { resultEl.style.display = 'none'; }, 3000);
 }
@@ -6045,24 +6073,31 @@ function addInsemBookRecord(cowId, date, memo, type) {
     sire = m ? m[1].trim() : (memo.match(/種雄牛:([^\/\s]+)/)?.[1]?.trim() || '');
   }
   const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : 'R7';
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: '', y: year, _new: true });
+  // memoから術者を抽出
+  const opMatch = (memo||'').match(/術者:([^／\s]+)/);
+  const op = opMatch ? opMatch[1].trim() : '';
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: '', op, y: year, _new: true });
 }
 
 function saveInsemBookRecord(src, idx) {
+  const dEl = document.getElementById('ib-d-' + src + idx);
   if (src === 'dynamic') {
     const rec = insemBookRecords[idx];
     if (!rec) return;
+    if (dEl) rec.d = dEl.value || rec.d;
     rec.n = (document.getElementById('ib-n-' + src + idx)?.value || '').trim();
     rec.q = (document.getElementById('ib-q-' + src + idx)?.value || '').trim();
     rec.m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
+    rec.op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
   } else {
     // 固定データの上書き
     const key = src + '_' + idx;
-    insemBookEdits[key] = {
-      n: (document.getElementById('ib-n-' + src + idx)?.value || '').trim(),
-      q: (document.getElementById('ib-q-' + src + idx)?.value || '').trim(),
-      m: (document.getElementById('ib-m-' + src + idx)?.value || '').trim(),
-    };
+    if (!insemBookEdits[key]) insemBookEdits[key] = {};
+    if (dEl && dEl.value) insemBookEdits[key].d = dEl.value;
+    insemBookEdits[key].n = (document.getElementById('ib-n-' + src + idx)?.value || '').trim();
+    insemBookEdits[key].q = (document.getElementById('ib-q-' + src + idx)?.value || '').trim();
+    insemBookEdits[key].m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
+    insemBookEdits[key].op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
   }
   save();
 }
@@ -6107,13 +6142,14 @@ function renderInsemBook() {
     // 証明書No・No・備考は編集可能
     if (isNew) {
       return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);outline:1px solid var(--info);">' +
-        '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;white-space:nowrap;color:var(--text);">' + fmtDate(r.d) + '</td>' +
+        '<td style="padding:2px 3px;"><input type="date" id="ib-d-dynamic' + idx + '" value="' + r.d + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
         '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + ' <span style="font-size:9px;color:var(--info);">NEW</span></td>' +
         '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
         '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + typeLabel + ' ' + r.s + '</td>' +
         '<td style="padding:2px 4px;"><input id="ib-n-' + idx + '" value="' + (r.n||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-q-' + idx + '" value="' + (r.q||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+        '<td style="padding:2px 4px;"><input id="ib-op-dynamic' + idx + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '</tr>';
     }
@@ -6124,14 +6160,17 @@ function renderInsemBook() {
     const dispQ = edit.q !== undefined ? edit.q : r.q;
     const dispM = edit.m !== undefined ? edit.m : r.m;
     const sid = r._src + r._idx;
+    const dispD = edit.d || r.d;
+    const dispOp = edit.op !== undefined ? edit.op : (r.op || '');
     return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
-      '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;white-space:nowrap;color:var(--text);">' + fmtDate(r.d) + '</td>' +
+      '<td style="padding:2px 3px;"><input type="date" id="ib-d-' + sid + '" value="' + dispD + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
       '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + '</td>' +
       '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
       '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + typeLabel + ' ' + r.s + '</td>' +
       '<td style="padding:2px 4px;"><input id="ib-n-' + sid + '" value="' + dispN.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:2px 4px;"><input id="ib-q-' + sid + '" value="' + dispQ.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;"></td>' +
       '<td style="padding:2px 4px;"><input id="ib-m-' + sid + '" value="' + dispM.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+      '<td style="padding:2px 4px;"><input id="ib-op-' + sid + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
     '</tr>';
   }).join('');
@@ -9567,6 +9606,7 @@ try {
           <th style="padding:8px 6px;text-align:left;color:var(--muted);">証明書No</th>
           <th style="padding:8px 6px;text-align:left;color:var(--muted);">No</th>
           <th style="padding:8px 6px;text-align:left;color:var(--muted);">備考</th>
+          <th style="padding:8px 6px;text-align:left;color:var(--warn);">術者</th>
           <th style="padding:8px 6px;text-align:center;color:var(--muted);">反映</th>
         </tr>
       </thead>
