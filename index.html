@@ -4866,24 +4866,27 @@ function renderStats() {
       const semenMap = {}; // semenName -> {total, pos}
       // 胚ステージ別受胎率
       const stageMap = {}; // stageName -> {total, pos}
-      // 季節別受胎率
-      const seasonMap = {'春(3-5月)':{total:0,pos:0},'夏(6-8月)':{total:0,pos:0},'秋(9-11月)':{total:0,pos:0},'冬(12-2月)':{total:0,pos:0}};
+      // 月別受胎率（AI/ET別）
+      const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+      const monthMap = {};
+      monthNames.forEach(m => { monthMap[m] = {ai:{total:0,pos:0}, et:{total:0,pos:0}}; });
 
       cows.forEach(c => {
         const evts = c.events || [];
         evts.forEach((ev, i) => {
           if (ev.type !== 'preg_positive' && ev.type !== 'preg_negative') return;
           const isPos = ev.type === 'preg_positive';
-          // 直前の受精イベントを探す
           const prev = evts.slice(0, i).reverse();
           const insem = prev.find(e => ['ai_done','estrus','estrus_ai','et_done'].includes(e.type));
           if (!insem) return;
 
-          // 季節
           const month = parseInt((insem.date||'').slice(5,7));
-          const season = month>=3&&month<=5?'春(3-5月)':month>=6&&month<=8?'夏(6-8月)':month>=9&&month<=11?'秋(9-11月)':'冬(12-2月)';
-          seasonMap[season].total++;
-          if (isPos) seasonMap[season].pos++;
+          if (!month) return;
+          const mLabel = monthNames[month - 1];
+          const isEt = insem.type === 'et_done';
+          const kind = isEt ? 'et' : 'ai';
+          monthMap[mLabel][kind].total++;
+          if (isPos) monthMap[mLabel][kind].pos++;
 
           // 精液番号 / 胚番号（メモから抽出）
           const memo = insem.memo || '';
@@ -4946,11 +4949,43 @@ function renderStats() {
           `).join('');
       })();
 
-      const seasonRows = Object.entries(seasonMap).map(([name,d])=>`
-        <div style="margin-bottom:8px;">
-          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:3px;">${name}</div>
-          ${rateBar(d.pos,d.total)}
-        </div>`).join('');
+      const monthRows = (() => {
+        const hasAny = monthNames.some(m => monthMap[m].ai.total > 0 || monthMap[m].et.total > 0);
+        if (!hasAny) return '';
+        const aiHas = monthNames.some(m => monthMap[m].ai.total > 0);
+        const etHas = monthNames.some(m => monthMap[m].et.total > 0);
+        return `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+              <thead>
+                <tr>
+                  <th style="padding:5px 4px;border:1px solid var(--border);text-align:left;color:var(--muted);">月</th>
+                  ${aiHas ? `<th style="padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--info);">💉 AI</th>` : ''}
+                  ${etHas ? `<th style="padding:5px 4px;border:1px solid var(--border);text-align:center;color:var(--purple);">🧬 ET</th>` : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${monthNames.map(m => {
+                  const ai = monthMap[m].ai;
+                  const et = monthMap[m].et;
+                  if (!ai.total && !et.total) return '';
+                  const aiRate = ai.total ? Math.round(ai.pos/ai.total*100) : null;
+                  const etRate = et.total ? Math.round(et.pos/et.total*100) : null;
+                  const col = r => r===null ? 'var(--muted)' : r>=60 ? 'var(--accent)' : r>=40 ? 'var(--warn)' : 'var(--danger)';
+                  return `<tr>
+                    <td style="padding:5px 4px;border:1px solid var(--border);font-weight:700;">${m}</td>
+                    ${aiHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
+                      ${aiRate !== null ? `<span style="font-weight:700;color:${col(aiRate)};">${aiRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${ai.pos}/${ai.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
+                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      })();
 
       const stageRows = Object.entries(stageMap).sort((a,b)=>b[1].total-a[1].total).map(([name,d])=>`
         <div style="margin-bottom:8px;">
@@ -4959,7 +4994,7 @@ function renderStats() {
         </div>`).join('');
 
       const hasData = Object.values(semenMap).length || Object.values(stageMap).length;
-      if (!hasData && !Object.values(seasonMap).some(v=>v.total>0)) return '';
+      if (!hasData && !monthNames.some(m => monthMap[m].ai.total > 0 || monthMap[m].et.total > 0)) return '';
 
       return `
         <div class="stats-card">
@@ -4968,9 +5003,9 @@ function renderStats() {
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">種雄牛別受胎率</div>
             ${semenRows}
             <div style="height:1px;background:var(--border);margin:14px 0;"></div>` : ''}
-          ${Object.values(seasonMap).some(v=>v.total>0) ? `
-            <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">季節別受胎率</div>
-            ${seasonRows}
+          ${monthRows ? `
+            <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">月別受胎率（AI / ET）</div>
+            ${monthRows}
             <div style="height:1px;background:var(--border);margin:14px 0;"></div>` : ''}
           ${Object.values(stageMap).length ? `
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">胚ステージ別受胎率</div>
