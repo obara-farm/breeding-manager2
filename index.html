@@ -7442,8 +7442,15 @@ function buildCertHTML(r, idx, certNo) {
   var regNo     = (cow && cow.regNo)  ? cow.regNo  : '';
 
   // 授精証明書番号：授精簿のq欄があればそれを優先、なければ自動採番
-  var insemCertNoStr = (r.q && r.q.trim()) ? r.q.trim() :
-                       (certNo !== null ? '第　' + String(certNo) + '　号' : '');
+  // q欄が数字だけの場合は「第〇〇号」形式に整形
+  var rawQ = (r.q && r.q.trim()) ? r.q.trim() : '';
+  var insemCertNoStr = '';
+  if (rawQ) {
+    // 数字だけなら「第　〇〇　号」に整形、既に「第」が入っていればそのまま
+    insemCertNoStr = /^\d+$/.test(rawQ) ? '第　' + rawQ + '　号' : rawQ;
+  } else if (certNo !== null) {
+    insemCertNoStr = '第　' + String(certNo) + '　号';
+  }
   // 精液証明書番号：授精簿のn欄
   var semenCertNo = (r.n && r.n.trim()) ? r.n.trim() : '';
   var aiDateStr   = fmtDateJP(r.d);
@@ -7465,16 +7472,16 @@ function buildCertHTML(r, idx, certNo) {
   var cellC    = cellBase + 'text-align:center;';
 
   return (
-    // A4横全体ラッパー（タイトル行はfull width）
+    // A4横全体ラッパー
     '<div style="width:100%;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 5mm 6mm;box-sizing:border-box;">' +
 
-      // 1行目：左上に授精証明書番号
-      '<div style="font-size:9pt;margin-bottom:1.5mm;">' + insemCertNoStr + '</div>' +
+      // 1行目：左上に授精証明書番号（A4全幅内の左端）
+      '<div style="font-size:9pt;margin-bottom:1mm;">' + insemCertNoStr + '</div>' +
 
-      // 2行目：A4全幅中央にタイトル
-      '<div style="text-align:center;font-size:15pt;font-weight:bold;letter-spacing:6px;margin-bottom:3mm;">授　精　証　明　書</div>' +
+      // 2行目：A4全幅の中央にタイトル（本体テーブルの外、全幅に対して中央）
+      '<div style="width:100%;text-align:center;font-size:15pt;font-weight:bold;letter-spacing:6px;margin-bottom:4mm;">授　精　証　明　書</div>' +
 
-      // 証明書本体（左46%）＋右空白
+      // 証明書本体（左46%）＋右空白（ストロー・ラベル添付用）
       '<div style="display:flex;align-items:flex-start;">' +
 
         '<div style="width:46%;box-sizing:border-box;">' +
@@ -9558,6 +9565,9 @@ function renderReport() {
         if (h.type === 'restock') {
           monthData[m].in += h.count;
           monthData[m].breakdown[name].in += h.count;
+        } else if (h.type === 'selfcollect') {
+          monthData[m].in += h.count;
+          monthData[m].breakdown[name].in += h.count;
         } else if (h.type === 'carryover') {
           monthData[m].carryover += h.count;
           monthData[m].breakdown[name].in += h.count; // 内訳はinに含める
@@ -9574,14 +9584,16 @@ function renderReport() {
       });
     });
 
-    // 期首在庫
+    // 期首在庫：選択年の1/1より前の全履歴から積み上げ
     let startStock = 0;
     inventory.forEach(item => {
-      (item.history||[]).filter(h=>h.date && h.date < `${selectedYear}-01-01`).forEach(h => {
+      (item.history||[]).forEach(h => {
+        if (!h.date) return; // 日付なしは無視
+        if (h.date >= selectedYear + '-01-01') return; // 選択年以降は無視
         if (h.type === 'restock' || h.type === 'carryover' || h.type === 'selfcollect') {
-          startStock += h.count;
+          startStock += (h.count || 0);
         } else if (h.type === 'use' || h.type === 'transfer' || h.type === 'discard') {
-          startStock -= h.count;
+          startStock -= (h.count || 0);
         }
       });
     });
