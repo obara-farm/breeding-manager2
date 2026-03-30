@@ -6211,9 +6211,22 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
     if (isIn(value))  item.stock = (item.stock||0) + h.count;
     else              item.stock = (item.stock||0) - h.count;
     h.type = value;
-    // selectのスタイルも更新
-    const tColor = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
-    if (el) { el.style.borderColor = tColor(value); el.style.color = tColor(value); }
+    // ボタン形式のスタイル更新
+    const tColorFn = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
+    if (el) {
+      const row = el.closest('div[style*="border-left"]');
+      if (row) row.style.borderLeftColor = tColorFn(value);
+      const btnGroup = el.parentElement;
+      if (btnGroup) btnGroup.querySelectorAll('button').forEach(b => {
+        const m = b.getAttribute('onclick')?.match(/'(\w+)'\)$/);
+        const bVal = m ? m[1] : null;
+        if (!bVal) return;
+        const c = tColorFn(bVal);
+        b.style.borderColor = bVal===value ? c : 'var(--border)';
+        b.style.background  = bVal===value ? 'rgba(0,0,0,0.3)' : 'var(--bg)';
+        b.style.color       = bVal===value ? c : 'var(--muted)';
+      });
+    }
   }
   save();
   renderSemen();
@@ -6578,8 +6591,71 @@ function openEditCollection(id) {
   openModal('modal-collection');
 }
 
+// 採卵日変更→採卵番号自動生成
+function onColDateChange() {
+  const dateVal = document.getElementById('col-date').value;
+  if (!dateVal) return;
+  const d = new Date(dateVal);
+  const yy = String(d.getFullYear()).slice(-2); // 25
+  const monthLetters = 'ABCDEFGHIJKL';
+  const ml = monthLetters[d.getMonth()]; // 0=A,11=L
+  const dd = String(d.getDate()).padStart(2,'0'); // 11
+  const base = `${yy}${ml}${parseInt(dd)}`;
+  // 同日に既に記録がある場合はB2,B3...と増やす
+  const sameDay = collectionRecordsNew.filter(r => r.date === dateVal);
+  const editId = document.getElementById('collection-edit-id').value;
+  const sameDayExcludingSelf = sameDay.filter(r => r.id !== editId);
+  // ボタン生成（B1〜最大B3まで）
+  const btnContainer = document.getElementById('col-lot-body-btns');
+  if (!btnContainer) return;
+  const maxBody = Math.max(sameDayExcludingSelf.length + 2, 3);
+  btnContainer.innerHTML = '';
+  for (let b = 1; b <= maxBody; b++) {
+    const lot = `${base}B${b}`;
+    const used = sameDayExcludingSelf.some(r => r.lot === lot);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `B${b}`;
+    btn.style.cssText = `padding:4px 10px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;border:1px solid ${used?'var(--muted)':'var(--purple)'};background:${used?'var(--bg3)':'rgba(167,139,250,.1)'};color:${used?'var(--muted)':'var(--purple)'};`;
+    btn.onclick = () => {
+      document.getElementById('col-lot').value = lot;
+      btnContainer.querySelectorAll('button').forEach(x => {
+        x.style.background = 'rgba(0,0,0,0)';
+        x.style.borderColor = 'var(--border)';
+        x.style.color = 'var(--muted)';
+      });
+      btn.style.background = 'rgba(167,139,250,.3)';
+      btn.style.borderColor = 'var(--purple)';
+      btn.style.color = 'var(--purple)';
+      // 胚番号を再生成
+      const fc = parseInt(document.getElementById('col-frozen-count').value)||0;
+      const frc = parseInt(document.getElementById('col-fresh-count').value)||0;
+      if (fc > 0) onColFrozenCountInput(fc);
+      if (frc > 0) onColFreshCountInput(frc);
+    };
+    if (b === 1) setTimeout(() => btn.click(), 0); // デフォルトB1を選択
+    btnContainer.appendChild(btn);
+  }
+}
+
 function onColDonorChange() {
-  // ドナー変更時に精液在庫から選択肢を更新（任意）
+  const donorId = document.getElementById('col-donor').value;
+  if (!donorId) return;
+  const cow = cows.find(c => c.id === donorId);
+  if (!cow) return;
+  // 直近のドナーAI記録を探す（donor_et系イベント）
+  const donorEvents = (cow.events||[]).filter(e =>
+    ['ai_done','estrus_ai','estrus'].includes(e.type) && e.date
+  ).sort((a,b) => b.date.localeCompare(a.date));
+  if (donorEvents.length > 0) {
+    const latest = donorEvents[0];
+    document.getElementById('col-ai-date').value = latest.date;
+    // memoから精液名を抽出
+    const sireMatch = (latest.memo||'').match(/精液:([^／\s]+)/);
+    if (sireMatch) document.getElementById('col-sire').value = sireMatch[1];
+  }
+  // 採卵日が入力済みなら採卵番号も生成
+  if (document.getElementById('col-date').value) onColDateChange();
 }
 
 function setColPG(val) {
@@ -6598,21 +6674,64 @@ function onColFrozenCountInput(val, existing) {
   const tbody = document.getElementById('col-frozen-tbody');
   wrap.style.display = n > 0 ? '' : 'none';
   const cur = tbody.querySelectorAll('tr').length;
+
+  // 凍結胚番号の連番を計算（01L237R8-XXXX形式）
+  // 年度を計算（4月始まり）
+  const colDate = document.getElementById('col-date').value;
+  const d = colDate ? new Date(colDate) : new Date();
+  const fiscalYear = d.getMonth() >= 3 ? d.getFullYear() - 2018 : d.getFullYear() - 2019; // R換算
+  const yearLabel = `R${fiscalYear}`;
+  // 今年度の既存最大連番を取得
+  const usedNos = [];
+  embryoInventory.forEach(item => {
+    (item.embryoDetails||[]).forEach(ed => {
+      const m = ed.no?.match(/01L237R\d+-(\d+)/);
+      if (m) {
+        const y = ed.no.match(/01L237(R\d+)-/)?.[1];
+        if (y === yearLabel) usedNos.push(parseInt(m[1]));
+      }
+    });
+    (item.history||[]).forEach(h => {
+      const m = h.memo?.match(/01L237R\d+-(\d+)/g);
+      if (m) m.forEach(x => {
+        const yr = x.match(/01L237(R\d+)-/)?.[1];
+        const num = x.match(/-(\d+)$/)?.[1];
+        if (yr === yearLabel && num) usedNos.push(parseInt(num));
+      });
+    });
+  });
+  // 今回の採卵記録（編集中）の既存胚番号も除外
+  const editId = document.getElementById('collection-edit-id').value;
+  const selfRec = editId ? collectionRecordsNew.find(r=>r.id===editId) : null;
+  const selfNos = (selfRec?.frozenEmbryos||[]).map(e=>{
+    const m = e.no?.match(/01L237R\d+-(\d+)/);
+    return m ? parseInt(m[1]) : null;
+  }).filter(Boolean);
+  const maxUsed = Math.max(0, ...usedNos.filter(x=>!selfNos.includes(x)));
+
   if (cur < n) {
     for (let i = cur; i < n; i++) {
       const ex = existing && existing[i];
+      // 自動番号生成
+      const seqNum = String(maxUsed + i + 1 - (selfNos.length > i ? 0 : 0)).padStart(4,'0');
+      const autoNo = ex?.no || `01L237${yearLabel}-${String(maxUsed + i + 1).padStart(4,'0')}`;
+      // ケーン番号自動割り振り（5本ずつ）
+      const lot = document.getElementById('col-lot').value || '';
+      const caneIdx = Math.floor(i / 5);
+      const caneLabel = String.fromCharCode(65 + caneIdx); // A,B,C...
+      const autoCane = ex?.cane || (lot ? `${lot}-${caneLabel}` : '');
       const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;">${i+1}</td>
-        <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${ex?.no||''}" placeholder="胚番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:110px;"></td>
-        <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${ex?.cane||''}" placeholder="ケーン番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
-        <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+      tr.style.cssText = `border-bottom:${i%2===0?'1px solid var(--border)':'2px solid var(--bg)'};background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
+      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${autoNo}" placeholder="胚番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;"></td>
+        <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${autoCane}" placeholder="ケーン番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
+        <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
           <option value="">—</option><option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
         </select></td>
-        <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+        <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
           <option value="">—</option><option value="A" ${ex?.rank==='A'?'selected':''}>A</option><option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
         </select></td>
-        <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
+        <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
       tbody.appendChild(tr);
     }
   } else {
@@ -6628,31 +6747,32 @@ function onColFreshCountInput(val, existing) {
   const cur = tbody.querySelectorAll('tr').length;
   const recipientOptions = '<option value="">移植先選択</option>' +
     cows.filter(c=>c.status==='program'||c.status==='open').map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
+  const lot = document.getElementById('col-lot').value || '';
   if (cur < n) {
     for (let i = cur; i < n; i++) {
       const ex = existing && existing[i];
+      const autoNo = lot ? `${lot}-${i+1}` : `新鮮胚-${i+1}`;
       const tr = document.createElement('tr');
-      tr.style.borderBottom = '1px solid var(--border)';
-      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;">${i+1}</td>
-        <td style="padding:2px 3px;"><select class="cfr-stage" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+      tr.style.cssText = `border-bottom:${i%2===0?'1px solid var(--border)':'2px solid var(--bg)'};background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
+      tr.innerHTML = `<td style="padding:3px 4px;color:var(--accent);font-size:10px;white-space:nowrap;">${autoNo}</td>
+        <td style="padding:2px 3px;"><select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
           <option value="">—</option><option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
         </select></td>
-        <td style="padding:2px 3px;"><select class="cfr-rank" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+        <td style="padding:2px 3px;"><select class="cfr-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
           <option value="">—</option><option value="A" ${ex?.rank==='A'?'selected':''}>A</option><option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
         </select></td>
-        <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:70px;"></td>
-        <td style="padding:2px 3px;"><select class="cfr-action" onchange="onFreshActionChange(this)" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
+        <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:70px;"></td>
+        <td style="padding:2px 3px;"><select class="cfr-action" onchange="onFreshActionChange(this)" style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
           <option value="pending" ${ex?.action==='pending'?'selected':''}>翌日移植予定</option>
           <option value="today" ${ex?.action==='today'?'selected':''}>当日移植</option>
           <option value="freeze" ${ex?.action==='freeze'?'selected':''}>凍結に変更</option>
         </select></td>
-        <td style="padding:2px 3px;" class="cfr-recipient-cell" style="display:${ex?.action==='today'?'':'none'}">
-          <select class="cfr-recipient" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;display:${ex?.action==='today'?'':'none'};">
+        <td style="padding:2px 3px;">
+          <select class="cfr-recipient" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;display:${ex?.action==='today'?'':'none'};">
             ${recipientOptions}
           </select>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
-      if (ex?.action === 'today') { const s = tr.querySelector('.cfr-recipient'); if (s) s.style.display=''; }
       tbody.appendChild(tr);
     }
   } else {
@@ -8948,22 +9068,22 @@ function renderReport() {
                 const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
                 const invItem = inventory.find(x=>x.id===h.itemId);
                 const hIdx = invItem ? (invItem.history||[]).findIndex(x=>x===h || (x.date===h.date&&x.type===h.type&&x.count===h.count&&x.cowId===h.cowId)) : -1;
-                const typeOpts = typeOptions.map(t =>
-                  `<option value="${t}" ${t===h.type?'selected':''}>${tLabel(t)}</option>`
-                ).join('');
                 const rowBgDet = hi % 2 === 0 ? 'var(--bg3)' : 'var(--bg2)';
                 const leftColor = tColor(h.type);
-                return `<div style="display:flex;align-items:center;gap:6px;padding:7px 8px;background:${rowBgDet};border-left:3px solid ${leftColor};border-bottom:2px solid var(--bg);flex-wrap:wrap;margin-bottom:1px;">
+                const typeBtns = typeOptions.map(t =>
+                  `<button onclick="updateMonthDetEntry('${h.itemId}',${hIdx},'type','${t}',this)" style="padding:2px 6px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap;border:1px solid ${t===h.type?tColor(t):'var(--border)'};background:${t===h.type?'rgba(0,0,0,0.3)':'var(--bg)'};color:${t===h.type?tColor(t):'var(--muted)'};">${tLabel(t)}</button>`
+                ).join('');
+                return `<div style="display:flex;align-items:center;gap:5px;padding:7px 8px;background:${rowBgDet};border-left:3px solid ${leftColor};border-bottom:2px solid var(--bg);flex-wrap:wrap;margin-bottom:1px;">
                   <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
-                  <select onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'type',this.value,this)" style="background:var(--bg);border:1px solid ${leftColor};color:${leftColor};font-size:11px;font-weight:700;padding:2px 4px;border-radius:4px;">${typeOpts}</select>
+                  <div style="display:flex;gap:3px;flex-wrap:wrap;">${typeBtns}</div>
                   <strong style="color:var(--text);font-size:12px;">${h.itemName}</strong>
                   <div style="display:flex;align-items:center;gap:3px;">
                     <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:2px 4px;border-radius:4px;width:50px;text-align:center;">
                     <span style="color:var(--muted);font-size:11px;">本</span>
                   </div>
                   ${cowName?`<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;">${cowName}</span>`:''}
-                  <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:70px;">
-                  ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${h.memo}</span>`:''}
+                  <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:60px;">
+                  ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
               }).join('')}
             </div>
@@ -10563,11 +10683,14 @@ try {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <div class="form-group">
           <label>採卵日</label>
-          <input type="date" id="col-date" style="font-size:13px;">
+          <input type="date" id="col-date" style="font-size:13px;" onchange="onColDateChange()">
         </div>
         <div class="form-group">
           <label>採卵番号</label>
-          <input type="text" id="col-lot" placeholder="例: 25L11B1" style="font-size:13px;">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="text" id="col-lot" placeholder="例: 25L11B1" style="font-size:13px;flex:1;" readonly>
+            <div style="display:flex;gap:4px;" id="col-lot-body-btns"></div>
+          </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
@@ -10638,7 +10761,7 @@ try {
         <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
         <div style="display:flex;gap:6px;align-items:center;">
           <span style="font-size:11px;color:var(--muted);">個数:</span>
-          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)">
+          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
         </div>
       </div>
       <div id="col-frozen-tbody-wrap" style="display:none;overflow-x:auto;">
@@ -10664,7 +10787,7 @@ try {
         <div style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚記録</div>
         <div style="display:flex;gap:6px;align-items:center;">
           <span style="font-size:11px;color:var(--muted);">個数:</span>
-          <input type="number" id="col-fresh-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFreshCountInput(this.value)">
+          <input type="number" id="col-fresh-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFreshCountInput(this.value)" onchange="onColFreshCountInput(this.value)">
         </div>
       </div>
       <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
