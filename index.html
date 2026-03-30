@@ -7295,10 +7295,16 @@ function deleteInsemRecord(src, idx) {
   var sire  = r.s || '';
   var isET  = sire.includes('×');
 
-  // 確認モーダルで確認
-  showConfirm(
-    '授精記録を削除しますか？\n' + fmtDate(date) + ' ' + cowId + ' ' + sire + '\n\n関連する在庫使用記録・妊鑑タスクも削除されます。',
-    function() {
+  // 確認モーダル
+  document.getElementById('confirm-title').innerHTML = '🗑 授精記録を削除';
+  document.getElementById('confirm-body').innerHTML =
+    '<div style="background:#1a0808;border:1px solid var(--danger);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#fca5a5;">⚠ この操作は取り消せません</div>' +
+    '<div style="font-size:13px;color:var(--text);line-height:1.8;">' +
+    fmtDate(date) + '　' + cowId + '　' + sire + '<br>関連する在庫使用記録・妊鑑タスクも削除されます。</div>';
+  document.getElementById('confirm-ok-btn').textContent = '削除する';
+  document.getElementById('confirm-ok-btn').style.background = 'var(--danger)';
+  document.getElementById('confirm-ok-btn').style.borderColor = 'var(--danger)';
+  document.getElementById('confirm-ok-btn').onclick = function() {
       // 1. insemBookRecordsから削除（dynamic）
       if (src === 'dynamic') {
         insemBookRecords.splice(idx, 1);
@@ -7373,8 +7379,9 @@ function deleteInsemRecord(src, idx) {
       save();
       renderInsemBook();
       renderAll();
-    }
-  );
+      closeModal('modal-confirm');
+    };
+  openModal('modal-confirm');
 }
 
 // ===== 授精証明書 =====
