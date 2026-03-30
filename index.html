@@ -296,11 +296,13 @@ textarea{resize:vertical;}
 .cal-dot{width:4px;height:4px;border-radius:50%;}
 .cal-day-num{font-size:13px;line-height:1;}
 @media print {
+  @page { size: A4 portrait; margin: 0; }
   body > *:not(#modal-cert-preview) { display: none !important; }
-  #modal-cert-preview { display: block !important; position: static !important; background: #fff !important; }
-  #modal-cert-preview .modal { max-width: 100% !important; box-shadow: none !important; }
-  #modal-cert-preview .modal-title, #modal-cert-preview > div:first-child { display: none !important; }
+  #modal-cert-preview { display: block !important; position: static !important; background: #fff !important; overflow: visible !important; }
+  #modal-cert-preview .modal { max-width: 100% !important; box-shadow: none !important; overflow: visible !important; background: #fff !important; border: none !important; padding: 0 !important; }
+  #modal-cert-preview .modal > *:not(#cert-preview-container) { display: none !important; }
   .modal-overlay:not(#modal-cert-preview) { display: none !important; }
+  #cert-preview-container > div { page-break-after: always; }
 }
 </style>
 </head>
@@ -7284,16 +7286,24 @@ function toggleAllInsemCheck() {
 function printSelectedCerts() {
   const checks = document.querySelectorAll('.insem-cert-check:checked');
   if (!checks.length) { alert('証明書を印刷する行を選択してください（📄チェックボックス）'); return; }
+
+  // 選択行を日付昇順で並び替え
   const selected = Array.from(checks).map(c => {
     const src = c.dataset.src;
     const idx = parseInt(c.dataset.idx);
-    if (src === 'dynamic') return insemBookRecords[idx];
-    const r = INSEM_BOOK_DATA[idx];
-    if (!r) return null;
-    const ekey = src + '_' + idx;
-    const edit = insemBookEdits[ekey] || {};
-    return { ...r, n: edit.n||r.n, q: edit.q||r.q, m: edit.m||r.m, d: edit.d||r.d, op: edit.op||r.op||'' };
-  }).filter(Boolean);
+    let r;
+    if (src === 'dynamic') {
+      r = insemBookRecords[idx];
+    } else {
+      const base = INSEM_BOOK_DATA[idx];
+      if (!base) return null;
+      const ekey = src + '_' + idx;
+      const edit = insemBookEdits[ekey] || {};
+      r = { ...base, n: edit.n||base.n, q: edit.q||base.q, m: edit.m||base.m, d: edit.d||base.d, op: edit.op||base.op||'' };
+    }
+    return r;
+  }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
+
   openCertPreview(selected);
 }
 
@@ -7301,74 +7311,112 @@ function openCertPreview(records) {
   const modal = document.getElementById('modal-cert-preview');
   if (!modal) return;
   const container = document.getElementById('cert-preview-container');
-  container.innerHTML = records.map((r, i) => buildCertHTML(r, i)).join('<div style="page-break-after:always;"></div>');
+  // 587番からの自動採番
+  const START_NO = 587;
+  container.innerHTML = records.map((r, i) => buildCertHTML(r, i, START_NO + i)).join('');
   modal.classList.add('open');
 }
 
-function buildCertHTML(r, idx) {
+function buildCertHTML(r, idx, certNo) {
   const cow = cows.find(c => c.id === r.t);
   const cowName = cow ? (cow.name || '') : '';
-  const nationalId = cow?.nationalId ? formatNationalId(cow.nationalId) : '';
-  const dob = cow?.dob ? fmtDate(cow.dob) : '';
-  const breed = cow?.breed === '褐毛' ? '肉用種　褐毛和種' : cow?.breed === '黒毛' ? '肉用種　黒毛和種' : cow?.breed || '';
-  const regOrg = cow?.regOrg || '';
-  const regNo  = cow?.regNo  || '';
-  const isET = r.s.includes('×');
-  const certNoId = `cert-no-${idx}`;
+  const nationalId = cow && cow.nationalId ? formatNationalId(cow.nationalId) : '';
+  const dob = cow && cow.dob ? fmtDateJP(cow.dob) : '';
+  const breed = cow && cow.breed === '褐毛' ? '肉用種　褐毛和種' :
+                cow && cow.breed === '黒毛' ? '肉用種　黒毛和種' :
+                (cow && cow.breed) ? cow.breed : '';
+  const regOrg = (cow && cow.regOrg) ? cow.regOrg : '';
+  const regNo  = (cow && cow.regNo)  ? cow.regNo  : '';
+  const certNoStr = '第　' + String(certNo) + '　号';
+  const aiDateStr = fmtDateJP(r.d);
+  const sireNameStr = r.s || '';
 
-  return `<div style="border:2px solid #333;padding:16px 20px;font-family:'MS Mincho',serif;font-size:13px;max-width:520px;margin:0 auto 20px;background:#fff;color:#000;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-      <div>
-        <div style="font-size:11px;font-weight:700;">種　畜　　家畜人工授精用</div>
-        <div style="font-size:11px;margin-left:4px;">精液証明書番号　<input id="${certNoId}" value="${r.n||''}" placeholder="証明書番号を入力" style="border:none;border-bottom:1px solid #333;font-size:12px;width:120px;background:transparent;font-family:inherit;"></div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:11px;">名　前　<strong style="font-size:14px;">${r.s}</strong></div>
-      </div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
-      <tr>
-        <td rowspan="8" style="border:1px solid #333;padding:4px;text-align:center;font-size:12px;writing-mode:vertical-rl;letter-spacing:4px;width:24px;">精液を注入した雌畜</td>
-        <td style="border:1px solid #333;padding:4px 8px;width:140px;">名　　　前</td>
-        <td style="border:1px solid #333;padding:4px 8px;font-weight:700;">${cowName} (${r.t})</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">個 体 識 別 番 号</td>
-        <td style="border:1px solid #333;padding:4px 8px;font-family:'Courier New',monospace;">${nationalId}</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">家 畜 登 録 機 関 名<br>及 び 登 録 番 号</td>
-        <td style="border:1px solid #333;padding:4px 8px;">${regOrg}<br>${regNo}</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">種 類 及 び 品 種</td>
-        <td style="border:1px solid #333;padding:4px 8px;">${breed}</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">毛 色 及 び 特 徴</td>
-        <td style="border:1px solid #333;padding:4px 8px;"></td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">生　年　月　日</td>
-        <td style="border:1px solid #333;padding:4px 8px;">${dob}</td>
-      </tr>
-      <tr>
-        <td style="border:1px solid #333;padding:4px 8px;">飼養者の氏名又は名称<br>及び住所</td>
-        <td style="border:1px solid #333;padding:4px 8px;">池田町字千代田697番地<br>小原　秀樹</td>
-      </tr>
-    </table>
-    <div style="border:1px solid #333;padding:6px 8px;margin-bottom:10px;font-size:12px;">
-      精　液　注　入　年　月　日　　　<strong>${fmtDate(r.d)}</strong>
-    </div>
-    <div style="font-size:11px;margin-bottom:12px;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>
-    <div style="text-align:right;font-size:11px;line-height:1.8;">
-      <div>獣医師（免許番号: 01L237）</div>
-      <div>（登録番号: 第 60937 号）</div>
-      <div>住　所　中川郡池田町字千代田697番地</div>
-      <div>氏　名　小原 千佳　　㊞</div>
-      <div>小原家畜人工授精所</div>
-    </div>
-  </div>`;
+  // A4左半分（幅約48%）に収める、右半分は空白
+  return '<div style="page-break-after:always;width:100%;display:flex;font-family:\'MS Mincho\',\'游明朝\',serif;">' +
+
+    // ── 左半分：証明書本体 ──
+    '<div style="width:48%;padding:10mm 6mm 8mm 8mm;box-sizing:border-box;color:#000;font-size:10.5pt;">' +
+
+      // 上部：種畜情報
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:2mm;">' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;text-align:center;font-size:9pt;width:12mm;">種&#12288;畜</td>' +
+          '<td colspan="2" style="border:1px solid #000;padding:1mm 2mm;text-align:center;font-size:9pt;">家畜人工授精用</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;text-align:center;font-size:9pt;width:10mm;">名&#12288;前</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:10.5pt;font-weight:bold;">' + sireNameStr + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;text-align:center;font-size:8pt;" rowspan="2">精液証明書番号</td>' +
+          '<td colspan="4" style="border:1px solid #000;padding:1mm 3mm;font-size:10pt;">' + certNoStr + '</td>' +
+        '</tr>' +
+      '</table>' +
+
+      // 中部：雌畜情報テーブル
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:2mm;">' +
+        '<tr>' +
+          '<td rowspan="7" style="border:1px solid #000;padding:1mm;text-align:center;writing-mode:vertical-rl;letter-spacing:3px;font-size:9pt;width:7mm;">精液を注入した雌畜</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;width:36mm;">名&#12288;&#12288;&#12288;前</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:10pt;font-weight:bold;">' + cowName + '&#12288;(' + r.t + ')</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">個&#12288;体&#12288;識&#12288;別&#12288;番&#12288;号</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9.5pt;font-family:\'Courier New\',monospace;">' + nationalId + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">家&#12288;畜&#12288;登&#12288;録&#12288;機&#12288;関&#12288;名<br>及&#12288;び&#12288;登&#12288;録&#12288;番&#12288;号</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">' + regOrg + '<br>' + regNo + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">種&#12288;類&#12288;及&#12288;び&#12288;品&#12288;種</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">' + breed + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">毛&#12288;色&#12288;及&#12288;び&#12288;特&#12288;徴</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;height:8mm;"></td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">生&#12288;年&#12288;月&#12288;日</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">' + dob + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">飼養者の氏名又は名称<br>及び住所</td>' +
+          '<td style="border:1px solid #000;padding:1mm 2mm;font-size:9pt;">&#12288;池田町字千代田697番地<br>小原&#12288;秀樹</td>' +
+        '</tr>' +
+      '</table>' +
+
+      // 精液注入年月日
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:3mm;">' +
+        '<tr>' +
+          '<td style="border:1px solid #000;padding:1.5mm 2mm;font-size:9.5pt;text-align:center;">精&#12288;液&#12288;注&#12288;入&#12288;年&#12288;月&#12288;日</td>' +
+          '<td style="border:1px solid #000;padding:1.5mm 3mm;font-size:10.5pt;font-weight:bold;">' + aiDateStr + '</td>' +
+        '</tr>' +
+      '</table>' +
+
+      // 証明文
+      '<div style="font-size:9pt;margin-bottom:4mm;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
+
+      // 証明者情報
+      '<div style="font-size:8.5pt;line-height:1.9;padding-left:10mm;">' +
+        '<div>獣医師（免許番号: 01L237）</div>' +
+        '<div>（登録番号: 第 60937 号）</div>' +
+        '<div>住&#12288;所&#12288;&#12288;中川郡池田町字千代田697番地</div>' +
+        '<div>氏&#12288;名&#12288;小原 千佳&#12288;&#12288;㊞</div>' +
+        '<div>小原家畜人工授精所</div>' +
+      '</div>' +
+
+    '</div>' +
+
+    // ── 右半分：ストロー・ラベル添付用空白 ──
+    '<div style="width:52%;"></div>' +
+
+  '</div>';
+}
+
+function fmtDateJP(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
 }
 
 function formatNationalId(id) {
@@ -7379,7 +7427,6 @@ function formatNationalId(id) {
 }
 
 function printCerts() {
-  // 証明書番号の入力値をDOMから取得して反映後に印刷
   window.print();
 }
 
