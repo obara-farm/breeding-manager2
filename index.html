@@ -483,6 +483,11 @@ textarea{resize:vertical;}
         <span class="nav-icon">📋</span>
         <span class="nav-label">授精簿</span>
       </div>
+      <div class="grid-nav-btn gnav-purple" id="gnav-collection" onclick="switchTab('collection')" style="background:linear-gradient(135deg,#1a0a2a,#120818);">
+        <span class="nav-icon">🥚</span>
+        <span class="nav-label">採卵記録</span>
+        <span class="grid-nav-badge" id="collection-pending-badge" style="display:none;background:var(--warn);">0</span>
+      </div>
     </div>
   </div>
 
@@ -950,7 +955,13 @@ textarea{resize:vertical;}
   <div id="ai-et-date-label"></div>
   <div id="cidr-options"></div>
   <div id="et-options"></div>
-  <div id="donor-options"></div>
+  <div id="donor-options" style="display:none;margin-bottom:10px;">
+    <button type="button" onclick="switchDonorToNormalAI()"
+      style="width:100%;padding:10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--warn);background:rgba(251,191,36,.08);color:var(--warn);">
+      ⚠️ ホルモン不反応 → 採卵中止・通常AI扱いに変更
+      <div style="font-size:10px;font-weight:400;color:var(--muted);margin-top:2px;">卵胞数が通常と変わらなかった場合。通常のAI記録として妊鑑タスクを生成します。</div>
+    </button>
+  </div>
   <div id="donor-panel-natural"></div>
   <div id="donor-panel-pretreat"></div>
   <div id="donor-panel-takahashi"></div>
@@ -1104,7 +1115,7 @@ textarea{resize:vertical;}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
       <div class="form-group">
         <label>現在の在庫本数</label>
-        <input type="number" id="embryo-stock" min="0" placeholder="例: 8" oninput="onEmbryoStockInput(this.value)">
+        <input type="number" id="embryo-stock" min="0" placeholder="例: 8" oninput="onEmbryoStockInput(this.value)" onchange="onEmbryoStockInput(this.value)">
       </div>
       <div class="form-group">
         <label>アラート本数</label>
@@ -1952,6 +1963,14 @@ textarea{resize:vertical;}
           <option value="">選択しない</option>
         </select>
       </div>
+      <!-- 凍結胚選択時：胚番号一覧 -->
+      <div id="qr-embryo-no-group" style="display:none;margin-bottom:6px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">胚番号を選択（使用済みは除外）</div>
+        <select id="qr-embryo-no-select" style="font-size:13px;width:100%;background:var(--bg3);border:1px solid var(--purple);color:var(--purple);" onchange="onQrEmbryoNoSelectChange()">
+          <option value="">胚番号を選択</option>
+        </select>
+        <div id="qr-embryo-no-info" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+      </div>
       <!-- 在庫選択時：ドナー牛・種雄牛を自動表示 -->
       <div id="qr-embryo-info" style="display:none;background:rgba(167,139,250,.1);border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:12px;color:var(--purple);"></div>
       <!-- 在庫未登録時：手入力 -->
@@ -2271,6 +2290,8 @@ let pendingUseRecords = JSON.parse(_store.getItem('pendingUseRecords') || '[]');
 let retiredCows = JSON.parse(_store.getItem('retiredCows') || '[]');
 let insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
 let insemBookEdits = JSON.parse(_store.getItem('insemBookEdits') || '{}'); // 固定データの上書き編集
+let collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]'); // 採卵記録
+let pendingEtList = JSON.parse(_store.getItem('pendingEtList') || '[]'); // 翌日移植予定リスト
 
 // Firebase同期後にlocalStorageから再読み込みする
 function loadData() {
@@ -2286,6 +2307,8 @@ function loadData() {
   retiredCows     = JSON.parse(_store.getItem('retiredCows') || '[]');
   insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
   insemBookEdits   = JSON.parse(_store.getItem('insemBookEdits') || '{}');
+  collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
+  pendingEtList    = JSON.parse(_store.getItem('pendingEtList') || '[]');
 }
 
 function save() {
@@ -2301,6 +2324,8 @@ function save() {
   _store.setItem('retiredCows', JSON.stringify(retiredCows));
   _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
   _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
+  _store.setItem('collectionRecordsNew', JSON.stringify(collectionRecordsNew));
+  _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
   _store.setItem('data_version', String(DATA_VERSION));
 }
 
@@ -4366,6 +4391,13 @@ function onQrEventChange() {
     embryoPanel.style.display = 'none';
   }
 
+  // ドナーAI時は「採卵中止ボタン」を表示
+  const donorOpts = document.getElementById('donor-options');
+  if (donorOpts) {
+    const isDonor = ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(ev);
+    donorOpts.style.display = isDonor ? '' : 'none';
+  }
+
   if (isAiEt) {
     // デフォルトで「未実施」を選択状態にする
     document.getElementById('qr-preg-result').value = 'pending';
@@ -4378,6 +4410,25 @@ function onQrEventChange() {
     document.getElementById('qr-pend-btn').style.color = 'var(--accent)';
     onQrDateChange();
   }
+}
+
+function switchDonorToNormalAI() {
+  const evSel = document.getElementById('qr-event');
+  if (evSel) evSel.value = 'ai_done';
+  const donorOpts = document.getElementById('donor-options');
+  if (donorOpts) donorOpts.style.display = 'none';
+  document.getElementById('qr-aiet-panel').style.display = '';
+  const panelTitle = document.getElementById('qr-insem-label');
+  if (panelTitle) panelTitle.textContent = '📋 AI実施済みを記録（採卵中止・通常AI扱い）';
+  const opGrp = document.getElementById('qr-operator-group');
+  if (opGrp) opGrp.style.display = '';
+  const semenPanel = document.getElementById('qr-semen-panel');
+  if (semenPanel) semenPanel.style.display = '';
+  const sel = document.getElementById('qr-semen-select');
+  const qrCowId = document.getElementById('qr-cowid').value;
+  if (sel) sel.innerHTML = buildSemenOptions(qrCowId);
+  setQrPreg('pending');
+  onQrDateChange();
 }
 
 function onQrDateChange() {
@@ -6001,7 +6052,7 @@ function renderCalvingAlerts() {
 
 // ===== TABS =====
 function switchTab(name) {
-  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook'];
+  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection'];
   names.forEach(n => {
     const btn = document.getElementById(`gnav-${n}`);
     if (btn) btn.classList.toggle('active', n===name);
@@ -6015,6 +6066,7 @@ function switchTab(name) {
   if (name==='retired') renderRetiredList();
   if (name==='fattening') { updateFatYearFilter(); renderFattening(); }
   if (name==='insembook') renderInsemBook();
+  if (name==='collection') renderCollectionTab();
 }
 
 
@@ -6427,7 +6479,7 @@ function renderEmbryoDetails(details) {
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄':''}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄️':''}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'💧':''}</td>
   </tr>`).join('');
   return `<div style="margin-top:8px;">
@@ -6439,13 +6491,494 @@ function renderEmbryoDetails(details) {
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ケーン番号</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ステージ</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ランク</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄️</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">💧</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
 }
+// ===== 採卵記録タブ =====
+
+function renderCollectionTab() {
+  // 翌日移植予定リスト更新
+  renderPendingEtList();
+  // 採卵記録一覧更新
+  const list = document.getElementById('collection-list');
+  const empty = document.getElementById('collection-empty');
+  if (!collectionRecordsNew.length) { list.innerHTML=''; empty.style.display=''; return; }
+  empty.style.display='none';
+  const sorted = [...collectionRecordsNew].sort((a,b)=>b.date.localeCompare(a.date));
+  list.innerHTML = sorted.map(r => {
+    const donorName = cowDisplayName(r.donorId)||r.donorId||r.donorName||'';
+    const frozenCount = (r.frozenEmbryos||[]).length;
+    const freshCount = (r.freshEmbryos||[]).length;
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div>
+          <span style="font-size:13px;font-weight:700;color:var(--text);">${fmtDate(r.date)}</span>
+          <span style="font-size:12px;color:var(--muted);margin-left:8px;">${r.lot||''}</span>
+        </div>
+        <button onclick="openEditCollection('${r.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">✏ 編集</button>
+      </div>
+      <div style="font-size:12px;color:var(--accent);font-weight:700;">${donorName} × ${r.sire||''}</div>
+      <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--muted);">
+        <span>回収: ${r.recovered||0}卵</span>
+        <span>変性: ${r.degenerate||0}</span>
+        <span style="color:var(--info);">❄️ 凍結: ${frozenCount}本</span>
+        <span style="color:var(--accent);">🌱 新鮮: ${freshCount}本</span>
+        ${r.pg===false?'<span style="color:var(--warn);">妊鑑あり</span>':''}
+      </div>
+    </div>`;
+  }).join('');
+  // バッジ更新
+  const badge = document.getElementById('collection-pending-badge');
+  if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
+}
+
+function renderPendingEtList() {
+  const section = document.getElementById('pending-et-section');
+  const listEl = document.getElementById('pending-et-list');
+  if (!pendingEtList.length) { section.style.display='none'; return; }
+  section.style.display='';
+  // 受卵牛リスト構築
+  const recipientOptions = cows.filter(c=>c.status==='program'||c.status==='open')
+    .map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
+  listEl.innerHTML = pendingEtList.map((e,i) => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:700;color:var(--text);">${e.embryoNo||('#'+(i+1))}</span>
+        <span style="font-size:11px;color:var(--muted);">採卵日: ${fmtDate(e.collectDate)}</span>
+        <span style="font-size:11px;color:var(--accent);">ドナー: ${cowDisplayName(e.donorId)||e.donorId||''}</span>
+        <span style="font-size:11px;">ステージ: ${e.stage||'—'} ランク: ${e.rank||'—'}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+        <select id="pet-recipient-${i}" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 6px;border-radius:6px;flex:1;min-width:150px;">
+          <option value="">移植先の牛を選択</option>
+          ${recipientOptions}
+        </select>
+        <button onclick="executePendingET(${i})" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">💉 ET実施</button>
+        <button onclick="freezePendingEmbryo(${i})" style="background:#0a0a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">❄️ 凍結へ</button>
+        <button onclick="discardPendingEmbryo(${i})" style="background:none;border:1px solid var(--muted);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">✕ 変性破棄</button>
+      </div>
+    </div>`).join('');
+}
+
+function openNewCollection() {
+  document.getElementById('collection-edit-id').value = '';
+  document.getElementById('collection-modal-title').textContent = '🥚 採卵記録 — 新規';
+  document.getElementById('col-date').value = today();
+  document.getElementById('col-lot').value = '';
+  document.getElementById('col-sire').value = '';
+  document.getElementById('col-operator').value = '';
+  document.getElementById('col-ai-date').value = '';
+  document.getElementById('col-cl-right').value = '';
+  document.getElementById('col-cl-left').value = '';
+  document.getElementById('col-recovered').value = '';
+  document.getElementById('col-degenerate').value = '';
+  document.getElementById('col-memo').value = '';
+  document.getElementById('col-frozen-count').value = '0';
+  document.getElementById('col-fresh-count').value = '0';
+  document.getElementById('col-frozen-tbody').innerHTML = '';
+  document.getElementById('col-fresh-tbody').innerHTML = '';
+  document.getElementById('col-frozen-tbody-wrap').style.display = 'none';
+  document.getElementById('col-fresh-tbody-wrap').style.display = 'none';
+  setColPG(true);
+  // ドナー牛セレクトを構築
+  const sel = document.getElementById('col-donor');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    cows.filter(c=>c.isDonor||c.status!=='retired').map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
+  openModal('modal-collection');
+}
+
+function openEditCollection(id) {
+  const r = collectionRecordsNew.find(x=>x.id===id);
+  if (!r) return;
+  document.getElementById('collection-edit-id').value = id;
+  document.getElementById('collection-modal-title').textContent = '🥚 採卵記録 — 編集';
+  document.getElementById('col-date').value = r.date||'';
+  document.getElementById('col-lot').value = r.lot||'';
+  document.getElementById('col-sire').value = r.sire||'';
+  document.getElementById('col-operator').value = r.operator||'';
+  document.getElementById('col-ai-date').value = r.aiDate||'';
+  document.getElementById('col-cl-right').value = r.clRight||'';
+  document.getElementById('col-cl-left').value = r.clLeft||'';
+  document.getElementById('col-recovered').value = r.recovered||'';
+  document.getElementById('col-degenerate').value = r.degenerate||'';
+  document.getElementById('col-memo').value = r.memo||'';
+  setColPG(r.pg !== false);
+  const sel = document.getElementById('col-donor');
+  sel.innerHTML = '<option value="">選択してください</option>' +
+    cows.map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
+  sel.value = r.donorId||'';
+  // 凍結胚
+  const fc = (r.frozenEmbryos||[]).length;
+  document.getElementById('col-frozen-count').value = fc;
+  onColFrozenCountInput(fc, r.frozenEmbryos);
+  // 新鮮胚
+  const frc = (r.freshEmbryos||[]).length;
+  document.getElementById('col-fresh-count').value = frc;
+  onColFreshCountInput(frc, r.freshEmbryos);
+  openModal('modal-collection');
+}
+
+function onColDonorChange() {
+  // ドナー変更時に精液在庫から選択肢を更新（任意）
+}
+
+function setColPG(val) {
+  document.getElementById('col-pg').value = val ? 'true' : 'false';
+  document.getElementById('col-pg-yes').style.borderColor = val ? 'var(--accent2)' : 'var(--border)';
+  document.getElementById('col-pg-yes').style.background = val ? 'rgba(74,222,128,.12)' : 'var(--bg3)';
+  document.getElementById('col-pg-yes').style.color = val ? 'var(--accent)' : 'var(--muted)';
+  document.getElementById('col-pg-no').style.borderColor = !val ? 'var(--warn)' : 'var(--border)';
+  document.getElementById('col-pg-no').style.background = !val ? 'rgba(251,191,36,.1)' : 'var(--bg3)';
+  document.getElementById('col-pg-no').style.color = !val ? 'var(--warn)' : 'var(--muted)';
+}
+
+function onColFrozenCountInput(val, existing) {
+  const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-frozen-tbody-wrap');
+  const tbody = document.getElementById('col-frozen-tbody');
+  wrap.style.display = n > 0 ? '' : 'none';
+  const cur = tbody.querySelectorAll('tr').length;
+  if (cur < n) {
+    for (let i = cur; i < n; i++) {
+      const ex = existing && existing[i];
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;">${i+1}</td>
+        <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${ex?.no||''}" placeholder="胚番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:110px;"></td>
+        <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${ex?.cane||''}" placeholder="ケーン番号" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
+        <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
+        </select></td>
+        <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="A" ${ex?.rank==='A'?'selected':''}>A</option><option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
+        </select></td>
+        <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
+      tbody.appendChild(tr);
+    }
+  } else {
+    while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
+  }
+}
+
+function onColFreshCountInput(val, existing) {
+  const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-fresh-tbody-wrap');
+  const tbody = document.getElementById('col-fresh-tbody');
+  wrap.style.display = n > 0 ? '' : 'none';
+  const cur = tbody.querySelectorAll('tr').length;
+  const recipientOptions = '<option value="">移植先選択</option>' +
+    cows.filter(c=>c.status==='program'||c.status==='open').map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
+  if (cur < n) {
+    for (let i = cur; i < n; i++) {
+      const ex = existing && existing[i];
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;">${i+1}</td>
+        <td style="padding:2px 3px;"><select class="cfr-stage" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
+        </select></td>
+        <td style="padding:2px 3px;"><select class="cfr-rank" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="">—</option><option value="A" ${ex?.rank==='A'?'selected':''}>A</option><option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
+        </select></td>
+        <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:70px;"></td>
+        <td style="padding:2px 3px;"><select class="cfr-action" onchange="onFreshActionChange(this)" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <option value="pending" ${ex?.action==='pending'?'selected':''}>翌日移植予定</option>
+          <option value="today" ${ex?.action==='today'?'selected':''}>当日移植</option>
+          <option value="freeze" ${ex?.action==='freeze'?'selected':''}>凍結に変更</option>
+        </select></td>
+        <td style="padding:2px 3px;" class="cfr-recipient-cell" style="display:${ex?.action==='today'?'':'none'}">
+          <select class="cfr-recipient" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;display:${ex?.action==='today'?'':'none'};">
+            ${recipientOptions}
+          </select>
+        </td>`;
+      if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
+      if (ex?.action === 'today') { const s = tr.querySelector('.cfr-recipient'); if (s) s.style.display=''; }
+      tbody.appendChild(tr);
+    }
+  } else {
+    while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
+  }
+}
+
+function onFreshActionChange(sel) {
+  const row = sel.closest('tr');
+  const recipSel = row.querySelector('.cfr-recipient');
+  if (recipSel) recipSel.style.display = sel.value === 'today' ? '' : 'none';
+}
+
+function getColFrozenEmbryos() {
+  const rows = document.querySelectorAll('#col-frozen-tbody tr');
+  return Array.from(rows).map(r => ({
+    no: r.querySelector('.cf-no')?.value.trim()||'',
+    cane: r.querySelector('.cf-cane')?.value.trim()||'',
+    stage: r.querySelector('.cf-stage')?.value||'',
+    rank: r.querySelector('.cf-rank')?.value||'',
+    comment: r.querySelector('.cf-comment')?.value.trim()||'',
+  }));
+}
+
+function getColFreshEmbryos() {
+  const rows = document.querySelectorAll('#col-fresh-tbody tr');
+  return Array.from(rows).map(r => ({
+    stage: r.querySelector('.cfr-stage')?.value||'',
+    rank: r.querySelector('.cfr-rank')?.value||'',
+    comment: r.querySelector('.cfr-comment')?.value.trim()||'',
+    action: r.querySelector('.cfr-action')?.value||'pending',
+    recipientId: r.querySelector('.cfr-recipient')?.value||'',
+  }));
+}
+
+function saveCollection() {
+  const date = document.getElementById('col-date').value;
+  const donorId = document.getElementById('col-donor').value;
+  if (!date) { alert('採卵日を入力してください'); return; }
+  if (!donorId) { alert('供卵牛を選択してください'); return; }
+
+  const lot = document.getElementById('col-lot').value.trim();
+  const sire = document.getElementById('col-sire').value.trim();
+  const operator = document.getElementById('col-operator').value.trim();
+  const aiDate = document.getElementById('col-ai-date').value;
+  const pg = document.getElementById('col-pg').value !== 'false';
+  const frozenEmbryos = getColFrozenEmbryos();
+  const freshEmbryos = getColFreshEmbryos();
+  const editId = document.getElementById('collection-edit-id').value;
+
+  const rec = {
+    id: editId || Math.random().toString(36).slice(2),
+    date, lot, donorId, sire, operator, aiDate, pg,
+    clRight: parseInt(document.getElementById('col-cl-right').value)||0,
+    clLeft: parseInt(document.getElementById('col-cl-left').value)||0,
+    recovered: parseInt(document.getElementById('col-recovered').value)||0,
+    degenerate: parseInt(document.getElementById('col-degenerate').value)||0,
+    memo: document.getElementById('col-memo').value.trim(),
+    frozenEmbryos, freshEmbryos,
+  };
+
+  if (editId) {
+    const idx = collectionRecordsNew.findIndex(x=>x.id===editId);
+    if (idx>=0) collectionRecordsNew[idx] = rec;
+  } else {
+    collectionRecordsNew.push(rec);
+  }
+
+  // 凍結胚を受精卵在庫に追加（selfcollect）
+  if (frozenEmbryos.length > 0) {
+    const donorName = cowDisplayName(donorId)||donorId;
+    // 既存の同ロット在庫を探すか新規作成
+    let invItem = embryoInventory.find(e =>
+      e.dam && e.dam.includes(donorId) && e.lot === lot && e.type === 'frozen'
+    );
+    if (!invItem) {
+      invItem = {
+        id: Math.random().toString(36).slice(2),
+        sire: sire||'', dam: donorName, lot: lot||date,
+        type: 'frozen', breed: '黒毛', stage: frozenEmbryos[0]?.stage||'',
+        stock: 0, alertThreshold: 2, noAlert: false,
+        collectionDate: date, history: [],
+        embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false})),
+      };
+      embryoInventory.push(invItem);
+    } else {
+      invItem.embryoDetails = frozenEmbryos.map(e=>({...e, frozen:true, fresh:false}));
+    }
+    invItem.stock += frozenEmbryos.length;
+    invItem.history.push({
+      date, type:'selfcollect', count: frozenEmbryos.length,
+      memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
+    });
+  }
+
+  // 新鮮胚の処理
+  freshEmbryos.forEach((fe, i) => {
+    const embryoNo = `${lot||date}-F${i+1}`;
+    if (fe.action === 'today' && fe.recipientId) {
+      // 当日移植：入庫+即使用+ET記録
+      _processFreshEtNow(rec, fe, embryoNo, date);
+    } else if (fe.action === 'pending') {
+      // 翌日移植予定リストに追加
+      pendingEtList.push({
+        id: Math.random().toString(36).slice(2),
+        collectDate: date, collectionId: rec.id,
+        donorId, sire, lot, operator,
+        embryoNo, stage: fe.stage, rank: fe.rank, comment: fe.comment,
+      });
+    } else if (fe.action === 'freeze') {
+      // 凍結胚在庫に追加（既存ロットに追記）
+      let invItem = embryoInventory.find(e =>
+        e.dam && e.dam.includes(donorId) && e.lot === lot && e.type === 'frozen'
+      );
+      if (!invItem) {
+        invItem = {
+          id: Math.random().toString(36).slice(2),
+          sire: sire||'', dam: cowDisplayName(donorId)||donorId, lot: lot||date,
+          type: 'frozen', breed: '黒毛', stage: fe.stage||'',
+          stock: 0, alertThreshold: 2, noAlert: false,
+          collectionDate: date, history: [],
+        };
+        embryoInventory.push(invItem);
+      }
+      invItem.stock += 1;
+      invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${embryoNo}` });
+    }
+  });
+
+  // ドナー牛のスケジュール処理（PG投与なし = 妊鑑タスク生成）
+  if (!pg && aiDate) {
+    const cow = cows.find(c=>c.id===donorId);
+    if (cow) {
+      const pregDate = addDays(aiDate, 45);
+      tasks = tasks.filter(t=>!(t.cowId===donorId&&!t.done&&t.action.includes('妊娠鑑定')));
+      tasks.push({
+        id: Math.random().toString(36).slice(2), cowId: donorId,
+        date: pregDate, action: '妊娠鑑定',
+        detail: `採卵後PG未投与 AI日(${fmtDate(aiDate)})から45日後`,
+        color: '#f59e0b', priority: 'high', done: false,
+      });
+      cow.status = 'program';
+    }
+  }
+
+  save();
+  closeModal('modal-collection');
+  renderCollectionTab();
+  renderAll();
+  // バッジ更新
+  const badge = document.getElementById('collection-pending-badge');
+  if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
+}
+
+function _processFreshEtNow(rec, fe, embryoNo, date) {
+  const donorName = cowDisplayName(rec.donorId)||rec.donorId;
+  // 在庫に新鮮胚として一時入庫→即使用
+  const invItem = {
+    id: Math.random().toString(36).slice(2),
+    sire: rec.sire||'', dam: donorName, lot: rec.lot||date,
+    type: 'fresh', breed: '黒毛', stage: fe.stage||'',
+    stock: 0, alertThreshold: 0, noAlert: true,
+    collectionDate: date, history: [
+      { date, type:'selfcollect', count:1, memo:`採卵 新鮮胚${embryoNo}` },
+      { date, type:'use', count:1, cowId: fe.recipientId, memo:`当日移植 ${embryoNo}` },
+    ],
+  };
+  embryoInventory.push(invItem);
+  // 受卵牛にET記録
+  const recip = cows.find(c=>c.id===fe.recipientId);
+  if (recip) {
+    recip.events = recip.events||[];
+    const memo = `胚番号:${embryoNo} ドナー:${donorName} ランク:${fe.rank||'—'} 🌱新鮮胚`;
+    recip.events.push({ type:'et_done', date, memo });
+    recip.status = 'program';
+    // 妊鑑タスク
+    const pregDate = addDays(date, 35);
+    tasks = tasks.filter(t=>!(t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定')));
+    tasks.push({
+      id: Math.random().toString(36).slice(2), cowId: fe.recipientId,
+      date: pregDate, action: '妊娠鑑定',
+      detail: `ET後35日 (ET日:${fmtDate(date)}) 新鮮胚`,
+      color: '#f59e0b', priority: 'high', done: false,
+    });
+    addInsemBookRecord(fe.recipientId, date, memo, 'et');
+  }
+}
+
+function executePendingET(idx) {
+  const e = pendingEtList[idx];
+  if (!e) return;
+  const recipSel = document.getElementById(`pet-recipient-${idx}`);
+  const recipientId = recipSel?.value;
+  if (!recipientId) { alert('移植先の牛を選択してください'); return; }
+  const recip = cows.find(c=>c.id===recipientId);
+  if (!recip) return;
+  const date = today();
+  const donorName = cowDisplayName(e.donorId)||e.donorId||'';
+  // 在庫に新鮮胚として入庫→即使用
+  const invItem = {
+    id: Math.random().toString(36).slice(2),
+    sire: e.sire||'', dam: donorName, lot: e.lot||e.collectDate,
+    type: 'fresh', breed: '黒毛', stage: e.stage||'',
+    stock: 0, alertThreshold: 0, noAlert: true,
+    collectionDate: e.collectDate, history: [
+      { date: e.collectDate, type:'selfcollect', count:1, memo:`採卵 新鮮胚${e.embryoNo}` },
+      { date, type:'use', count:1, cowId: recipientId, memo:`翌日ET ${e.embryoNo}` },
+    ],
+  };
+  embryoInventory.push(invItem);
+  // ET記録
+  recip.events = recip.events||[];
+  const memo = `胚番号:${e.embryoNo} ドナー:${donorName} ランク:${e.rank||'—'} 🌱新鮮胚(翌日)`;
+  recip.events.push({ type:'et_done', date, memo });
+  recip.status = 'program';
+  const pregDate = addDays(date, 35);
+  tasks = tasks.filter(t=>!(t.cowId===recipientId&&!t.done&&t.action.includes('妊娠鑑定')));
+  tasks.push({
+    id: Math.random().toString(36).slice(2), cowId: recipientId,
+    date: pregDate, action: '妊娠鑑定',
+    detail: `ET後35日 (ET日:${fmtDate(date)}) 新鮮胚(翌日培養)`,
+    color: '#f59e0b', priority: 'high', done: false,
+  });
+  addInsemBookRecord(recipientId, date, memo, 'et');
+  pendingEtList.splice(idx, 1);
+  save();
+  renderCollectionTab();
+  renderAll();
+}
+
+function freezePendingEmbryo(idx) {
+  const e = pendingEtList[idx];
+  if (!e) return;
+  const cane = prompt('ケーン番号を入力してください（任意）') || '';
+  const rank = prompt('ランクを入力してください（A/B）') || e.rank || '';
+  const date = today();
+  const donorName = cowDisplayName(e.donorId)||e.donorId||'';
+  let invItem = embryoInventory.find(x=>x.dam&&x.dam.includes(e.donorId)&&x.lot===e.lot&&x.type==='frozen');
+  if (!invItem) {
+    invItem = {
+      id: Math.random().toString(36).slice(2),
+      sire: e.sire||'', dam: donorName, lot: e.lot||e.collectDate,
+      type:'frozen', breed:'黒毛', stage: e.stage||'',
+      stock:0, alertThreshold:2, noAlert:false,
+      collectionDate: e.collectDate, history:[],
+    };
+    embryoInventory.push(invItem);
+  }
+  invItem.stock += 1;
+  if (!invItem.embryoDetails) invItem.embryoDetails = [];
+  invItem.embryoDetails.push({ no: e.embryoNo, cane, stage: e.stage||'', rank, frozen:true, fresh:false });
+  invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${e.embryoNo} ケーン:${cane}` });
+  pendingEtList.splice(idx, 1);
+  save();
+  renderCollectionTab();
+}
+
+function discardPendingEmbryo(idx) {
+  pendingEtList.splice(idx, 1);
+  save();
+  renderCollectionTab();
+}
+
+// 未紐付け記録を「外部使用」として登録（自分の在庫外の種・受精卵）
+function markPendingAsExternal(pendingId) {
+  const idx = pendingUseRecords.findIndex(p => p.id === pendingId);
+  if (idx < 0) return;
+  const p = pendingUseRecords[idx];
+  // 「外部使用」記録として別枠に移す
+  if (!window.externalUseRecords) window.externalUseRecords = JSON.parse(_store.getItem('externalUseRecords')||'[]');
+  window.externalUseRecords.push({
+    ...p,
+    registeredAt: today(),
+    type: 'external',
+    label: `外部使用（${p.kind==='embryo'?'受精卵':'精液'}）`,
+  });
+  _store.setItem('externalUseRecords', JSON.stringify(window.externalUseRecords));
+  pendingUseRecords.splice(idx, 1);
+  save();
+  renderSemen();
+}
+
 // ===== SETTINGS =====
 function openModal(id) {
   // 確認ダイアログが開いたまま別のモーダルを開く場合は先に閉じる
@@ -7978,6 +8511,9 @@ function onQrEmbryoSelectChange() {
   const selId = document.getElementById('qr-embryo-select').value;
   const infoEl = document.getElementById('qr-embryo-info');
   const manualEl = document.getElementById('qr-embryo-manual-group');
+  const noGroup = document.getElementById('qr-embryo-no-group');
+  const noSel = document.getElementById('qr-embryo-no-select');
+  const noInfo = document.getElementById('qr-embryo-no-info');
   if (selId) {
     const e = embryoInventory.find(x=>x.id===selId);
     if (e) {
@@ -7986,10 +8522,53 @@ function onQrEmbryoSelectChange() {
       manualEl.style.display = 'none';
       document.getElementById('qr-embryo-name-input').value = '';
       document.getElementById('qr-embryo-dam-input').value = '';
+      // 凍結胚でembryoDetailsがある場合は胚番号選択を表示
+      const details = e.embryoDetails || getSheet2DetailsForLot(e.lot);
+      if (details && details.length && e.type === 'frozen') {
+        // 使用済み胚番号を取得（history.cowIdがある = 使用済み）
+        const usedNos = (e.history||[])
+          .filter(h => h.type==='use' && h.memo)
+          .map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; })
+          .filter(Boolean);
+        const available = details.filter(d => d.no && !usedNos.includes(d.no));
+        const all = details.filter(d => d.no);
+        if (all.length > 0) {
+          noGroup.style.display = '';
+          noSel.innerHTML = '<option value="">胚番号を選択</option>' +
+            available.map(d =>
+              `<option value="${d.no}">${d.no}${d.cane?' ['+d.cane+']':''} ${d.stage||''} ランク${d.rank||'—'}</option>`
+            ).join('') +
+            (usedNos.length ? '<optgroup label="── 使用済み（間違い修正用）──">' +
+              all.filter(d=>usedNos.includes(d.no)).map(d =>
+                `<option value="${d.no}_fix">${d.no}${d.cane?' ['+d.cane+']':''} ※使用済み（修正）</option>`
+              ).join('') + '</optgroup>' : '');
+          noInfo.textContent = `未使用: ${available.length}本 / 使用済み: ${usedNos.length}本`;
+        } else {
+          noGroup.style.display = 'none';
+        }
+      } else {
+        noGroup.style.display = 'none';
+      }
     }
   } else {
     infoEl.style.display = 'none';
     manualEl.style.display = '';
+    noGroup.style.display = 'none';
+  }
+}
+
+function onQrEmbryoNoSelectChange() {
+  const val = document.getElementById('qr-embryo-no-select').value;
+  if (!val) return;
+  const isFix = val.endsWith('_fix');
+  const embryoNo = isFix ? val.replace('_fix','') : val;
+  // 胚番号フィールドに自動入力
+  document.getElementById('qr-embryo').value = embryoNo;
+  const noInfo = document.getElementById('qr-embryo-no-info');
+  if (isFix) {
+    noInfo.innerHTML = '<span style="color:var(--warn);">⚠ 使用済みとして登録されている胚番号です。間違いの修正として選択しています。</span>';
+  } else {
+    noInfo.textContent = `胚番号 ${embryoNo} を選択中`;
   }
 }
 
@@ -8057,7 +8636,7 @@ function renderEmbryo() {
           ${e.dam?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${e.dam}</div>`:''}
           ${e.lot?`<div style="font-size:11px;color:var(--muted);">胚番号: ${e.lot}</div>`:''}
           <div style="font-size:11px;margin-top:2px;">
-            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄${f}本+💧${r}本`:f?`❄凍結胚 ${f}本`:`💧新鮮胚 ${r}本`; } return {frozen:'❄ 凍結胚',fresh:'💧 新鮮胚'}[e.type]||e.type; })()}</span>
+            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄️${f}本+💧${r}本`:f?`❄️凍結胚 ${f}本`:`💧新鮮胚 ${r}本`; } return {frozen:'❄️ 凍結胚',fresh:'💧 新鮮胚'}[e.type]||e.type; })()}</span>
             ${e.stage?`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:1px 7px;border-radius:4px;margin-left:4px;">${e.stage}</span>`:''}
           </div>
           ${e.location?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${e.location}</div>`:''}
@@ -8431,8 +9010,10 @@ function renderReport() {
           </td>
         </tr>` : '';
 
-      return `<tr style="cursor:${hasActivity?'pointer':'default'};" onclick="${hasActivity?`toggleMonthDetail('${detailId}')`:''}" >
-        <td style="padding:5px 3px;font-size:13px;font-weight:700;border:1px solid var(--border);white-space:nowrap;">${parseInt(m)}月${hasActivity?'<span style="font-size:9px;color:var(--info);margin-left:3px;">▶</span>':''}</td>
+      const mIdx = months.indexOf(m);
+      const rowBg = mIdx % 2 === 0 ? 'var(--bg2)' : 'var(--bg3)';
+      return `<tr style="cursor:${hasActivity?'pointer':'default'};background:${rowBg};border-bottom:2px solid var(--border);" onclick="${hasActivity?`toggleMonthDetail('${detailId}')`:''}" >
+        <td style="padding:6px 5px;font-size:13px;font-weight:700;border-right:2px solid var(--border);white-space:nowrap;">${parseInt(m)}月${hasActivity?'<span style="font-size:9px;color:var(--info);margin-left:3px;">▶</span>':''}</td>
         ${d.carryover ? `<td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--warn);">${d.carryover}</td>` : `<td style="padding:5px 3px;text-align:center;border:1px solid var(--border);color:var(--muted);">—</td>`}
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--accent);">${d.in||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--danger);">${d.use||'—'}</td>
@@ -8604,7 +9185,16 @@ function renderSemen() {
     };
     let html = `⏳ <strong>未紐付けの使用記録があります</strong>（在庫登録時に自動反映されます）<br>`;
     if (pendingSemen.length) html += `💉 精液: ${groupByName(pendingSemen)}<br>`;
-    if (pendingEmbryo.length) html += `🧬 受精卵: ${groupByName(pendingEmbryo)}`;
+    if (pendingEmbryo.length) html += `🧬 受精卵: ${groupByName(pendingEmbryo)}<br>`;
+    // 明細と「外部使用として登録」ボタン
+    const allPending = [...pendingSemen, ...pendingEmbryo];
+    html += `<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">` +
+      allPending.map((p,i) =>
+        `<div style="display:flex;align-items:center;gap:6px;font-size:11px;">
+          <span style="color:var(--warn);">${p.kind==='embryo'?'🧬':'💉'} ${p.name} ${p.count}本 ${fmtDate(p.date)} ${p.cowId?cowDisplayName(p.cowId):''}</span>
+          <button onclick="markPendingAsExternal('${p.id}')" style="background:#1a1000;border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 7px;border-radius:4px;cursor:pointer;white-space:nowrap;">外部使用として登録</button>
+        </div>`
+      ).join('') + `</div>`;
     pendingEl.innerHTML = `<div style="color:var(--warn);">${html}</div>`;
   } else {
     pendingEl.style.display = 'none';
@@ -8788,16 +9378,29 @@ function saveSemen() {
     memo: document.getElementById('semen-memo').value.trim(),
   };
   let newItem;
+  const oldName = id ? semenInventory.find(s=>s.id===id)?.name : null;
   if (id) {
     const s = semenInventory.find(s=>s.id===id);
     if (s) { Object.assign(s, data); newItem = s; }
   } else {
     newItem = { id: Math.random().toString(36).slice(2), history: [], ...data };
-    // 初期在庫をhistoryに記録
     if (newItem.stock > 0) {
       newItem.history.push({ date: today(), type:'restock', count: newItem.stock, memo:'初期登録' });
     }
     semenInventory.push(newItem);
+  }
+  // 種雄牛名が変わった場合→cow.eventsと授精簿のmemoを更新
+  if (id && oldName && oldName !== name) {
+    cows.forEach(cow => {
+      (cow.events||[]).forEach(ev => {
+        if (ev.memo && ev.memo.includes('精液:'+oldName)) {
+          ev.memo = ev.memo.replace('精液:'+oldName, '精液:'+name);
+        }
+      });
+    });
+    insemBookRecords.forEach(r => {
+      if (r.s === oldName) r.s = name;
+    });
   }
   // pending記録の自動紐付け（同じ種雄牛名のものを在庫historyに取り込み）
   if (newItem) {
@@ -8924,7 +9527,7 @@ function exportBackup() {
     retiredCows, fatteningRecords
   };
   const html = document.documentElement.outerHTML;
-  const allKeys = ['cows','tasks','collectionRecords','calvingRecords','calves','etRecords','semenInventory','embryoInventory','pendingUseRecords','retiredCows','fatteningRecords','insemBookRecords','insemBookEdits'];
+  const allKeys = ['cows','tasks','collectionRecords','calvingRecords','calves','etRecords','semenInventory','embryoInventory','pendingUseRecords','retiredCows','fatteningRecords','insemBookRecords','insemBookEdits','collectionRecordsNew','pendingEtList'];
   const script = `\n<script id="backup-restore">\n(function(){\n  const d=${JSON.stringify(data)};\n  ${JSON.stringify(allKeys)}.forEach(k=>{\n    if(d[k]!==undefined) try{localStorage.setItem(k, JSON.stringify(d[k]));}catch(e){}\n  });\n  document.getElementById('backup-restore')?.remove();\n})();\n<\/script>`;
   const now = new Date();
   const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
@@ -9962,6 +10565,170 @@ try {
       </thead>
       <tbody id="insembook-tbody"></tbody>
     </table>
+  </div>
+</div>
+
+<!-- COLLECTION PAGE -->
+<div class="page" id="page-collection">
+  <div class="section-header">
+    <div class="section-title">🥚 採卵記録</div>
+    <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
+  </div>
+
+  <!-- 翌日移植予定リスト -->
+  <div id="pending-et-section" style="display:none;margin-bottom:16px;">
+    <div style="background:#1a1000;border:2px solid var(--warn);border-radius:10px;padding:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--warn);margin-bottom:8px;">⏳ 翌日移植予定リスト</div>
+      <div id="pending-et-list"></div>
+    </div>
+  </div>
+
+  <!-- 採卵記録一覧 -->
+  <div id="collection-list"></div>
+  <div id="collection-empty" style="text-align:center;color:var(--muted);padding:40px;display:none;">採卵記録がありません</div>
+</div>
+
+<!-- 採卵記録入力モーダル -->
+<div class="modal-overlay" id="modal-collection">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-title">
+      <span id="collection-modal-title">🥚 採卵記録</span>
+      <button class="modal-close" onclick="closeModal('modal-collection')">✕</button>
+    </div>
+    <input type="hidden" id="collection-edit-id">
+
+    <!-- 基本情報 -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">基本情報</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div class="form-group">
+          <label>採卵日</label>
+          <input type="date" id="col-date" style="font-size:13px;">
+        </div>
+        <div class="form-group">
+          <label>採卵番号</label>
+          <input type="text" id="col-lot" placeholder="例: 25L11B1" style="font-size:13px;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+        <div class="form-group">
+          <label>供卵牛（ドナー）</label>
+          <select id="col-donor" style="font-size:13px;" onchange="onColDonorChange()">
+            <option value="">選択してください</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>精液（種雄牛）</label>
+          <input type="text" id="col-sire" placeholder="例: 福勝鶴" style="font-size:13px;">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="form-group">
+          <label>術者（空欄=自分）</label>
+          <input type="text" id="col-operator" placeholder="例: 十勝BS" style="font-size:13px;">
+        </div>
+        <div class="form-group">
+          <label>AI日（授精日）</label>
+          <input type="date" id="col-ai-date" style="font-size:13px;">
+        </div>
+      </div>
+    </div>
+
+    <!-- 採卵成績サマリー -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">採卵成績</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+        <div class="form-group">
+          <label style="font-size:10px;">右黄体数</label>
+          <input type="number" id="col-cl-right" min="0" style="font-size:13px;text-align:center;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">左黄体数</label>
+          <input type="number" id="col-cl-left" min="0" style="font-size:13px;text-align:center;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">回収卵</label>
+          <input type="number" id="col-recovered" min="0" style="font-size:13px;text-align:center;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">変性・未受精</label>
+          <input type="number" id="col-degenerate" min="0" style="font-size:13px;text-align:center;">
+        </div>
+      </div>
+      <!-- PG投与 -->
+      <div style="margin-top:8px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">PG（プロスタグランジン）投与</div>
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="col-pg-yes" onclick="setColPG(true)"
+            style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--accent2);background:rgba(74,222,128,.12);color:var(--accent);">
+            ✓ 投与した（妊鑑不要）
+          </button>
+          <button type="button" id="col-pg-no" onclick="setColPG(false)"
+            style="flex:1;padding:8px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">
+            ✗ 投与しなかった（妊鑑タスク生成）
+          </button>
+        </div>
+        <input type="hidden" id="col-pg" value="true">
+      </div>
+    </div>
+
+    <!-- 凍結胚記録 -->
+    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-frozen-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">胚番号</th>
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">ケーン番号</th>
+              <th style="padding:4px 5px;color:var(--muted);">ステージ</th>
+              <th style="padding:4px 5px;color:var(--muted);">ランク</th>
+              <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+            </tr>
+          </thead>
+          <tbody id="col-frozen-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 新鮮胚記録 -->
+    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚記録</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-fresh-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFreshCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
+              <th style="padding:4px 5px;color:var(--muted);">ステージ</th>
+              <th style="padding:4px 5px;color:var(--muted);">ランク</th>
+              <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+              <th style="padding:4px 5px;color:var(--muted);">処理</th>
+              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+            </tr>
+          </thead>
+          <tbody id="col-fresh-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>メモ</label>
+      <input type="text" id="col-memo" placeholder="特記事項など" style="font-size:13px;">
+    </div>
+    <button class="btn btn-primary" onclick="saveCollection()" style="width:100%;" id="save-collection-btn">保存する</button>
   </div>
 </div>
 
