@@ -1097,7 +1097,7 @@ textarea{resize:vertical;}
 </div>
 
 <!-- AI/ET実施記録 編集モーダル -->
-<div class="modal-overlay" id="modal-insem-edit">
+<div class="modal-overlay" id="modal-insem-edit" style="z-index:300;">
   <div class="modal">
     <div class="modal-title">
       <span id="insem-edit-title">✏ AI/ET記録を編集</span>
@@ -2785,10 +2785,8 @@ function renderToday() {
   let overdueUndone, dayTasks;
 
   if (isToday) {
-    // 今日: 期限超過（未完了）＋ 今日の全タスク（完了済み含む）
-    // 産室移動は完了済みでも今日タブに表示し続ける（チェック外し用）
-    overdueUndone = tasks.filter(t => !t.done && t.date < todayStr);
-    dayTasks = tasks.filter(t => t.date === todayStr && !(t.done && t.action === '🏠 産室移動'));
+    overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
+    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後') && !(t.done && t.action === '🏠 産室移動'));
   } else {
     overdueUndone = [];
     dayTasks = tasks.filter(t => t.date === viewDate);
@@ -5427,17 +5425,17 @@ function applyFixPreg(result) {
 // ===== CALVING ALERT (分娩後45日超・未受精) =====
 function renderCalvingAlerts() {
   const todayStr = today();
+
+  // 分娩後45日超・未受精アラート
   const alerts = cows.filter(cow => {
     if (!cow.calvingDate) return false;
     const daysSince = diffDays(todayStr, cow.calvingDate);
-    if (daysSince < 45) return false; // まだ45日未満
-    // 分娩後にAI/ET関連イベントが1件でもあるか確認
+    if (daysSince < 45) return false;
     const hasInsemination = (cow.events || []).some(ev =>
       ['estrus','cidr_ai_start','ai_done','et_recipient','et_done','donor_et_start','preg_positive'].includes(ev.type) &&
       ev.date > cow.calvingDate
     );
-    if (hasInsemination) return false; // 受精済みなのでアラート不要
-    // 妊娠中もスキップ
+    if (hasInsemination) return false;
     if (cow.status === 'pregnant') return false;
     return true;
   }).map(cow => ({
@@ -5445,15 +5443,31 @@ function renderCalvingAlerts() {
     name: cowDisplayName(cow.id) || cow.name || '',
     days: diffDays(todayStr, cow.calvingDate),
     calvingDate: cow.calvingDate,
+    type: 'calving',
   })).sort((a, b) => b.days - a.days);
 
-  const container = document.getElementById('calving-alerts');
-  if (!alerts.length) { container.innerHTML = ''; return; }
+  // 流産後45日超タスク
+  const abortionAlerts = tasks.filter(t =>
+    !t.done && t.action.includes('流産後') && t.date <= todayStr
+  ).map(t => {
+    const cow = cows.find(c=>c.id===t.cowId);
+    return {
+      id: t.cowId,
+      name: cowDisplayName(t.cowId) || cow?.name || '',
+      taskId: t.id,
+      detail: t.detail,
+      type: 'abortion',
+    };
+  });
 
+  const container = document.getElementById('calving-alerts');
+  if (!alerts.length && !abortionAlerts.length) { container.innerHTML = ''; return; }
+
+  const totalCount = alerts.length + abortionAlerts.length;
   container.innerHTML = `
     <div style="background:linear-gradient(135deg,#2a0a0a,#1a0808);border:2px solid var(--danger);border-radius:12px;padding:14px;margin-bottom:16px;">
       <div style="font-size:12px;font-weight:700;color:var(--danger);letter-spacing:1px;margin-bottom:10px;">
-        🚨 分娩後45日超・未受精 — ${alerts.length}頭
+        🚨 AI/ET未実施アラート — ${totalCount}頭
       </div>
       ${alerts.map(a => `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(239,68,68,.2);">
@@ -5465,6 +5479,17 @@ function renderCalvingAlerts() {
           <div style="text-align:right;">
             <div style="font-size:22px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--danger);">${a.days}<span style="font-size:12px;">日</span></div>
             <button class="btn btn-warn" style="font-size:11px;padding:4px 8px;margin-top:4px;" onclick="addEventForCow('${a.id}')">処置登録</button>
+          </div>
+        </div>`).join('')}
+      ${abortionAlerts.map(a => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(239,68,68,.2);">
+          <div>
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--text)">${a.id}</span>
+            <span style="color:var(--accent);font-weight:700;margin-left:6px;">${a.name}</span>
+            <div style="font-size:11px;color:var(--warn);margin-top:1px;">🌀 流産後 — AI/ET開始可能日</div>
+          </div>
+          <div style="text-align:right;">
+            <button class="btn btn-warn" style="font-size:11px;padding:4px 8px;" onclick="addEventForCow('${a.id}')">処置登録</button>
           </div>
         </div>`).join('')}
     </div>`;
