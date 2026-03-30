@@ -1510,50 +1510,6 @@ textarea{resize:vertical;}
   </div>
 </div>
 
-<!-- COLLECTION RESULT MODAL -->
-<div class="modal-overlay" id="modal-collection">
-  <div class="modal">
-    <div class="modal-title">
-      <span id="modal-col-title">採卵結果を記録</span>
-      <button class="modal-close" onclick="closeModal('modal-collection')">✕</button>
-    </div>
-    <div class="col-form-group">
-      <label>採卵日</label>
-      <input type="date" id="col-date">
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-      <div class="col-form-group">
-        <label>回収胚数（総数）</label>
-        <input type="number" id="col-total" placeholder="例: 12" min="0">
-      </div>
-      <div class="col-form-group">
-        <label>移植可能胚数</label>
-        <input type="number" id="col-usable" placeholder="例: 8" min="0">
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-      <div class="col-form-group">
-        <label>凍結胚数</label>
-        <input type="number" id="col-frozen" placeholder="例: 6" min="0">
-      </div>
-      <div class="col-form-group">
-        <label>新鮮移植胚数</label>
-        <input type="number" id="col-fresh" placeholder="例: 2" min="0">
-      </div>
-    </div>
-    <div class="col-form-group">
-      <label>種雄牛・精液番号</label>
-      <input type="text" id="col-semen" placeholder="例: 安福久 #2025-001">
-    </div>
-    <div class="col-form-group">
-      <label>卵巣所見・メモ</label>
-      <textarea id="col-memo" rows="2" placeholder="例: 右7個・左5個、卵質良好"></textarea>
-    </div>
-    <input type="hidden" id="col-cowid">
-    <input type="hidden" id="col-taskid">
-    <button class="btn btn-primary" onclick="saveCollectionResult()" style="width:100%;margin-top:6px;">💾 保存</button>
-  </div>
-</div>
 
 <!-- EDIT COW MODAL -->
 <div class="modal-overlay" id="modal-edit-cow">
@@ -8995,15 +8951,19 @@ function renderReport() {
                 const typeOpts = typeOptions.map(t =>
                   `<option value="${t}" ${t===h.type?'selected':''}>${tLabel(t)}</option>`
                 ).join('');
-                return `<div style="display:flex;align-items:center;gap:5px;padding:5px 4px;border-bottom:1px solid var(--border);flex-wrap:wrap;">
-                  <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
-                  <select onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'type',this.value,this)" style="background:var(--bg3);border:1px solid ${tColor(h.type)};color:${tColor(h.type)};font-size:11px;font-weight:700;padding:2px 4px;border-radius:4px;">${typeOpts}</select>
-                  <strong style="color:var(--text);font-size:11px;">${h.itemName}</strong>
-                  <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:48px;">
-                  <span style="color:var(--muted);">本</span>
-                  ${cowName?`<span style="color:var(--muted);font-size:10px;">${cowName}</span>`:''}
-                  <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg3);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:70px;">
-                  ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
+                const rowBgDet = hi % 2 === 0 ? 'var(--bg3)' : 'var(--bg2)';
+                const leftColor = tColor(h.type);
+                return `<div style="display:flex;align-items:center;gap:6px;padding:7px 8px;background:${rowBgDet};border-left:3px solid ${leftColor};border-bottom:2px solid var(--bg);flex-wrap:wrap;margin-bottom:1px;">
+                  <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
+                  <select onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'type',this.value,this)" style="background:var(--bg);border:1px solid ${leftColor};color:${leftColor};font-size:11px;font-weight:700;padding:2px 4px;border-radius:4px;">${typeOpts}</select>
+                  <strong style="color:var(--text);font-size:12px;">${h.itemName}</strong>
+                  <div style="display:flex;align-items:center;gap:3px;">
+                    <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:2px 4px;border-radius:4px;width:50px;text-align:center;">
+                    <span style="color:var(--muted);font-size:11px;">本</span>
+                  </div>
+                  ${cowName?`<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;">${cowName}</span>`:''}
+                  <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:70px;">
+                  ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${h.memo}</span>`:''}
                 </div>`;
               }).join('')}
             </div>
