@@ -295,6 +295,13 @@ textarea{resize:vertical;}
 .cal-dots{display:flex;gap:2px;position:absolute;bottom:3px;}
 .cal-dot{width:4px;height:4px;border-radius:50%;}
 .cal-day-num{font-size:13px;line-height:1;}
+@media print {
+  body > *:not(#modal-cert-preview) { display: none !important; }
+  #modal-cert-preview { display: block !important; position: static !important; background: #fff !important; }
+  #modal-cert-preview .modal { max-width: 100% !important; box-shadow: none !important; }
+  #modal-cert-preview .modal-title, #modal-cert-preview > div:first-child { display: none !important; }
+  .modal-overlay:not(#modal-cert-preview) { display: none !important; }
+}
 </style>
 </head>
 <body>
@@ -661,11 +668,13 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">生まれた時<br>の大きさ</span>
         <div class="lf-val" style="justify-content:flex-end;">
-          <div style="display:flex;gap:6px;">
-            <button type="button" id="calf-size-btn-大" onclick="setCalfSize('大')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">大</button>
-            <button type="button" id="calf-size-btn-中" onclick="setCalfSize('中')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">中</button>
-            <button type="button" id="calf-size-btn-小" onclick="setCalfSize('小')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">小</button>
-            <button type="button" id="calf-size-btn-不明" onclick="setCalfSize('不明')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;border-radius:8px;cursor:pointer;">不明</button>
+          <div style="display:flex;gap:5px;">
+            <button type="button" id="calf-size-btn-1" onclick="setCalfSize('1')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">1</button>
+            <button type="button" id="calf-size-btn-2" onclick="setCalfSize('2')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">2</button>
+            <button type="button" id="calf-size-btn-3" onclick="setCalfSize('3')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">3</button>
+            <button type="button" id="calf-size-btn-4" onclick="setCalfSize('4')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">4</button>
+            <button type="button" id="calf-size-btn-5" onclick="setCalfSize('5')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">5</button>
+            <button type="button" id="calf-size-btn-不明" onclick="setCalfSize('不明')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:6px 8px;border-radius:8px;cursor:pointer;">不明</button>
           </div>
           <input type="hidden" id="calf-weight" value="">
         </div>
@@ -1637,6 +1646,22 @@ textarea{resize:vertical;}
     <div style="background:#0d2a1a;border:1px solid var(--accent2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--accent);margin-bottom:14px;">
       💡 分娩日を入力すると「分娩後45日超・未受精アラート」が自動で機能します
     </div>
+
+    <!-- 家畜登録情報 -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">📋 家畜登録情報（授精証明書に使用）</div>
+      <div class="lf-list" style="background:none;border:none;padding:0;">
+        <div class="lf-row">
+          <span class="lf-label" style="font-size:11px;">家畜登録<br>機関名</span>
+          <div class="lf-val"><input type="text" id="edit-cow-reg-org" placeholder="例: 全国和牛登録協会" style="font-size:12px;"></div>
+        </div>
+        <div class="lf-row">
+          <span class="lf-label" style="font-size:11px;">登録番号</span>
+          <div class="lf-val"><input type="text" id="edit-cow-reg-no" placeholder="例: 黒-1234567" style="font-size:12px;"></div>
+        </div>
+      </div>
+    </div>
+
     <button class="btn btn-primary" onclick="saveEditCow()" style="width:100%;margin-bottom:10px;">保存する</button>
     <!-- 一括削除ゾーン -->
     <div style="border-top:1px solid var(--border);padding-top:12px;">
@@ -2069,13 +2094,16 @@ textarea{resize:vertical;}
           <input type="number" id="cr-weight" placeholder="例: 32" min="10" max="80" step="0.5" style="font-size:13px;">
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:6px;">
-        <button type="button" id="cr-size-large" onclick="setCrSize('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
-        <button type="button" id="cr-size-normal" onclick="setCrSize('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
-        <button type="button" id="cr-size-small" onclick="setCrSize('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
-        <button type="button" id="cr-size-unknown" onclick="setCrSize('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">大きさ（1=極小 〜 5=極大）</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px;">
+        <button type="button" id="cr-size-1" onclick="setCrSize('1')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">1</button>
+        <button type="button" id="cr-size-2" onclick="setCrSize('2')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">2</button>
+        <button type="button" id="cr-size-3" onclick="setCrSize('3')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">3</button>
+        <button type="button" id="cr-size-4" onclick="setCrSize('4')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">4</button>
+        <button type="button" id="cr-size-5" onclick="setCrSize('5')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">5</button>
+        <button type="button" id="cr-size-unknown" onclick="setCrSize('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:8px 2px;border-radius:8px;cursor:pointer;">不明</button>
       </div>
-      <input type="hidden" id="cr-size" value="normal">
+      <input type="hidden" id="cr-size" value="3">
       <div style="display:flex;gap:8px;">
         <button type="button" id="cr-coat-black" onclick="setCrCoat('black')" style="flex:1;background:#0a0a0a;border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">⬛ 黒毛</button>
         <button type="button" id="cr-coat-brown" onclick="setCrCoat('brown')" style="flex:1;background:#1a0d00;border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🟥 褐毛</button>
@@ -2109,13 +2137,16 @@ textarea{resize:vertical;}
           <input type="number" id="cr-weight2" placeholder="例: 28" min="10" max="80" step="0.5" style="font-size:13px;">
         </div>
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:6px;">
-        <button type="button" id="cr-size2-large" onclick="setCrSize2('large')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔼 大きい</button>
-        <button type="button" id="cr-size2-normal" onclick="setCrSize2('normal')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">➡ 普通</button>
-        <button type="button" id="cr-size2-small" onclick="setCrSize2('small')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">🔽 小さい</button>
-        <button type="button" id="cr-size2-unknown" onclick="setCrSize2('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">？ 不明</button>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">大きさ（1=極小 〜 5=極大）</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px;">
+        <button type="button" id="cr-size2-1" onclick="setCrSize2('1')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">1</button>
+        <button type="button" id="cr-size2-2" onclick="setCrSize2('2')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">2</button>
+        <button type="button" id="cr-size2-3" onclick="setCrSize2('3')" style="flex:1;background:var(--bg3);border:2px solid var(--accent2);color:var(--accent);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">3</button>
+        <button type="button" id="cr-size2-4" onclick="setCrSize2('4')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">4</button>
+        <button type="button" id="cr-size2-5" onclick="setCrSize2('5')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:8px 4px;border-radius:8px;cursor:pointer;">5</button>
+        <button type="button" id="cr-size2-unknown" onclick="setCrSize2('unknown')" style="flex:1;background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:8px 2px;border-radius:8px;cursor:pointer;">不明</button>
       </div>
-      <input type="hidden" id="cr-size2" value="normal">
+      <input type="hidden" id="cr-size2" value="3">
       <div style="display:flex;gap:8px;">
         <button type="button" id="cr-coat2-black" onclick="setCrCoat2('black')" style="flex:1;background:#0a0a0a;border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">⬛ 黒毛</button>
         <button type="button" id="cr-coat2-brown" onclick="setCrCoat2('brown')" style="flex:1;background:#1a0d00;border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🟥 褐毛</button>
@@ -4568,6 +4599,8 @@ function openEditCow(cowId) {
   document.getElementById('edit-cow-sire').value = cow.sire || '';
   document.getElementById('edit-cow-dam').value = cow.dam || '';
   document.getElementById('edit-cow-maternal-sire').value = cow.maternalSire || '';
+  document.getElementById('edit-cow-reg-org').value = cow.regOrg || '';
+  document.getElementById('edit-cow-reg-no').value = cow.regNo || '';
   openModal('modal-edit-cow');
 }
 
@@ -4609,6 +4642,8 @@ function saveEditCow() {
   cow.sire       = document.getElementById('edit-cow-sire').value.trim();
   cow.dam        = document.getElementById('edit-cow-dam').value.trim();
   cow.maternalSire = document.getElementById('edit-cow-maternal-sire').value.trim();
+  cow.regOrg = document.getElementById('edit-cow-reg-org').value.trim();
+  cow.regNo  = document.getElementById('edit-cow-reg-no').value.trim();
 
   // 分娩日が新規入力された場合のみフォローアップを再生成
   if (calvingChanged && newCalving) {
@@ -6331,6 +6366,7 @@ function renderInsemBook() {
         '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-op-dynamic' + idx + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
+        '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
       '</tr>';
     }
     // 固定データ：insemBookEditsに上書き値があればそれを使用、編集可能
@@ -6352,6 +6388,7 @@ function renderInsemBook() {
       '<td style="padding:2px 4px;"><input id="ib-m-' + sid + '" value="' + dispM.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:2px 4px;"><input id="ib-op-' + sid + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
+      '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
     '</tr>';
   }).join('');
 }
@@ -6522,10 +6559,11 @@ function renderPendingEtList() {
         <span style="font-size:11px;">ステージ: ${e.stage||'—'} ランク: ${e.rank||'—'}</span>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-        <select id="pet-recipient-${i}" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 6px;border-radius:6px;flex:1;min-width:150px;">
-          <option value="">移植先の牛を選択</option>
-          ${recipientOptions}
-        </select>
+        <div style="position:relative;flex:1;min-width:150px;">
+          <input type="hidden" id="pet-recipient-${i}" value="">
+          <input type="text" id="pet-recip-search-${i}" placeholder="受卵牛を検索..." oninput="onPetRecipSearch(${i},this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;padding:4px 8px;border-radius:6px;width:100%;box-sizing:border-box;" autocomplete="off">
+          <div id="pet-recip-list-${i}" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:8px;width:100%;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
+        </div>
         <button onclick="executePendingET(${i})" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">💉 ET実施</button>
         <button onclick="freezePendingEmbryo(${i})" style="background:#0a0a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">❄️ 凍結へ</button>
         <button onclick="discardPendingEmbryo(${i})" style="background:none;border:1px solid var(--muted);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">✕ 変性破棄</button>
@@ -6541,6 +6579,12 @@ function openNewCollection() {
   document.getElementById('col-sire').value = '';
   document.getElementById('col-operator').value = '';
   document.getElementById('col-ai-date').value = '';
+  // ドナー検索欄初期化
+  document.getElementById('col-donor').value = '';
+  document.getElementById('col-donor-search').value = '';
+  document.getElementById('col-donor-search').style.display = '';
+  document.getElementById('col-donor-selected').style.display = 'none';
+  document.getElementById('col-donor-list').style.display = 'none';
   document.getElementById('col-cl-right').value = '';
   document.getElementById('col-cl-left').value = '';
   document.getElementById('col-recovered').value = '';
@@ -6576,10 +6620,15 @@ function openEditCollection(id) {
   document.getElementById('col-degenerate').value = r.degenerate||'';
   document.getElementById('col-memo').value = r.memo||'';
   setColPG(r.pg !== false);
-  const sel = document.getElementById('col-donor');
-  sel.innerHTML = '<option value="">選択してください</option>' +
-    cows.map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
-  sel.value = r.donorId||'';
+  // ドナー検索欄復元
+  const donorLabel = r.donorId ? `${r.donorId} ${cowDisplayName(r.donorId)||''}`.trim() : '';
+  document.getElementById('col-donor').value = r.donorId||'';
+  document.getElementById('col-donor-search').value = donorLabel;
+  document.getElementById('col-donor-search').style.display = 'none';
+  const selEl = document.getElementById('col-donor-selected');
+  selEl.style.display = donorLabel ? '' : 'none';
+  if (donorLabel) selEl.textContent = `✓ ${donorLabel}（タップで変更）`;
+  document.getElementById('col-donor-list').style.display = 'none';
   // 凍結胚
   const fc = (r.frozenEmbryos||[]).length;
   document.getElementById('col-frozen-count').value = fc;
@@ -6591,7 +6640,104 @@ function openEditCollection(id) {
   openModal('modal-collection');
 }
 
-// 採卵日変更→採卵番号自動生成
+// ===== 採卵記録 牛検索UIヘルパー =====
+
+// 牛検索共通関数：クエリに一致する牛リストを返す
+function searchCows(q, filterFn) {
+  const ql = q.toLowerCase();
+  return cows.filter(c => {
+    if (filterFn && !filterFn(c)) return false;
+    const name = cowDisplayName(c.id) || c.name || '';
+    return c.id.toLowerCase().includes(ql) || name.toLowerCase().includes(ql);
+  });
+}
+
+// ドナー牛検索
+function onColDonorSearch(q) {
+  const list = document.getElementById('col-donor-list');
+  if (!q) { list.style.display='none'; return; }
+  const results = searchCows(q);
+  if (!results.length) { list.style.display='none'; return; }
+  list.style.display = '';
+  list.innerHTML = results.slice(0,10).map(c => {
+    const name = cowDisplayName(c.id)||c.name||'';
+    return `<div onclick="selectColDonor('${c.id}','${c.id} ${name}')" style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <strong style="color:var(--accent);">${c.id}</strong> <span style="color:var(--muted);">${name}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectColDonor(id, label) {
+  document.getElementById('col-donor').value = id;
+  document.getElementById('col-donor-search').value = label;
+  document.getElementById('col-donor-search').style.display = 'none';
+  document.getElementById('col-donor-list').style.display = 'none';
+  const sel = document.getElementById('col-donor-selected');
+  sel.style.display = '';
+  sel.textContent = `✓ ${label}（タップで変更）`;
+  onColDonorChange();
+}
+
+function clearColDonor() {
+  document.getElementById('col-donor').value = '';
+  document.getElementById('col-donor-search').value = '';
+  document.getElementById('col-donor-search').style.display = '';
+  document.getElementById('col-donor-search').focus();
+  document.getElementById('col-donor-selected').style.display = 'none';
+}
+
+// 翌日移植予定リストの受卵牛検索
+function onPetRecipSearch(idx, q) {
+  const list = document.getElementById(`pet-recip-list-${idx}`);
+  if (!q) { list.style.display='none'; return; }
+  const results = searchCows(q, c => c.status==='program'||c.status==='open'||c.status==='fresh');
+  if (!results.length) { list.style.display='none'; return; }
+  list.style.display = '';
+  list.innerHTML = results.slice(0,8).map(c => {
+    const name = cowDisplayName(c.id)||c.name||'';
+    return `<div onclick="selectPetRecip(${idx},'${c.id}','${c.id} ${name}')" style="padding:7px 10px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <strong style="color:var(--accent);">${c.id}</strong> <span style="color:var(--muted);">${name}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectPetRecip(idx, id, label) {
+  document.getElementById(`pet-recipient-${idx}`).value = id;
+  const inp = document.getElementById(`pet-recip-search-${idx}`);
+  inp.value = label;
+  inp.style.borderColor = 'var(--accent2)';
+  document.getElementById(`pet-recip-list-${idx}`).style.display = 'none';
+}
+
+// 新鮮胚行の受卵牛検索
+function onFreshRecipSearch(input) {
+  const q = input.value;
+  const row = input.closest('td');
+  const list = row.querySelector('.cfr-recip-list');
+  const hidden = row.querySelector('.cfr-recipient');
+  if (!q) { list.style.display='none'; return; }
+  const results = searchCows(q, c => c.status==='program'||c.status==='open'||c.status==='fresh');
+  if (!results.length) { list.style.display='none'; return; }
+  list.style.display = '';
+  list.innerHTML = results.slice(0,8).map(c => {
+    const name = cowDisplayName(c.id)||c.name||'';
+    return `<div onclick="selectFreshRecip(this,'${c.id}','${c.id} ${name}')" style="padding:6px 8px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <strong style="color:var(--accent);">${c.id}</strong> <span style="color:var(--muted);">${name}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectFreshRecip(el, id, label) {
+  const td = el.closest('td');
+  td.querySelector('.cfr-recipient').value = id;
+  const inp = td.querySelector('.cfr-recip-search');
+  inp.value = label;
+  inp.style.borderColor = 'var(--accent2)';
+  td.querySelector('.cfr-recip-list').style.display = 'none';
+}
+
+// openNewCollectionでドナー検索欄を初期化
+
 function onColDateChange() {
   const dateVal = document.getElementById('col-date').value;
   if (!dateVal) return;
@@ -6767,11 +6913,11 @@ function onColFreshCountInput(val, existing) {
           <option value="today" ${ex?.action==='today'?'selected':''}>当日移植</option>
           <option value="freeze" ${ex?.action==='freeze'?'selected':''}>凍結に変更</option>
         </select></td>
-        <td style="padding:2px 3px;">
-          <select class="cfr-recipient" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;display:${ex?.action==='today'?'':'none'};">
-            ${recipientOptions}
-          </select>
-        </td>`;
+        <td style="padding:2px 3px;position:relative;">
+          <input type="hidden" class="cfr-recipient" value="">
+          <input type="text" class="cfr-recip-search" placeholder="受卵牛検索..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:100px;display:${ex?.action==='today'?'':'none'};" autocomplete="off">
+          <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:180px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
+        </td>\`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
     }
@@ -6836,11 +6982,82 @@ function saveCollection() {
 
   if (editId) {
     const idx = collectionRecordsNew.findIndex(x=>x.id===editId);
+    const oldRec = idx >= 0 ? collectionRecordsNew[idx] : null;
+
     if (idx>=0) collectionRecordsNew[idx] = rec;
+
+    // ── 編集時の連動更新 ──────────────────────────
+    if (oldRec) {
+      const dateChanged = oldRec.date !== date;
+      const lotChanged  = oldRec.lot  !== lot;
+      const donorChanged = oldRec.donorId !== donorId;
+      const sireChanged  = oldRec.sire !== sire;
+
+      // 1. 受精卵在庫の更新（同ロットのアイテムを探して更新）
+      embryoInventory.forEach(inv => {
+        const isThisLot = (inv.lot === oldRec.lot || inv.lot === lot) &&
+          (inv.collectionDate === oldRec.date || inv.dam?.includes(oldRec.donorId));
+        if (!isThisLot) return;
+        if (dateChanged) {
+          inv.collectionDate = date;
+          (inv.history||[]).forEach(h => { if (h.date === oldRec.date && h.type === 'selfcollect') h.date = date; });
+        }
+        if (lotChanged)   inv.lot = lot;
+        if (donorChanged) inv.dam = cowDisplayName(donorId)||donorId;
+        if (sireChanged)  inv.sire = sire;
+        // 胚詳細を更新
+        if (frozenEmbryos.length) inv.embryoDetails = frozenEmbryos.map(e=>({...e,frozen:true,fresh:false}));
+      });
+
+      // 2. cow.eventsのET記録を更新（当日移植分）
+      if (dateChanged || donorChanged || sireChanged) {
+        freshEmbryos.forEach((fe, i) => {
+          if (fe.action !== 'today' || !fe.recipientId) return;
+          const embryoNo = `${lot||date}-F${i+1}`;
+          const oldEmbryoNo = `${oldRec.lot||oldRec.date}-F${i+1}`;
+          const recip = cows.find(c=>c.id===fe.recipientId);
+          if (!recip) return;
+          (recip.events||[]).forEach(ev => {
+            if (ev.type !== 'et_done') return;
+            if (ev.date === oldRec.date && (ev.memo?.includes(oldEmbryoNo)||ev.memo?.includes(oldRec.lot))) {
+              if (dateChanged) ev.date = date;
+              if (donorChanged || sireChanged) {
+                const donorName = cowDisplayName(donorId)||donorId;
+                ev.memo = `胚番号:${embryoNo} ドナー:${donorName} 🌱新鮮胚`;
+              }
+            }
+          });
+          // 妊鑑タスクの日付も更新
+          if (dateChanged) {
+            tasks.filter(t=>t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定'))
+              .forEach(t=>{ t.date = addDays(date, 35); t.detail = `ET後35日 (ET日:${fmtDate(date)}) 新鮮胚`; });
+          }
+        });
+      }
+
+      // 3. ドナー牛の妊鑑タスク更新（PG未投与の場合）
+      if (dateChanged && !pg && aiDate) {
+        tasks.filter(t=>t.cowId===oldRec.donorId&&!t.done&&t.action==='妊娠鑑定')
+          .forEach(t=>{ t.date = addDays(aiDate||date, 45); t.detail = `採卵後PG未投与 AI日(${fmtDate(aiDate||date)})から45日後`; });
+      }
+
+      // 4. 翌日移植予定リストのcollectionIdで紐づくものを更新
+      if (dateChanged || lotChanged || donorChanged || sireChanged) {
+        pendingEtList.forEach(p => {
+          if (p.collectionId !== editId) return;
+          if (dateChanged)  p.collectDate = date;
+          if (lotChanged)   p.lot = lot;
+          if (donorChanged) { p.donorId = donorId; }
+          if (sireChanged)  p.sire = sire;
+        });
+      }
+    }
   } else {
     collectionRecordsNew.push(rec);
   }
 
+  // 新規保存時のみ在庫追加・タスク生成を実行
+  if (!editId) {
   // 凍結胚を受精卵在庫に追加（selfcollect）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
@@ -6917,6 +7134,7 @@ function saveCollection() {
       cow.status = 'program';
     }
   }
+  } // 新規保存ブロック終了
 
   save();
   closeModal('modal-collection');
@@ -7053,6 +7271,116 @@ function markPendingAsExternal(pendingId) {
   pendingUseRecords.splice(idx, 1);
   save();
   renderSemen();
+}
+
+// ===== 授精証明書 =====
+
+function toggleAllInsemCheck() {
+  const checks = document.querySelectorAll('.insem-cert-check');
+  const allChecked = Array.from(checks).every(c => c.checked);
+  checks.forEach(c => c.checked = !allChecked);
+}
+
+function printSelectedCerts() {
+  const checks = document.querySelectorAll('.insem-cert-check:checked');
+  if (!checks.length) { alert('証明書を印刷する行を選択してください（📄チェックボックス）'); return; }
+  const selected = Array.from(checks).map(c => {
+    const src = c.dataset.src;
+    const idx = parseInt(c.dataset.idx);
+    if (src === 'dynamic') return insemBookRecords[idx];
+    const r = INSEM_BOOK_DATA[idx];
+    if (!r) return null;
+    const ekey = src + '_' + idx;
+    const edit = insemBookEdits[ekey] || {};
+    return { ...r, n: edit.n||r.n, q: edit.q||r.q, m: edit.m||r.m, d: edit.d||r.d, op: edit.op||r.op||'' };
+  }).filter(Boolean);
+  openCertPreview(selected);
+}
+
+function openCertPreview(records) {
+  const modal = document.getElementById('modal-cert-preview');
+  if (!modal) return;
+  const container = document.getElementById('cert-preview-container');
+  container.innerHTML = records.map((r, i) => buildCertHTML(r, i)).join('<div style="page-break-after:always;"></div>');
+  modal.classList.add('open');
+}
+
+function buildCertHTML(r, idx) {
+  const cow = cows.find(c => c.id === r.t);
+  const cowName = cow ? (cow.name || '') : '';
+  const nationalId = cow?.nationalId ? formatNationalId(cow.nationalId) : '';
+  const dob = cow?.dob ? fmtDate(cow.dob) : '';
+  const breed = cow?.breed === '褐毛' ? '肉用種　褐毛和種' : cow?.breed === '黒毛' ? '肉用種　黒毛和種' : cow?.breed || '';
+  const regOrg = cow?.regOrg || '';
+  const regNo  = cow?.regNo  || '';
+  const isET = r.s.includes('×');
+  const certNoId = `cert-no-${idx}`;
+
+  return `<div style="border:2px solid #333;padding:16px 20px;font-family:'MS Mincho',serif;font-size:13px;max-width:520px;margin:0 auto 20px;background:#fff;color:#000;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;">種　畜　　家畜人工授精用</div>
+        <div style="font-size:11px;margin-left:4px;">精液証明書番号　<input id="${certNoId}" value="${r.n||''}" placeholder="証明書番号を入力" style="border:none;border-bottom:1px solid #333;font-size:12px;width:120px;background:transparent;font-family:inherit;"></div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px;">名　前　<strong style="font-size:14px;">${r.s}</strong></div>
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px;">
+      <tr>
+        <td rowspan="8" style="border:1px solid #333;padding:4px;text-align:center;font-size:12px;writing-mode:vertical-rl;letter-spacing:4px;width:24px;">精液を注入した雌畜</td>
+        <td style="border:1px solid #333;padding:4px 8px;width:140px;">名　　　前</td>
+        <td style="border:1px solid #333;padding:4px 8px;font-weight:700;">${cowName} (${r.t})</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">個 体 識 別 番 号</td>
+        <td style="border:1px solid #333;padding:4px 8px;font-family:'Courier New',monospace;">${nationalId}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">家 畜 登 録 機 関 名<br>及 び 登 録 番 号</td>
+        <td style="border:1px solid #333;padding:4px 8px;">${regOrg}<br>${regNo}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">種 類 及 び 品 種</td>
+        <td style="border:1px solid #333;padding:4px 8px;">${breed}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">毛 色 及 び 特 徴</td>
+        <td style="border:1px solid #333;padding:4px 8px;"></td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">生　年　月　日</td>
+        <td style="border:1px solid #333;padding:4px 8px;">${dob}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #333;padding:4px 8px;">飼養者の氏名又は名称<br>及び住所</td>
+        <td style="border:1px solid #333;padding:4px 8px;">池田町字千代田697番地<br>小原　秀樹</td>
+      </tr>
+    </table>
+    <div style="border:1px solid #333;padding:6px 8px;margin-bottom:10px;font-size:12px;">
+      精　液　注　入　年　月　日　　　<strong>${fmtDate(r.d)}</strong>
+    </div>
+    <div style="font-size:11px;margin-bottom:12px;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>
+    <div style="text-align:right;font-size:11px;line-height:1.8;">
+      <div>獣医師（免許番号: 01L237）</div>
+      <div>（登録番号: 第 60937 号）</div>
+      <div>住　所　中川郡池田町字千代田697番地</div>
+      <div>氏　名　小原 千佳　　㊞</div>
+      <div>小原家畜人工授精所</div>
+    </div>
+  </div>`;
+}
+
+function formatNationalId(id) {
+  if (!id) return '';
+  const s = String(id).replace(/\D/g,'');
+  if (s.length >= 10) return s.slice(0,5) + '-' + s.slice(5,9) + '-' + s.slice(9);
+  return s;
+}
+
+function printCerts() {
+  // 証明書番号の入力値をDOMから取得して反映後に印刷
+  window.print();
 }
 
 // ===== SETTINGS =====
@@ -7610,7 +7938,7 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
     + (dueDate ? `<br><span style="font-size:11px;color:var(--muted)">分娩予定日: ${fmtDate(dueDate)}</span>` : '');
 
   // フォームリセット
-  setCrSize('normal');
+  setCrSize('3');
   document.getElementById('cr-coat').value = '';
   document.getElementById('cr-sex').value = '';
   document.getElementById('cr-weight').value = '';
@@ -7620,7 +7948,7 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
   document.getElementById('cr-coat2').value = '';
   document.getElementById('cr-sex2').value = '';
   document.getElementById('cr-weight2').value = '';
-  setCrSize2('normal');
+  setCrSize2('3');
   ['black','brown','f1'].forEach(c => {
     const b1 = document.getElementById(`cr-coat-${c}`);
     const b2 = document.getElementById(`cr-coat2-${c}`);
@@ -7718,19 +8046,21 @@ function toggleCrTwin() {
 
 function setCrSize2(size) {
   document.getElementById('cr-size2').value = size;
-  const styles = {
-    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
-    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
+  const sizeColors = {
+    '1': ['var(--info)',    '#0a1a2a', 'var(--info)'],
+    '2': ['var(--info)',    '#0a1520', 'var(--info)'],
+    '3': ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    '4': ['var(--danger)',  '#1a1008', 'var(--danger)'],
+    '5': ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    'unknown': ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small','unknown'].forEach(s => {
+  ['1','2','3','4','5','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size2-${s}`);
     if (!btn) return;
     if (s === size) {
-      btn.style.borderColor = styles[s][0];
-      btn.style.background  = styles[s][1];
-      btn.style.color       = styles[s][2];
+      btn.style.borderColor = sizeColors[s][0];
+      btn.style.background  = sizeColors[s][1];
+      btn.style.color       = sizeColors[s][2];
     } else {
       btn.style.borderColor = 'var(--border)';
       btn.style.background  = 'var(--bg3)';
@@ -7752,19 +8082,21 @@ function setCrCoat2(coat) {
 
 function setCrSize(size) {
   document.getElementById('cr-size').value = size;
-  const styles = {
-    large:   ['var(--danger)',  '#1a0808', 'var(--danger)'],
-    normal:  ['var(--accent2)','#0d2a1a', 'var(--accent)'],
-    small:   ['var(--info)',   '#0a1a2a', 'var(--info)'],
-    unknown: ['var(--border)', 'var(--bg3)', 'var(--muted)'],
+  const sizeColors = {
+    '1': ['var(--info)',    '#0a1a2a', 'var(--info)'],
+    '2': ['var(--info)',    '#0a1520', 'var(--info)'],
+    '3': ['var(--accent2)','#0d2a1a', 'var(--accent)'],
+    '4': ['var(--danger)',  '#1a1008', 'var(--danger)'],
+    '5': ['var(--danger)',  '#1a0808', 'var(--danger)'],
+    'unknown': ['var(--border)', 'var(--bg3)', 'var(--muted)'],
   };
-  ['large','normal','small','unknown'].forEach(s => {
+  ['1','2','3','4','5','unknown'].forEach(s => {
     const btn = document.getElementById(`cr-size-${s}`);
     if (!btn) return;
     if (s === size) {
-      btn.style.borderColor = styles[s][0];
-      btn.style.background  = styles[s][1];
-      btn.style.color       = styles[s][2];
+      btn.style.borderColor = sizeColors[s][0];
+      btn.style.background  = sizeColors[s][1];
+      btn.style.color       = sizeColors[s][2];
     } else {
       btn.style.borderColor = 'var(--border)';
       btn.style.background  = 'var(--bg3)';
@@ -7837,8 +8169,11 @@ function saveCalvingRecord() {
     }
   }
 
-  const size = document.getElementById('cr-size').value || 'normal';
-  const sizeScore = size === 'large' ? 4 : size === 'small' ? 2 : size === 'unknown' ? null : 3;
+  const size = document.getElementById('cr-size').value || '3';
+  // 既存データ互換：large→4, normal→3, small→2
+  const sizeNum = size === 'large' ? 4 : size === 'small' ? 2 : size === 'unknown' ? null : (parseInt(size)||3);
+  const sizeScore = sizeNum;
+  const sizeLabel3 = size === 'unknown' ? '不明' : `${sizeNum}`;
   const coat = document.getElementById('cr-coat').value;
   const sex = document.getElementById('cr-sex').value;
   const weight = parseFloat(document.getElementById('cr-weight').value) || null;
@@ -7892,7 +8227,7 @@ function saveCalvingRecord() {
   const maternalSire = cow?.sire || '';
 
   // 大きさ（大/中/小）
-  const sizeLabel3 = size === 'large' ? '大' : size === 'small' ? '小' : size === 'unknown' ? '不明' : '中';
+  // sizeLabel3は上で定義済み
 
   // calvingRecords に保存
   const rec = {
@@ -7927,9 +8262,10 @@ function saveCalvingRecord() {
     const sex2 = document.getElementById('cr-sex2').value;
     const weight2 = parseFloat(document.getElementById('cr-weight2').value) || null;
     const coat2 = document.getElementById('cr-coat2').value;
-    const size2 = document.getElementById('cr-size2').value || 'normal';
-    const sizeScore2 = size2 === 'large' ? 4 : size2 === 'small' ? 2 : 3;
-    const sizeLabel3b = size2 === 'large' ? '大' : size2 === 'small' ? '小' : '中';
+    const size2 = document.getElementById('cr-size2').value || '3';
+    const sizeNum2 = size2 === 'large' ? 4 : size2 === 'small' ? 2 : size2 === 'unknown' ? null : (parseInt(size2)||3);
+    const sizeScore2 = sizeNum2;
+    const sizeLabel3b = size2 === 'unknown' ? '不明' : String(sizeNum2);
     calves.push({
       id: Math.random().toString(36).slice(2),
       damId: cowId, dob: calvingDate,
@@ -8318,14 +8654,24 @@ function selectCalfDam(id, name) {
 }
 
 function setCalfSize(val) {
-  document.getElementById('calf-weight').value = val;
-  ['大','中','小','不明'].forEach(s => {
+  // 既存データ互換：大→4, 中→3, 小→2
+  const normalized = val === '大' ? '4' : val === '中' ? '3' : val === '小' ? '2' : val;
+  document.getElementById('calf-weight').value = normalized;
+  const colors = {
+    '1': ['#0a1a2a','var(--info)','var(--info)'],
+    '2': ['#0a1520','var(--info)','var(--info)'],
+    '3': ['#0d2a1a','var(--accent2)','var(--accent)'],
+    '4': ['#1a1008','var(--danger)','var(--danger)'],
+    '5': ['#1a0808','var(--danger)','var(--danger)'],
+    '不明': ['var(--bg3)','var(--muted)','var(--muted)'],
+  };
+  ['1','2','3','4','5','不明'].forEach(s => {
     const btn = document.getElementById(`calf-size-btn-${s}`);
     if (!btn) return;
-    if (s === val) {
-      btn.style.background = s==='大' ? '#1a2a0a' : s==='小' ? '#1a0a0a' : s==='不明' ? 'var(--bg3)' : '#0a1a2a';
-      btn.style.borderColor = s==='大' ? 'var(--accent2)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--muted)' : 'var(--info)';
-      btn.style.color = s==='大' ? 'var(--accent)' : s==='小' ? 'var(--warn)' : s==='不明' ? 'var(--text)' : 'var(--info)';
+    if (s === normalized) {
+      btn.style.background  = colors[s]?.[0] || 'var(--bg3)';
+      btn.style.borderColor = colors[s]?.[1] || 'var(--border)';
+      btn.style.color       = colors[s]?.[2] || 'var(--text)';
     } else {
       btn.style.background = 'var(--bg3)';
       btn.style.borderColor = 'var(--border)';
@@ -8335,7 +8681,7 @@ function setCalfSize(val) {
 }
 function clearCalfSize() {
   document.getElementById('calf-weight').value = '';
-  ['大','中','小'].forEach(s => {
+  ['1','2','3','4','5','不明'].forEach(s => {
     const btn = document.getElementById(`calf-size-btn-${s}`);
     if (btn) { btn.style.background='var(--bg3)'; btn.style.borderColor='var(--border)'; btn.style.color='var(--muted)'; }
   });
@@ -8375,7 +8721,7 @@ function openEditCalfModal(id) {
   document.getElementById('calf-maternal-grand-sire').value = calf.maternalGrandSire || '';
   document.getElementById('calf-sex').value = calf.sex || '';
   document.getElementById('calf-breed').value = calf.breed || '黒毛';
-  if (calf.weight && ['大','中','小','不明'].includes(String(calf.weight))) {
+  if (calf.weight && calf.weight !== '') {
     setCalfSize(String(calf.weight));
   } else {
     clearCalfSize();
@@ -10617,6 +10963,10 @@ try {
   <div class="section-header">
     <div class="section-title">📋 人工授精簿</div>
   </div>
+  <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+    <button onclick="printSelectedCerts()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📄 選択した証明書を印刷</button>
+    <button onclick="toggleAllInsemCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">全選択/解除</button>
+  </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
     <select id="insembook-year" onchange="renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
       <option value="R7">R7（2025）</option>
@@ -10641,6 +10991,7 @@ try {
           <th style="padding:8px 6px;text-align:left;color:var(--muted);">備考</th>
           <th style="padding:8px 6px;text-align:left;color:var(--warn);">術者</th>
           <th style="padding:8px 6px;text-align:center;color:var(--muted);">反映</th>
+          <th style="padding:8px 6px;text-align:center;color:var(--purple);">証明書</th>
         </tr>
       </thead>
       <tbody id="insembook-tbody"></tbody>
@@ -10696,9 +11047,10 @@ try {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <div class="form-group">
           <label>供卵牛（ドナー）</label>
-          <select id="col-donor" style="font-size:13px;" onchange="onColDonorChange()">
-            <option value="">選択してください</option>
-          </select>
+          <input type="hidden" id="col-donor" value="">
+          <input type="text" id="col-donor-search" placeholder="耳標または牛名で検索..." style="font-size:13px;" oninput="onColDonorSearch(this.value)" autocomplete="off">
+          <div id="col-donor-list" style="display:none;position:absolute;z-index:200;background:var(--card);border:1px solid var(--border);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.4);"></div>
+          <div id="col-donor-selected" style="display:none;margin-top:4px;background:var(--bg3);border:1px solid var(--accent2);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;" onclick="clearColDonor()">選択済み（タップで変更）</div>
         </div>
         <div class="form-group">
           <label>精液（種雄牛）</label>
@@ -10812,6 +11164,21 @@ try {
       <input type="text" id="col-memo" placeholder="特記事項など" style="font-size:13px;">
     </div>
     <button class="btn btn-primary" onclick="saveCollection()" style="width:100%;" id="save-collection-btn">保存する</button>
+  </div>
+</div>
+
+<!-- 授精証明書プレビューモーダル -->
+<div class="modal-overlay" id="modal-cert-preview" style="z-index:400;">
+  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
+    <div class="modal-title">
+      <span>📄 授精証明書プレビュー</span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="printCerts()" style="background:var(--purple);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer;">🖨 印刷</button>
+        <button class="modal-close" onclick="closeModal('modal-cert-preview')">✕</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">証明書番号は各証明書内で直接入力できます。入力後に印刷してください。</div>
+    <div id="cert-preview-container"></div>
   </div>
 </div>
 
