@@ -7308,12 +7308,16 @@ function printSelectedCerts() {
 }
 
 function openCertPreview(records) {
-  const modal = document.getElementById('modal-cert-preview');
+  var modal = document.getElementById('modal-cert-preview');
   if (!modal) return;
-  const container = document.getElementById('cert-preview-container');
-  // 587番からの自動採番
-  const START_NO = 587;
-  container.innerHTML = records.map((r, i) => buildCertHTML(r, i, START_NO + i)).join('');
+  var container = document.getElementById('cert-preview-container');
+  // 2025/11/05以前は授精証明書番号なし、以降は587から採番
+  var CUTOFF = '2025-11-05';
+  var certCounter = 587;
+  container.innerHTML = records.map(function(r, i) {
+    var certNo = (r.d && r.d > CUTOFF) ? certCounter++ : null;
+    return buildCertHTML(r, i, certNo);
+  }).join('');
   modal.classList.add('open');
 }
 
@@ -7327,7 +7331,10 @@ function buildCertHTML(r, idx, certNo) {
               (cow && cow.breed) ? cow.breed : '';
   var regOrg = (cow && cow.regOrg) ? cow.regOrg : '';
   var regNo  = (cow && cow.regNo)  ? cow.regNo  : '';
-  var certNoStr = '第　' + String(certNo) + '　号';
+  // 授精証明書番号（左上）：2025/11/05以前はなし、以降は587から採番
+  var insemCertNoStr = certNo !== null ? '第　' + String(certNo) + '　号' : '';
+  // 精液証明書番号（種雄牛の固定番号）：授精簿のn欄から
+  var semenCertNo = r.n || '';
   var aiDateStr = fmtDateJP(r.d);
   var sireNameStr = r.s || '';
 
@@ -7340,11 +7347,16 @@ function buildCertHTML(r, idx, certNo) {
 
     '<div style="width:46%;padding:5mm 4mm 4mm 5mm;box-sizing:border-box;">' +
 
+      // 左上：授精証明書番号
+      '<div style="font-size:9pt;font-weight:bold;margin-bottom:2mm;text-align:left;">' +
+        (insemCertNoStr ? '授精証明書　' + insemCertNoStr : '') +
+      '</div>' +
+
       '<table style="width:100%;border-collapse:collapse;">' +
         '<tr>' +
           '<td rowspan="2" style="' + tdC + 'width:10mm;">種&#12288;畜</td>' +
           '<td style="' + tdC + 'width:24mm;font-size:8.5pt;">家畜人工授精用</td>' +
-          '<td rowspan="2" style="' + td + 'width:22mm;">' + certNoStr + '</td>' +
+          '<td rowspan="2" style="' + td + 'width:22mm;">' + semenCertNo + '</td>' +
           '<td rowspan="2" style="' + tdC + 'width:8mm;">名&#12288;前</td>' +
           '<td rowspan="2" style="' + td + 'font-size:11pt;font-weight:bold;">' + sireNameStr + '</td>' +
         '</tr>' +
