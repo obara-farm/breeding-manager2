@@ -6369,6 +6369,7 @@ function renderInsemBook() {
         '<td style="padding:2px 4px;"><input id="ib-op-dynamic' + idx + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
         '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
+        '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
       '</tr>';
     }
     // 固定データ：insemBookEditsに上書き値があればそれを使用、編集可能
@@ -6391,6 +6392,7 @@ function renderInsemBook() {
       '<td style="padding:2px 4px;"><input id="ib-op-' + sid + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
+      '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
     '</tr>';
   }).join('');
 }
@@ -7275,6 +7277,106 @@ function markPendingAsExternal(pendingId) {
   renderSemen();
 }
 
+// 授精簿レコード削除（在庫・タスク連動）
+function deleteInsemRecord(src, idx) {
+  var r;
+  if (src === 'dynamic') {
+    r = insemBookRecords[idx];
+  } else {
+    var base = INSEM_BOOK_DATA[idx];
+    var ekey = src + '_' + idx;
+    var edit = insemBookEdits[ekey] || {};
+    r = Object.assign({}, base, edit.d ? {d: edit.d} : {}, edit.s ? {s: edit.s} : {});
+  }
+  if (!r) return;
+
+  var cowId = r.t;
+  var date  = r.d;
+  var sire  = r.s || '';
+  var isET  = sire.includes('×');
+
+  // 確認モーダルで確認
+  showConfirm(
+    '授精記録を削除しますか？\n' + fmtDate(date) + ' ' + cowId + ' ' + sire + '\n\n関連する在庫使用記録・妊鑑タスクも削除されます。',
+    function() {
+      // 1. insemBookRecordsから削除（dynamic）
+      if (src === 'dynamic') {
+        insemBookRecords.splice(idx, 1);
+      } else {
+        // static：deleted フラグを立てる
+        var ekey2 = src + '_' + idx;
+        insemBookEdits[ekey2] = insemBookEdits[ekey2] || {};
+        insemBookEdits[ekey2]._deleted = true;
+      }
+
+      // 2. cow.eventsから該当AI/ETイベントを削除
+      var cow = cows.find(function(c) { return c.id === cowId; });
+      if (cow && cow.events) {
+        cow.events = cow.events.filter(function(ev) {
+          if (ev.date !== date) return true;
+          var evType = isET ? 'et_done' : 'ai_done';
+          return ev.type !== evType;
+        });
+        // ステータスをopenに戻す（次のイベントがなければ）
+        var hasActiveEvent = (cow.events||[]).some(function(ev) {
+          return ['ai_done','et_done','cidr_ai_start','et_recipient','donor_et_start'].includes(ev.type) && ev.date >= date;
+        });
+        if (!hasActiveEvent) cow.status = 'open';
+      }
+
+      // 3. 妊鑑タスクを削除（該当牛の未完了妊鑑タスクのうち、AI日から生成されたもの）
+      tasks = tasks.filter(function(t) {
+        if (t.cowId !== cowId || t.done) return true;
+        if (!t.action.includes('妊娠鑑定')) return true;
+        // AI日から45日後 or ET日から35日後のタスクを削除
+        var expectedDate45 = addDays(date, 45);
+        var expectedDate35 = addDays(date, 35);
+        return t.date !== expectedDate45 && t.date !== expectedDate35;
+      });
+
+      // 4. 精液/受精卵在庫の使用記録を取り消し
+      if (!isET) {
+        // 精液在庫
+        semenInventory.forEach(function(inv) {
+          if (!inv.history) return;
+          inv.history = inv.history.filter(function(h) {
+            var isThis = h.type === 'use' && h.date === date && h.cowId === cowId;
+            if (isThis) inv.stock = (inv.stock||0) + (h.count||1);
+            return !isThis;
+          });
+        });
+        // pendingUseRecordsからも削除
+        pendingUseRecords = pendingUseRecords.filter(function(p) {
+          return !(p.kind === 'semen' && p.date === date && p.cowId === cowId);
+        });
+      } else {
+        // 受精卵在庫
+        embryoInventory.forEach(function(inv) {
+          if (!inv.history) return;
+          inv.history = inv.history.filter(function(h) {
+            var isThis = h.type === 'use' && h.date === date && h.cowId === cowId;
+            if (isThis) inv.stock = (inv.stock||0) + (h.count||1);
+            return !isThis;
+          });
+        });
+        pendingUseRecords = pendingUseRecords.filter(function(p) {
+          return !(p.kind === 'embryo' && p.date === date && p.cowId === cowId);
+        });
+        // etRecordsからも削除
+        if (typeof etRecords !== 'undefined') {
+          etRecords = etRecords.filter(function(e) {
+            return !(e.date === date && e.cowId === cowId);
+          });
+        }
+      }
+
+      save();
+      renderInsemBook();
+      renderAll();
+    }
+  );
+}
+
 // ===== 授精証明書 =====
 
 function toggleAllInsemCheck() {
@@ -7347,9 +7449,11 @@ function buildCertHTML(r, idx, certNo) {
 
     '<div style="width:46%;padding:5mm 4mm 4mm 5mm;box-sizing:border-box;">' +
 
-      // 左上：授精証明書番号
-      '<div style="font-size:9pt;font-weight:bold;margin-bottom:2mm;text-align:left;">' +
-        (insemCertNoStr ? '授精証明書　' + insemCertNoStr : '') +
+      // タイトル行：「授精証明書」中央大きめ＋右端に証明書番号
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2mm;">' +
+        '<div style="flex:1;"></div>' +
+        '<div style="font-size:13pt;font-weight:bold;letter-spacing:4px;text-align:center;flex:2;">授　精　証　明　書</div>' +
+        '<div style="flex:1;text-align:right;font-size:9pt;">' + insemCertNoStr + '</div>' +
       '</div>' +
 
       '<table style="width:100%;border-collapse:collapse;">' +
@@ -11051,6 +11155,7 @@ try {
           <th style="padding:8px 6px;text-align:left;color:var(--warn);">術者</th>
           <th style="padding:8px 6px;text-align:center;color:var(--muted);">反映</th>
           <th style="padding:8px 6px;text-align:center;color:var(--purple);">証明書</th>
+          <th style="padding:8px 6px;text-align:center;color:var(--danger);">削除</th>
         </tr>
       </thead>
       <tbody id="insembook-tbody"></tbody>
@@ -11228,7 +11333,7 @@ try {
 
 <!-- 授精証明書プレビューモーダル -->
 <div class="modal-overlay" id="modal-cert-preview" style="z-index:400;">
-  <div class="modal" style="max-width:600px;max-height:90vh;overflow-y:auto;">
+  <div class="modal" style="max-width:320mm;width:98vw;max-height:92vh;overflow-y:auto;padding:12px;">
     <div class="modal-title">
       <span>📄 授精証明書プレビュー</span>
       <div style="display:flex;gap:8px;">
@@ -11237,7 +11342,7 @@ try {
       </div>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">証明書番号は各証明書内で直接入力できます。入力後に印刷してください。</div>
-    <div id="cert-preview-container"></div>
+    <div id="cert-preview-container" style="background:#fff;width:297mm;min-height:210mm;margin:0 auto;box-shadow:0 0 10px rgba(0,0,0,.3);overflow:hidden;"></div>
   </div>
 </div>
 
