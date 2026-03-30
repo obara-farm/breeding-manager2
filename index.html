@@ -9555,7 +9555,7 @@ function renderReport() {
 
     // 全種雄牛まとめて月別集計
     const monthData = {};
-    months.forEach(m => { monthData[m] = {in:0, carryover:0, use:0, transfer:0, discard:0, breakdown:{}}; });
+    months.forEach(m => { monthData[m] = {in:0, carryover:0, production:0, use:0, transfer:0, discard:0, breakdown:{}}; });
     inventory.forEach(item => {
       const name = nameOf(item);
       (item.history||[]).filter(h=>h.date&&h.date.startsWith(selectedYear)).forEach(h => {
@@ -9566,8 +9566,9 @@ function renderReport() {
           monthData[m].in += h.count;
           monthData[m].breakdown[name].in += h.count;
         } else if (h.type === 'selfcollect') {
-          monthData[m].in += h.count;
-          monthData[m].breakdown[name].in += h.count;
+          monthData[m].production += h.count;
+          if (!monthData[m].breakdown[name]) monthData[m].breakdown[name] = {in:0,use:0,transfer:0,discard:0,production:0};
+          monthData[m].breakdown[name].production = (monthData[m].breakdown[name].production||0) + h.count;
         } else if (h.type === 'carryover') {
           monthData[m].carryover += h.count;
           monthData[m].breakdown[name].in += h.count; // 内訳はinに含める
@@ -9600,8 +9601,9 @@ function renderReport() {
     if (startStock < 0) startStock = 0;
 
     let runStock = startStock;
-    const totalCarryover = months.reduce((a,m)=>a+monthData[m].carryover,0);
-    const totalIn       = months.reduce((a,m)=>a+monthData[m].in,0);
+    const totalCarryover   = months.reduce((a,m)=>a+monthData[m].carryover,0);
+    const totalIn          = months.reduce((a,m)=>a+monthData[m].in,0);
+    const totalProduction  = months.reduce((a,m)=>a+(monthData[m].production||0),0);
     const totalUse      = months.reduce((a,m)=>a+monthData[m].use,0);
     const totalTransfer = months.reduce((a,m)=>a+monthData[m].transfer,0);
     const totalDiscard  = months.reduce((a,m)=>a+monthData[m].discard,0);
@@ -9609,8 +9611,8 @@ function renderReport() {
 
     const rows = months.map(m => {
       const d = monthData[m];
-      runStock += d.in + d.carryover - d.use - d.transfer - d.discard;
-      const hasActivity = d.in || d.carryover || d.use || d.transfer || d.discard;
+      runStock += d.in + d.carryover + (d.production||0) - d.use - d.transfer - d.discard;
+      const hasActivity = d.in || d.carryover || (d.production||0) || d.use || d.transfer || d.discard;
       const detailId = `mdet-${isEmbryo?'e':'s'}-${selectedYear}-${m}`;
 
       // この月の全履歴を日付順でまとめる
@@ -9666,9 +9668,10 @@ function renderReport() {
       return `<tr style="cursor:${hasActivity?'pointer':'default'};background:${rowBg};border-bottom:2px solid var(--border);" onclick="${hasActivity?`toggleMonthDetail('${detailId}')`:''}" >
         <td style="padding:6px 5px;font-size:13px;font-weight:700;border-right:2px solid var(--border);white-space:nowrap;">${parseInt(m)}月${hasActivity?'<span style="font-size:9px;color:var(--info);margin-left:3px;">▶</span>':''}</td>
         ${d.carryover ? `<td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--warn);">${d.carryover}</td>` : `<td style="padding:5px 3px;text-align:center;border:1px solid var(--border);color:var(--muted);">—</td>`}
+        ${isEmbryo ? (d.production ? `<td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--accent2);">${d.production}</td>` : `<td style="padding:5px 3px;text-align:center;border:1px solid var(--border);color:var(--muted);">—</td>`) : ''}
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--accent);">${d.in||'—'}</td>
-        <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--danger);">${d.use||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--warn);">${d.transfer||'—'}</td>
+        <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--danger);">${d.use||'—'}</td>
         <td style="padding:5px 3px;font-size:13px;text-align:center;border:1px solid var(--border);color:var(--muted);">${d.discard||'—'}</td>
         <td style="padding:5px 3px;font-size:14px;font-weight:900;text-align:center;border:1px solid var(--border);">${runStock}</td>
       </tr>${detailHTML}`;
@@ -9676,9 +9679,10 @@ function renderReport() {
     rows.push(`<tr style="background:var(--bg3);">
       <td style="padding:6px 3px;font-size:12px;font-weight:700;border:1px solid var(--border);">年計</td>
       <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--warn);">${totalCarryover||'—'}</td>
+      ${isEmbryo ? `<td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--accent2);">${totalProduction||'—'}</td>` : ''}
       <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--accent);">${totalIn||'—'}</td>
-      <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--danger);">${totalUse}</td>
       <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--warn);">${totalTransfer}</td>
+      <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--danger);">${totalUse}</td>
       <td style="padding:6px 3px;font-size:15px;font-weight:900;text-align:center;border:1px solid var(--border);color:var(--muted);">${totalDiscard}</td>
       <td style="padding:6px 3px;font-size:11px;color:var(--muted);text-align:center;border:1px solid var(--border);">期首${startStock}本</td>
     </tr>`);
@@ -9754,9 +9758,10 @@ function renderReport() {
           <thead><tr>
             <th style="${thS}">月</th>
             <th style="${thS}color:var(--warn);">繰越</th>
+            ${isEmbryo ? `<th style="${thS}color:var(--accent2);">生産</th>` : ''}
             <th style="${thS}color:var(--accent);">譲受</th>
-            <th style="${thS}color:var(--danger);">使用</th>
             <th style="${thS}color:var(--warn);">譲渡</th>
+            <th style="${thS}color:var(--danger);">使用</th>
             <th style="${thS}color:var(--muted);">廃棄</th>
             <th style="${thS}">月末在庫</th>
           </tr></thead>
