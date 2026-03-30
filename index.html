@@ -1096,31 +1096,11 @@ textarea{resize:vertical;}
           <option value="その他">その他</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>胚の種類</label>
-        <select id="embryo-type">
-          <option value="frozen">凍結胚</option>
-          <option value="fresh">新鮮胚</option>
-        </select>
-      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="form-group">
-        <label>胚番号・ロット</label>
-        <input type="text" id="embryo-lot" placeholder="例: 25L11B1">
-      </div>
-      <div class="form-group">
-        <label>胚ステージ（デフォルト）</label>
-        <select id="embryo-stage">
-          <option value="">不明</option>
-          <option value="CM">CM（胚盤胞）</option>
-          <option value="EB">EB（初期胚盤胞）</option>
-          <option value="BL">BL（拡張胚盤胞）</option>
-          <option value="EX">EX（孵化胚盤胞）</option>
-          <option value="MO">MO（桑実胚）</option>
-        </select>
-      </div>
-    </div>
+    <!-- 胚の種類・ロット・ステージは胚詳細から自動判定するためhiddenに -->
+    <input type="hidden" id="embryo-type" value="frozen">
+    <input type="hidden" id="embryo-lot" value="">
+    <input type="hidden" id="embryo-stage" value="">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
       <div class="form-group">
         <label>現在の在庫本数</label>
@@ -8077,7 +8057,7 @@ function renderEmbryo() {
           ${e.dam?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${e.dam}</div>`:''}
           ${e.lot?`<div style="font-size:11px;color:var(--muted);">胚番号: ${e.lot}</div>`:''}
           <div style="font-size:11px;margin-top:2px;">
-            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${typeLabel[e.type]||e.type}</span>
+            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄${f}本+💧${r}本`:f?`❄凍結胚 ${f}本`:`💧新鮮胚 ${r}本`; } return {frozen:'❄ 凍結胚',fresh:'💧 新鮮胚'}[e.type]||e.type; })()}</span>
             ${e.stage?`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:1px 7px;border-radius:4px;margin-left:4px;">${e.stage}</span>`:''}
           </div>
           ${e.location?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${e.location}</div>`:''}
@@ -8192,6 +8172,23 @@ function saveEmbryo() {
   // 胚詳細（任意）
   const details = getEmbryoDetails();
   if (details) data.embryoDetails = details;
+  // 胚詳細からtype/stage/lotを自動判定
+  if (details && details.length) {
+    const hasFrozen = details.some(d => d.frozen);
+    const hasFresh  = details.some(d => d.fresh);
+    data.type = hasFrozen && hasFresh ? 'frozen' : hasFrozen ? 'frozen' : 'fresh';
+    // ステージは最頻値
+    const stageCounts = {};
+    details.forEach(d => { if (d.stage) stageCounts[d.stage] = (stageCounts[d.stage]||0)+1; });
+    const topStage = Object.entries(stageCounts).sort((a,b)=>b[1]-a[1])[0];
+    if (topStage) data.stage = topStage[0];
+    // ロットは胚番号から共通プレフィックスを抽出
+    const nos = details.map(d=>d.no).filter(Boolean);
+    if (nos.length) {
+      const caneNos = details.map(d=>d.cane).filter(Boolean);
+      data.lot = caneNos[0] || nos[0].replace(/-\d+$/, '') || nos[0];
+    }
+  }
   let newEmbItem;
   if (id) {
     const e = embryoInventory.find(e=>e.id===id);
