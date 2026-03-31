@@ -7478,9 +7478,9 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
           '</table>' +
 
-          // 種畜テーブル（2行×7mm=14mm）
+          // 種畜テーブル（2行×7mm=14mm）col1=8mmで雌畜縦書き列と揃える
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-            '<colgroup><col style="width:10mm"><col style="width:34mm"><col style="width:22mm"><col style="width:10mm"><col></colgroup>' +
+            '<colgroup><col style="width:8mm"><col style="width:36mm"><col style="width:22mm"><col style="width:10mm"><col></colgroup>' +
             '<tr style="height:7mm;">' +
               '<td rowspan="2" style="' + L + 'font-size:9pt;">種&#12288;畜</td>' +
               '<td style="' + L + 'border-bottom:none;font-size:7.5pt;">家畜人工授精用</td>' +
@@ -7550,11 +7550,11 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
           '</table>' +
 
-          // 証明文（margin込み9mm）
-          '<div style="font-size:8.5pt;padding:3mm 0 1.5mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
+          // 証明文（上padding大きめで空白確保、下はタイト）
+          '<div style="font-size:8.5pt;padding:8mm 0 2mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
 
-          // 証明者（6行、残り78mmをline-heightで均等配分 → line-height:4.33）
-          '<div style="font-size:8.5pt;line-height:4.33;padding-left:25mm;">' +
+          // 証明者（行間は見本通りコンパクト line-height:1.9、残り高さは証明文上paddingで吸収済み）
+          '<div style="font-size:8.5pt;line-height:1.9;padding-left:25mm;">' +
             '<div>' + aiDateStr + '</div>' +
             '<div>獣医師（免許番号：01L237）</div>' +
             '<div>（登録番号：第　60937　号）</div>' +
