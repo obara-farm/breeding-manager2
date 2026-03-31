@@ -7469,16 +7469,16 @@ function buildCertHTML(r, idx, certNo) {
       '<div style="display:flex;">' +
         '<div style="width:140mm;">' +
 
-          // ─ タイトル行（8mm）─
+          // タイトル行（9mm）
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup><col style="width:30mm"><col></colgroup>' +
-            '<tr style="height:8mm;">' +
+            '<tr style="height:9mm;">' +
               '<td style="font-size:9pt;padding:0;border:none;vertical-align:bottom;">' + certNoDisp + '</td>' +
               '<td style="font-size:14pt;font-weight:bold;text-align:center;border:none;padding:0 0 1mm 0;vertical-align:bottom;">授精証明書</td>' +
             '</tr>' +
           '</table>' +
 
-          // ─ 種畜テーブル（2行×7mm=14mm）─
+          // 種畜テーブル（2行×7mm=14mm）
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup><col style="width:10mm"><col style="width:34mm"><col style="width:22mm"><col style="width:10mm"><col></colgroup>' +
             '<tr style="height:7mm;">' +
@@ -7493,68 +7493,55 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
           '</table>' +
 
-          // ─ 雌畜＋飼養者 統合テーブル（9行）─
-          // 縦書き列は名前〜飼養者住所まで rowspan=9
+          // 雌畜テーブル（縦書きrowspan=7: 名前〜生年月日）
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup><col style="width:8mm"><col style="width:34mm"><col></colgroup>' +
-
-            // 名前（10mm）
             '<tr style="height:10mm;">' +
-              '<td rowspan="9" style="' + L + 'writing-mode:vertical-rl;letter-spacing:3px;font-size:8.5pt;padding:0 1px;">精液を注入した雌畜</td>' +
+              '<td rowspan="7" style="' + L + 'writing-mode:vertical-rl;letter-spacing:3px;font-size:8.5pt;padding:0 1px;">精液を注入した雌畜</td>' +
               '<td style="' + L + '">名　　　前</td>' +
               '<td style="' + V + 'font-size:10pt;font-weight:bold;">' + cowName + '　(' + r.t + ')</td>' +
             '</tr>' +
-
-            // 個体識別番号（10mm）
             '<tr style="height:10mm;">' +
               '<td style="' + L + '">個 体 識 別 番 号</td>' +
               '<td style="' + V + 'font-family:\'Courier New\',monospace;">' + nationalId + '</td>' +
             '</tr>' +
-
-            // 家畜登録機関名（9mm）
             '<tr style="height:9mm;">' +
               '<td style="' + L + '">家 畜 登 録 機 関 名</td>' +
               '<td style="' + V + '">' + (regOrg||'') + '</td>' +
             '</tr>' +
-
-            // 及び登録番号（9mm）
             '<tr style="height:9mm;">' +
               '<td style="' + L + '">及 び 登 録 番 号</td>' +
               '<td style="' + V + '">' + (regNo||'') + '</td>' +
             '</tr>' +
-
-            // 種類及び品種（10mm）
             '<tr style="height:10mm;">' +
               '<td style="' + L + '">種 類 及 び 品 種</td>' +
               '<td style="' + V + '">' + breed + '</td>' +
             '</tr>' +
-
-            // 毛色及び特徴（10mm）
             '<tr style="height:10mm;">' +
               '<td style="' + L + '">毛 色 及 び 特 徴</td>' +
               '<td style="' + V + '"></td>' +
             '</tr>' +
-
-            // 生年月日（10mm）
             '<tr style="height:10mm;">' +
               '<td style="' + L + '">生　年　月　日</td>' +
               '<td style="' + V + '">' + dob + '</td>' +
             '</tr>' +
+          '</table>' +
 
-            // 飼養者1行目（7mm）
+          // 飼養者テーブル（縦書き列なし・左端は空白セル2行×7mm=14mm）
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+            '<colgroup><col style="width:8mm"><col style="width:34mm"><col></colgroup>' +
             '<tr style="height:7mm;">' +
+              '<td style="border-top:1px solid #000;border-left:1px solid #000;border-bottom:none;border-right:none;"></td>' +
               '<td style="' + L + 'border-bottom:none;">飼養者の氏名又は名称</td>' +
               '<td rowspan="2" style="' + V + 'white-space:normal;">池田町字千代田697番地<br>小原　秀樹</td>' +
             '</tr>' +
-
-            // 飼養者2行目（7mm）
             '<tr style="height:7mm;">' +
+              '<td style="border-bottom:1px solid #000;border-left:1px solid #000;border-top:none;border-right:none;"></td>' +
               '<td style="' + L + 'border-top:none;">及び住所</td>' +
             '</tr>' +
-
           '</table>' +
 
-          // ─ 精液注入年月日（12mm）─
+          // 精液注入年月日（12mm）
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup><col style="width:42mm"><col></colgroup>' +
             '<tr style="height:12mm;">' +
@@ -7563,11 +7550,11 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
           '</table>' +
 
-          // ─ 証明文（約8mm）─
-          '<div style="font-size:8.5pt;padding:3mm 0 1mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
+          // 証明文（margin込み9mm）
+          '<div style="font-size:8.5pt;padding:3mm 0 1.5mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
 
-          // ─ 証明者（6行、line-height:3.35で残り約73mm埋める）─
-          '<div style="font-size:8.5pt;line-height:3.35;padding-left:25mm;">' +
+          // 証明者（6行、残り78mmをline-heightで均等配分 → line-height:4.33）
+          '<div style="font-size:8.5pt;line-height:4.33;padding-left:25mm;">' +
             '<div>' + aiDateStr + '</div>' +
             '<div>獣医師（免許番号：01L237）</div>' +
             '<div>（登録番号：第　60937　号）</div>' +
