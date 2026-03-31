@@ -7540,11 +7540,11 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
           '</table>' +
 
-          // 精液注入年月日（12mm）ラベル幅を50mmに広げて「日」と日付が重ならないよう
+          // 精液注入年月日（12mm）col1=42mm（8+34）で縦線を雌畜・飼養者テーブルと揃える
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-            '<colgroup><col style="width:50mm"><col></colgroup>' +
+            '<colgroup><col style="width:42mm"><col></colgroup>' +
             '<tr style="height:12mm;">' +
-              '<td style="' + L + 'white-space:nowrap;font-size:9.5pt;">精　液　注　入　年　月　日</td>' +
+              '<td style="' + L + 'white-space:nowrap;font-size:8pt;letter-spacing:1px;">精　液　注　入　年　月　日</td>' +
               '<td style="' + V + 'font-size:11pt;font-weight:bold;">' + aiDateStr + '</td>' +
             '</tr>' +
           '</table>' +
