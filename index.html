@@ -296,7 +296,7 @@ textarea{resize:vertical;}
 .cal-dot{width:4px;height:4px;border-radius:50%;}
 .cal-day-num{font-size:13px;line-height:1;}
 @media print {
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: A4 landscape; margin: 0; }
   body > *:not(#modal-cert-preview) { display: none !important; }
   #modal-cert-preview { display: block !important; position: static !important; background: #fff !important; overflow: visible !important; }
   #modal-cert-preview .modal { max-width: 100% !important; box-shadow: none !important; overflow: visible !important; background: #fff !important; border: none !important; padding: 0 !important; }
@@ -7446,10 +7446,10 @@ function buildCertHTML(r, idx, certNo) {
   var rawQ = (r.q && r.q.trim()) ? r.q.trim() : '';
   var insemCertNoStr = '';
   if (rawQ) {
-    // 数字だけなら「第　〇〇　号」に整形、既に「第」が入っていればそのまま
-    insemCertNoStr = /^\d+$/.test(rawQ) ? '第　' + rawQ + '　号' : rawQ;
+    // 数字だけならそのまま番号として使う、既に「第」が入っていれば数字部分だけ抽出
+    insemCertNoStr = /^\d+$/.test(rawQ) ? rawQ : rawQ.replace(/^第\s*|\s*号$/g,'').trim();
   } else if (certNo !== null) {
-    insemCertNoStr = '第　' + String(certNo) + '　号';
+    insemCertNoStr = String(certNo);
   }
   // 精液証明書番号：授精簿のn欄
   var semenCertNo = (r.n && r.n.trim()) ? r.n.trim() : '';
@@ -7464,69 +7464,69 @@ function buildCertHTML(r, idx, certNo) {
   // 上部テーブル: 種畜+家畜人工授精用+精液証明書番号+名前+種雄牛名
   // 右端(値列)が上下で揃うよう、上部の列幅を合計でW_VERT+W_LABELに揃える
   var W_SHIKU  = '10mm'; // 種畜
-  var W_HEADER = '38mm'; // 家畜人工授精用/精液証明書番号
-  var W_CERTNO = '22mm'; // 精液証明書番号の値
+  var W_HEADER = '36mm'; // 家畜人工授精用/精液証明書番号
+  var W_CERTNO = '20mm'; // 精液証明書番号の値
   var W_NAMELO = '10mm'; // 名前ラベル
 
-  var cellBase = 'border:1px solid #000;padding:2px 3mm;font-size:9pt;vertical-align:middle;';
+  // A4横: 297mm×210mm。左半分（~148mm）に証明書本体、右半分は貼付用余白
+  var cellBase = 'border:1px solid #000;padding:2px 2mm;font-size:9pt;vertical-align:middle;';
   var cellC    = cellBase + 'text-align:center;';
 
   return (
-    // A4横全体ラッパー
-    '<div style="width:100%;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 5mm 6mm;box-sizing:border-box;">' +
+    '<div style="width:297mm;min-height:210mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:6mm 8mm 5mm 8mm;box-sizing:border-box;display:flex;flex-direction:column;">' +
 
-      // 1行目：左上に授精証明書番号（A4全幅内の左端）
-      '<div style="font-size:9pt;margin-bottom:1mm;">' + insemCertNoStr + '</div>' +
+      // 全幅ヘッダ行：左に証明書番号、中央にタイトル
+      '<div style="display:flex;align-items:baseline;margin-bottom:3mm;">' +
+        '<div style="font-size:9pt;white-space:nowrap;">' + (insemCertNoStr ? '第&#12288;' + insemCertNoStr + '&#12288;号' : '') + '</div>' +
+        '<div style="flex:1;text-align:center;font-size:14pt;font-weight:bold;letter-spacing:2px;">授精証明書</div>' +
+      '</div>' +
 
-      // 2行目：A4全幅の中央にタイトル（本体テーブルの外、全幅に対して中央）
-      '<div style="width:100%;text-align:center;font-size:15pt;font-weight:bold;letter-spacing:6px;margin-bottom:4mm;">授　精　証　明　書</div>' +
+      // 本体：左半分＋右半分
+      '<div style="display:flex;flex:1;">' +
 
-      // 証明書本体（左46%）＋右空白（ストロー・ラベル添付用）
-      '<div style="display:flex;align-items:flex-start;">' +
-
-        '<div style="width:46%;box-sizing:border-box;">' +
+        // 左半分（証明書本体）約145mm
+        '<div style="width:145mm;box-sizing:border-box;">' +
 
           // 上部テーブル：種畜 | 家畜人工授精用＋精液証明書番号 | 番号値 | 名前 | 種雄牛名
-          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:0;">' +
             '<colgroup>' +
               '<col style="width:' + W_SHIKU + '">' +
               '<col style="width:' + W_HEADER + '">' +
               '<col style="width:' + W_CERTNO + '">' +
               '<col style="width:' + W_NAMELO + '">' +
-              '<col>' +  // 種雄牛名：残り
+              '<col>' +
             '</colgroup>' +
             '<tr>' +
-              '<td rowspan="2" style="' + cellC + 'font-size:9pt;line-height:1.6;">種&#12288;畜</td>' +
-              '<td style="' + cellC + 'font-size:8.5pt;line-height:1.5;border-bottom:none;">' +
-                '家畜人工授精用</td>' +
-              '<td rowspan="2" style="' + cellBase + '">' + semenCertNo + '</td>' +
+              '<td rowspan="2" style="' + cellC + 'font-size:9pt;">種&#12288;畜</td>' +
+              '<td style="' + cellC + 'font-size:8pt;border-bottom:none;padding-bottom:0;">家畜人工授精用</td>' +
+              '<td rowspan="2" style="' + cellBase + 'font-size:9pt;">' + semenCertNo + '</td>' +
               '<td rowspan="2" style="' + cellC + 'font-size:9pt;">名&#12288;前</td>' +
-              '<td rowspan="2" style="' + cellBase + 'font-size:11pt;font-weight:bold;">' + sireNameStr + '</td>' +
+              '<td rowspan="2" style="' + cellBase + 'font-size:10pt;font-weight:bold;">' + sireNameStr + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:8.5pt;border-top:none;">精液証明書番号</td>' +
+              '<td style="' + cellC + 'font-size:8pt;border-top:none;padding-top:0;">精液証明書番号</td>' +
             '</tr>' +
           '</table>' +
 
-          // 中部テーブル：雌畜情報（縦書き列とラベル列の右端を上部テーブルと揃える）
+          // 中部テーブル：雌畜情報
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup>' +
-              '<col style="width:' + W_VERT + '">' +   // 縦書き
-              '<col style="width:' + W_LABEL + '">' +  // ラベル
-              '<col>' +  // 値：残り
+              '<col style="width:8mm">' +   // 縦書き
+              '<col style="width:36mm">' +  // ラベル
+              '<col>' +                      // 値
             '</colgroup>' +
             '<tr>' +
-              '<td rowspan="7" style="' + cellC + 'writing-mode:vertical-rl;letter-spacing:3px;font-size:9pt;vertical-align:middle;padding:3mm 2px;">精液を注入した雌畜</td>' +
+              '<td rowspan="7" style="' + cellC + 'writing-mode:vertical-rl;letter-spacing:2px;font-size:8.5pt;vertical-align:middle;padding:2mm 1px;">精液を注入した雌畜</td>' +
               '<td style="' + cellC + 'font-size:9pt;">名&#12288;&#12288;&#12288;前</td>' +
-              '<td style="' + cellBase + 'font-size:10pt;font-weight:bold;">' + cowName + '&#12288;(' + r.t + ')</td>' +
+              '<td style="' + cellBase + 'font-size:9.5pt;font-weight:bold;">' + cowName + '&#12288;(' + r.t + ')</td>' +
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:9pt;">個&#12288;体&#12288;識&#12288;別&#12288;番&#12288;号</td>' +
               '<td style="' + cellBase + 'font-family:\'Courier New\',monospace;font-size:9pt;">' + nationalId + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:8.5pt;line-height:1.5;">家&#12288;畜&#12288;登&#12288;録&#12288;機&#12288;関&#12288;名<br>及&#12288;び&#12288;登&#12288;録&#12288;番&#12288;号</td>' +
-              '<td style="' + cellBase + 'font-size:9pt;">' + regOrg + '<br>' + regNo + '</td>' +
+              '<td style="' + cellC + 'font-size:8pt;">家畜登録機関名及び登録番号</td>' +
+              '<td style="' + cellBase + 'font-size:9pt;">' + (regOrg ? regOrg + (regNo ? '&#12288;' + regNo : '') : '') + '</td>' +
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:9pt;">種&#12288;類&#12288;及&#12288;び&#12288;品&#12288;種</td>' +
@@ -7534,14 +7534,14 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:9pt;">毛&#12288;色&#12288;及&#12288;び&#12288;特&#12288;徴</td>' +
-              '<td style="' + cellBase + 'height:8mm;"></td>' +
+              '<td style="' + cellBase + 'height:7mm;"></td>' +
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:9pt;">生&#12288;年&#12288;月&#12288;日</td>' +
               '<td style="' + cellBase + 'font-size:9pt;">' + dob + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:8.5pt;line-height:1.5;">飼養者の氏名又は<br>名称及び住所</td>' +
+              '<td style="' + cellC + 'font-size:8pt;">飼養者の氏名又は名称及び住所</td>' +
               '<td style="' + cellBase + 'font-size:9pt;">池田町字千代田697番地<br>小原&#12288;秀樹</td>' +
             '</tr>' +
           '</table>' +
@@ -7549,8 +7549,8 @@ function buildCertHTML(r, idx, certNo) {
           // 精液注入年月日
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
             '<colgroup>' +
-              '<col style="width:' + W_VERT + '">' +
-              '<col style="width:' + W_LABEL + '">' +
+              '<col style="width:8mm">' +
+              '<col style="width:36mm">' +
               '<col>' +
             '</colgroup>' +
             '<tr>' +
@@ -7560,10 +7560,11 @@ function buildCertHTML(r, idx, certNo) {
           '</table>' +
 
           // 証明文
-          '<div style="font-size:8.5pt;margin:3mm 0 3mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
+          '<div style="font-size:8.5pt;margin:3mm 0 2mm 0;">上記のとおり家畜人工授精用精液を雌畜に注入したことを証明する。</div>' +
 
           // 証明者
-          '<div style="font-size:8.5pt;line-height:2;padding-left:12mm;">' +
+          '<div style="font-size:8.5pt;line-height:1.9;padding-left:10mm;">' +
+            '<div>' + aiDateStr + '</div>' +
             '<div>獣医師（免許番号: 01L237）</div>' +
             '<div>（登録番号: 第&#12288;60937&#12288;号）</div>' +
             '<div>住&#12288;所&#12288;&#12288;中川郡池田町字千代田697番地</div>' +
@@ -7573,8 +7574,8 @@ function buildCertHTML(r, idx, certNo) {
 
         '</div>' +
 
-        // 右半分：空白（ストロー・ラベル添付用）
-        '<div style="width:54%;border-left:1px dashed #bbb;min-height:150mm;"></div>' +
+        // 右半分：ストロー・ラベル貼付用余白（破線で区切るだけ）
+        '<div style="flex:1;border-left:1px dashed #bbb;min-height:150mm;"></div>' +
 
       '</div>' +
     '</div>'
