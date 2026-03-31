@@ -7531,18 +7531,18 @@ function buildCertHTML(r, idx, certNo) {
             '<colgroup><col style="width:8mm"><col style="width:34mm"><col></colgroup>' +
             '<tr style="height:7mm;">' +
               '<td style="border-top:1px solid #000;border-left:1px solid #000;border-bottom:none;border-right:none;"></td>' +
-              '<td style="' + L + 'border-bottom:none;">飼養者の氏名又は名称</td>' +
+              '<td style="' + L + 'border-bottom:none;font-size:8pt;white-space:nowrap;">飼養者の氏名又は名称</td>' +
               '<td rowspan="2" style="' + V + 'white-space:normal;">池田町字千代田697番地<br>小原　秀樹</td>' +
             '</tr>' +
             '<tr style="height:7mm;">' +
               '<td style="border-bottom:1px solid #000;border-left:1px solid #000;border-top:none;border-right:none;"></td>' +
-              '<td style="' + L + 'border-top:none;">及び住所</td>' +
+              '<td style="' + L + 'border-top:none;font-size:8pt;white-space:nowrap;">及び住所</td>' +
             '</tr>' +
           '</table>' +
 
-          // 精液注入年月日（12mm）
+          // 精液注入年月日（12mm）ラベル幅を50mmに広げて「日」と日付が重ならないよう
           '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-            '<colgroup><col style="width:42mm"><col></colgroup>' +
+            '<colgroup><col style="width:50mm"><col></colgroup>' +
             '<tr style="height:12mm;">' +
               '<td style="' + L + 'white-space:nowrap;font-size:9.5pt;">精　液　注　入　年　月　日</td>' +
               '<td style="' + V + 'font-size:11pt;font-weight:bold;">' + aiDateStr + '</td>' +
