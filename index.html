@@ -10488,137 +10488,8 @@ function exportBackup() {
   const script = `\n<script id="backup-restore">\n(function(){\n  const d=${JSON.stringify(data)};\n  ${JSON.stringify(allKeys)}.forEach(k=>{\n    if(d[k]!==undefined) try{localStorage.setItem(k, JSON.stringify(d[k]));}catch(e){}\n  });\n  document.getElementById('backup-restore')?.remove();\n})();\n<\/script>`;
   const now = new Date();
   const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-  const blob = new Blob([html.replace('
-<!-- ドナーAI記録モーダル -->
-<div class="modal-overlay" id="modal-donor-ai-record" style="z-index:500;">
-  <div class="modal" style="max-width:420px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <span style="font-size:14px;font-weight:700;color:var(--danger);">🐄 ドナーAI記録</span>
-      <button class="modal-close" onclick="closeModal('modal-donor-ai-record')">✕</button>
-    </div>
-    <input type="hidden" id="dar-cowid">
-    <input type="hidden" id="dar-taskid">
-    <input type="hidden" id="dar-date">
+  const blob = new Blob([html.replace('</body>', script+'</body>')], {type:'text/html'});
 
-    <div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--muted);">
-      <span id="dar-cow-label" style="font-weight:700;color:var(--text);"></span>
-      <span style="margin-left:6px;" id="dar-date-label"></span>
-    </div>
-
-    <!-- 時間帯 -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">時間帯</label>
-      <div style="display:flex;gap:6px;">
-        <button type="button" id="dar-time-am" onclick="setDarTime('午前')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">午前</button>
-        <button type="button" id="dar-time-pm" onclick="setDarTime('午後')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">午後</button>
-        <button type="button" id="dar-time-all" onclick="setDarTime('終日')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--accent2);background:rgba(74,222,128,.1);color:var(--accent);">終日</button>
-      </div>
-      <input type="hidden" id="dar-time" value="終日">
-    </div>
-
-    <!-- 精液（種雄牛） -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">精液（種雄牛）</label>
-      <input type="text" id="dar-semen-name" placeholder="例: 福勝鶴" style="font-size:13px;width:100%;margin-bottom:4px;">
-      <select id="dar-semen-select" style="font-size:13px;width:100%;" onchange="onDarSemenSelect()">
-        <option value="">または在庫から選択</option>
-      </select>
-    </div>
-
-    <!-- 本数 -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">本数</label>
-      <input type="number" id="dar-count" value="1" min="1" max="5" style="font-size:13px;width:80px;text-align:center;">
-    </div>
-
-    <!-- 黄体所見 -->
-    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-      <div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:8px;">🔍 卵巣所見</div>
-      <div style="display:flex;gap:10px;margin-bottom:6px;">
-        <div class="form-group" style="flex:1;">
-          <label style="font-size:10px;">右黄体数</label>
-          <input type="number" id="dar-cl-right" min="0" style="font-size:13px;text-align:center;">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label style="font-size:10px;">左黄体数</label>
-          <input type="number" id="dar-cl-left" min="0" style="font-size:13px;text-align:center;">
-        </div>
-      </div>
-      <div class="form-group">
-        <label style="font-size:10px;">その他所見メモ</label>
-        <textarea id="dar-memo" rows="2" placeholder="例: 右3個 左2個 卵胞発育良好" style="font-size:12px;width:100%;resize:vertical;"></textarea>
-      </div>
-    </div>
-
-    <button onclick="saveDonorAIRecord()" style="width:100%;background:var(--danger);border:none;color:#fff;font-size:14px;font-weight:700;padding:12px;border-radius:8px;cursor:pointer;">✓ ドナーAI記録を保存</button>
-  </div>
-</div>
-</body>', script+'
-<!-- ドナーAI記録モーダル -->
-<div class="modal-overlay" id="modal-donor-ai-record" style="z-index:500;">
-  <div class="modal" style="max-width:420px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-      <span style="font-size:14px;font-weight:700;color:var(--danger);">🐄 ドナーAI記録</span>
-      <button class="modal-close" onclick="closeModal('modal-donor-ai-record')">✕</button>
-    </div>
-    <input type="hidden" id="dar-cowid">
-    <input type="hidden" id="dar-taskid">
-    <input type="hidden" id="dar-date">
-
-    <div style="background:var(--bg3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--muted);">
-      <span id="dar-cow-label" style="font-weight:700;color:var(--text);"></span>
-      <span style="margin-left:6px;" id="dar-date-label"></span>
-    </div>
-
-    <!-- 時間帯 -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">時間帯</label>
-      <div style="display:flex;gap:6px;">
-        <button type="button" id="dar-time-am" onclick="setDarTime('午前')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">午前</button>
-        <button type="button" id="dar-time-pm" onclick="setDarTime('午後')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--border);background:var(--bg3);color:var(--muted);">午後</button>
-        <button type="button" id="dar-time-all" onclick="setDarTime('終日')" style="flex:1;padding:7px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;border:2px solid var(--accent2);background:rgba(74,222,128,.1);color:var(--accent);">終日</button>
-      </div>
-      <input type="hidden" id="dar-time" value="終日">
-    </div>
-
-    <!-- 精液（種雄牛） -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">精液（種雄牛）</label>
-      <input type="text" id="dar-semen-name" placeholder="例: 福勝鶴" style="font-size:13px;width:100%;margin-bottom:4px;">
-      <select id="dar-semen-select" style="font-size:13px;width:100%;" onchange="onDarSemenSelect()">
-        <option value="">または在庫から選択</option>
-      </select>
-    </div>
-
-    <!-- 本数 -->
-    <div class="form-group" style="margin-bottom:10px;">
-      <label style="font-size:11px;">本数</label>
-      <input type="number" id="dar-count" value="1" min="1" max="5" style="font-size:13px;width:80px;text-align:center;">
-    </div>
-
-    <!-- 黄体所見 -->
-    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
-      <div style="font-size:11px;font-weight:700;color:var(--info);margin-bottom:8px;">🔍 卵巣所見</div>
-      <div style="display:flex;gap:10px;margin-bottom:6px;">
-        <div class="form-group" style="flex:1;">
-          <label style="font-size:10px;">右黄体数</label>
-          <input type="number" id="dar-cl-right" min="0" style="font-size:13px;text-align:center;">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label style="font-size:10px;">左黄体数</label>
-          <input type="number" id="dar-cl-left" min="0" style="font-size:13px;text-align:center;">
-        </div>
-      </div>
-      <div class="form-group">
-        <label style="font-size:10px;">その他所見メモ</label>
-        <textarea id="dar-memo" rows="2" placeholder="例: 右3個 左2個 卵胞発育良好" style="font-size:12px;width:100%;resize:vertical;"></textarea>
-      </div>
-    </div>
-
-    <button onclick="saveDonorAIRecord()" style="width:100%;background:var(--danger);border:none;color:#fff;font-size:14px;font-weight:700;padding:12px;border-radius:8px;cursor:pointer;">✓ ドナーAI記録を保存</button>
-  </div>
-</div>
-</body>')], {type:'text/html'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `breeding-manager-backup-${ts}.html`;
@@ -12043,5 +11914,15 @@ document.getElementById('login-screen').classList.add('active');
     <button onclick="saveDonorAIRecord()" style="width:100%;background:var(--danger);border:none;color:#fff;font-size:14px;font-weight:700;padding:12px;border-radius:8px;cursor:pointer;">✓ ドナーAI記録を保存</button>
   </div>
 </div>
+
+<!-- ドナーAI記録モーダル -->
+
+      <div class="form-group">
+        <label style="font-size:10px;">その他所見メモ</label>
+        <textarea id="dar-memo" rows="2" placeholder="例: 右3個 左2個 卵胞発育良好" style="font-size:12px;width:100%;resize:vertical;"></textarea>
+      </div>
+    </div>
+    <button onclick="saveDonorAIRecord()" style="width:100%;background:var(--danger);border:none;color:#fff;font-size:14px;font-weight:700;padding:12px;border-radius:8px;cursor:pointer;">✓ ドナーAI記録を保存</button>
+  </div>
+</div>
 </body>
-</html>
