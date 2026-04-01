@@ -3870,11 +3870,13 @@ function renderCowList() {
       const rows = insemEvents.map((e, i) => {
         const typeStr = ['et_done','estrus_et'].includes(e.type) ? '🧬ET' : '💉AI';
         const sireStr = e.memo ? e.memo.replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
-        return `<div style="font-size:11px;color:var(--muted);padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+        const eIdx = (cow.events||[]).indexOf(e);
+        return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);">
           <span style="color:var(--text);font-weight:700;">${i+1}回目</span>
-          <span style="color:var(--info);margin-left:4px;">${typeStr}</span>
-          <span style="margin-left:4px;">${fmtDate(e.date)}</span>
-          ${sireStr ? `<span style="color:var(--muted);margin-left:4px;">(${sireStr})</span>` : ''}
+          <span style="color:var(--info);">${typeStr}</span>
+          <span>${fmtDate(e.date)}</span>
+          ${sireStr ? `<span style="color:var(--muted);">(${sireStr})</span>` : ''}
+          <button onclick="event.stopPropagation();deleteCowEvent('${cow.id}',${eIdx})" style="margin-left:auto;background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;">✕ 削除</button>
         </div>`;
       }).join('');
       return `<details style="margin-top:6px;" onclick="event.stopPropagation()">
@@ -8743,6 +8745,33 @@ function jumpToDate(dateStr) {
 }
 
 // ===== COW QUICK VIEW（タスクタップ） =====
+function deleteCowEvent(cowId, eventIdx) {
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow || !cow.events || !cow.events[eventIdx]) return;
+  const e = cow.events[eventIdx];
+  const typeStr = ['et_done','estrus_et'].includes(e.type) ? 'ET' : 'AI';
+  if (!confirm(`${cowId} ${cowDisplayName(cowId)} の${typeStr}記録（${fmtDate(e.date)}）を削除しますか？`)) return;
+  // cow.eventsから削除
+  cow.events.splice(eventIdx, 1);
+  // 関連する妊鑑タスクも削除（同じ牛の未完了妊鑑タスクでAI日から45日後のもの）
+  const pregDate = addDays(e.date, e.type === 'et_done' ? 35 : 45);
+  tasks = tasks.filter(t => !(
+    t.cowId === cowId && !t.done &&
+    t.action.includes('妊娠鑑定') &&
+    t.date === pregDate
+  ));
+  // ステータスリセット：残りのAI/ETイベントがなければopenに
+  const remainingAiEt = (cow.events||[]).filter(ev =>
+    ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
+  );
+  if (remainingAiEt.length === 0 && (cow.status === 'program' || cow.status === 'pregnant')) {
+    cow.status = 'open';
+    cow.dueDate = null;
+  }
+  save();
+  renderAll();
+}
+
 function openCowQuickView(cowId, fromTaskDate) {
   const cow = cows.find(c=>c.id===cowId);
   if (!cow) return;
