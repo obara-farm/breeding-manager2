@@ -7875,7 +7875,7 @@ function buildEtCertHTML(r, certNo) {
     '<table style="width:145mm;border-collapse:collapse;table-layout:fixed;flex-shrink:0;">' +
       '<colgroup>' +
         '<col style="width:12mm">' +   // 大縦書き
-        '<col style="width:28mm">' +   // ラベル（広め）
+        '<col style="width:32mm">' +   // ラベル（広め）
         '<col>' +                       // 値
       '</colgroup>' +
 
@@ -7889,11 +7889,11 @@ function buildEtCertHTML(r, certNo) {
       // 受卵牛情報
       '<tr style="height:'+H+';">' +
         '<td rowspan="7" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:3px;">体内受精卵を移植した雌畜</td>' +
-        '<td style="'+Vc+'">名　前（ドナー）</td>' +
+        '<td style="'+Vc+'white-space:nowrap;">名前（ドナー）</td>' +
         '<td style="'+V+'font-weight:bold;">'+donorName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'">名　前（受卵牛）</td>' +
+        '<td style="'+Vc+'white-space:nowrap;">名前（受卵牛）</td>' +
         '<td style="'+V+'font-size:11pt;font-weight:bold;">'+cowName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7934,7 +7934,7 @@ function buildEtCertHTML(r, certNo) {
     '<table style="flex:1;border-collapse:collapse;table-layout:fixed;border-left:2px solid #000;">' +
       '<colgroup>' +
         '<col style="width:11mm">' +   // 大縦書き
-        '<col style="width:26mm">' +   // ラベル
+        '<col style="width:30mm">' +   // ラベル
         '<col>' +                       // 値
       '</colgroup>' +
 
@@ -7980,11 +7980,11 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'" contenteditable="true"></td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'">精液注入年月日</td>' +
+        '<td style="'+Vc+'white-space:nowrap;">精液注入年月日</td>' +
         '<td style="'+V+'" contenteditable="true">'+aiDate+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'font-size:8.5pt;">体内受精卵採取月日</td>' +
+        '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">体内受精卵採取月日</td>' +
         '<td style="'+V+'" contenteditable="true">'+collectDate+'</td>' +
       '</tr>' +
 
