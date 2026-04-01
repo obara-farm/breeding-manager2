@@ -7852,49 +7852,52 @@ function buildEtCertHTML(r, certNo) {
 
   var etDateStr=fmtDateJP(r.d);
 
-  // セルスタイル（余白十分・文字読みやすいサイズ）
+  // セルスタイル
   var bd='border:1px solid #000;';
-  var V =bd+'vertical-align:middle;padding:4px 6px;font-size:10pt;';
-  var Vc=bd+'vertical-align:middle;text-align:center;padding:4px 4px;font-size:9pt;';
-  var L =bd+'vertical-align:middle;text-align:center;padding:4px 3px;font-size:8.5pt;';
-  var Ls=bd+'vertical-align:middle;text-align:center;padding:3px 2px;font-size:8pt;';
-  var H ='9mm'; // 行の基本高さ
+  var V =bd+'vertical-align:middle;padding:3px 6px;font-size:10pt;';
+  var Vc=bd+'vertical-align:middle;text-align:center;padding:3px 4px;font-size:9.5pt;';
+  var L =bd+'vertical-align:middle;text-align:center;padding:3px 3px;font-size:9pt;';
+  var H ='10mm';
 
   return (
     '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 0 6mm;box-sizing:border-box;">' +
 
     // ヘッダ
-    '<div style="display:flex;align-items:baseline;margin-bottom:2.5mm;">' +
-      '<span style="font-size:10pt;">第　'+certNo+'　号</span>' +
+    '<div style="display:flex;align-items:baseline;margin-bottom:3mm;">' +
+      '<span style="font-size:10pt;white-space:nowrap;">第　'+certNo+'　号</span>' +
       '<span style="flex:1;text-align:center;font-size:16pt;font-weight:bold;letter-spacing:4px;">体内受精卵移植証明書</span>' +
-      '<span style="font-size:10pt;">第　<span contenteditable="true" style="display:inline-block;min-width:38mm;border-bottom:1px solid #000;font-size:9.5pt;">'+embryoNo+'</span>　号　<strong>'+embryoType+'</strong></span>' +
+      '<span style="font-size:10pt;white-space:nowrap;">第　<span contenteditable="true" style="display:inline-block;min-width:40mm;border-bottom:1px solid #000;">'+embryoNo+'</span>　号　<strong>'+embryoType+'</strong></span>' +
     '</div>' +
 
     '<div style="display:flex;">' +
 
-    // ━━ 左テーブル（幅140mm）━━
-    '<table style="width:140mm;border-collapse:collapse;table-layout:fixed;flex-shrink:0;">' +
-      '<colgroup><col style="width:11mm"><col style="width:26mm"><col></colgroup>' +
+    // ━━ 左テーブル（幅145mm）━━
+    '<table style="width:145mm;border-collapse:collapse;table-layout:fixed;flex-shrink:0;">' +
+      '<colgroup>' +
+        '<col style="width:12mm">' +   // 大縦書き
+        '<col style="width:28mm">' +   // ラベル（広め）
+        '<col>' +                       // 値
+      '</colgroup>' +
 
-      // 胚番号行
-      '<tr style="height:18mm;">' +
-        '<td style="'+L+'writing-mode:vertical-rl;font-size:8pt;letter-spacing:2px;padding:2px 1px;">体採取した<br>雌畜受精卵を</td>' +
-        '<td style="'+Ls+'">家畜体内受精卵証明書番号<br>又は受精卵採取に<br>関する証明書番号</td>' +
+      // 胚番号行（高め）
+      '<tr style="height:20mm;">' +
+        '<td style="'+L+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;">採取した雌畜<br>体内受精卵を</td>' +
+        '<td style="'+L+'font-size:8.5pt;">家畜体内受精卵証明書番号<br>又は受精卵採取に関する<br>証明書番号</td>' +
         '<td style="'+V+'font-size:11pt;font-weight:bold;" contenteditable="true">'+embryoNo+'</td>' +
       '</tr>' +
 
-      // 受卵牛情報（rowspan=7で縦書き）
+      // 受卵牛情報
       '<tr style="height:'+H+';">' +
-        '<td rowspan="7" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:3px;padding:2px 1px;">体内受精卵を移植した雌畜</td>' +
-        '<td style="'+Vc+'">名　　前（ドナー）</td>' +
+        '<td rowspan="7" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:3px;">体内受精卵を移植した雌畜</td>' +
+        '<td style="'+Vc+'">名　前（ドナー）</td>' +
         '<td style="'+V+'font-weight:bold;">'+donorName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'">名　　前（受卵牛）</td>' +
+        '<td style="'+Vc+'">名　前（受卵牛）</td>' +
         '<td style="'+V+'font-size:11pt;font-weight:bold;">'+cowName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+L+'">家畜登録機関名<br>及び登録番号</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
         '<td style="'+V+'">'+regOrg+(regNo?'　'+regNo:'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7910,7 +7913,7 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'">'+dob+'</td>' +
       '</tr>' +
       '<tr style="height:11mm;">' +
-        '<td style="'+L+'">飼養者の住所及び<br>氏名又は名称</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">飼養者の住所及び<br>氏名又は名称</td>' +
         '<td style="'+V+'">池田町字千代田697番地　小原　秀樹</td>' +
       '</tr>' +
 
@@ -7920,21 +7923,25 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'"></td>' +
       '</tr>' +
 
-      // 移植年月日
+      // 移植年月日（1行で収まるよう列結合）
       '<tr style="height:12mm;">' +
         '<td colspan="2" style="'+Vc+'font-size:9.5pt;">体内受精卵移植年月日</td>' +
         '<td style="'+V+'font-size:12pt;font-weight:bold;">'+etDateStr+'</td>' +
       '</tr>' +
     '</table>' +
 
-    // ━━ 右テーブル（残り幅）━━
+    // ━━ 右テーブル ━━
     '<table style="flex:1;border-collapse:collapse;table-layout:fixed;border-left:2px solid #000;">' +
-      '<colgroup><col style="width:11mm"><col style="width:24mm"><col></colgroup>' +
+      '<colgroup>' +
+        '<col style="width:11mm">' +   // 大縦書き
+        '<col style="width:26mm">' +   // ラベル
+        '<col>' +                       // 値
+      '</colgroup>' +
 
       // 種雄牛
       '<tr style="height:'+H+';">' +
-        '<td rowspan="5" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;padding:2px 1px;">交配した種雄牛</td>' +
-        '<td style="'+Vc+'">種畜証明書番号</td>' +
+        '<td rowspan="5" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;">交配した種雄牛</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">種畜証明書番号</td>' +
         '<td style="'+V+'">'+sireCert+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7946,7 +7953,7 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'font-weight:bold;">'+sireName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+L+'">家畜登録機関名<br>及び登録番号</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
         '<td style="'+V+'">'+sireRegOrg+(sireRegNo?'　'+sireRegNo:'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7955,13 +7962,13 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
 
       // ドナー
-      '<tr style="height:12mm;">' +
-        '<td rowspan="6" style="'+Vc+'writing-mode:vertical-rl;font-size:8.5pt;letter-spacing:1px;padding:2px 1px;">採取した雌畜<br>体内受精卵を</td>' +
-        '<td style="'+L+'">名前<br>(個体識別番号)</td>' +
+      '<tr style="height:13mm;">' +
+        '<td rowspan="6" style="'+Vc+'writing-mode:vertical-rl;font-size:8.5pt;letter-spacing:1px;">採取した雌畜<br>体内受精卵を</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">名前<br>(個体識別番号)</td>' +
         '<td style="'+V+'">'+donorName+(donorNatId?'<br><span style="font-size:9pt;">'+donorNatId+'</span>':'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+L+'">家畜登録機関名<br>及び登録番号</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
         '<td style="'+V+'">'+donorRegOrg+(donorRegNo?'　'+donorRegNo:'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7969,7 +7976,7 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'">'+donorBreed+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+L+'">家畜人工授精用<br>精液証明書番号</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">家畜人工授精用<br>精液証明書番号</td>' +
         '<td style="'+V+'" contenteditable="true"></td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
@@ -7977,20 +7984,20 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+V+'" contenteditable="true">'+aiDate+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'">体内受精卵採取月日</td>' +
+        '<td style="'+Vc+'font-size:8.5pt;">体内受精卵採取月日</td>' +
         '<td style="'+V+'" contenteditable="true">'+collectDate+'</td>' +
       '</tr>' +
 
       // 雌畜飼育者
       '<tr style="height:11mm;">' +
-        '<td colspan="2" style="'+L+'">雌畜の飼育者の住所<br>及び氏名または名称</td>' +
+        '<td colspan="2" style="'+Vc+'font-size:8.5pt;">雌畜の飼育者の住所<br>及び氏名または名称</td>' +
         '<td style="'+V+'">池田町千代田　小原　秀樹</td>' +
       '</tr>' +
 
       // 獣医師
-      '<tr style="height:16mm;">' +
-        '<td colspan="2" style="'+L+'">獣医師の登録番号<br>住所及び氏名</td>' +
-        '<td style="'+V+'font-size:9pt;">〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳</td>' +
+      '<tr style="height:15mm;">' +
+        '<td colspan="2" style="'+Vc+'font-size:8.5pt;">獣医師の登録番号<br>住所及び氏名</td>' +
+        '<td style="'+V+'font-size:9pt;line-height:1.6;">〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳</td>' +
       '</tr>' +
 
       // ステージ・ランク
@@ -8002,9 +8009,9 @@ function buildEtCertHTML(r, certNo) {
 
     '</div>' +
 
-    // 証明文・証明者
-    '<div style="font-size:9.5pt;padding:3mm 0 2mm 0;">上記のとおり家畜受精卵を雌畜に移植したことを証明する。</div>' +
-    '<div style="font-size:9.5pt;line-height:2;padding-left:8mm;">' +
+    // 証明文・証明者（コンパクトに）
+    '<div style="font-size:9.5pt;padding:2.5mm 0 1.5mm 0;">上記のとおり家畜受精卵を雌畜に移植したことを証明する。</div>' +
+    '<div style="font-size:9.5pt;line-height:1.7;padding-left:8mm;">' +
       '<div>'+etDateStr+'</div>' +
       '<div>獣医師（家畜人工授精師）　小原家畜診療所（小原家畜人工授精所）</div>' +
       '<div>登録番号（免許番号）　第 60937 号　（免許番号：01L237）</div>' +
