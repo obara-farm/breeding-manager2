@@ -6647,7 +6647,10 @@ function renderCollectionTab() {
 }
 
 function renderPendingEtList() {
+  // 翌日移植予定リストは廃止（培養タブ上で完結）
   const section = document.getElementById('pending-et-section');
+  if (section) section.style.display = 'none';
+  return;
   const listEl = document.getElementById('pending-et-list');
   if (!pendingEtList.length) { section.style.display='none'; return; }
   section.style.display='';
@@ -7090,28 +7093,30 @@ function onColFreshCountInput(val, existing) {
         </select></td>
         <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:70px;"></td>
         <td style="padding:2px 3px;"><select class="cfr-action" onchange="onFreshActionChange(this)" style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
-          <option value="culture" ${ex?.action==='culture'||ex?.action==='pending'?'selected':''}>培養（翌日）</option>
+          <option value="culture" ${ex?.action==='culture'||ex?.action==='pending'||ex?.action==='freeze'||!ex?.action?'selected':''}>培養（翌日）</option>
           <option value="today" ${ex?.action==='today'?'selected':''}>当日移植</option>
-          <option value="freeze" ${ex?.action==='freeze'?'selected':''}>凍結に変更</option>
         </select></td>
         <td style="padding:2px 3px;position:relative;">
           <input type="hidden" class="cfr-recipient" value="">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛検索..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:120px;display:${ex?.action==='today'?'':'none'};" autocomplete="off">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:180px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
-          <div class="cfr-culture-panel" style="display:${ex?.action==='culture'||ex?.action==='pending'?'flex':'none'};gap:3px;align-items:center;flex-wrap:wrap;">
-            <select class="cfr-culture-stage" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
-              <option value="">翌日ステージ</option><option value="CM" ${ex?.cultureStage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.cultureStage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.cultureStage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.cultureStage==='EX'?'selected':''}>EX</option><option value="変性" ${ex?.cultureStage==='変性'?'selected':''}>変性</option>
+          <div class="cfr-culture-panel" style="display:${ex?.action==='culture'||ex?.action==='pending'||ex?.action==='freeze'||!ex?.action?'block':'none'};background:rgba(167,139,250,0.08);border:1px solid var(--purple);border-radius:6px;padding:6px 8px;min-width:200px;">
+            <div style="font-size:9px;color:var(--purple);font-weight:700;margin-bottom:4px;">🌱 翌日の結果</div>
+            <div style="display:flex;gap:4px;margin-bottom:4px;">
+              <select class="cfr-culture-stage" style="flex:1;background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+                <option value="">ステージ</option><option value="CM" ${ex?.cultureStage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.cultureStage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.cultureStage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.cultureStage==='EX'?'selected':''}>EX</option><option value="変性" ${ex?.cultureStage==='変性'?'selected':''}>変性</option>
+              </select>
+              <select class="cfr-culture-rank" style="flex:1;background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+                <option value="">ランク</option><option value="A" ${ex?.cultureRank==='A'?'selected':''}>A</option><option value="B" ${ex?.cultureRank==='B'?'selected':''}>B</option>
+              </select>
+            </div>
+            <select class="cfr-culture-action" onchange="onCultureResultChange(this)" style="width:100%;background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:11px;padding:3px 4px;border-radius:3px;margin-bottom:4px;">
+              <option value="" ${!ex?.cultureResult?'selected':''}>処置を選択...</option>
+              <option value="et" ${ex?.cultureResult==='et'?'selected':''}>💉 移植する</option>
+              <option value="freeze" ${ex?.cultureResult==='freeze'?'selected':''}>❄️ 凍結する</option>
+              <option value="discard" ${ex?.cultureResult==='discard'?'selected':''}>✕ 変性破棄</option>
             </select>
-            <select class="cfr-culture-rank" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
-              <option value="">ランク</option><option value="A" ${ex?.cultureRank==='A'?'selected':''}>A</option><option value="B" ${ex?.cultureRank==='B'?'selected':''}>B</option>
-            </select>
-            <select class="cfr-culture-action" onchange="onCultureResultChange(this)" style="background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:11px;padding:2px 3px;border-radius:3px;">
-              <option value="" ${!ex?.cultureResult?'selected':''}>結果待ち</option>
-              <option value="et" ${ex?.cultureResult==='et'?'selected':''}>移植</option>
-              <option value="freeze" ${ex?.cultureResult==='freeze'?'selected':''}>凍結</option>
-              <option value="discard" ${ex?.cultureResult==='discard'?'selected':''}>変性破棄</option>
-            </select>
-            <input type="text" class="cfr-culture-recip-search" placeholder="受卵牛..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:90px;display:${ex?.cultureResult==='et'?'':'none'};" autocomplete="off">
+            <input type="text" class="cfr-culture-recip-search" placeholder="受卵牛を検索..." oninput="onFreshRecipSearch(this)" style="width:100%;background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:10px;padding:3px 4px;border-radius:3px;display:${ex?.cultureResult==='et'?'':'none'};box-sizing:border-box;" autocomplete="off">
             <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           </div>
         </td>`;
