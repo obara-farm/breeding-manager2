@@ -7433,7 +7433,6 @@ function markPendingAsExternal(pendingId) {
 // 授精簿レコード削除（在庫・タスク連動）
 // ===== ドナーAI記録 =====
 // donorAIRecords: [{cowId, date, time, semenName, count, clRight, clLeft, memo, taskId}]
-let donorAIRecords = JSON.parse(_store.getItem('donorAIRecords') || '[]');
 
 function saveDonorAIRecordsToStore() {
   _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
