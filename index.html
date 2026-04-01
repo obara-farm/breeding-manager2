@@ -10371,7 +10371,7 @@ function renderReport() {
                     <input type="number" value="${h.count}" min="1" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'count',parseInt(this.value),this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:2px 4px;border-radius:4px;width:50px;text-align:center;">
                     <span style="color:var(--muted);font-size:11px;">本</span>
                   </div>
-                  ${cowName?`<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;">${cowName}</span>`:''}
+                  ${cowName?`<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${h.cowId}</span> ${cowName}</span>`:''}
                   <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:60px;">
                   ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
