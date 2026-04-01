@@ -3023,10 +3023,15 @@ function renderGrouped(taskList) {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
         const hasPregBtn = t.action.includes('妊娠鑑定');
+        const isDonorAITask = !t.done && (
+          t.action.includes('発情確認（前日）') ||
+          t.action === '発情確認 ＋ GnRH ＋ 授精' ||
+          t.action.includes('発情確認（翌日）')
+        );
         const memoHtml = t.memo ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${t.memo}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
-          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
+          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${(hasPregBtn||isDonorAITask)?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${(hasPregBtn||isDonorAITask)?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
             <div style="display:flex;align-items:baseline;gap:5px;">
               <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
@@ -3038,6 +3043,10 @@ function renderGrouped(taskList) {
               <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','positive')" onclick="recordPregFromTask('${t.cowId}','${t.id}','positive')" style="background:${t.pregResult==='positive'?'#14532d':'#0d2a1a'};border:2px solid ${t.pregResult==='positive'?'#22c55e':'var(--accent2)'};color:${t.pregResult==='positive'?'#fff':'var(--accent)'};font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='positive'?'✓ 陽性 ✔':'✓ 陽性'}</button>
               <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','negative')" onclick="recordPregFromTask('${t.cowId}','${t.id}','negative')" style="background:${t.pregResult==='negative'?'#7f1d1d':'#1a0808'};border:2px solid ${t.pregResult==='negative'?'#ef4444':'var(--danger)'};color:${t.pregResult==='negative'?'#fff':'#fca5a5'};font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='negative'?'✗ 陰性 ✔':'✗ 陰性'}</button>
               <button ontouchend="event.preventDefault();event.stopPropagation();openFixPreg('${t.cowId}','${t.id}')" onclick="openFixPreg('${t.cowId}','${t.id}')" style="background:none;border:2px solid var(--warn);color:var(--warn);font-size:11px;padding:6px 10px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🔄</button>
+            </div>` : ''}
+            ${isDonorAITask ? `
+            <div style="margin-top:6px;">
+              <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
             </div>` : ''}
           </div>
           <button onclick="event.stopPropagation();openDeleteTask('${t.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;cursor:pointer;padding:3px 8px;flex-shrink:0;border-radius:5px;margin-top:1px;">✕</button>
