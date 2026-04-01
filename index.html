@@ -7005,10 +7005,10 @@ function onColFrozenCountInput(val, existing) {
   const cur = tbody.querySelectorAll('tr').length;
 
   // 凍結胚番号の連番を計算（01L237R8-XXXX形式）
-  // 年度を計算（4月始まり）
+  // 年度を計算（1月始まり：2026年=R8）
   const colDate = document.getElementById('col-date').value;
   const d = colDate ? new Date(colDate) : new Date();
-  const fiscalYear = d.getMonth() >= 3 ? d.getFullYear() - 2018 : d.getFullYear() - 2019; // R換算
+  const fiscalYear = d.getFullYear() - 2018; // 1月始まり R換算（2026-2018=8）
   const yearLabel = `R${fiscalYear}`;
   // 今年度の既存最大連番を取得
   const usedNos = [];
@@ -7338,8 +7338,13 @@ function saveCollection() {
         // 翌日移植確定
         _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, embryoNo, date);
       } else if (fe.cultureResult === 'freeze') {
-        // 翌日凍結
+        // 翌日凍結（recに凍結胚を追記してから採番するため先にrecを更新）
         _processFreshToFreeze(rec, fe, embryoNo, date, lot);
+        // 採番後の番号をrecに追記して次の培養胚が正しく連番できるよう記録
+        if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
+        const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
+        const lastDetail = lastInv && lastInv.embryoDetails && lastInv.embryoDetails[lastInv.embryoDetails.length-1];
+        if (lastDetail) rec.frozenEmbryos.push({no: lastDetail.no});
       } else if (fe.cultureResult === 'discard') {
         // 変性破棄：記録のみ
       } else {
@@ -7494,17 +7499,20 @@ function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
 
   // 既存の最大胚番号を取得（01L237RX-YYYY形式）
   const d = new Date(date);
-  const fiscalYear = d.getMonth() >= 3 ? d.getFullYear() - 2018 : d.getFullYear() - 2019;
+  const fiscalYear = d.getFullYear() - 2018; // 1月始まり R換算
   const yearLabel = `R${fiscalYear}`;
   let maxNo = 0;
+  // 在庫の胚番号から最大値を取得
   embryoInventory.forEach(inv => {
     (inv.embryoDetails||[]).forEach(ed => {
-      const m = ed.no?.match(/01L237R\d+-(\d+)/);
-      if (m) {
-        const y = ed.no.match(/01L237(R\d+)-/)?.[1];
-        if (y === yearLabel) maxNo = Math.max(maxNo, parseInt(m[1]));
-      }
+      const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
     });
+  });
+  // 今回の採卵記録の凍結胚番号も考慮（同一採卵で複数培養→凍結する場合）
+  (rec.frozenEmbryos||[]).forEach(fe => {
+    const m = fe.no && fe.no.match(/01L237R(\d+)-(\d+)/);
+    if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
   });
   const newNo = `01L237${yearLabel}-${String(maxNo + 1).padStart(4,'0')}`;
 
