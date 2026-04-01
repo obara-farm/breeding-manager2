@@ -9635,7 +9635,7 @@ function renderEmbryo() {
   const typeLabel = {frozen:'凍結胚', fresh:'新鮮胚'};
 
   container.innerHTML = filteredEmbryo.map(e => {
-    const isLow = e.stock <= (e.alertThreshold || 2);
+    const isLow = !e.noAlert && e.stock <= (e.alertThreshold || 2);
     const totalUsed = (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
     const recentHistory = (e.history||[]).slice(-5).reverse();
     return `<div style="background:var(--card);border:${isLow?'2px solid var(--danger)':'1px solid var(--border)'};border-radius:12px;padding:14px;margin-bottom:12px;${isLow?'background:linear-gradient(135deg,#1a0808,#150505);':''}">
@@ -10248,7 +10248,7 @@ function renderSemen() {
   ].filter(g => g.items.length > 0);
 
   const renderCard = s => {
-    const isLow = s.stock <= (s.alertThreshold || 3);
+    const isLow = !s.noAlert && s.stock <= (s.alertThreshold || 3);
     const totalUsed = (s.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
     // 受胎率：cow.eventsからai_doneで精液名が一致するものを集計
     const aiEvents = [];
