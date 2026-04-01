@@ -3055,7 +3055,7 @@ function renderGrouped(taskList) {
         const memoHtml = t.memo ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${t.memo}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
-          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${(hasPregBtn||isDonorAITask)?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${(hasPregBtn||isDonorAITask)?'cursor:default;':'cursor:pointer;'}"></div>
+          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
             <div style="display:flex;align-items:baseline;gap:5px;">
               <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
