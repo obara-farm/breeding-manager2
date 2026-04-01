@@ -8750,24 +8750,56 @@ function deleteCowEvent(cowId, eventIdx) {
   if (!cow || !cow.events || !cow.events[eventIdx]) return;
   const e = cow.events[eventIdx];
   const typeStr = ['et_done','estrus_et'].includes(e.type) ? 'ET' : 'AI';
-  if (!confirm(`${cowId} ${cowDisplayName(cowId)} の${typeStr}記録（${fmtDate(e.date)}）を削除しますか？`)) return;
-  // cow.eventsから削除
+  if (!confirm(`${cowId} ${cowDisplayName(cowId)} の${typeStr}記録（${fmtDate(e.date)}）を削除します。\n授精簿・在庫・タスクも連動して更新されます。よろしいですか？`)) return;
+
+  // 1. cow.eventsから削除
   cow.events.splice(eventIdx, 1);
-  // 関連する妊鑑タスクも削除（同じ牛の未完了妊鑑タスクでAI日から45日後のもの）
-  const pregDate = addDays(e.date, e.type === 'et_done' ? 35 : 45);
+
+  // 2. 関連する妊鑑タスクを削除
+  const pregDate45 = addDays(e.date, 45);
+  const pregDate35 = addDays(e.date, 35);
   tasks = tasks.filter(t => !(
-    t.cowId === cowId && !t.done &&
-    t.action.includes('妊娠鑑定') &&
-    t.date === pregDate
+    t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定') &&
+    (t.date === pregDate45 || t.date === pregDate35)
   ));
-  // ステータスリセット：残りのAI/ETイベントがなければopenに
-  const remainingAiEt = (cow.events||[]).filter(ev =>
+
+  // 3. 授精簿（insemBookRecords）から対応記録を削除
+  // memoから精液名を取得
+  const sireFromMemo = e.memo ? e.memo.replace(/^精液:|^胚番号:/,'').split('／')[0].trim() : '';
+  const ibIdx = insemBookRecords.findIndex(r =>
+    r.t === cowId && r.d === e.date &&
+    (!sireFromMemo || r.s === sireFromMemo || r.s.includes(sireFromMemo))
+  );
+  if (ibIdx >= 0) {
+    insemBookRecords.splice(ibIdx, 1);
+  }
+
+  // 4. 精液在庫の使用履歴を戻す（AI記録の場合のみ）
+  if (['ai_done','estrus_ai'].includes(e.type) && sireFromMemo) {
+    const invItem = semenInventory.find(s => s.name === sireFromMemo);
+    if (invItem && invItem.history) {
+      // 同日の「use」または「transfer」履歴を探して戻す
+      const hIdx = invItem.history.findIndex(h =>
+        h.date === e.date && (h.type === 'use' || h.type === 'transfer') &&
+        (!h.memo || h.memo.includes(cowId))
+      );
+      if (hIdx >= 0) {
+        const restored = invItem.history[hIdx].count || 1;
+        invItem.stock += restored;
+        invItem.history.splice(hIdx, 1);
+      }
+    }
+  }
+
+  // 5. ステータスリセット：残りのAI/ETイベントがなければopenに
+  const remaining = (cow.events||[]).filter(ev =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
   );
-  if (remainingAiEt.length === 0 && (cow.status === 'program' || cow.status === 'pregnant')) {
+  if (remaining.length === 0 && ['program','pregnant'].includes(cow.status)) {
     cow.status = 'open';
     cow.dueDate = null;
   }
+
   save();
   renderAll();
 }
