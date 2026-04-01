@@ -1997,15 +1997,17 @@ textarea{resize:vertical;}
       </div>
     </div>
 
-    <!-- メモフィールド -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-      <div class="form-group">
-        <label>精液番号 / 種雄牛</label>
-        <input type="text" id="qr-semen" placeholder="例: 安福久">
-      </div>
-      <div class="form-group">
-        <label>胚番号</label>
-        <input type="text" id="qr-embryo" placeholder="例: ET-001">
+    <!-- 精液番号・胚番号（AI/ET時のみ表示） -->
+    <div id="qr-semen-embryo-group" style="display:none;margin-bottom:8px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div class="form-group">
+          <label>精液番号 / 種雄牛</label>
+          <input type="text" id="qr-semen" placeholder="例: 安福久">
+        </div>
+        <div class="form-group">
+          <label>胚番号</label>
+          <input type="text" id="qr-embryo" placeholder="例: ET-001">
+        </div>
       </div>
     </div>
     <!-- 術者フィールド（AI/ET時のみ表示） -->
@@ -4402,6 +4404,8 @@ function onQrEventChange() {
   // 術者グループはAI/ET時のみ表示
   const opGroup = document.getElementById('qr-operator-group');
   if (opGroup) opGroup.style.display = (isAI || isET) ? '' : 'none';
+  const semEmbGroup = document.getElementById('qr-semen-embryo-group');
+  if (semEmbGroup) semEmbGroup.style.display = (isAI || isET) ? '' : 'none';
   document.getElementById('qr-date-label').textContent =
     ev === 'calving' ? '分娩日' :
     ev === 'cidr_ai_start' || ev === 'et_recipient' || ev === 'donor_et_start' ? 'プログラム開始日（D0）' :
