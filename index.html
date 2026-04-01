@@ -6789,7 +6789,7 @@ function clearColDonor() {
 function onPetRecipSearch(idx, q) {
   const list = document.getElementById(`pet-recip-list-${idx}`);
   if (!q) { list.style.display='none'; return; }
-  const results = searchCows(q, c => c.status==='program'||c.status==='open'||c.status==='fresh');
+  const results = searchCows(q, c => !['retired','dead'].includes(c.status));
   if (!results.length) { list.style.display='none'; return; }
   list.style.display = '';
   list.innerHTML = results.slice(0,8).map(c => {
@@ -6815,7 +6815,7 @@ function onFreshRecipSearch(input) {
   const list = row.querySelector('.cfr-recip-list');
   const hidden = row.querySelector('.cfr-recipient');
   if (!q) { list.style.display='none'; return; }
-  const results = searchCows(q, c => c.status==='program'||c.status==='open'||c.status==='fresh');
+  const results = searchCows(q, c => !['retired','dead'].includes(c.status));
   if (!results.length) { list.style.display='none'; return; }
   list.style.display = '';
   list.innerHTML = results.slice(0,8).map(c => {
@@ -7079,7 +7079,7 @@ function onColFreshCountInput(val, existing) {
         </select></td>
         <td style="padding:2px 3px;position:relative;">
           <input type="hidden" class="cfr-recipient" value="">
-          <input type="text" class="cfr-recip-search" placeholder="受卵牛検索..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:100px;display:${ex?.action==='today'?'':'none'};" autocomplete="off">
+          <input type="text" class="cfr-recip-search" placeholder="受卵牛検索..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:120px;display:${ex?.action==='today'?'':'none'};" autocomplete="off">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:180px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
@@ -7092,8 +7092,14 @@ function onColFreshCountInput(val, existing) {
 
 function onFreshActionChange(sel) {
   const row = sel.closest('tr');
-  const recipSel = row.querySelector('.cfr-recipient');
-  if (recipSel) recipSel.style.display = sel.value === 'today' ? '' : 'none';
+  const recipSearch = row.querySelector('.cfr-recip-search');
+  if (recipSearch) recipSearch.style.display = sel.value === 'today' ? '' : 'none';
+  // 当日移植以外に変更したら入力値をリセット
+  if (sel.value !== 'today') {
+    const recipHidden = row.querySelector('.cfr-recipient');
+    if (recipHidden) recipHidden.value = '';
+    if (recipSearch) recipSearch.value = '';
+  }
 }
 
 function getColFrozenEmbryos() {
@@ -7196,8 +7202,8 @@ function saveCollection() {
       if (dateChanged || donorChanged || sireChanged) {
         freshEmbryos.forEach((fe, i) => {
           if (fe.action !== 'today' || !fe.recipientId) return;
-          const embryoNo = (lot||date) + '-F' + (i+1);
-          const oldEmbryoNo = (oldRec.lot||oldRec.date) + '-F' + (i+1);
+          const embryoNo = (lot||date) + '-' + (i+1);
+          const oldEmbryoNo = (oldRec.lot||oldRec.date) + '-' + (i+1);
           const recip = cows.find(c=>c.id===fe.recipientId);
           if (!recip) return;
           (recip.events||[]).forEach(ev => {
@@ -7270,7 +7276,7 @@ function saveCollection() {
 
   // 新鮮胚の処理
   freshEmbryos.forEach((fe, i) => {
-    const embryoNo = `${lot||date}-F${i+1}`;
+    const embryoNo = `${lot||date}-${i+1}`;
     if (fe.action === 'today' && fe.recipientId) {
       // 当日移植：入庫+即使用+ET記録
       _processFreshEtNow(rec, fe, embryoNo, date);
