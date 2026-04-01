@@ -6564,7 +6564,7 @@ function renderEmbryoDetails(details) {
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄️':''}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'💧':''}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'🌱':''}</td>
   </tr>`).join('');
   return `<div style="margin-top:8px;">
     <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">📋 胚内訳 凍結${frozen.length}本 / 新鮮${fresh.length}本</div>
@@ -6576,7 +6576,7 @@ function renderEmbryoDetails(details) {
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ステージ</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ランク</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄️</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">💧</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">🌱</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
@@ -7382,6 +7382,15 @@ function _processFreshEtNow(rec, fe, embryoNo, date) {
       color: '#f59e0b', priority: 'high', done: false,
     });
     addInsemBookRecord(fe.recipientId, date, memo, 'et');
+    // ET実施タスクを自動完了
+    const etTask = tasks.find(t =>
+      t.cowId === fe.recipientId && !t.done &&
+      (t.action.includes('胚移植') || t.action.includes('ET'))
+    );
+    if (etTask) {
+      etTask.done = true;
+      etTask.doneAt = new Date().toISOString();
+    }
   }
 }
 
@@ -7421,6 +7430,15 @@ function executePendingET(idx) {
     color: '#f59e0b', priority: 'high', done: false,
   });
   addInsemBookRecord(recipientId, date, memo, 'et');
+  // ET実施タスクを自動完了
+  const etTask = tasks.find(t =>
+    t.cowId === recipientId && !t.done &&
+    (t.action.includes('胚移植') || t.action.includes('ET'))
+  );
+  if (etTask) {
+    etTask.done = true;
+    etTask.doneAt = new Date().toISOString();
+  }
   pendingEtList.splice(idx, 1);
   save();
   renderCollectionTab();
@@ -10008,7 +10026,7 @@ function renderEmbryo() {
           ${e.dam?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${e.dam}</div>`:''}
           ${e.lot?`<div style="font-size:11px;color:var(--muted);">胚番号: ${e.lot}</div>`:''}
           <div style="font-size:11px;margin-top:2px;">
-            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄️${f}本+💧${r}本`:f?`❄️凍結胚 ${f}本`:`💧新鮮胚 ${r}本`; } return {frozen:'❄️ 凍結胚',fresh:'💧 新鮮胚'}[e.type]||e.type; })()}</span>
+            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄️${f}本+🌱${r}本`:f?`❄️凍結胚 ${f}本`:`🌱新鮮胚 ${r}本`; } return {frozen:'❄️ 凍結胚',fresh:'🌱 新鮮胚'}[e.type]||e.type; })()}</span>
             ${e.stage?`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:1px 7px;border-radius:4px;margin-left:4px;">${e.stage}</span>`:''}
           </div>
           ${e.location?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${e.location}</div>`:''}
