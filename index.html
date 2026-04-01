@@ -1353,6 +1353,16 @@ textarea{resize:vertical;}
       <input type="text" id="semen-sire-cert" placeholder="例: 10203780020" style="font-size:13px;">
       <div style="font-size:10px;color:var(--muted);margin-top:3px;">移植証明書の右面に自動反映されます</div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <div class="form-group">
+        <label>家畜登録機関名</label>
+        <input type="text" id="semen-reg-org" placeholder="例: 全国和牛登録協会" style="font-size:13px;">
+      </div>
+      <div class="form-group">
+        <label>登録番号</label>
+        <input type="text" id="semen-reg-no" placeholder="例: 黒高2047" style="font-size:13px;">
+      </div>
+    </div>
     <button class="btn btn-primary" onclick="saveSemen()" style="width:100%;">保存する</button>
   </div>
 </div>
@@ -10269,7 +10279,7 @@ function renderSemen() {
           <div style="font-size:16px;font-weight:900;color:var(--text);">${s.name}${s.breed ? ` <span style="font-size:11px;font-weight:700;background:${s.breed==='褐毛'?'#3b0000':s.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${s.breed==='褐毛'?'#7f1d1d':s.breed==='黒毛'?'#374151':'#334155'};color:${s.breed==='褐毛'?'#fca5a5':s.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${s.breed==='褐毛'?'🟥':'⬛'} ${s.breed}</span>` : ''}</div>
           ${s.lot?`<div style="font-size:11px;color:var(--muted);">ロット: ${s.lot}</div>`:''}
           ${s.sireCert?`<div style="font-size:11px;color:var(--info);">📋 種畜証明書番号: ${s.sireCert}</div>`:''}
-          ${s.location?`<div style="font-size:11px;color:var(--muted);">📍 ${s.location}</div>`:''}          ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).length ? `<div style="font-size:11px;color:var(--warn);font-weight:700;">⏳ 未紐付け使用記録 ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).reduce((a,b)=>a+b.count,0)}本分あり</div>` : ''}
+          ${s.regOrg||s.regNo?`<div style="font-size:11px;color:var(--muted);">🏛 ${[s.regOrg,s.regNo].filter(Boolean).join('　')}</div>`:''}          ${s.location?`<div style="font-size:11px;color:var(--muted);">📍 ${s.location}</div>`:''}          ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).length ? `<div style="font-size:11px;color:var(--warn);font-weight:700;">⏳ 未紐付け使用記録 ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).reduce((a,b)=>a+b.count,0)}本分あり</div>` : ''}
         </div>
         <div style="text-align:right;">
           <div style="font-size:32px;font-weight:900;color:${isLow||s.stock<0?'var(--danger)':'var(--accent)'};">${s.stock < 0 ? '⚠'+s.stock : s.stock}</div>
@@ -10360,6 +10370,8 @@ function openAddSemen() {
   document.getElementById('semen-location').value = '';
   document.getElementById('semen-memo').value = '';
   document.getElementById('semen-sire-cert').value = '';
+  document.getElementById('semen-reg-org').value = '';
+  document.getElementById('semen-reg-no').value = '';
   openModal('modal-semen-edit');
 }
 
@@ -10378,6 +10390,8 @@ function openEditSemen(id) {
   document.getElementById('semen-location').value = s.location || '';
   document.getElementById('semen-memo').value = s.memo || '';
   document.getElementById('semen-sire-cert').value = s.sireCert || '';
+  document.getElementById('semen-reg-org').value = s.regOrg || '';
+  document.getElementById('semen-reg-no').value = s.regNo || '';
   openModal('modal-semen-edit');
 }
 
@@ -10397,6 +10411,8 @@ function saveSemen() {
     location: document.getElementById('semen-location').value.trim(),
     memo: document.getElementById('semen-memo').value.trim(),
     sireCert: document.getElementById('semen-sire-cert').value.trim(),
+    regOrg: document.getElementById('semen-reg-org').value.trim(),
+    regNo: document.getElementById('semen-reg-no').value.trim(),
   };
   let newItem;
   const oldName = id ? semenInventory.find(s=>s.id===id)?.name : null;
