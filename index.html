@@ -9991,7 +9991,6 @@ function switchSemenTab(tab) {
 
 // ===== 受精卵在庫管理 =====
 function renderEmbryo() {
-  // historyから在庫数を再計算して同期
   embryoInventory.forEach(syncStockFromHistory);
 
   const lowItems = embryoInventory.filter(e => !e.noAlert && e.stock <= (e.alertThreshold || 2));
@@ -10013,62 +10012,83 @@ function renderEmbryo() {
 
   if (!filteredEmbryo.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">「${qe}」に一致する受精卵がありません</div>`; return; }
 
-  const typeLabel = {frozen:'凍結胚', fresh:'新鮮胚'};
+  // ドナー×種雄牛でグループ化
+  const groups = {};
+  const groupOrder = [];
+  filteredEmbryo.forEach(e => {
+    const key = (e.dam||'') + '×' + (e.sire||'');
+    if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+    groups[key].push(e);
+  });
 
-  container.innerHTML = filteredEmbryo.map(e => {
-    const isLow = !e.noAlert && e.stock <= (e.alertThreshold || 2);
-    const totalUsed = (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
-    const recentHistory = (e.history||[]).slice(-5).reverse();
-    return `<div style="background:var(--card);border:${isLow?'2px solid var(--danger)':'1px solid var(--border)'};border-radius:12px;padding:14px;margin-bottom:12px;${isLow?'background:linear-gradient(135deg,#1a0808,#150505);':''}">
+  container.innerHTML = groupOrder.map(key => {
+    const items = groups[key];
+    // グループ全体の合計在庫
+    const totalStock = items.reduce((s,e) => s+e.stock, 0);
+    const anyLow = items.some(e => !e.noAlert && e.stock <= (e.alertThreshold||2));
+    const sample = items[0];
+    const damName = sample.dam || '';
+    const sireName = sample.sire || '';
+    const breedBadge = sample.breed ? ` <span style="font-size:11px;font-weight:700;background:${sample.breed==='褐毛'?'#3b0000':sample.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${sample.breed==='褐毛'?'#7f1d1d':sample.breed==='黒毛'?'#374151':'#334155'};color:${sample.breed==='褐毛'?'#fca5a5':sample.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${sample.breed==='褐毛'?'🟥':'⬛'} ${sample.breed}</span>` : '';
+    const totalFrozen = items.reduce((s,e)=>s+((e.embryoDetails||[]).filter(d=>d.frozen).length||0),0);
+    const totalFresh = items.reduce((s,e)=>s+((e.embryoDetails||[]).filter(d=>d.fresh).length||0),0);
+    const stockBadge = totalFrozen||totalFresh
+      ? (totalFrozen&&totalFresh?`❄️${totalFrozen}本+🌱${totalFresh}本`:totalFrozen?`❄️凍結胚 ${totalFrozen}本`:`🌱新鮮胚 ${totalFresh}本`)
+      : `${totalStock}本`;
+
+    // ロット別カード
+    const lotCards = items.sort((a,b)=>(b.collectionDate||'').localeCompare(a.collectionDate||'')).map(e => {
+      const isLow = !e.noAlert && e.stock <= (e.alertThreshold||2);
+      const det = e.embryoDetails || getSheet2DetailsForLot(e.lot);
+      const frozenCnt = det ? det.filter(d=>d.frozen).length : 0;
+      const freshCnt  = det ? det.filter(d=>d.fresh).length  : 0;
+      const lotBadge  = frozenCnt||freshCnt
+        ? (frozenCnt&&freshCnt?`❄️${frozenCnt}+🌱${freshCnt}`:frozenCnt?`❄️${frozenCnt}本`:`🌱${freshCnt}本`)
+        : `${e.stock}本`;
+      const detailId = 'embryo-lot-detail-' + e.id;
+      const totalUsed = (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
+      return `<div style="background:var(--bg2);border:1px solid ${isLow?'var(--danger)':'var(--border)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'':'none'">
+          <div style="flex:1;">
+            <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${e.lot||e.collectionDate||'—'}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:6px;">${e.collectionDate?fmtDate(e.collectionDate):''}</span>
+            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-left:6px;">${lotBadge}</span>
+          </div>
+          <div style="font-size:22px;font-weight:900;color:${isLow||e.stock<0?'var(--danger)':'var(--purple)'};">${e.stock<0?'⚠'+e.stock:e.stock}<span style="font-size:10px;color:var(--muted);">本</span></div>
+          <span style="font-size:11px;color:var(--muted);">▾</span>
+        </div>
+        <div id="${detailId}" style="display:none;margin-top:8px;">
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--muted);">累計使用: ${totalUsed}本</span>
+            <span style="font-size:11px;color:var(--warn);">アラート: ${e.alertThreshold||2}本</span>
+          </div>
+          ${det ? renderEmbryoDetails(det) : ''}
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" style="font-size:11px;padding:5px 10px;" onclick="openEmbryoRestock('${e.id}')">📦 入荷・補充</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openEditEmbryo('${e.id}')">✏ 編集</button>
+            <button onclick="openUseRecord('embryo','${e.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
+            <button onclick="confirmDeleteEmbryo('${e.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">削除</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:var(--card);border:${anyLow?'2px solid var(--danger)':'1px solid var(--border)'};border-radius:12px;padding:14px;margin-bottom:14px;${anyLow?'background:linear-gradient(135deg,#1a0808,#150505);':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
         <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">${e.dam?e.dam+'×'+e.sire:e.sire||'（未登録）'}${e.breed ? ` <span style="font-size:11px;font-weight:700;background:${e.breed==='褐毛'?'#3b0000':e.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${e.breed==='褐毛'?'#7f1d1d':e.breed==='黒毛'?'#374151':'#334155'};color:${e.breed==='褐毛'?'#fca5a5':e.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${e.breed==='褐毛'?'🟥':'⬛'} ${e.breed}</span>` : ''}</div>
-          ${e.dam?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${e.dam}</div>`:''}
-          ${e.lot?`<div style="font-size:11px;color:var(--muted);">胚番号: ${e.lot}</div>`:''}
-          <div style="font-size:11px;margin-top:2px;">
-            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 7px;border-radius:4px;font-weight:700;">${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); if (det) { const f=det.filter(d=>d.frozen).length, r=det.filter(d=>d.fresh).length; return f&&r?`❄️${f}本+🌱${r}本`:f?`❄️凍結胚 ${f}本`:`🌱新鮮胚 ${r}本`; } return {frozen:'❄️ 凍結胚',fresh:'🌱 新鮮胚'}[e.type]||e.type; })()}</span>
-            ${e.stage?`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:1px 7px;border-radius:4px;margin-left:4px;">${e.stage}</span>`:''}
+          <div style="font-size:16px;font-weight:900;color:var(--text);">${damName?damName+'×'+sireName:sireName||'（未登録）'}${breedBadge}</div>
+          ${damName?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${damName}</div>`:''}
+          <div style="font-size:11px;margin-top:4px;">
+            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);padding:1px 7px;border-radius:4px;font-weight:700;">${stockBadge}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px;">${items.length}ロット</span>
           </div>
-          ${e.location?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">📍 ${e.location}</div>`:''}
         </div>
         <div style="text-align:right;">
-          <div style="font-size:32px;font-weight:900;color:${isLow||e.stock<0?'var(--danger)':'var(--purple)'};">${e.stock < 0 ? '⚠'+e.stock : e.stock}</div>
-          <div style="font-size:11px;color:var(--muted);">本在庫</div>
+          <div style="font-size:32px;font-weight:900;color:${anyLow||totalStock<0?'var(--danger)':'var(--purple)'};">${totalStock<0?'⚠'+totalStock:totalStock}</div>
+          <div style="font-size:11px;color:var(--muted);">本在庫（合計）</div>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:15px;font-weight:700;color:var(--text);">${totalUsed}</div>
-          <div style="font-size:10px;color:var(--muted);">累計使用本数</div>
-        </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:15px;font-weight:700;color:var(--warn);">${e.alertThreshold||2}</div>
-          <div style="font-size:10px;color:var(--muted);">アラート本数</div>
-        </div>
-      </div>
-      ${e.memo?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">📝 ${e.memo}</div>`:''}
-      ${(() => { const det = e.embryoDetails || getSheet2DetailsForLot(e.lot); return det ? renderEmbryoDetails(det) : ''; })()}
-      ${recentHistory.length ? `
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:700;">直近の履歴</div>
-        <div style="font-size:11px;line-height:2;">
-          ${recentHistory.map((h,i)=>{
-            const histLen = (e.history||[]).length;
-            const sliceStart = Math.max(0, histLen - 5);
-            const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'🧬使用';
-            const col = h.type==='restock'?'var(--accent)':h.type==='carryover'?'#e2e8f0':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':h.type==='use'?'var(--danger)':'var(--text)';
-            return `<span style="display:flex;align-items:center;gap:6px;">
-              <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.cowId?' ('+cowDisplayName(h.cowId)+')':''}${h.memo?' ('+h.memo+')':''}</span>
-              <button class="history-edit-btn" data-kind="embryo" data-id="${e.id}" data-idx="${realIdx}" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
-            </span>`;
-          }).join('')}
-        </div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" style="font-size:12px;flex:1;" onclick="openEmbryoRestock('${e.id}')">📦 入荷・補充</button>
-        <button class="btn btn-secondary" style="font-size:12px;flex:1;" onclick="openEditEmbryo('${e.id}')">✏ 編集</button>
-        <button onclick="openUseRecord('embryo','${e.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
-        <button onclick="confirmDeleteEmbryo('${e.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">削除</button>
-      </div>
+      ${lotCards}
     </div>`;
   }).join('');
 }
