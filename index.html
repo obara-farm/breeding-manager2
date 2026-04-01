@@ -6407,7 +6407,7 @@ function renderInsemBook() {
         '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-op-dynamic' + idx + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
-        '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
+        '<td style="padding:4px;text-align:center;">' + (r.donorAI && r.op ? '<span style="font-size:10px;color:var(--muted);">—</span>' : '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
       '</tr>';
@@ -7462,6 +7462,10 @@ function openDonorAIRecord(cowId, taskId, date) {
   document.getElementById('dar-cl-right').value = '';
   document.getElementById('dar-cl-left').value = '';
   document.getElementById('dar-memo').value = '';
+  document.getElementById('dar-operator').value = '';
+  document.getElementById('dar-source-panel').style.display = 'none';
+  document.getElementById('dar-source-own').checked = true;
+  document.getElementById('dar-semen-select-wrap').style.display = '';
   setDarTime('終日');
   openModal('modal-donor-ai-record');
 }
@@ -7475,6 +7479,31 @@ function setDarTime(t) {
     btn.style.background = active ? 'rgba(239,68,68,.15)' : 'var(--bg3)';
     btn.style.color = active ? 'var(--danger)' : 'var(--muted)';
   });
+}
+
+function onDarOperatorInput() {
+  const op = document.getElementById('dar-operator').value.trim();
+  const panel = document.getElementById('dar-source-panel');
+  panel.style.display = op ? '' : 'none';
+  if (!op) {
+    // 術者空欄に戻したら在庫選択を表示に戻す
+    document.getElementById('dar-semen-select-wrap').style.display = '';
+    document.getElementById('dar-source-own').checked = true;
+  }
+  onDarSourceChange();
+}
+
+function onDarSourceChange() {
+  const op = document.getElementById('dar-operator').value.trim();
+  const sourceOther = document.getElementById('dar-source-other').checked;
+  const selectWrap = document.getElementById('dar-semen-select-wrap');
+  // 術者あり＋術者持参 → 在庫選択非表示
+  if (op && sourceOther) {
+    selectWrap.style.display = 'none';
+    document.getElementById('dar-semen-select').value = '';
+  } else {
+    selectWrap.style.display = '';
+  }
 }
 
 function onDarSemenSelect() {
@@ -7496,32 +7525,47 @@ function saveDonorAIRecord() {
   const clRight = parseInt(document.getElementById('dar-cl-right').value) || 0;
   const clLeft = parseInt(document.getElementById('dar-cl-left').value) || 0;
   const memo = document.getElementById('dar-memo').value.trim();
+  const operator = document.getElementById('dar-operator').value.trim();
+  const isSelf = !operator;
+  const sourceOther = !isSelf && document.getElementById('dar-source-other').checked;
+  // sourceOwn: 術者あり＋自分在庫 → 譲渡
+  // sourceOther: 術者あり＋術者持参 → 在庫変動なし
+  // isSelf: 術者なし → 使用
 
   if (!semenName) { alert('種雄牛名を入力してください'); return; }
 
-  // 精液在庫から減算
+  // 精液在庫処理（在庫選択時かつ術者持参でない場合のみ）
   const sel = document.getElementById('dar-semen-select');
   const semenId = sel.value;
-  if (semenId) {
+  if (semenId && !sourceOther) {
     const item = semenInventory.find(s => s.id === semenId);
     if (item) {
       item.stock = Math.max(0, (item.stock||0) - count);
       item.history = item.history || [];
-      item.history.push({ date, type:'use', count, memo:'ドナーAI ' + cowId });
+      if (isSelf) {
+        // パターンA：自分が実施・自分在庫 → 使用
+        item.history.push({ date, type:'use', count, memo:'ドナーAI ' + cowId });
+      } else {
+        // パターンB：他人が実施・自分在庫 → 譲渡
+        item.history.push({ date, type:'transfer', count, memo:'ドナーAI 術者:' + operator + ' ' + cowId });
+      }
     }
   }
 
   // donorAIRecordsに保存
-  donorAIRecords.push({ cowId, date, time, semenName, count, clRight, clLeft, memo, taskId });
+  donorAIRecords.push({ cowId, date, time, semenName, count, clRight, clLeft, memo, taskId, operator });
   saveDonorAIRecordsToStore();
 
   // cow.eventsにドナーAIとして記録
   const cow = cows.find(c => c.id === cowId);
   if (cow) {
     cow.events = cow.events || [];
-    cow.events.push({ type:'ai_done', date, memo:'精液:' + semenName + (memo?'／所見:'+memo:''), donorAI: true, time });
+    const memoStr = '精液:' + semenName
+      + (operator ? '／術者:' + operator : '')
+      + (memo ? '／所見:' + memo : '');
+    cow.events.push({ type:'ai_done', date, memo: memoStr, donorAI: true, time, operator });
     // 授精簿に追記
-    addInsemBookRecord(cowId, date, '精液:' + semenName, 'ai', true);
+    addInsemBookRecord(cowId, date, '精液:' + semenName + (operator?'／術者:'+operator:''), 'ai', true);
   }
 
   save();
@@ -11886,13 +11930,34 @@ document.getElementById('login-screen').classList.add('active');
       <input type="hidden" id="dar-time" value="終日">
     </div>
 
+    <!-- 術者 -->
+    <div class="form-group" style="margin-bottom:10px;">
+      <label style="font-size:11px;">👤 術者（空欄 = 自分が実施）</label>
+      <input type="text" id="dar-operator" placeholder="例: 十勝BS" style="font-size:13px;width:100%;" oninput="onDarOperatorInput()">
+    </div>
+
+    <!-- 精液出所（術者入力時のみ表示） -->
+    <div id="dar-source-panel" style="display:none;background:#1a1a0a;border:1px solid var(--warn);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:8px;">精液・受精卵の出所</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px;font-size:12px;">
+        <input type="radio" name="dar-source" id="dar-source-own" value="own" checked onchange="onDarSourceChange()" style="width:16px;height:16px;">
+        <span>🏠 自分の在庫から（譲渡処理）</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;">
+        <input type="radio" name="dar-source" id="dar-source-other" value="other" onchange="onDarSourceChange()" style="width:16px;height:16px;">
+        <span>👤 術者持参（在庫変動なし・記録のみ）</span>
+      </label>
+    </div>
+
     <!-- 精液（種雄牛） -->
     <div class="form-group" style="margin-bottom:10px;">
       <label style="font-size:11px;">精液（種雄牛）</label>
       <input type="text" id="dar-semen-name" placeholder="例: 福勝鶴" style="font-size:13px;width:100%;margin-bottom:4px;">
-      <select id="dar-semen-select" style="font-size:13px;width:100%;" onchange="onDarSemenSelect()">
-        <option value="">または在庫から選択</option>
-      </select>
+      <div id="dar-semen-select-wrap">
+        <select id="dar-semen-select" style="font-size:13px;width:100%;" onchange="onDarSemenSelect()">
+          <option value="">または在庫から選択</option>
+        </select>
+      </div>
     </div>
 
     <!-- 本数 -->
