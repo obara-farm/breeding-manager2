@@ -7862,11 +7862,11 @@ function buildEtCertHTML(r, certNo) {
 
   // ステージ・ランク：在庫データがあれば自動、なければ手入力
   var stageCell = (stage && !isOld)
-    ? '<td style="'+V+'font-weight:bold;">'+stage+'</td>'
-    : '<td style="'+V+'" contenteditable="true">'+stage+'</td>';
+    ? '<td colspan="3" style="'+V+'font-weight:bold;">'+stage+'</td>'
+    : '<td colspan="3" style="'+V+'" contenteditable="true">'+stage+'</td>';
   var rankCell = (rank && !isOld)
-    ? '<td style="'+V+'font-weight:bold;">'+rank+'</td>'
-    : '<td style="'+V+'" contenteditable="true">'+rank+'</td>';
+    ? '<td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td>'
+    : '<td colspan="3" style="'+V+'" contenteditable="true">'+rank+'</td>';
 
   return (
     '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 0 6mm;box-sizing:border-box;">' +
@@ -7939,79 +7939,79 @@ function buildEtCertHTML(r, certNo) {
       '<colgroup>' +
         '<col style="width:11mm">' +
         '<col style="width:30mm">' +
-        '<col style="width:22mm">' +   // 等級値列（種畜証明書番号の右隣）
         '<col>' +
+        '<col style="width:14mm">' +
+        '<col style="width:16mm">' +
       '</colgroup>' +
 
-      // 種雄牛：種畜証明書番号 ＋ 等級を同じ行の右隣に
+      // 種雄牛：種畜証明書番号＋右隣に等級ラベル＋等級値
       '<tr style="height:'+H+';">' +
         '<td rowspan="4" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;">交配した種雄牛</td>' +
         '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">種畜証明書番号</td>' +
         '<td style="'+V+'">'+sireCert+'</td>' +
-        '<td style="'+bd+'vertical-align:middle;padding:3px 4px;font-size:8.5pt;text-align:center;white-space:nowrap;">等　級<br><span contenteditable="true" style="font-size:10pt;font-weight:bold;display:block;min-height:8mm;"></span></td>' +
+        '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">等　級</td>' +
+        '<td style="'+V+'" contenteditable="true"></td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'">名　　　　前</td>' +
-        '<td colspan="2" style="'+V+'font-weight:bold;">'+sireName+'</td>' +
+        '<td colspan="3" style="'+V+'font-weight:bold;">'+sireName+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
-        '<td colspan="2" style="'+V+'">'+sireRegOrg+(sireRegNo?'　'+sireRegNo:'')+'</td>' +
+        '<td colspan="3" style="'+V+'">'+sireRegOrg+(sireRegNo?'　'+sireRegNo:'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'">品　　　　種</td>' +
-        '<td colspan="2" style="'+V+'">'+sireBreed+'</td>' +
+        '<td colspan="3" style="'+V+'">'+sireBreed+'</td>' +
       '</tr>' +
 
       // ドナー
       '<tr style="height:13mm;">' +
         '<td rowspan="6" style="'+Vc+'writing-mode:vertical-rl;font-size:8.5pt;letter-spacing:1px;">採取した雌畜<br>体内受精卵を</td>' +
         '<td style="'+Vc+'font-size:8.5pt;">名前<br>(個体識別番号)</td>' +
-        '<td colspan="2" style="'+V+'">'+donorName+(donorNatId?'<br><span style="font-size:9pt;">'+donorNatId+'</span>':'')+'</td>' +
+        '<td colspan="3" style="'+V+'">'+donorName+(donorNatId?'<br><span style="font-size:9pt;">'+donorNatId+'</span>':'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
-        '<td colspan="2" style="'+V+'">'+donorRegOrg+(donorRegNo?'　'+donorRegNo:'')+'</td>' +
+        '<td colspan="3" style="'+V+'">'+donorRegOrg+(donorRegNo?'　'+donorRegNo:'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'">品　　　　種</td>' +
-        '<td colspan="2" style="'+V+'">'+donorBreed+'</td>' +
+        '<td colspan="3" style="'+V+'">'+donorBreed+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜人工授精用<br>精液証明書番号</td>' +
-        '<td colspan="2" style="'+V+'" contenteditable="true"></td>' +
+        '<td colspan="3" style="'+V+'" contenteditable="true"></td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'white-space:nowrap;">精液注入年月日</td>' +
-        '<td colspan="2" style="'+V+'" contenteditable="true">'+aiDate+'</td>' +
+        '<td colspan="3" style="'+V+'" contenteditable="true">'+aiDate+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">体内受精卵採取月日</td>' +
-        '<td colspan="2" style="'+V+'" contenteditable="true">'+collectDate+'</td>' +
+        '<td colspan="3" style="'+V+'" contenteditable="true">'+collectDate+'</td>' +
       '</tr>' +
 
       // 雌畜飼育者
       '<tr style="height:11mm;">' +
         '<td colspan="2" style="'+Vc+'font-size:8.5pt;">雌畜の飼育者の住所<br>及び氏名または名称</td>' +
-        '<td colspan="2" style="'+V+'">池田町千代田　小原　秀樹</td>' +
+        '<td colspan="3" style="'+V+'">池田町千代田　小原　秀樹</td>' +
       '</tr>' +
 
       // 獣医師
       '<tr style="height:15mm;">' +
         '<td colspan="2" style="'+Vc+'font-size:8.5pt;">獣医師の登録番号<br>住所及び氏名</td>' +
-        '<td colspan="2" style="'+V+'font-size:9pt;line-height:1.6;">〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳</td>' +
+        '<td colspan="3" style="'+V+'font-size:9pt;line-height:1.6;">〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳</td>' +
       '</tr>' +
 
-      // ステージ・ランク（右下・2列）
+      // ステージ・ランク（右下・謎列なし）
       '<tr style="height:10mm;">' +
-        '<td colspan="2" style="'+bd+'vertical-align:middle;text-align:right;padding:3px 6px;font-size:9pt;">ステージ：</td>' +
+        '<td colspan="2" style="'+bd+'vertical-align:middle;text-align:right;padding:3px 6px;font-size:9pt;white-space:nowrap;">ステージ：</td>' +
         stageCell +
-        '<td style="'+bd+'"></td>' +
       '</tr>' +
       '<tr style="height:10mm;">' +
-        '<td colspan="2" style="'+bd+'vertical-align:middle;text-align:right;padding:3px 6px;font-size:9pt;">ランク：</td>' +
+        '<td colspan="2" style="'+bd+'vertical-align:middle;text-align:right;padding:3px 6px;font-size:9pt;white-space:nowrap;">ランク：</td>' +
         rankCell +
-        '<td style="'+bd+'"></td>' +
       '</tr>' +
     '</table>' +
 
