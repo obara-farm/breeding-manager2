@@ -3043,6 +3043,10 @@ function renderGrouped(taskList) {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
         const hasPregBtn = t.action.includes('妊娠鑑定');
+        const hasRecipBtn = !t.done && (
+          (t.action.includes('受卵牛') && t.action.includes('CIDR')) ||
+          t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'
+        );
         const isDonorAITask = !t.done && (
           t.action.includes('発情確認（前日）') ||
           t.action === '発情確認 ＋ GnRH ＋ 授精' ||
@@ -3051,7 +3055,7 @@ function renderGrouped(taskList) {
         const memoHtml = t.memo ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${t.memo}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
-          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${(hasPregBtn||isDonorAITask)?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${(hasPregBtn||isDonorAITask)?'cursor:default;':'cursor:pointer;'}"></div>
+          <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${(hasPregBtn||isDonorAITask||hasRecipBtn)?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${(hasPregBtn||isDonorAITask||hasRecipBtn)?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
             <div style="display:flex;align-items:baseline;gap:5px;">
               <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
@@ -3067,6 +3071,10 @@ function renderGrouped(taskList) {
             ${isDonorAITask ? `
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
+            </div>` : ''}
+            ${hasRecipBtn ? `
+            <div style="margin-top:6px;">
+              <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
             </div>` : ''}
           </div>
           <button onclick="event.stopPropagation();openDeleteTask('${t.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;cursor:pointer;padding:3px 8px;flex-shrink:0;border-radius:5px;margin-top:1px;">✕</button>
