@@ -6426,6 +6426,7 @@ function renderInsemBook() {
         '<td style="padding:2px 4px;"><input id="ib-op-dynamic' + idx + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI && r.op ? '<span style="font-size:10px;color:var(--muted);">—</span>' : '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label>') + '</td>' +
+        '<td style="padding:4px;text-align:center;">' + (et ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
       '</tr>';
@@ -6450,6 +6451,7 @@ function renderInsemBook() {
       '<td style="padding:2px 4px;"><input id="ib-op-' + sid + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
+      '<td style="padding:4px;text-align:center;">' + (et ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
     '</tr>';
   }).join('');
@@ -7754,6 +7756,311 @@ function deleteInsemRecord(src, idx) {
       closeModal('modal-confirm');
     };
   openModal('modal-confirm');
+}
+
+// ===== 移植証明書 =====
+// 採番：R6.11.29=第15号まで発行済み → 16番から自動採番
+let etCertCounter = 16;
+
+function toggleAllEtCheck() {
+  const checks = document.querySelectorAll('.et-cert-check');
+  const allChecked = Array.from(checks).every(c => c.checked);
+  checks.forEach(c => c.checked = !allChecked);
+}
+
+function printSelectedEtCerts() {
+  const checks = document.querySelectorAll('.et-cert-check:checked');
+  if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
+
+  // 選択行を日付昇順で収集
+  const selected = Array.from(checks).map(c => {
+    const src = c.dataset.src;
+    const idx = parseInt(c.dataset.idx);
+    let r;
+    if (src === 'dynamic') {
+      r = insemBookRecords[idx];
+    } else {
+      const base = INSEM_BOOK_DATA[idx];
+      if (!base) return null;
+      const ekey = src + '_' + idx;
+      const edit = insemBookEdits[ekey] || {};
+      r = { ...base, n: edit.n||base.n, q: edit.q||base.q, m: edit.m||base.m, d: edit.d||base.d, op: edit.op||base.op||'' };
+    }
+    return r;
+  }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
+
+  // 採番カウンタをリセット（選択時に16から採番）
+  etCertCounter = 16;
+
+  openEtCertPreview(selected);
+}
+
+function openEtCertPreview(records) {
+  var modal = document.getElementById('modal-cert-preview');
+  if (!modal) return;
+  var container = document.getElementById('cert-preview-container');
+  container.innerHTML = records.map(function(r) {
+    var certNo = etCertCounter++;
+    return buildEtCertHTML(r, certNo);
+  }).join('');
+  modal.classList.add('open');
+}
+
+function buildEtCertHTML(r, certNo) {
+  // 受卵牛情報
+  var cow = cows.find(function(c) { return c.id === r.t; });
+  var cowName    = cow ? (cow.name || '') : '';
+  var nationalId = cow && cow.nationalId ? String(cow.nationalId).replace(/\D/g,'') : '';
+  var dob        = cow && cow.dob ? fmtDateJP(cow.dob) : '';
+  var breed      = cow && cow.breed === '褐毛' ? '肉用種　褐毛和種' :
+                   cow && cow.breed === '黒毛' ? '肉用種　黒毛和種' :
+                   (cow && cow.breed) ? cow.breed : '';
+  var cowColor   = cow && cow.color ? cow.color : '';
+  var regOrg     = cow && cow.regOrg ? cow.regOrg : '';
+  var regNo      = cow && cow.regNo  ? cow.regNo  : '';
+
+  // 胚番号（n欄 or 授精簿の記録から）
+  var embryoNo   = (r.n && r.n.trim()) ? r.n.trim() : '';
+  // 種雄牛名（× で区切られた右側）
+  var sireName   = '';
+  var donorName  = '';
+  if (r.s && r.s.includes('×')) {
+    var parts = r.s.split('×');
+    donorName = parts[0].trim();
+    sireName  = parts[1].trim();
+  } else {
+    sireName = r.s || '';
+  }
+
+  // 在庫から種雄牛情報を取得
+  var semenItem  = semenInventory.find(function(s) { return s.name === sireName; });
+  var sireCert   = semenItem ? (semenItem.sireCert || '') : '';
+  var sireRegOrg = semenItem ? (semenItem.regOrg || '') : '';
+  var sireRegNo  = semenItem ? (semenItem.regNo  || '') : '';
+  var sireBreed  = semenItem ? (semenItem.breed === '褐毛' ? '褐毛和種' : semenItem.breed === '黒毛' ? '黒毛和種' : (semenItem.breed||'')) : '';
+
+  // ドナー牛情報（cows から検索）
+  var donorCow   = cows.find(function(c) { return c.name === donorName; });
+  var donorId    = donorCow ? String(donorCow.nationalId||'').replace(/\D/g,'') : '';
+  var donorRegOrg= donorCow ? (donorCow.regOrg||'') : '';
+  var donorRegNo = donorCow ? (donorCow.regNo||'')  : '';
+  var donorBreed = donorCow ? (donorCow.breed === '褐毛' ? '褐毛和種' : donorCow.breed === '黒毛' ? '黒毛和種' : (donorCow.breed||'')) : '';
+
+  // 採卵記録から採卵日・ステージ・ランクを取得
+  var colRec = collectionRecordsNew.find(function(c) {
+    return c.donorId === (donorCow ? donorCow.id : '') || c.sire === sireName;
+  });
+  // 胚番号から採卵記録を絞り込み
+  if (embryoNo) {
+    var colRecByEmbryo = collectionRecordsNew.find(function(c) {
+      return (c.frozenEmbryos||[]).some(function(e){ return e.no === embryoNo; }) ||
+             (c.freshEmbryos||[]).some(function(e){ return e.embryoNo === embryoNo; });
+    });
+    if (colRecByEmbryo) colRec = colRecByEmbryo;
+  }
+  var collectDate = colRec ? fmtDateJP(colRec.date) : '';
+
+  // ステージ・ランク（在庫の胚詳細から）
+  var stage = '', rank = '', embryoType = '凍結';
+  if (embryoNo) {
+    embryoInventory.forEach(function(inv) {
+      (inv.embryoDetails||[]).forEach(function(ed) {
+        if (ed.no === embryoNo) {
+          stage = ed.stage || '';
+          rank  = ed.rank  || '';
+          embryoType = ed.frozen ? '凍結' : '新鮮';
+        }
+      });
+    });
+    // 採卵記録の新鮮胚からも探す
+    if (!stage && colRec) {
+      (colRec.freshEmbryos||[]).forEach(function(fe) {
+        if (fe.embryoNo === embryoNo) {
+          stage = fe.stage || '';
+          rank  = fe.rank  || '';
+          embryoType = '新鮮';
+        }
+      });
+    }
+  }
+
+  var etDateStr = fmtDateJP(r.d);
+
+  // セルスタイル
+  var bd  = 'border:1px solid #000;';
+  var mid = 'vertical-align:middle;';
+  var ctr = 'text-align:center;';
+  var V   = bd + mid + 'padding:1.5px 3px;font-size:9pt;';
+  var L   = bd + mid + ctr + 'padding:1.5px 2px;font-size:8pt;';
+
+  return (
+    '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:4mm 6mm 0 6mm;box-sizing:border-box;">' +
+
+      // タイトル行
+      '<div style="display:flex;align-items:baseline;margin-bottom:2mm;">' +
+        '<div style="font-size:9pt;">第　' + certNo + '　号</div>' +
+        '<div style="flex:1;text-align:center;font-size:14pt;font-weight:bold;letter-spacing:2px;">体内受精卵移植証明書</div>' +
+      '</div>' +
+
+      '<div style="display:flex;gap:4mm;">' +
+
+        // ── 左面（受卵牛・証明者）──
+        '<div style="width:135mm;">' +
+
+          // 採取元・胚番号
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:0;">' +
+            '<colgroup><col style="width:32mm"><col></colgroup>' +
+            '<tr>' +
+              '<td style="' + L + 'white-space:normal;font-size:7.5pt;">採取した雌畜<br>体内受精卵を</td>' +
+              '<td style="' + V + '">' +
+                '<div style="font-size:7.5pt;color:#555;">家畜体内受精卵証明書番号又は受精卵採取に関する証明書番号</div>' +
+                '<div style="font-size:10pt;font-weight:bold;">' + embryoNo + '</div>' +
+                '<div style="font-size:8pt;margin-top:1mm;">名前: <strong>' + donorName + '</strong></div>' +
+              '</td>' +
+            '</tr>' +
+          '</table>' +
+
+          // 受卵牛情報テーブル
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+            '<colgroup><col style="width:10mm"><col style="width:30mm"><col></colgroup>' +
+            '<tr style="height:9mm;">' +
+              '<td rowspan="7" style="' + L + 'writing-mode:vertical-rl;letter-spacing:2px;font-size:8pt;padding:0 1px;">体内受精卵を移植した雌畜</td>' +
+              '<td style="' + L + '">名　　　前</td>' +
+              '<td style="' + V + 'font-size:10pt;font-weight:bold;">' + cowName + '</td>' +
+            '</tr>' +
+            '<tr style="height:8mm;">' +
+              '<td style="' + L + '">家畜登録機関名<br>及び登録番号</td>' +
+              '<td style="' + V + 'white-space:normal;">' + (regOrg||'') + (regNo?'　'+regNo:'') + '</td>' +
+            '</tr>' +
+            '<tr style="height:8mm;">' +
+              '<td style="' + L + '">品　　　種</td>' +
+              '<td style="' + V + '">' + breed + '</td>' +
+            '</tr>' +
+            '<tr style="height:8mm;">' +
+              '<td style="' + L + '">毛色及び特徴</td>' +
+              '<td style="' + V + '">' + cowColor + '</td>' +
+            '</tr>' +
+            '<tr style="height:8mm;">' +
+              '<td style="' + L + '">生年月日</td>' +
+              '<td style="' + V + '">' + dob + '</td>' +
+            '</tr>' +
+            '<tr style="height:8mm;">' +
+              '<td style="' + L + 'font-size:7.5pt;">飼養者の住所及び<br>氏名又は名称</td>' +
+              '<td style="' + V + 'white-space:normal;">池田町字千代田697番地　小原　秀樹</td>' +
+            '</tr>' +
+            '<tr style="height:7mm;">' +
+              '<td style="' + L + '">会員コード番号</td>' +
+              '<td style="' + V + '"></td>' +
+            '</tr>' +
+          '</table>' +
+
+          // 移植年月日
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
+            '<colgroup><col style="width:40mm"><col></colgroup>' +
+            '<tr style="height:11mm;">' +
+              '<td style="' + L + 'font-size:8.5pt;">体内受精卵移植年月日</td>' +
+              '<td style="' + V + 'font-size:10.5pt;font-weight:bold;">' + etDateStr + '</td>' +
+            '</tr>' +
+          '</table>' +
+
+          // 証明文
+          '<div style="font-size:8pt;padding:3mm 0 1.5mm 0;">上記のとおり家畜受精卵を雌畜に移植したことを証明する。</div>' +
+
+          // 証明者
+          '<div style="font-size:8pt;line-height:1.85;padding-left:5mm;">' +
+            '<div>' + etDateStr + '</div>' +
+            '<div>獣医師(家畜人工授精師)　小原家畜診療所(小原家畜人工授精所）</div>' +
+            '<div>登録番号(免許番号)　第 60937 号（免許番号: 01L237）</div>' +
+            '<div>住所　中川郡池田町字千代田697番地</div>' +
+            '<div>氏名　小原　千佳　　　㊞</div>' +
+          '</div>' +
+
+        '</div>' +
+
+        // ── 右面（受精卵・種雄牛・ドナー情報）──
+        '<div style="flex:1;border-left:2px solid #000;padding-left:4mm;">' +
+
+          // 右面ヘッダ（胚番号・凍結/新鮮）
+          '<div style="display:flex;align-items:baseline;margin-bottom:2mm;font-size:9pt;">' +
+            '<div>第　' + embryoNo + '　号</div>' +
+            '<div style="margin-left:6mm;background:' + (embryoType==='凍結'?'#e8f0ff':'#e8ffe8') + ';border:1px solid #999;padding:1px 6px;border-radius:3px;font-size:8pt;">' + embryoType + '</div>' +
+          '</div>' +
+
+          // 種雄牛情報
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;">' +
+            '<colgroup><col style="width:20mm"><col style="width:24mm"><col></colgroup>' +
+            '<tr>' +
+              '<td rowspan="4" style="' + L + 'font-size:7.5pt;white-space:normal;">交配した種雄牛</td>' +
+              '<td style="' + L + 'font-size:7.5pt;">種畜証明書番号</td>' +
+              '<td style="' + V + '">' + sireCert + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">等　　　　級</td>' +
+              '<td style="' + V + '"></td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">名　　　　前</td>' +
+              '<td style="' + V + 'font-weight:bold;">' + sireName + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">家畜登録機関名<br>及び登録番号</td>' +
+              '<td style="' + V + 'white-space:normal;">' + sireRegOrg + (sireRegNo?'　'+sireRegNo:'') + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;border-top:none;"></td>' +
+              '<td style="' + L + 'font-size:7.5pt;">品　　　　種</td>' +
+              '<td style="' + V + '">' + sireBreed + '</td>' +
+            '</tr>' +
+          '</table>' +
+
+          // ドナー情報
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;">' +
+            '<colgroup><col style="width:20mm"><col style="width:24mm"><col></colgroup>' +
+            '<tr>' +
+              '<td rowspan="4" style="' + L + 'font-size:7.5pt;white-space:normal;">採取した雌畜<br>体内受精卵を</td>' +
+              '<td style="' + L + 'font-size:7.5pt;">名前(個体識別番号)</td>' +
+              '<td style="' + V + '">' + donorName + (donorId?'<br><span style="font-size:8pt;color:#555;">'+donorId+'</span>':'') + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">家畜登録機関名<br>及び登録番号</td>' +
+              '<td style="' + V + 'white-space:normal;">' + donorRegOrg + (donorRegNo?'　'+donorRegNo:'') + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">品　　　　種</td>' +
+              '<td style="' + V + '">' + donorBreed + '</td>' +
+            '</tr>' +
+            '<tr>' +
+              '<td style="' + L + 'font-size:7.5pt;">雌畜の飼育者の<br>住所及び氏名</td>' +
+              '<td style="' + V + 'white-space:normal;">池田町千代田　小原　秀樹</td>' +
+            '</tr>' +
+          '</table>' +
+
+          // 日付情報
+          '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;">' +
+            '<colgroup><col style="width:44mm"><col></colgroup>' +
+            '<tr style="height:8mm;"><td style="' + L + 'font-size:7.5pt;">体内受精卵採取月日</td><td style="' + V + '">' + collectDate + '</td></tr>' +
+          '</table>' +
+
+          // ステージ・ランク
+          '<div style="font-size:9pt;margin-top:2mm;">' +
+            '<span style="' + (stage?'':'color:#aaa;') + '">ステージ：<strong>' + (stage||'—') + '</strong></span>' +
+            '　' +
+            '<span style="' + (rank?'':'color:#aaa;') + '">ランク：<strong>' + (rank||'—') + '</strong></span>' +
+          '</div>' +
+
+          // 獣医師情報（右面）
+          '<div style="font-size:7.5pt;margin-top:4mm;line-height:1.7;border-top:1px solid #ccc;padding-top:2mm;">' +
+            '<div>獣医師の登録番号・住所及び氏名</div>' +
+            '<div>　〒083-0042</div>' +
+            '<div>　北海道中川郡池田町字千代田697番地</div>' +
+            '<div>　獣 60937　　　　　　　小原　千佳</div>' +
+          '</div>' +
+
+        '</div>' +
+
+      '</div>' +
+    '</div>'
+  );
 }
 
 // ===== 授精証明書 =====
@@ -11576,8 +11883,10 @@ try {
     <div class="section-title">📋 人工授精簿</div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
-    <button onclick="printSelectedCerts()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📄 選択した証明書を印刷</button>
+    <button onclick="printSelectedCerts()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📄 授精証明書を印刷</button>
     <button onclick="toggleAllInsemCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">全選択/解除</button>
+    <button onclick="printSelectedEtCerts()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🧬 移植証明書を印刷</button>
+    <button onclick="toggleAllEtCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">ET全選択/解除</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
     <select id="insembook-year" onchange="renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
@@ -11603,7 +11912,8 @@ try {
           <th style="padding:8px 6px;text-align:left;color:var(--muted);">備考</th>
           <th style="padding:8px 6px;text-align:left;color:var(--warn);">術者</th>
           <th style="padding:8px 6px;text-align:center;color:var(--muted);">反映</th>
-          <th style="padding:8px 6px;text-align:center;color:var(--purple);">証明書</th>
+          <th style="padding:8px 6px;text-align:center;color:var(--purple);">授精証</th>
+          <th style="padding:8px 6px;text-align:center;color:var(--info);">移植証</th>
           <th style="padding:8px 6px;text-align:center;color:var(--danger);">削除</th>
         </tr>
       </thead>
