@@ -3072,6 +3072,10 @@ function renderGrouped(taskList) {
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
             </div>` : ''}
+            ${t.action==='🌱 培養胚の処理入力待ち' && t.collectionId ? `
+            <div style="margin-top:6px;">
+              <button ontouchend="event.preventDefault();event.stopPropagation();openEditCollectionFromTask('${t.collectionId}','${t.id}')" onclick="openEditCollectionFromTask('${t.collectionId}','${t.id}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🌱 採卵記録を開いて入力</button>
+            </div>` : ''}
             ${hasRecipBtn ? `
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
@@ -6565,6 +6569,8 @@ function renderEmbryoDetails(details) {
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄️':''}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'🌱':''}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.cultured?`<span style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:9px;padding:1px 4px;border-radius:3px;">🌱培養<br><span style="font-size:8px;">${d.originalStage||''}${d.originalRank||''}→</span></span>`:''}
+    </td>
   </tr>`).join('');
   return `<div style="margin-top:8px;">
     <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">📋 胚内訳 凍結${frozen.length}本 / 新鮮${fresh.length}本</div>
@@ -6577,6 +6583,7 @@ function renderEmbryoDetails(details) {
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ランク</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄️</th>
         <th style="padding:3px 5px;font-size:9px;color:var(--muted);">🌱</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">培養</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
@@ -6700,6 +6707,16 @@ function openNewCollection() {
   sel.innerHTML = '<option value="">選択してください</option>' +
     cows.filter(c=>c.isDonor||c.status!=='retired').map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
   openModal('modal-collection');
+}
+
+function openEditCollectionFromTask(collectionId, taskId) {
+  // 採卵記録タブに切り替えて編集モーダルを開く
+  switchTab('collection');
+  setTimeout(() => {
+    openEditCollection(collectionId);
+    // タスクIDを記憶しておく（保存時に完了チェック）
+    document.getElementById('collection-edit-id').dataset.taskId = taskId;
+  }, 300);
 }
 
 function openEditCollection(id) {
@@ -7073,7 +7090,7 @@ function onColFreshCountInput(val, existing) {
         </select></td>
         <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:70px;"></td>
         <td style="padding:2px 3px;"><select class="cfr-action" onchange="onFreshActionChange(this)" style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
-          <option value="pending" ${ex?.action==='pending'?'selected':''}>翌日移植予定</option>
+          <option value="culture" ${ex?.action==='culture'||ex?.action==='pending'?'selected':''}>培養（翌日）</option>
           <option value="today" ${ex?.action==='today'?'selected':''}>当日移植</option>
           <option value="freeze" ${ex?.action==='freeze'?'selected':''}>凍結に変更</option>
         </select></td>
@@ -7081,6 +7098,22 @@ function onColFreshCountInput(val, existing) {
           <input type="hidden" class="cfr-recipient" value="">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛検索..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:120px;display:${ex?.action==='today'?'':'none'};" autocomplete="off">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:180px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
+          <div class="cfr-culture-panel" style="display:${ex?.action==='culture'||ex?.action==='pending'?'flex':'none'};gap:3px;align-items:center;flex-wrap:wrap;">
+            <select class="cfr-culture-stage" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+              <option value="">翌日ステージ</option><option value="CM" ${ex?.cultureStage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.cultureStage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.cultureStage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.cultureStage==='EX'?'selected':''}>EX</option><option value="変性" ${ex?.cultureStage==='変性'?'selected':''}>変性</option>
+            </select>
+            <select class="cfr-culture-rank" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+              <option value="">ランク</option><option value="A" ${ex?.cultureRank==='A'?'selected':''}>A</option><option value="B" ${ex?.cultureRank==='B'?'selected':''}>B</option>
+            </select>
+            <select class="cfr-culture-action" onchange="onCultureResultChange(this)" style="background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:11px;padding:2px 3px;border-radius:3px;">
+              <option value="" ${!ex?.cultureResult?'selected':''}>結果待ち</option>
+              <option value="et" ${ex?.cultureResult==='et'?'selected':''}>移植</option>
+              <option value="freeze" ${ex?.cultureResult==='freeze'?'selected':''}>凍結</option>
+              <option value="discard" ${ex?.cultureResult==='discard'?'selected':''}>変性破棄</option>
+            </select>
+            <input type="text" class="cfr-culture-recip-search" placeholder="受卵牛..." oninput="onFreshRecipSearch(this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:90px;display:${ex?.cultureResult==='et'?'':'none'};" autocomplete="off">
+            <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
+          </div>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7093,9 +7126,21 @@ function onColFreshCountInput(val, existing) {
 function onFreshActionChange(sel) {
   const row = sel.closest('tr');
   const recipSearch = row.querySelector('.cfr-recip-search');
+  const culturePanel = row.querySelector('.cfr-culture-panel');
   if (recipSearch) recipSearch.style.display = sel.value === 'today' ? '' : 'none';
-  // 当日移植以外に変更したら入力値をリセット
+  if (culturePanel) culturePanel.style.display = sel.value === 'culture' ? 'flex' : 'none';
   if (sel.value !== 'today') {
+    const recipHidden = row.querySelector('.cfr-recipient');
+    if (recipHidden) recipHidden.value = '';
+    if (recipSearch) recipSearch.value = '';
+  }
+}
+
+function onCultureResultChange(sel) {
+  const row = sel.closest('tr');
+  const recipSearch = row.querySelector('.cfr-culture-recip-search');
+  if (recipSearch) recipSearch.style.display = sel.value === 'et' ? '' : 'none';
+  if (sel.value !== 'et') {
     const recipHidden = row.querySelector('.cfr-recipient');
     if (recipHidden) recipHidden.value = '';
     if (recipSearch) recipSearch.value = '';
@@ -7119,8 +7164,11 @@ function getColFreshEmbryos() {
     stage: r.querySelector('.cfr-stage')?.value||'',
     rank: r.querySelector('.cfr-rank')?.value||'',
     comment: r.querySelector('.cfr-comment')?.value.trim()||'',
-    action: r.querySelector('.cfr-action')?.value||'pending',
+    action: r.querySelector('.cfr-action')?.value||'culture',
     recipientId: r.querySelector('.cfr-recipient')?.value||'',
+    cultureStage: r.querySelector('.cfr-culture-stage')?.value||'',
+    cultureRank: r.querySelector('.cfr-culture-rank')?.value||'',
+    cultureResult: r.querySelector('.cfr-culture-action')?.value||'',
   }));
 }
 
@@ -7280,13 +7328,46 @@ function saveCollection() {
     if (fe.action === 'today' && fe.recipientId) {
       // 当日移植：入庫+即使用+ET記録
       _processFreshEtNow(rec, fe, embryoNo, date);
+    } else if (fe.action === 'culture') {
+      // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
+      if (fe.cultureResult === 'et' && fe.recipientId) {
+        // 翌日移植確定
+        _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, embryoNo, date);
+      } else if (fe.cultureResult === 'freeze') {
+        // 翌日凍結
+        _processFreshToFreeze(rec, fe, embryoNo, date, lot);
+      } else if (fe.cultureResult === 'discard') {
+        // 変性破棄：記録のみ
+      } else {
+        // 結果未入力→培養中タスクを翌日に生成
+        const tomorrowDate = addDays(date, 1);
+        tasks.push({
+          id: Math.random().toString(36).slice(2),
+          cowId: donorId,
+          date: tomorrowDate,
+          action: '🌱 培養胚の処理入力待ち',
+          detail: `胚番号: ${embryoNo}　ステージ: ${fe.stage||'—'}　ランク: ${fe.rank||'—'}`,
+          color: '#a78bfa',
+          priority: 'high',
+          done: false,
+          collectionId: rec.id,
+          embryoNo: embryoNo,
+        });
+      }
     } else if (fe.action === 'pending') {
-      // 翌日移植予定リストに追加
-      pendingEtList.push({
+      // 後方互換：旧データの翌日移植予定 → 培養として扱う
+      const tomorrowDate = addDays(date, 1);
+      tasks.push({
         id: Math.random().toString(36).slice(2),
-        collectDate: date, collectionId: rec.id,
-        donorId, sire, lot, operator,
-        embryoNo, stage: fe.stage, rank: fe.rank, comment: fe.comment,
+        cowId: donorId,
+        date: tomorrowDate,
+        action: '🌱 培養胚の処理入力待ち',
+        detail: `胚番号: ${embryoNo}　ステージ: ${fe.stage||'—'}　ランク: ${fe.rank||'—'}`,
+        color: '#a78bfa',
+        priority: 'high',
+        done: false,
+        collectionId: rec.id,
+        embryoNo: embryoNo,
       });
     } else if (fe.action === 'freeze') {
       // 凍結胚在庫に追加（既存ロットに追記）
@@ -7342,6 +7423,13 @@ function saveCollection() {
   }
   } // 新規保存ブロック終了
 
+  // タスクから開いた場合は培養タスクを完了に
+  const taskIdFromTask = document.getElementById('collection-edit-id').dataset.taskId;
+  if (taskIdFromTask) {
+    const cultTask = tasks.find(t => t.id === taskIdFromTask);
+    if (cultTask) { cultTask.done = true; cultTask.doneAt = new Date().toISOString(); }
+    delete document.getElementById('collection-edit-id').dataset.taskId;
+  }
   save();
   closeModal('modal-collection');
   renderCollectionTab();
@@ -7392,6 +7480,41 @@ function _processFreshEtNow(rec, fe, embryoNo, date) {
       etTask.doneAt = new Date().toISOString();
     }
   }
+}
+
+function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
+  // 培養後凍結：在庫に凍結胚として追加（培養フラグ付き）
+  const donorName = cowDisplayName(rec.donorId)||rec.donorId;
+  const cane = '';
+  const finalStage = fe.cultureStage || fe.stage || '';
+  const finalRank  = fe.cultureRank  || fe.rank  || '';
+  let invItem = embryoInventory.find(e =>
+    e.dam && e.dam.includes(rec.donorId) && e.lot === (lot||date) && e.type === 'frozen'
+  );
+  if (!invItem) {
+    invItem = {
+      id: Math.random().toString(36).slice(2),
+      sire: rec.sire||'', dam: donorName, lot: lot||date,
+      type: 'frozen', breed: '黒毛', stage: finalStage,
+      stock: 0, alertThreshold: 2, noAlert: false,
+      collectionDate: date, history: [],
+      embryoDetails: [],
+    };
+    embryoInventory.push(invItem);
+  }
+  if (!invItem.embryoDetails) invItem.embryoDetails = [];
+  invItem.embryoDetails.push({
+    no: embryoNo, cane, stage: finalStage, rank: finalRank,
+    frozen: true, fresh: false,
+    cultured: true,           // 培養フラグ
+    originalStage: fe.stage,  // 採卵時ステージ
+    originalRank:  fe.rank,   // 採卵時ランク
+  });
+  invItem.stock += 1;
+  invItem.history.push({
+    date, type:'selfcollect', count:1,
+    memo:`採卵 新鮮胚培養→凍結 ${embryoNo} (採卵時: ${fe.stage||'—'}${fe.rank||'—'} → 培養後: ${finalStage}${finalRank})`,
+  });
 }
 
 function executePendingET(idx) {
