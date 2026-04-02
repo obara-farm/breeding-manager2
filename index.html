@@ -6702,6 +6702,9 @@ function openNewCollection() {
   document.getElementById('col-frozen-tbody').innerHTML = '';
   document.getElementById('col-fresh-tbody').innerHTML = '';
   document.getElementById('col-frozen-tbody-wrap').style.display = 'none';
+  const _cc = document.getElementById('col-culture-count'); if (_cc) _cc.value = '0';
+  const _ct = document.getElementById('col-culture-tbody'); if (_ct) _ct.innerHTML = '';
+  const _cw = document.getElementById('col-culture-tbody-wrap'); if (_cw) _cw.style.display = 'none';
   document.getElementById('col-fresh-tbody-wrap').style.display = 'none';
   setColPG(true);
   // ドナー牛セレクトを構築
@@ -6755,6 +6758,9 @@ function openEditCollection(id) {
   const frc = (r.freshEmbryos||[]).length;
   document.getElementById('col-fresh-count').value = frc;
   onColFreshCountInput(frc, r.freshEmbryos);
+  const crc = (r.cultureEmbryos||[]).length;
+  document.getElementById('col-culture-count').value = crc;
+  onColCultureCountInput(crc, r.cultureEmbryos);
   openModal('modal-collection');
 }
 
@@ -7074,14 +7080,11 @@ function onColFreshCountInput(val, existing) {
   const tbody = document.getElementById('col-fresh-tbody');
   wrap.style.display = n > 0 ? '' : 'none';
   const cur = tbody.querySelectorAll('tr').length;
-  const recipientOptions = '<option value="">移植先選択</option>' +
-    cows.filter(c=>c.status==='program'||c.status==='open').map(c=>`<option value="${c.id}">${c.id} ${cowDisplayName(c.id)||''}</option>`).join('');
-  const lot = document.getElementById('col-lot').value || '';
   if (cur < n) {
     for (let i = cur; i < n; i++) {
       const ex = existing && existing[i];
-      const isCulture = !ex || ex.action === 'culture' || ex.action === 'pending' || ex.action === 'freeze' || !ex.action;
-      const isToday = ex && ex.action === 'today';
+      const isToday   = ex?.action === 'today';
+      const isFreeze  = ex?.action === 'freeze_now';
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
@@ -7109,47 +7112,17 @@ function onColFreshCountInput(val, existing) {
         <td style="padding:2px 3px;">
           <select class="cfr-action" onchange="onFreshActionChange(this)"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
-            <option value="culture" ${isCulture?'selected':''}>培養（翌日）</option>
-            <option value="today"   ${isToday?'selected':''}>当日移植</option>
+            <option value="today"      ${!ex||isToday?'selected':''}>💉 当日移植</option>
+            <option value="freeze_now" ${isFreeze?'selected':''}>❄️ 当日凍結</option>
           </select>
         </td>
-        <td style="padding:2px 3px;position:relative;min-width:180px;">
-          <!-- 当日移植：受卵牛検索 -->
+        <td style="padding:2px 3px;position:relative;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
             oninput="onFreshRecipSearch(this)" autocomplete="off"
-            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 6px;border-radius:4px;width:100%;box-sizing:border-box;display:${isToday?'':'none'};">
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;display:${isToday||!ex?'':'none'};">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:200px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
-          <!-- 培養（翌日）：翌日結果入力 -->
-          <div class="cfr-culture-panel"
-            style="display:${isCulture?'block':'none'};background:rgba(167,139,250,0.08);border:1px solid var(--purple);border-radius:6px;padding:6px 8px;">
-            <div style="font-size:9px;color:var(--purple);font-weight:700;margin-bottom:5px;">翌日の結果</div>
-            <div style="display:flex;gap:4px;margin-bottom:5px;">
-              <select class="cfr-culture-stage" style="flex:1;background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
-                <option value="">ステージ</option>
-                <option value="CM"    ${ex?.cultureStage==='CM'?'selected':''}>CM</option>
-                <option value="EB"    ${ex?.cultureStage==='EB'?'selected':''}>EB</option>
-                <option value="BL"    ${ex?.cultureStage==='BL'?'selected':''}>BL</option>
-                <option value="EX"    ${ex?.cultureStage==='EX'?'selected':''}>EX</option>
-                <option value="変性"  ${ex?.cultureStage==='変性'?'selected':''}>変性</option>
-              </select>
-              <select class="cfr-culture-rank" style="flex:1;background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
-                <option value="">ランク</option>
-                <option value="A" ${ex?.cultureRank==='A'?'selected':''}>A</option>
-                <option value="B" ${ex?.cultureRank==='B'?'selected':''}>B</option>
-              </select>
-            </div>
-            <select class="cfr-culture-action" onchange="onCultureResultChange(this)"
-              style="width:100%;background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:11px;padding:3px 4px;border-radius:3px;margin-bottom:4px;">
-              <option value=""       ${!ex?.cultureResult?'selected':''}>処置を選択...</option>
-              <option value="et"     ${ex?.cultureResult==='et'?'selected':''}>💉 移植する</option>
-              <option value="freeze" ${ex?.cultureResult==='freeze'?'selected':''}>❄️ 凍結する（胚番号・ケーン自動採番）</option>
-              <option value="discard"${ex?.cultureResult==='discard'?'selected':''}>✕ 変性破棄</option>
-            </select>
-            <input type="text" class="cfr-culture-recip-search" placeholder="受卵牛を検索..."
-              oninput="onFreshRecipSearch(this)" autocomplete="off"
-              style="width:100%;background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:10px;padding:3px 4px;border-radius:3px;display:${ex?.cultureResult==='et'?'':'none'};box-sizing:border-box;">
-          </div>
+          <span class="cfr-freeze-note" style="display:${isFreeze?'inline':'none'};font-size:10px;color:var(--info);">胚番号・ケーン自動採番</span>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7159,18 +7132,22 @@ function onColFreshCountInput(val, existing) {
   }
 }
 
+
 function onFreshActionChange(sel) {
   const row = sel.closest('tr');
-  const recipSearch = row.querySelector('.cfr-recip-search');
-  const culturePanel = row.querySelector('.cfr-culture-panel');
-  if (recipSearch) recipSearch.style.display = sel.value === 'today' ? '' : 'none';
-  if (culturePanel) culturePanel.style.display = sel.value === 'culture' ? 'flex' : 'none';
-  if (sel.value !== 'today') {
-    const recipHidden = row.querySelector('.cfr-recipient');
-    if (recipHidden) recipHidden.value = '';
-    if (recipSearch) recipSearch.value = '';
+  const isToday  = sel.value === 'today';
+  const isFreeze = sel.value === 'freeze_now';
+  const recipSearch  = row.querySelector('.cfr-recip-search');
+  const freezeNote   = row.querySelector('.cfr-freeze-note');
+  if (recipSearch) recipSearch.style.display = isToday ? '' : 'none';
+  if (freezeNote)  freezeNote.style.display  = isFreeze ? 'inline' : 'none';
+  if (!isToday) {
+    const rh = row.querySelector('.cfr-recipient');
+    if (rh) rh.value = '';
+    if (recipSearch) { recipSearch.value = ''; recipSearch.style.borderColor = ''; }
   }
 }
+
 
 function onCultureResultChange(sel) {
   const row = sel.closest('tr');
@@ -7197,16 +7174,141 @@ function getColFrozenEmbryos() {
 function getColFreshEmbryos() {
   const rows = document.querySelectorAll('#col-fresh-tbody tr');
   return Array.from(rows).map(r => ({
-    stage: r.querySelector('.cfr-stage')?.value||'',
-    rank: r.querySelector('.cfr-rank')?.value||'',
-    comment: r.querySelector('.cfr-comment')?.value.trim()||'',
-    action: r.querySelector('.cfr-action')?.value||'culture',
+    stage:       r.querySelector('.cfr-stage')?.value||'',
+    rank:        r.querySelector('.cfr-rank')?.value||'',
+    comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
+    action:      r.querySelector('.cfr-action')?.value||'today',
     recipientId: r.querySelector('.cfr-recipient')?.value||'',
-    cultureStage: r.querySelector('.cfr-culture-stage')?.value||'',
-    cultureRank: r.querySelector('.cfr-culture-rank')?.value||'',
-    cultureResult: r.querySelector('.cfr-culture-action')?.value||'',
   }));
 }
+
+function getColCultureEmbryos() {
+  const rows = document.querySelectorAll('#col-culture-tbody tr');
+  return Array.from(rows).map(r => ({
+    stage:         r.querySelector('.cul-stage')?.value||'',
+    rank:          r.querySelector('.cul-rank')?.value||'',
+    cultureStage:  r.querySelector('.cul-next-stage')?.value||'',
+    cultureRank:   r.querySelector('.cul-next-rank')?.value||'',
+    cultureResult: r.querySelector('.cul-action')?.value||'',
+    recipientId:   r.querySelector('.cul-recipient')?.value||'',
+  }));
+}
+
+function onColCultureCountInput(val, existing) {
+  const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-culture-tbody-wrap');
+  const tbody = document.getElementById('col-culture-tbody');
+  if (!wrap||!tbody) return;
+  wrap.style.display = n > 0 ? '' : 'none';
+  const cur = tbody.querySelectorAll('tr').length;
+  if (cur < n) {
+    for (let i = cur; i < n; i++) {
+      const ex = existing && existing[i];
+      const isET      = ex?.cultureResult === 'et';
+      const isFreeze  = ex?.cultureResult === 'freeze';
+      const tr = document.createElement('tr');
+      tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
+      tr.innerHTML = `
+        <td style="padding:4px 6px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="padding:2px 3px;">
+          <select class="cul-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+            <option value="">—</option>
+            <option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option>
+            <option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option>
+            <option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option>
+            <option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
+          </select>
+        </td>
+        <td style="padding:2px 3px;">
+          <select class="cul-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+            <option value="">—</option>
+            <option value="A" ${ex?.rank==='A'?'selected':''}>A</option>
+            <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
+          </select>
+        </td>
+        <td style="padding:2px 3px;">
+          <select class="cul-next-stage" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+            <option value="">—</option>
+            <option value="CM"   ${ex?.cultureStage==='CM'?'selected':''}>CM</option>
+            <option value="EB"   ${ex?.cultureStage==='EB'?'selected':''}>EB</option>
+            <option value="BL"   ${ex?.cultureStage==='BL'?'selected':''}>BL</option>
+            <option value="EX"   ${ex?.cultureStage==='EX'?'selected':''}>EX</option>
+            <option value="変性" ${ex?.cultureStage==='変性'?'selected':''}>変性</option>
+          </select>
+        </td>
+        <td style="padding:2px 3px;">
+          <select class="cul-next-rank" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+            <option value="">—</option>
+            <option value="A" ${ex?.cultureRank==='A'?'selected':''}>A</option>
+            <option value="B" ${ex?.cultureRank==='B'?'selected':''}>B</option>
+          </select>
+        </td>
+        <td style="padding:2px 3px;">
+          <select class="cul-action" onchange="onCultureActionChange(this)"
+            style="background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:11px;padding:2px 3px;border-radius:3px;min-width:80px;">
+            <option value=""       ${!ex?.cultureResult?'selected':''}>処置...</option>
+            <option value="et"     ${isET?'selected':''}>💉 移植</option>
+            <option value="freeze" ${isFreeze?'selected':''}>❄️ 凍結</option>
+            <option value="discard"${ex?.cultureResult==='discard'?'selected':''}>✕ 破棄</option>
+          </select>
+        </td>
+        <td style="padding:2px 3px;position:relative;">
+          <input type="hidden" class="cul-recipient" value="${ex?.recipientId||''}">
+          <input type="text" class="cul-recip-search" placeholder="受卵牛..."
+            oninput="onCultureRecipSearch(this)" autocomplete="off"
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
+          <div class="cul-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:200px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
+          <span class="cul-freeze-note" style="display:${isFreeze?'inline':'none'};font-size:10px;color:var(--info);">自動採番</span>
+        </td>`;
+      if (ex?.recipientId) { const s = tr.querySelector('.cul-recipient'); if (s) s.value = ex.recipientId; }
+      tbody.appendChild(tr);
+    }
+  } else {
+    while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
+  }
+}
+
+function onCultureActionChange(sel) {
+  const row = sel.closest('tr');
+  const isET     = sel.value === 'et';
+  const isFreeze = sel.value === 'freeze';
+  const recip      = row.querySelector('.cul-recip-search');
+  const freezeNote = row.querySelector('.cul-freeze-note');
+  if (recip)      recip.style.display      = isET     ? '' : 'none';
+  if (freezeNote) freezeNote.style.display = isFreeze ? 'inline' : 'none';
+  if (!isET) {
+    const rh = row.querySelector('.cul-recipient');
+    if (rh) rh.value = '';
+    if (recip) recip.value = '';
+  }
+}
+
+function onCultureRecipSearch(input) {
+  const q = input.value;
+  const row = input.closest('tr');
+  const list = row.querySelector('.cul-recip-list');
+  if (!q) { list.style.display='none'; return; }
+  const results = searchCows(q, c => !['retired','dead'].includes(c.status));
+  if (!results.length) { list.style.display='none'; return; }
+  list.style.display = '';
+  list.innerHTML = results.slice(0,8).map(c => {
+    const name = cowDisplayName(c.id)||'';
+    return `<div onclick="event.stopPropagation();selectCultureRecip(this,'${c.id}','${c.id} ${name}')"
+      style="padding:6px 8px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border);"
+      onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <strong style="color:var(--accent);">${c.id}</strong> <span style="color:var(--muted);">${name}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectCultureRecip(el, id, label) {
+  const td = el.closest('td');
+  td.querySelector('.cul-recipient').value = id;
+  const inp = td.querySelector('.cul-recip-search');
+  inp.value = label; inp.style.borderColor = 'var(--accent2)';
+  td.querySelector('.cul-recip-list').style.display = 'none';
+}
+
 
 function saveCollection() {
   const date = document.getElementById('col-date').value;
@@ -7221,6 +7323,7 @@ function saveCollection() {
   const pg = document.getElementById('col-pg').value !== 'false';
   const frozenEmbryos = getColFrozenEmbryos();
   const freshEmbryos = getColFreshEmbryos();
+  const cultureEmbryos = getColCultureEmbryos();
   const editId = document.getElementById('collection-edit-id').value;
 
   const rec = {
@@ -7250,7 +7353,7 @@ function saveCollection() {
       return null;
     })(),
     memo: document.getElementById('col-memo').value.trim(),
-    frozenEmbryos, freshEmbryos,
+    frozenEmbryos, freshEmbryos, cultureEmbryos,
   };
 
   if (editId) {
@@ -7360,10 +7463,16 @@ function saveCollection() {
 
   // 新鮮胚の処理
   freshEmbryos.forEach((fe, i) => {
-    const embryoNo = `${lot||date}-${i+1}`;
     if (fe.action === 'today' && fe.recipientId) {
-      // 当日移植：入庫+即使用+ET記録
-      _processFreshEtNow(rec, fe, embryoNo, date);
+      // 当日移植：受卵牛にET記録
+      _processFreshEtNow(rec, fe, `${lot||date}-fresh-${i+1}`, date);
+    } else if (fe.action === 'freeze_now') {
+      // 当日凍結：凍結胚在庫に追加（胚番号自動採番）
+      _processFreshToFreeze(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, `${lot||date}-fresh-${i+1}`, date, lot);
+      if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
+      const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
+      const lastDet = lastInv?.embryoDetails?.[lastInv.embryoDetails.length-1];
+      if (lastDet) rec.frozenEmbryos.push({no: lastDet.no});
     } else if (fe.action === 'culture') {
       // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
       if (fe.cultureResult === 'et' && fe.recipientId) {
@@ -7430,6 +7539,34 @@ function saveCollection() {
     }
   });
 
+  // 培養胚の処理（翌日結果）
+  cultureEmbryos.forEach((ce, i) => {
+    if (ce.cultureResult === 'et' && ce.recipientId) {
+      _processFreshEtNow(rec, {
+        stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
+        recipientId: ce.recipientId,
+      }, `${lot||date}-cul-${i+1}`, date);
+    } else if (ce.cultureResult === 'freeze') {
+      _processFreshToFreeze(rec, {
+        stage: ce.stage, rank: ce.rank,
+        cultureStage: ce.cultureStage, cultureRank: ce.cultureRank,
+      }, `${lot||date}-cul-${i+1}`, date, lot);
+      if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
+      const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
+      const lastDet = lastInv?.embryoDetails?.[lastInv.embryoDetails.length-1];
+      if (lastDet) rec.frozenEmbryos.push({no: lastDet.no});
+    } else if (ce.cultureResult === '') {
+      // 結果未入力→翌日タスク生成
+      tasks.push({
+        id: Math.random().toString(36).slice(2),
+        cowId: donorId, date: addDays(date, 1),
+        action: '🌱 培養胚の処理入力待ち',
+        detail: `採卵時: ${ce.stage||'—'} ${ce.rank||'—'}`,
+        color: '#a78bfa', priority: 'high', done: false,
+        collectionId: rec.id, embryoIdx: i,
+      });
+    }
+  });
   // ドナー牛のスケジュール処理（PG投与なし = 妊鑑タスク生成 + ドナーAIフラグOFF）
   if (!pg && aiDate) {
     const cow = cows.find(c=>c.id===donorId);
@@ -12387,6 +12524,38 @@ try {
             </tr>
           </thead>
           <tbody id="col-fresh-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 培養胚記録（翌日処理専用） -->
+    <div style="background:#0a0a1a;border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--purple);">🔬 培養胚記録</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">翌日処理専用（移植 / 凍結→胚番号自動採番 / 破棄）</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-culture-count" min="0" value="0"
+            style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;"
+            oninput="onColCultureCountInput(this.value)" onchange="onColCultureCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-culture-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵時S</th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵時R</th>
+              <th style="padding:4px 5px;color:var(--purple);">翌日S</th>
+              <th style="padding:4px 5px;color:var(--purple);">翌日R</th>
+              <th style="padding:4px 5px;color:var(--muted);">処置</th>
+              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+            </tr>
+          </thead>
+          <tbody id="col-culture-tbody"></tbody>
         </table>
       </div>
     </div>
