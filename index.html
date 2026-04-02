@@ -6754,13 +6754,22 @@ function openEditCollection(id) {
   const fc = (r.frozenEmbryos||[]).length;
   document.getElementById('col-frozen-count').value = fc;
   onColFrozenCountInput(fc, r.frozenEmbryos);
-  // 新鮮胚
-  const frc = (r.freshEmbryos||[]).length;
+  // 新鮮胚：旧データのaction='culture'/'pending'/'freeze'はcultureEmbryosに振り分け
+  const allFresh = r.freshEmbryos||[];
+  const trueFresh   = allFresh.filter(fe => fe.action==='today' || fe.action==='freeze_now' || fe.action==='et' || !fe.action || fe.action==='');
+  const oldCulture  = allFresh.filter(fe => fe.action==='culture' || fe.action==='pending' || fe.action==='freeze');
+  const trueCulture = [...(r.cultureEmbryos||[]), ...oldCulture.map(fe => ({
+    stage: fe.stage, rank: fe.rank,
+    cultureStage: fe.cultureStage||'', cultureRank: fe.cultureRank||'',
+    cultureResult: fe.cultureResult||'', recipientId: fe.recipientId||'',
+    embryoNo: fe.embryoNo||'', caneNo: fe.caneNo||'',
+  }))];
+  const frc = trueFresh.length;
   document.getElementById('col-fresh-count').value = frc;
-  onColFreshCountInput(frc, r.freshEmbryos);
-  const crc = (r.cultureEmbryos||[]).length;
+  onColFreshCountInput(frc, trueFresh);
+  const crc = trueCulture.length;
   document.getElementById('col-culture-count').value = crc;
-  onColCultureCountInput(crc, r.cultureEmbryos);
+  onColCultureCountInput(crc, trueCulture);
   openModal('modal-collection');
 }
 
@@ -7211,16 +7220,14 @@ function onColCultureCountInput(val, existing) {
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
-        <td style="padding:4px 6px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;min-width:120px;">
-          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="自動採番"
-            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:120px;font-family:'JetBrains Mono',monospace;display:${isFreeze||isET?'':'none'};">
-          <span style="font-size:10px;color:var(--muted);display:${!isFreeze&&!isET?'inline':'none'};">—</span>
+        <td style="padding:3px 4px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="padding:2px 2px;min-width:110px;">
+          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="処置選択で自動"
+            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
         </td>
-        <td style="padding:2px 3px;min-width:80px;">
-          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動採番"
-            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:80px;display:${isFreeze?'':'none'};">
-          <span style="font-size:10px;color:var(--muted);display:${!isFreeze?'inline':'none'};">—</span>
+        <td style="padding:2px 2px;min-width:70px;">
+          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動"
+            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 3px;border-radius:3px;width:68px;">
         </td>
         <td style="padding:2px 3px;">
           <select class="cul-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
@@ -7294,19 +7301,13 @@ function onCultureActionChange(sel) {
   const caneNoInput   = row.querySelector('.cul-cane-no');
   const caneNoDash    = caneNoInput?.nextElementSibling;
 
-  if (isFreeze || isET) {
-    if (embryoNoInput) embryoNoInput.style.display = '';
-    if (embryoNoDash)  embryoNoDash.style.display  = 'none';
-  } else {
-    if (embryoNoInput) { embryoNoInput.style.display = 'none'; embryoNoInput.value = ''; }
-    if (embryoNoDash)  embryoNoDash.style.display  = 'inline';
+  // 胚番号欄：凍結/移植時のみ採番（破棄は空欄）
+  if (embryoNoInput) {
+    if (!isFreeze && !isET) embryoNoInput.value = '';
   }
-  if (isFreeze) {
-    if (caneNoInput) caneNoInput.style.display = '';
-    if (caneNoDash)  caneNoDash.style.display  = 'none';
-  } else {
-    if (caneNoInput) { caneNoInput.style.display = 'none'; caneNoInput.value = ''; }
-    if (caneNoDash)  caneNoDash.style.display  = 'inline';
+  // ケーン番号欄：凍結時のみ採番
+  if (caneNoInput) {
+    if (!isFreeze) caneNoInput.value = '';
   }
 
   // 自動採番（凍結 or 移植選択時）
@@ -12685,15 +12686,15 @@ try {
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
           <thead>
             <tr style="background:var(--bg3);">
-              <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
-              <th style="padding:4px 5px;color:var(--info);">胚番号</th>
-              <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
-              <th style="padding:4px 5px;color:var(--muted);">採卵時S</th>
-              <th style="padding:4px 5px;color:var(--muted);">採卵時R</th>
-              <th style="padding:4px 5px;color:var(--purple);">翌日S</th>
-              <th style="padding:4px 5px;color:var(--purple);">翌日R</th>
-              <th style="padding:4px 5px;color:var(--muted);">処置</th>
-              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+              <th style="padding:3px 4px;color:var(--muted);text-align:center;white-space:nowrap;">#</th>
+              <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">胚番号</th>
+              <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">ケーン</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵S</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵R</th>
+              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;">翌日S</th>
+              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;">翌日R</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">処置</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">移植先</th>
             </tr>
           </thead>
           <tbody id="col-culture-tbody"></tbody>
