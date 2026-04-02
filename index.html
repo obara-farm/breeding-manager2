@@ -7222,12 +7222,12 @@ function onColCultureCountInput(val, existing) {
       tr.innerHTML = `
         <td style="padding:3px 4px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
         <td style="padding:2px 2px;min-width:110px;">
-          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="処置選択で自動"
-            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
+          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="—"
+            readonly style="background:${ex?.embryoNo?'var(--bg2)':'var(--bg3)'};border:1px solid ${ex?.embryoNo?'var(--info)':'var(--border)'};color:${ex?.embryoNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
         </td>
         <td style="padding:2px 2px;min-width:70px;">
-          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動"
-            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 3px;border-radius:3px;width:68px;">
+          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="—"
+            readonly style="background:${ex?.caneNo?'var(--bg2)':'var(--bg3)'};border:1px solid ${ex?.caneNo?'var(--info)':'var(--border)'};color:${ex?.caneNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:68px;">
         </td>
         <td style="padding:2px 3px;">
           <select class="cul-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
@@ -7246,7 +7246,7 @@ function onColCultureCountInput(val, existing) {
           </select>
         </td>
         <td style="padding:2px 3px;">
-          <select class="cul-next-stage" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <select class="cul-next-stage" onchange="onCultureNextStageChange(this)" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;">
             <option value="">—</option>
             <option value="CM"   ${ex?.cultureStage==='CM'?'selected':''}>CM</option>
             <option value="EB"   ${ex?.cultureStage==='EB'?'selected':''}>EB</option>
@@ -7283,6 +7283,26 @@ function onColCultureCountInput(val, existing) {
     }
   } else {
     while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
+  }
+}
+
+function onCultureNextStageChange(sel) {
+  if (sel.value === '変性') {
+    const row = sel.closest('tr');
+    const actionSel = row.querySelector('.cul-action');
+    if (actionSel) {
+      actionSel.value = 'discard';
+      // 破棄→採番リセット
+      const embryoNoInput = row.querySelector('.cul-embryo-no');
+      const caneNoInput   = row.querySelector('.cul-cane-no');
+      if (embryoNoInput) embryoNoInput.value = '';
+      if (caneNoInput)   caneNoInput.value   = '';
+      // 受卵牛検索欄を非表示
+      const recip = row.querySelector('.cul-recip-search');
+      if (recip) { recip.style.display = 'none'; recip.value = ''; }
+      const rh = row.querySelector('.cul-recipient');
+      if (rh) rh.value = '';
+    }
   }
 }
 
@@ -7347,7 +7367,12 @@ function onCultureActionChange(sel) {
     if (isFreeze) {
       // 凍結胚番号・ケーン番号を採番
       const newNo = `01L237${yearLabel}-${String(maxNo+1).padStart(4,'0')}`;
-      if (embryoNoInput && !embryoNoInput.value) embryoNoInput.value = newNo;
+      if (embryoNoInput && !embryoNoInput.value) {
+        embryoNoInput.value = newNo;
+        embryoNoInput.style.background = 'var(--bg2)';
+        embryoNoInput.style.borderColor = 'var(--info)';
+        embryoNoInput.style.color = 'var(--info)';
+      }
 
       // ケーン番号：既存在庫の最後のケーン末尾アルファベットの次
       let maxCaneCode = 64; // 'A'-1
@@ -7369,13 +7394,23 @@ function onCultureActionChange(sel) {
       rows.forEach(r => { const inp = r.querySelector('.cul-cane-no'); if (inp && inp.value) { const m = inp.value.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); } });
 
       const newCane = lot ? `${lot}-${String.fromCharCode(maxCaneCode+1)}` : '';
-      if (caneNoInput && !caneNoInput.value) caneNoInput.value = newCane;
+      if (caneNoInput && !caneNoInput.value) {
+        caneNoInput.value = newCane;
+        caneNoInput.style.background = 'var(--bg2)';
+        caneNoInput.style.borderColor = 'var(--info)';
+        caneNoInput.style.color = 'var(--info)';
+      }
     } else {
       // 新鮮胚移植：lot-1, lot-2... 形式
       let freshIdx = 1;
       rows.forEach(r => { const inp = r.querySelector('.cul-embryo-no'); if (inp && inp.value && inp.value.startsWith(lot+'-')) freshIdx++; });
       const newFreshNo = lot ? `${lot}-${freshIdx}` : `fresh-${freshIdx}`;
-      if (embryoNoInput && !embryoNoInput.value) embryoNoInput.value = newFreshNo;
+      if (embryoNoInput && !embryoNoInput.value) {
+        embryoNoInput.value = newFreshNo;
+        embryoNoInput.style.background = 'var(--bg2)';
+        embryoNoInput.style.borderColor = 'var(--info)';
+        embryoNoInput.style.color = 'var(--info)';
+      }
     }
   }
 
@@ -12689,10 +12724,10 @@ try {
               <th style="padding:3px 4px;color:var(--muted);text-align:center;white-space:nowrap;">#</th>
               <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">胚番号</th>
               <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">ケーン</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵S</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵R</th>
-              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;">翌日S</th>
-              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;">翌日R</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵<br>S</th>
+              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵<br>R</th>
+              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;font-weight:700;">翌日<br>S</th>
+              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;font-weight:700;">翌日<br>R</th>
               <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">処置</th>
               <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">移植先</th>
             </tr>
