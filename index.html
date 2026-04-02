@@ -7185,6 +7185,8 @@ function getColFreshEmbryos() {
 function getColCultureEmbryos() {
   const rows = document.querySelectorAll('#col-culture-tbody tr');
   return Array.from(rows).map(r => ({
+    embryoNo:      r.querySelector('.cul-embryo-no')?.value||'',
+    caneNo:        r.querySelector('.cul-cane-no')?.value||'',
     stage:         r.querySelector('.cul-stage')?.value||'',
     rank:          r.querySelector('.cul-rank')?.value||'',
     cultureStage:  r.querySelector('.cul-next-stage')?.value||'',
@@ -7210,6 +7212,16 @@ function onColCultureCountInput(val, existing) {
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:4px 6px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="padding:2px 3px;min-width:120px;">
+          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="自動採番"
+            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:120px;font-family:'JetBrains Mono',monospace;display:${isFreeze||isET?'':'none'};">
+          <span style="font-size:10px;color:var(--muted);display:${!isFreeze&&!isET?'inline':'none'};">—</span>
+        </td>
+        <td style="padding:2px 3px;min-width:80px;">
+          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動採番"
+            readonly style="background:var(--bg2);border:1px solid var(--info);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:80px;display:${isFreeze?'':'none'};">
+          <span style="font-size:10px;color:var(--muted);display:${!isFreeze?'inline':'none'};">—</span>
+        </td>
         <td style="padding:2px 3px;">
           <select class="cul-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
             <option value="">—</option>
@@ -7258,7 +7270,6 @@ function onColCultureCountInput(val, existing) {
             oninput="onCultureRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
           <div class="cul-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:200px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
-          <span class="cul-freeze-note" style="display:${isFreeze?'inline':'none'};font-size:10px;color:var(--info);">自動採番</span>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cul-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7272,10 +7283,101 @@ function onCultureActionChange(sel) {
   const row = sel.closest('tr');
   const isET     = sel.value === 'et';
   const isFreeze = sel.value === 'freeze';
-  const recip      = row.querySelector('.cul-recip-search');
-  const freezeNote = row.querySelector('.cul-freeze-note');
-  if (recip)      recip.style.display      = isET     ? '' : 'none';
-  if (freezeNote) freezeNote.style.display = isFreeze ? 'inline' : 'none';
+
+  // 受卵牛検索
+  const recip = row.querySelector('.cul-recip-search');
+  if (recip) recip.style.display = isET ? '' : 'none';
+
+  // 胚番号欄
+  const embryoNoInput = row.querySelector('.cul-embryo-no');
+  const embryoNoDash  = embryoNoInput?.nextElementSibling;
+  const caneNoInput   = row.querySelector('.cul-cane-no');
+  const caneNoDash    = caneNoInput?.nextElementSibling;
+
+  if (isFreeze || isET) {
+    if (embryoNoInput) embryoNoInput.style.display = '';
+    if (embryoNoDash)  embryoNoDash.style.display  = 'none';
+  } else {
+    if (embryoNoInput) { embryoNoInput.style.display = 'none'; embryoNoInput.value = ''; }
+    if (embryoNoDash)  embryoNoDash.style.display  = 'inline';
+  }
+  if (isFreeze) {
+    if (caneNoInput) caneNoInput.style.display = '';
+    if (caneNoDash)  caneNoDash.style.display  = 'none';
+  } else {
+    if (caneNoInput) { caneNoInput.style.display = 'none'; caneNoInput.value = ''; }
+    if (caneNoDash)  caneNoDash.style.display  = 'inline';
+  }
+
+  // 自動採番（凍結 or 移植選択時）
+  if (isFreeze || isET) {
+    const tbody = document.getElementById('col-culture-tbody');
+    const rows = tbody.querySelectorAll('tr');
+    const lot = document.getElementById('col-lot').value || '';
+    const colDate = document.getElementById('col-date').value;
+    const d = colDate ? new Date(colDate) : new Date();
+    const fiscalYear = d.getFullYear() - 2018;
+    const yearLabel = `R${fiscalYear}`;
+
+    // 凍結胚：全在庫から最大番号を取得
+    let maxNo = 0;
+    embryoInventory.forEach(inv => {
+      (inv.embryoDetails||[]).forEach(ed => {
+        const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
+        if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+      });
+    });
+    // 今回すでに採番済みの番号も考慮
+    rows.forEach(r => {
+      const inp = r.querySelector('.cul-embryo-no');
+      if (inp && inp.value) {
+        const m = inp.value.match(/01L237R(\d+)-(\d+)/);
+        if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+      }
+    });
+    // 凍結胚テーブルの番号も考慮
+    document.querySelectorAll('#col-frozen-tbody .cf-no').forEach(inp => {
+      if (inp.value) {
+        const m = inp.value.match(/01L237R(\d+)-(\d+)/);
+        if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+      }
+    });
+
+    if (isFreeze) {
+      // 凍結胚番号・ケーン番号を採番
+      const newNo = `01L237${yearLabel}-${String(maxNo+1).padStart(4,'0')}`;
+      if (embryoNoInput && !embryoNoInput.value) embryoNoInput.value = newNo;
+
+      // ケーン番号：既存在庫の最後のケーン末尾アルファベットの次
+      let maxCaneCode = 64; // 'A'-1
+      embryoInventory.forEach(inv => {
+        if (!inv.dam || !inv.dam.includes(document.getElementById('col-donor').value)) return;
+        if (inv.lot !== (lot || colDate)) return;
+        (inv.embryoDetails||[]).forEach(ed => {
+          if (ed.cane) {
+            const m = ed.cane.match(/([A-Z])$/);
+            if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0));
+          }
+        });
+      });
+      // 凍結胚テーブルのケーン番号も考慮
+      const frozenCanes = new Set();
+      document.querySelectorAll('#col-frozen-tbody .cf-cane').forEach(inp => { if (inp.value) frozenCanes.add(inp.value); });
+      frozenCanes.forEach(c => { const m = c.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); });
+      // 今回すでに割り当てたケーン
+      rows.forEach(r => { const inp = r.querySelector('.cul-cane-no'); if (inp && inp.value) { const m = inp.value.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); } });
+
+      const newCane = lot ? `${lot}-${String.fromCharCode(maxCaneCode+1)}` : '';
+      if (caneNoInput && !caneNoInput.value) caneNoInput.value = newCane;
+    } else {
+      // 新鮮胚移植：lot-1, lot-2... 形式
+      let freshIdx = 1;
+      rows.forEach(r => { const inp = r.querySelector('.cul-embryo-no'); if (inp && inp.value && inp.value.startsWith(lot+'-')) freshIdx++; });
+      const newFreshNo = lot ? `${lot}-${freshIdx}` : `fresh-${freshIdx}`;
+      if (embryoNoInput && !embryoNoInput.value) embryoNoInput.value = newFreshNo;
+    }
+  }
+
   if (!isET) {
     const rh = row.querySelector('.cul-recipient');
     if (rh) rh.value = '';
@@ -7541,20 +7643,21 @@ function saveCollection() {
 
   // 培養胚の処理（翌日結果）
   cultureEmbryos.forEach((ce, i) => {
+    const ceEmbryoNo = ce.embryoNo || `${lot||date}-cul-${i+1}`;
+    const ceCaneNo   = ce.caneNo   || '';
     if (ce.cultureResult === 'et' && ce.recipientId) {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
         recipientId: ce.recipientId,
-      }, `${lot||date}-cul-${i+1}`, date);
+      }, ceEmbryoNo, date);
     } else if (ce.cultureResult === 'freeze') {
-      _processFreshToFreeze(rec, {
+      // 入力済み胚番号・ケーン番号を使って凍結処理
+      _processFreshToFreezeWithNo(rec, {
         stage: ce.stage, rank: ce.rank,
         cultureStage: ce.cultureStage, cultureRank: ce.cultureRank,
-      }, `${lot||date}-cul-${i+1}`, date, lot);
+      }, ceEmbryoNo, ceCaneNo, date, lot);
       if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
-      const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
-      const lastDet = lastInv?.embryoDetails?.[lastInv.embryoDetails.length-1];
-      if (lastDet) rec.frozenEmbryos.push({no: lastDet.no});
+      rec.frozenEmbryos.push({no: ceEmbryoNo});
     } else if (ce.cultureResult === '') {
       // 結果未入力→翌日タスク生成
       tasks.push({
@@ -7740,6 +7843,42 @@ function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
     memo:`培養→凍結 ${newNo} ケーン:${newCane} (採卵時:${fe.stage||'—'}${fe.rank||'—'}→培養後:${finalStage}${finalRank})`,
   });
 }
+
+function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
+  // 胚番号・ケーン番号を指定して凍結処理（培養胚用）
+  const donorName = cowDisplayName(rec.donorId)||rec.donorId;
+  const finalStage = fe.cultureStage || fe.stage || '';
+  const finalRank  = fe.cultureRank  || fe.rank  || '';
+
+  let invItem = embryoInventory.find(e =>
+    e.dam && e.dam.includes(rec.donorId) && e.lot === (lot||date) && e.type === 'frozen'
+  );
+  if (!invItem) {
+    invItem = {
+      id: Math.random().toString(36).slice(2),
+      sire: rec.sire||'', dam: donorName, lot: lot||date,
+      type: 'frozen', breed: '黒毛', stage: finalStage,
+      stock: 0, alertThreshold: 2, noAlert: false,
+      collectionDate: date, history: [],
+      embryoDetails: [],
+    };
+    embryoInventory.push(invItem);
+  }
+  if (!invItem.embryoDetails) invItem.embryoDetails = [];
+  invItem.embryoDetails.push({
+    no: embryoNo, cane: caneNo, stage: finalStage, rank: finalRank,
+    frozen: true, fresh: false,
+    cultured: true,
+    originalStage: fe.stage,
+    originalRank:  fe.rank,
+  });
+  invItem.stock += 1;
+  invItem.history.push({
+    date, type:'selfcollect', count:1,
+    memo:`培養→凍結 ${embryoNo} ケーン:${caneNo} (採卵時:${fe.stage||'—'}${fe.rank||'—'}→培養後:${finalStage}${finalRank})`,
+  });
+}
+
 
 function executePendingET(idx) {
   const e = pendingEtList[idx];
@@ -12547,6 +12686,8 @@ try {
           <thead>
             <tr style="background:var(--bg3);">
               <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
+              <th style="padding:4px 5px;color:var(--info);">胚番号</th>
+              <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
               <th style="padding:4px 5px;color:var(--muted);">採卵時S</th>
               <th style="padding:4px 5px;color:var(--muted);">採卵時R</th>
               <th style="padding:4px 5px;color:var(--purple);">翌日S</th>
