@@ -7012,6 +7012,26 @@ function setColPG(val) {
   document.getElementById('col-pg-no').style.color = !val ? 'var(--warn)' : 'var(--muted)';
 }
 
+function getMaxFreshNo(lot) {
+  // 新鮮胚テーブル・培養胚テーブル両方のlot-N番号を参照して最大値を返す
+  if (!lot) return 0;
+  let maxN = 0;
+  const prefix = lot + '-';
+  document.querySelectorAll('#col-fresh-tbody .cfr-embryo-no').forEach(inp => {
+    if (inp.value && inp.value.startsWith(prefix)) {
+      const n = parseInt(inp.value.slice(prefix.length));
+      if (!isNaN(n)) maxN = Math.max(maxN, n);
+    }
+  });
+  document.querySelectorAll('#col-culture-tbody .cul-embryo-no').forEach(inp => {
+    if (inp.value && inp.value.startsWith(prefix)) {
+      const n = parseInt(inp.value.slice(prefix.length));
+      if (!isNaN(n)) maxN = Math.max(maxN, n);
+    }
+  });
+  return maxN;
+}
+
 function getMaxEmbryoNo(yearLabel) {
   // 在庫・凍結テーブル・培養テーブル・新鮮胚テーブル全て参照して最大番号を返す
   let maxNo = 0;
@@ -7112,7 +7132,9 @@ function onColFreshCountInput(val, existing) {
       const ex = existing && existing[i];
       const lot2 = document.getElementById('col-lot').value || '';
       const date2 = document.getElementById('col-date').value || '';
-      const autoFreshNo = ex?.embryoNo || (lot2 ? `${lot2}-${i+1}` : `${date2}-${i+1}`);
+      // 新鮮胚・培養胚テーブル横断で最大番号取得して連番
+      const freshBase = getMaxFreshNo(lot2);
+      const autoFreshNo = ex?.embryoNo || (lot2 ? `${lot2}-${freshBase + i + 1}` : `${date2}-${i+1}`);
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
@@ -7445,10 +7467,10 @@ function onCultureActionChange(sel) {
         caneNoInput.style.color = 'var(--info)';
       }
     } else {
-      // 新鮮胚移植：lot-1, lot-2... 形式
-      let freshIdx = 1;
-      rows.forEach(r => { const inp = r.querySelector('.cul-embryo-no'); if (inp && inp.value && inp.value.startsWith(lot+'-')) freshIdx++; });
-      const newFreshNo = lot ? `${lot}-${freshIdx}` : `fresh-${freshIdx}`;
+      // 新鮮胚移植：新鮮胚テーブルとの連番（この行を除外して取得）
+      if (embryoNoInp) embryoNoInp.value = '';
+      const freshBase2 = getMaxFreshNo(lot);
+      const newFreshNo = lot ? `${lot}-${freshBase2 + 1}` : `fresh-${freshBase2 + 1}`;
       if (embryoNoInput && !embryoNoInput.value) {
         embryoNoInput.value = newFreshNo;
         embryoNoInput.style.background = 'var(--bg2)';
