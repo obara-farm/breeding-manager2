@@ -7079,10 +7079,7 @@ function onColFrozenCountInput(val, existing) {
   const d = colDate ? new Date(colDate) : new Date();
   const fiscalYear = d.getFullYear() - 2018; // 1月始まり R換算（2026-2018=8）
   const yearLabel = `R${fiscalYear}`;
-  // 全テーブル参照して最大連番を取得（凍結・培養・新鮮胚テーブルを横断）
-  const maxUsed = getMaxEmbryoNo(yearLabel);
-
-  // 現在の入力値を保存してから全行再生成
+  // 現在の入力値を保存してから全行クリア
   const savedRows = Array.from(tbody.querySelectorAll('tr')).map(r => ({
     no:      r.querySelector('.cf-no')?.value    || '',
     cane:    r.querySelector('.cf-cane')?.value  || '',
@@ -7091,6 +7088,8 @@ function onColFrozenCountInput(val, existing) {
     comment: r.querySelector('.cf-comment')?.value || '',
   }));
   tbody.innerHTML = '';
+  // クリア後に参照（自テーブルを除いた最大番号）
+  const maxUsed = getMaxEmbryoNo(yearLabel);
 
   const lot = document.getElementById('col-lot').value || '';
   for (let i = 0; i < n; i++) {
