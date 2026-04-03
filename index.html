@@ -7468,7 +7468,7 @@ function onCultureActionChange(sel) {
       }
     } else {
       // 新鮮胚移植：新鮮胚テーブルとの連番（この行を除外して取得）
-      if (embryoNoInp) embryoNoInp.value = '';
+      if (embryoNoInput) embryoNoInput.value = '';
       const freshBase2 = getMaxFreshNo(lot);
       const newFreshNo = lot ? `${lot}-${freshBase2 + 1}` : `fresh-${freshBase2 + 1}`;
       if (embryoNoInput && !embryoNoInput.value) {
