@@ -6845,11 +6845,16 @@ function selectPetRecip(idx, id, label) {
 // 新鮮胚行の受卵牛検索
 function onFreshRecipSearch(input) {
   const q = input.value;
-  const row = input.closest('tr');  // trから検索してtd境界を越えても動作
+  const row = input.closest('tr');
   const list = row.querySelector('.cfr-recip-list');
   if (!q) { list.style.display='none'; return; }
   const results = searchCows(q, c => !['retired','dead'].includes(c.status));
   if (!results.length) { list.style.display='none'; return; }
+  // position:fixedで入力欄の直下に表示
+  const rect = input.getBoundingClientRect();
+  list.style.top = (rect.bottom + 2) + 'px';
+  list.style.left = rect.left + 'px';
+  list.style.width = Math.max(220, rect.width) + 'px';
   list.style.display = '';
   list.innerHTML = results.slice(0,8).map(c => {
     const name = cowDisplayName(c.id)||c.name||'';
@@ -7168,7 +7173,7 @@ function onColFreshCountInput(val, existing) {
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
             oninput="onFreshRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;">
-          <div class="cfr-recip-list" style="display:none;position:absolute;z-index:500;background:var(--card);border:1px solid var(--border);border-radius:6px;width:220px;max-height:180px;overflow-y:auto;box-shadow:0 -4px 12px rgba(0,0,0,.5);bottom:100%;left:0;margin-bottom:2px;"></div>
+          <div class="cfr-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7341,7 +7346,7 @@ function onColCultureCountInput(val, existing) {
           <input type="text" class="cul-recip-search" placeholder="受卵牛を検索..."
             oninput="onCultureRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
-          <div class="cul-recip-list" style="display:none;position:absolute;z-index:500;background:var(--card);border:1px solid var(--border);border-radius:6px;width:220px;max-height:180px;overflow-y:auto;box-shadow:0 -4px 12px rgba(0,0,0,.5);bottom:100%;left:0;margin-bottom:2px;"></div>
+          <div class="cul-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cul-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7498,6 +7503,10 @@ function onCultureRecipSearch(input) {
   if (!q) { list.style.display='none'; return; }
   const results = searchCows(q, c => !['retired','dead'].includes(c.status));
   if (!results.length) { list.style.display='none'; return; }
+  const rect = input.getBoundingClientRect();
+  list.style.top = (rect.bottom + 2) + 'px';
+  list.style.left = rect.left + 'px';
+  list.style.width = Math.max(220, rect.width) + 'px';
   list.style.display = '';
   list.innerHTML = results.slice(0,8).map(c => {
     const name = cowDisplayName(c.id)||'';
