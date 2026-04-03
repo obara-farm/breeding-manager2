@@ -7100,21 +7100,16 @@ function onColFreshCountInput(val, existing) {
   if (cur < n) {
     for (let i = cur; i < n; i++) {
       const ex = existing && existing[i];
-      const isToday   = !ex || ex?.action === 'today' || ex?.action === 'et';
-      const isFreeze  = ex?.action === 'freeze_now';
-      // 新鮮胚は当日移植=番号なし、当日凍結=凍結番号自動採番
-      const freshEmbryoNo = ex?.embryoNo || (isFreeze ? '' : '');
-      const colDate2 = document.getElementById('col-date').value;
-      const d2 = colDate2 ? new Date(colDate2) : new Date();
-      const fy2 = d2.getFullYear() - 2018;
       const lot2 = document.getElementById('col-lot').value || '';
+      const date2 = document.getElementById('col-date').value || '';
+      const autoFreshNo = ex?.embryoNo || (lot2 ? `${lot2}-${i+1}` : `${date2}-${i+1}`);
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:4px 6px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;min-width:110px;">
-          <input type="text" class="cfr-embryo-no" value="${ex?.embryoNo||''}" placeholder="${isFreeze?'自動採番':'—'}"
-            readonly style="background:${isFreeze&&ex?.embryoNo?'var(--bg)':'var(--bg3)'};border:1px solid ${isFreeze?'var(--info)':'var(--border)'};color:${isFreeze&&ex?.embryoNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
+        <td style="padding:2px 3px;min-width:100px;">
+          <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:98px;font-family:'JetBrains Mono',monospace;">
         </td>
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
@@ -7136,18 +7131,12 @@ function onColFreshCountInput(val, existing) {
           <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
             style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:60px;">
         </td>
-        <td style="padding:2px 3px;">
-          <select class="cfr-action" onchange="onFreshActionChange(this)"
-            style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
-            <option value="today"      ${isToday?'selected':''}>💉 当日移植</option>
-            <option value="freeze_now" ${isFreeze?'selected':''}>❄️ 当日凍結</option>
-          </select>
-        </td>
+        <td style="padding:2px 3px;color:var(--accent);font-size:11px;font-weight:700;">💉 当日移植</td>
         <td style="padding:2px 3px;position:relative;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
             oninput="onFreshRecipSearch(this)" autocomplete="off"
-            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;display:${isToday?'':'none'};">
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:200px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
@@ -7243,7 +7232,7 @@ function getColFreshEmbryos() {
     stage:       r.querySelector('.cfr-stage')?.value||'',
     rank:        r.querySelector('.cfr-rank')?.value||'',
     comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
-    action:      r.querySelector('.cfr-action')?.value||'today',
+    action:      'today',  // 新鮮胚は常に当日移植
     recipientId: r.querySelector('.cfr-recipient')?.value||'',
   }));
 }
@@ -12752,7 +12741,7 @@ try {
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--muted);">処理</th>
+              <th style="padding:4px 5px;color:var(--accent);">💉 当日移植</th>
               <th style="padding:4px 5px;color:var(--muted);">移植先</th>
             </tr>
           </thead>
