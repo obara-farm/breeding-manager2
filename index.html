@@ -7012,6 +7012,40 @@ function setColPG(val) {
   document.getElementById('col-pg-no').style.color = !val ? 'var(--warn)' : 'var(--muted)';
 }
 
+function getMaxEmbryoNo(yearLabel) {
+  // 在庫・凍結テーブル・培養テーブル・新鮮胚テーブル全て参照して最大番号を返す
+  let maxNo = 0;
+  // 1. 既存在庫
+  embryoInventory.forEach(inv => {
+    (inv.embryoDetails||[]).forEach(ed => {
+      const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    });
+  });
+  // 2. 凍結胚テーブルの入力値
+  document.querySelectorAll('#col-frozen-tbody .cf-no').forEach(inp => {
+    if (inp.value) {
+      const m = inp.value.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    }
+  });
+  // 3. 培養胚テーブルの入力値
+  document.querySelectorAll('#col-culture-tbody .cul-embryo-no').forEach(inp => {
+    if (inp.value) {
+      const m = inp.value.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    }
+  });
+  // 4. 新鮮胚テーブルの入力値（当日凍結の場合R8形式になる）
+  document.querySelectorAll('#col-fresh-tbody .cfr-embryo-no').forEach(inp => {
+    if (inp.value) {
+      const m = inp.value.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    }
+  });
+  return maxNo;
+}
+
 function onColFrozenCountInput(val, existing) {
   const n = parseInt(val)||0;
   const wrap = document.getElementById('col-frozen-tbody-wrap');
@@ -7025,33 +7059,8 @@ function onColFrozenCountInput(val, existing) {
   const d = colDate ? new Date(colDate) : new Date();
   const fiscalYear = d.getFullYear() - 2018; // 1月始まり R換算（2026-2018=8）
   const yearLabel = `R${fiscalYear}`;
-  // 今年度の既存最大連番を取得
-  const usedNos = [];
-  embryoInventory.forEach(item => {
-    (item.embryoDetails||[]).forEach(ed => {
-      const m = ed.no?.match(/01L237R\d+-(\d+)/);
-      if (m) {
-        const y = ed.no.match(/01L237(R\d+)-/)?.[1];
-        if (y === yearLabel) usedNos.push(parseInt(m[1]));
-      }
-    });
-    (item.history||[]).forEach(h => {
-      const m = h.memo?.match(/01L237R\d+-(\d+)/g);
-      if (m) m.forEach(x => {
-        const yr = x.match(/01L237(R\d+)-/)?.[1];
-        const num = x.match(/-(\d+)$/)?.[1];
-        if (yr === yearLabel && num) usedNos.push(parseInt(num));
-      });
-    });
-  });
-  // 今回の採卵記録（編集中）の既存胚番号も除外
-  const editId = document.getElementById('collection-edit-id').value;
-  const selfRec = editId ? collectionRecordsNew.find(r=>r.id===editId) : null;
-  const selfNos = (selfRec?.frozenEmbryos||[]).map(e=>{
-    const m = e.no?.match(/01L237R\d+-(\d+)/);
-    return m ? parseInt(m[1]) : null;
-  }).filter(Boolean);
-  const maxUsed = Math.max(0, ...usedNos.filter(x=>!selfNos.includes(x)));
+  // 全テーブル参照して最大連番を取得（凍結・培養・新鮮胚テーブルを横断）
+  const maxUsed = getMaxEmbryoNo(yearLabel);
 
   // 現在の入力値を保存してから全行再生成
   const savedRows = Array.from(tbody.querySelectorAll('tr')).map(r => ({
@@ -7069,6 +7078,7 @@ function onColFrozenCountInput(val, existing) {
     const saved = savedRows[i];
     const ex    = existing && existing[i];
     const autoNo   = saved?.no   || ex?.no   || `01L237${yearLabel}-${String(maxUsed + i + 1).padStart(4,'0')}`;
+    // ※ maxUsedは既在庫+他テーブル参照済みなので i+1 は「このテーブルで何番目か」を意味する
     const caneIdx  = Math.floor(i / 5);
     const caneLabel = String.fromCharCode(65 + caneIdx);
     const autoCane = saved?.cane || ex?.cane || (lot ? `${lot}-${caneLabel}` : '');
@@ -7171,21 +7181,9 @@ function onFreshActionChange(sel) {
       const d = colDate ? new Date(colDate) : new Date();
       const fy = d.getFullYear() - 2018;
       const yl = `R${fy}`;
-      let maxNo = 0;
-      embryoInventory.forEach(inv => {
-        (inv.embryoDetails||[]).forEach(ed => {
-          const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
-          if (m && 'R'+m[1] === yl) maxNo = Math.max(maxNo, parseInt(m[2]));
-        });
-      });
-      // 凍結胚テーブルの既存番号も考慮
-      document.querySelectorAll('#col-frozen-tbody .cf-no').forEach(inp => {
-        if (inp.value) { const m = inp.value.match(/01L237R(\d+)-(\d+)/); if (m && 'R'+m[1]===yl) maxNo = Math.max(maxNo, parseInt(m[2])); }
-      });
-      // 新鮮胚テーブルの他行も考慮
-      row.closest('tbody').querySelectorAll('.cfr-embryo-no').forEach(inp => {
-        if (inp !== embryoNoInp && inp.value) { const m = inp.value.match(/01L237R(\d+)-(\d+)/); if (m && 'R'+m[1]===yl) maxNo = Math.max(maxNo, parseInt(m[2])); }
-      });
+      // 全テーブル横断で最大番号取得（この行自身は除外）
+      if (embryoNoInp) embryoNoInp.value = '';  // 一時的に空にして自分を除外
+      let maxNo = getMaxEmbryoNo(yl);
       embryoNoInp.value = `01L237${yl}-${String(maxNo+1).padStart(4,'0')}`;
       embryoNoInp.style.background = 'var(--bg)';
       embryoNoInp.style.borderColor = 'var(--info)';
@@ -7854,15 +7852,14 @@ function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
   const d = new Date(date);
   const fiscalYear = d.getFullYear() - 2018; // 1月始まり R換算
   const yearLabel = `R${fiscalYear}`;
+  // rec.frozenEmbryosから最大番号を取得（保存時は在庫未反映なので）
   let maxNo = 0;
-  // 在庫の胚番号から最大値を取得
   embryoInventory.forEach(inv => {
     (inv.embryoDetails||[]).forEach(ed => {
       const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
       if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
     });
   });
-  // 今回の採卵記録の凍結胚番号も考慮（同一採卵で複数培養→凍結する場合）
   (rec.frozenEmbryos||[]).forEach(fe => {
     const m = fe.no && fe.no.match(/01L237R(\d+)-(\d+)/);
     if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
