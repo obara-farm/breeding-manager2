@@ -7053,33 +7053,41 @@ function onColFrozenCountInput(val, existing) {
   }).filter(Boolean);
   const maxUsed = Math.max(0, ...usedNos.filter(x=>!selfNos.includes(x)));
 
-  if (cur < n) {
-    for (let i = cur; i < n; i++) {
-      const ex = existing && existing[i];
-      // 自動番号生成
-      const seqNum = String(maxUsed + i + 1 - (selfNos.length > i ? 0 : 0)).padStart(4,'0');
-      const autoNo = ex?.no || `01L237${yearLabel}-${String(maxUsed + i + 1).padStart(4,'0')}`;
-      // ケーン番号自動割り振り（5本ずつ）
-      const lot = document.getElementById('col-lot').value || '';
-      const caneIdx = Math.floor(i / 5);
-      const caneLabel = String.fromCharCode(65 + caneIdx); // A,B,C...
-      const autoCane = ex?.cane || (lot ? `${lot}-${caneLabel}` : '');
-      const tr = document.createElement('tr');
-      tr.style.cssText = `border-bottom:${i%2===0?'1px solid var(--border)':'2px solid var(--bg)'};background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
-      tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${autoNo}" placeholder="胚番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;"></td>
-        <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${autoCane}" placeholder="ケーン番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
-        <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
-          <option value="">—</option><option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option><option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option><option value="BL" ${ex?.stage==='BL'?'selected':''}>BL</option><option value="EX" ${ex?.stage==='EX'?'selected':''}>EX</option>
-        </select></td>
-        <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
-          <option value="">—</option><option value="A" ${ex?.rank==='A'?'selected':''}>A</option><option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
-        </select></td>
-        <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${ex?.comment||''}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
-      tbody.appendChild(tr);
-    }
-  } else {
-    while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
+  // 現在の入力値を保存してから全行再生成
+  const savedRows = Array.from(tbody.querySelectorAll('tr')).map(r => ({
+    no:      r.querySelector('.cf-no')?.value    || '',
+    cane:    r.querySelector('.cf-cane')?.value  || '',
+    stage:   r.querySelector('.cf-stage')?.value || '',
+    rank:    r.querySelector('.cf-rank')?.value  || '',
+    comment: r.querySelector('.cf-comment')?.value || '',
+  }));
+  tbody.innerHTML = '';
+
+  const lot = document.getElementById('col-lot').value || '';
+  for (let i = 0; i < n; i++) {
+    // 優先順位：保存値 > existing > 自動採番
+    const saved = savedRows[i];
+    const ex    = existing && existing[i];
+    const autoNo   = saved?.no   || ex?.no   || `01L237${yearLabel}-${String(maxUsed + i + 1).padStart(4,'0')}`;
+    const caneIdx  = Math.floor(i / 5);
+    const caneLabel = String.fromCharCode(65 + caneIdx);
+    const autoCane = saved?.cane || ex?.cane || (lot ? `${lot}-${caneLabel}` : '');
+    const stage    = saved?.stage   || ex?.stage   || '';
+    const rank     = saved?.rank    || ex?.rank    || '';
+    const comment  = saved?.comment || ex?.comment || '';
+    const tr = document.createElement('tr');
+    tr.style.cssText = `border-bottom:${i%2===0?'1px solid var(--border)':'2px solid var(--bg)'};background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
+    tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
+      <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${autoNo}" placeholder="胚番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;"></td>
+      <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${autoCane}" placeholder="ケーン番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
+      <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+        <option value="">—</option><option value="CM" ${stage==='CM'?'selected':''}>CM</option><option value="EB" ${stage==='EB'?'selected':''}>EB</option><option value="BL" ${stage==='BL'?'selected':''}>BL</option><option value="EX" ${stage==='EX'?'selected':''}>EX</option>
+      </select></td>
+      <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+        <option value="">—</option><option value="A" ${rank==='A'?'selected':''}>A</option><option value="B" ${rank==='B'?'selected':''}>B</option>
+      </select></td>
+      <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
+    tbody.appendChild(tr);
   }
 }
 
@@ -7092,12 +7100,22 @@ function onColFreshCountInput(val, existing) {
   if (cur < n) {
     for (let i = cur; i < n; i++) {
       const ex = existing && existing[i];
-      const isToday   = ex?.action === 'today';
+      const isToday   = !ex || ex?.action === 'today' || ex?.action === 'et';
       const isFreeze  = ex?.action === 'freeze_now';
+      // 新鮮胚は当日移植=番号なし、当日凍結=凍結番号自動採番
+      const freshEmbryoNo = ex?.embryoNo || (isFreeze ? '' : '');
+      const colDate2 = document.getElementById('col-date').value;
+      const d2 = colDate2 ? new Date(colDate2) : new Date();
+      const fy2 = d2.getFullYear() - 2018;
+      const lot2 = document.getElementById('col-lot').value || '';
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:4px 6px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
+        <td style="padding:2px 3px;min-width:110px;">
+          <input type="text" class="cfr-embryo-no" value="${ex?.embryoNo||''}" placeholder="${isFreeze?'自動採番':'—'}"
+            readonly style="background:${isFreeze&&ex?.embryoNo?'var(--bg)':'var(--bg3)'};border:1px solid ${isFreeze?'var(--info)':'var(--border)'};color:${isFreeze&&ex?.embryoNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
+        </td>
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
             <option value="">—</option>
@@ -7121,7 +7139,7 @@ function onColFreshCountInput(val, existing) {
         <td style="padding:2px 3px;">
           <select class="cfr-action" onchange="onFreshActionChange(this)"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:2px 3px;border-radius:3px;">
-            <option value="today"      ${!ex||isToday?'selected':''}>💉 当日移植</option>
+            <option value="today"      ${isToday?'selected':''}>💉 当日移植</option>
             <option value="freeze_now" ${isFreeze?'selected':''}>❄️ 当日凍結</option>
           </select>
         </td>
@@ -7129,9 +7147,8 @@ function onColFreshCountInput(val, existing) {
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
             oninput="onFreshRecipSearch(this)" autocomplete="off"
-            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;display:${isToday||!ex?'':'none'};">
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;display:${isToday?'':'none'};">
           <div class="cfr-recip-list" style="display:none;position:absolute;z-index:300;background:var(--card);border:1px solid var(--border);border-radius:6px;width:200px;max-height:140px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.5);top:100%;left:0;"></div>
-          <span class="cfr-freeze-note" style="display:${isFreeze?'inline':'none'};font-size:10px;color:var(--info);">胚番号・ケーン自動採番</span>
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
@@ -7146,14 +7163,53 @@ function onFreshActionChange(sel) {
   const row = sel.closest('tr');
   const isToday  = sel.value === 'today';
   const isFreeze = sel.value === 'freeze_now';
-  const recipSearch  = row.querySelector('.cfr-recip-search');
-  const freezeNote   = row.querySelector('.cfr-freeze-note');
+  const recipSearch = row.querySelector('.cfr-recip-search');
+  const embryoNoInp = row.querySelector('.cfr-embryo-no');
+
+  // 受卵牛検索欄
   if (recipSearch) recipSearch.style.display = isToday ? '' : 'none';
-  if (freezeNote)  freezeNote.style.display  = isFreeze ? 'inline' : 'none';
   if (!isToday) {
     const rh = row.querySelector('.cfr-recipient');
     if (rh) rh.value = '';
     if (recipSearch) { recipSearch.value = ''; recipSearch.style.borderColor = ''; }
+  }
+
+  // 胚番号欄
+  if (embryoNoInp) {
+    if (isFreeze) {
+      // 当日凍結→凍結胚番号を自動採番
+      const colDate = document.getElementById('col-date').value;
+      const d = colDate ? new Date(colDate) : new Date();
+      const fy = d.getFullYear() - 2018;
+      const yl = `R${fy}`;
+      let maxNo = 0;
+      embryoInventory.forEach(inv => {
+        (inv.embryoDetails||[]).forEach(ed => {
+          const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
+          if (m && 'R'+m[1] === yl) maxNo = Math.max(maxNo, parseInt(m[2]));
+        });
+      });
+      // 凍結胚テーブルの既存番号も考慮
+      document.querySelectorAll('#col-frozen-tbody .cf-no').forEach(inp => {
+        if (inp.value) { const m = inp.value.match(/01L237R(\d+)-(\d+)/); if (m && 'R'+m[1]===yl) maxNo = Math.max(maxNo, parseInt(m[2])); }
+      });
+      // 新鮮胚テーブルの他行も考慮
+      row.closest('tbody').querySelectorAll('.cfr-embryo-no').forEach(inp => {
+        if (inp !== embryoNoInp && inp.value) { const m = inp.value.match(/01L237R(\d+)-(\d+)/); if (m && 'R'+m[1]===yl) maxNo = Math.max(maxNo, parseInt(m[2])); }
+      });
+      embryoNoInp.value = `01L237${yl}-${String(maxNo+1).padStart(4,'0')}`;
+      embryoNoInp.style.background = 'var(--bg)';
+      embryoNoInp.style.borderColor = 'var(--info)';
+      embryoNoInp.style.color = 'var(--info)';
+      embryoNoInp.placeholder = '自動採番';
+    } else {
+      // 当日移植→番号なし
+      embryoNoInp.value = '';
+      embryoNoInp.style.background = 'var(--bg3)';
+      embryoNoInp.style.borderColor = 'var(--border)';
+      embryoNoInp.style.color = 'var(--muted)';
+      embryoNoInp.placeholder = '—';
+    }
   }
 }
 
@@ -7183,6 +7239,7 @@ function getColFrozenEmbryos() {
 function getColFreshEmbryos() {
   const rows = document.querySelectorAll('#col-fresh-tbody tr');
   return Array.from(rows).map(r => ({
+    embryoNo:    r.querySelector('.cfr-embryo-no')?.value||'',
     stage:       r.querySelector('.cfr-stage')?.value||'',
     rank:        r.querySelector('.cfr-rank')?.value||'',
     comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
@@ -7605,12 +7662,11 @@ function saveCollection() {
       // 当日移植：受卵牛にET記録
       _processFreshEtNow(rec, fe, `${lot||date}-fresh-${i+1}`, date);
     } else if (fe.action === 'freeze_now') {
-      // 当日凍結：凍結胚在庫に追加（胚番号自動採番）
-      _processFreshToFreeze(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, `${lot||date}-fresh-${i+1}`, date, lot);
+      // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
+      const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
+      _processFreshToFreezeWithNo(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, freezeNo, '', date, lot);
       if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
-      const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
-      const lastDet = lastInv?.embryoDetails?.[lastInv.embryoDetails.length-1];
-      if (lastDet) rec.frozenEmbryos.push({no: lastDet.no});
+      rec.frozenEmbryos.push({no: freezeNo});
     } else if (fe.action === 'culture') {
       // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
       if (fe.cultureResult === 'et' && fe.recipientId) {
@@ -12692,10 +12748,12 @@ try {
           <thead>
             <tr style="background:var(--bg3);">
               <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
-              <th style="padding:4px 5px;color:var(--muted);">ステージ</th>
-              <th style="padding:4px 5px;color:var(--muted);">ランク</th>
+              <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
+              <th style="padding:4px 5px;color:var(--muted);">S</th>
+              <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--muted);">処理 / 翌日結果・移植先</th>
+              <th style="padding:4px 5px;color:var(--muted);">処理</th>
+              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
             </tr>
           </thead>
           <tbody id="col-fresh-tbody"></tbody>
