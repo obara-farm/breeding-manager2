@@ -7139,10 +7139,11 @@ function onColFreshCountInput(val, existing) {
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:4px 6px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;min-width:100px;">
+        <td style="padding:2px 3px;">
           <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
-            style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:98px;font-family:'JetBrains Mono',monospace;">
+            style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
         </td>
+        <td style="padding:2px 3px;color:var(--muted);font-size:10px;text-align:center;">—</td><!-- ケーン列（空） -->
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
             <option value="">—</option>
@@ -7346,6 +7347,11 @@ function onColCultureCountInput(val, existing) {
         </td>`;
       if (ex?.recipientId) { const s = tr.querySelector('.cul-recipient'); if (s) s.value = ex.recipientId; }
       tbody.appendChild(tr);
+      // 初期表示：処置が設定済みなら表示状態を正しく反映
+      if (isET || isFreeze) {
+        const actionSel = tr.querySelector('.cul-action');
+        if (actionSel) onCultureActionChange(actionSel);
+      }
     }
   } else {
     while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
@@ -12753,10 +12759,21 @@ try {
       </div>
       <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:11px;">
+          <colgroup>
+            <col style="width:28px">
+            <col style="width:140px">
+            <col style="width:100px"><!-- ケーン列（新鮮胚は空） -->
+            <col style="width:60px">
+            <col style="width:52px">
+            <col style="width:80px">
+            <col style="width:80px">
+            <col>
+          </colgroup>
           <thead>
             <tr style="background:var(--bg3);">
-              <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
+              <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
               <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
+              <th style="padding:4px 5px;color:var(--muted);"></th><!-- ケーン列（空） -->
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
@@ -12784,18 +12801,18 @@ try {
         </div>
       </div>
       <div id="col-culture-tbody-wrap" style="display:none;overflow-x:auto;">
-        <table style="width:100%;min-width:700px;border-collapse:collapse;font-size:11px;">
+        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
           <thead>
             <tr style="background:var(--bg3);">
-              <th style="padding:3px 4px;color:var(--muted);text-align:center;white-space:nowrap;">#</th>
-              <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">胚番号</th>
-              <th style="padding:3px 4px;color:var(--info);white-space:nowrap;">ケーン</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵<br>S</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">採卵<br>R</th>
-              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;font-weight:700;">翌日<br>S</th>
-              <th style="padding:3px 4px;color:var(--purple);white-space:nowrap;font-weight:700;">翌日<br>R</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">処置</th>
-              <th style="padding:3px 4px;color:var(--muted);white-space:nowrap;">移植先</th>
+              <th style="padding:3px 4px;color:var(--muted);text-align:center;width:28px;">#</th>
+              <th style="padding:3px 4px;color:var(--info);width:140px;">胚番号</th>
+              <th style="padding:3px 4px;color:var(--info);width:100px;">ケーン</th>
+              <th style="padding:3px 4px;color:var(--muted);width:60px;">採卵S</th>
+              <th style="padding:3px 4px;color:var(--muted);width:52px;">採卵R</th>
+              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:60px;">翌日S</th>
+              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:52px;">翌日R</th>
+              <th style="padding:3px 4px;color:var(--muted);">処置</th>
+              <th style="padding:3px 4px;color:var(--muted);">移植先</th>
             </tr>
           </thead>
           <tbody id="col-culture-tbody"></tbody>
