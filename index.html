@@ -6852,7 +6852,13 @@ function onFreshRecipSearch(input) {
   if (!results.length) { list.style.display='none'; return; }
   // position:fixedで入力欄の直下に表示
   const rect = input.getBoundingClientRect();
-  list.style.top = (rect.bottom + 2) + 'px';
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const listH = Math.min(200, results.length * 36);
+  if (spaceBelow < listH && rect.top > listH) {
+    list.style.top = (rect.top - listH - 2) + 'px';
+  } else {
+    list.style.top = (rect.bottom + 2) + 'px';
+  }
   list.style.left = rect.left + 'px';
   list.style.width = Math.max(220, rect.width) + 'px';
   list.style.display = '';
@@ -7504,7 +7510,13 @@ function onCultureRecipSearch(input) {
   const results = searchCows(q, c => !['retired','dead'].includes(c.status));
   if (!results.length) { list.style.display='none'; return; }
   const rect = input.getBoundingClientRect();
-  list.style.top = (rect.bottom + 2) + 'px';
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const listH = Math.min(200, results.length * 36);
+  if (spaceBelow < listH && rect.top > listH) {
+    list.style.top = (rect.top - listH - 2) + 'px';
+  } else {
+    list.style.top = (rect.bottom + 2) + 'px';
+  }
   list.style.left = rect.left + 'px';
   list.style.width = Math.max(220, rect.width) + 'px';
   list.style.display = '';
