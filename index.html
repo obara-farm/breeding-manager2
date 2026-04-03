@@ -7692,9 +7692,10 @@ function saveCollection() {
 
   // 新鮮胚の処理
   freshEmbryos.forEach((fe, i) => {
-    if (fe.action === 'today' && fe.recipientId) {
-      // 当日移植：受卵牛にET記録
-      _processFreshEtNow(rec, fe, `${lot||date}-fresh-${i+1}`, date);
+    if (fe.recipientId) {
+      // 当日移植：受卵牛にET記録（新鮮胚は常に当日移植）
+      const freshNo = fe.embryoNo || `${lot||date}-${i+1}`;
+      _processFreshEtNow(rec, fe, freshNo, date);
     } else if (fe.action === 'freeze_now') {
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
@@ -7703,12 +7704,13 @@ function saveCollection() {
       rec.frozenEmbryos.push({no: freezeNo});
     } else if (fe.action === 'culture') {
       // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
+      const feNo = fe.embryoNo || `${lot||date}-c${i+1}`;
       if (fe.cultureResult === 'et' && fe.recipientId) {
         // 翌日移植確定
-        _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, embryoNo, date);
+        _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, feNo, date);
       } else if (fe.cultureResult === 'freeze') {
-        // 翌日凍結（recに凍結胚を追記してから採番するため先にrecを更新）
-        _processFreshToFreeze(rec, fe, embryoNo, date, lot);
+        // 翌日凍結
+        _processFreshToFreeze(rec, fe, feNo, date, lot);
         // 採番後の番号をrecに追記して次の培養胚が正しく連番できるよう記録
         if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
         const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
