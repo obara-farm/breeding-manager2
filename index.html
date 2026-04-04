@@ -7366,8 +7366,8 @@ function onColCultureCountInput(val, existing) {
       tr.innerHTML = `
         <td style="padding:3px 4px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
         <td style="padding:2px 2px;min-width:110px;">
-          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="—"
-            readonly style="background:${ex?.embryoNo?'var(--bg2)':'var(--bg3)'};border:1px solid ${ex?.embryoNo?'var(--info)':'var(--border)'};color:${ex?.embryoNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
+          <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="処置選択で自動"
+            style="background:var(--bg);border:1px solid ${ex?.embryoNo?'var(--info)':'var(--border)'};color:${ex?.embryoNo?'var(--info)':'var(--text)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
         </td>
         <td style="padding:2px 2px;min-width:70px;">
           <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動"
