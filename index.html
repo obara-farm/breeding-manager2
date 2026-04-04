@@ -6609,7 +6609,10 @@ function renderCollectionTab() {
           <span style="font-size:13px;font-weight:700;color:var(--text);">${fmtDate(r.date)}</span>
           <span style="font-size:12px;color:var(--muted);margin-left:8px;">${r.lot||''}</span>
         </div>
-        <button onclick="openEditCollection('${r.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">✏ 編集</button>
+        <div style="display:flex;gap:6px;">
+          <button onclick="openEditCollection('${r.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">✏ 編集</button>
+          <button onclick="deleteCollectionRecord('${r.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">🗑 削除</button>
+        </div>
       </div>
       <div style="font-size:12px;color:var(--accent);font-weight:700;">${donorName} × ${r.sire||''}</div>
       <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--muted);flex-wrap:wrap;">
@@ -6643,6 +6646,53 @@ function renderCollectionTab() {
   // バッジ更新
   const badge = document.getElementById('collection-pending-badge');
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
+}
+
+function deleteCollectionRecord(id) {
+  const rec = collectionRecordsNew.find(r => r.id === id);
+  if (!rec) return;
+  const donorName = cowDisplayName(rec.donorId)||rec.donorId||'';
+  if (!confirm(`${fmtDate(rec.date)} ${donorName} の採卵記録を削除しますか？\n在庫・授精簿への反映も取り消されます。`)) return;
+
+  // 在庫から削除（同ロットの selfcollect 履歴を削除して stock 再計算）
+  embryoInventory.forEach(inv => {
+    if (!inv.dam?.includes(rec.donorId) && inv.sire !== rec.sire) return;
+    if (inv.collectionDate !== rec.date && inv.lot !== (rec.lot||rec.date)) return;
+    inv.history = (inv.history||[]).filter(h => !(h.type === 'selfcollect' && h.date === rec.date));
+    inv.embryoDetails = [];
+    inv.stock = 0;
+    syncStockFromHistory(inv);
+  });
+  // stock=0 で履歴も空の在庫アイテムを削除
+  embryoInventory = embryoInventory.filter(inv =>
+    !(inv.collectionDate === rec.date && inv.dam?.includes(rec.donorId) && inv.stock === 0 && !(inv.history||[]).length)
+  );
+
+  // 関連タスクを削除
+  tasks = tasks.filter(t => t.collectionId !== id && !(t.cowId === rec.donorId && !t.done && t.date === rec.date));
+
+  // 授精簿から関連ET記録を削除
+  const etDate = rec.date;
+  insemBookRecords = insemBookRecords.filter(r => !(r.d === etDate && r.t && (rec.freshEmbryos||[]).some(fe => fe.recipientId === r.t)));
+
+  // 受卵牛のET記録を削除してステータスリセット
+  [...(rec.freshEmbryos||[]), ...(rec.cultureEmbryos||[])].forEach(fe => {
+    const recipId = fe.recipientId;
+    if (!recipId) return;
+    const recip = cows.find(c => c.id === recipId);
+    if (!recip) return;
+    recip.events = (recip.events||[]).filter(ev => !(ev.type === 'et_done' && ev.date === etDate));
+    const remaining = (recip.events||[]).filter(ev => ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type));
+    if (!remaining.length) { recip.status = 'open'; recip.dueDate = null; }
+    tasks = tasks.filter(t => !(t.cowId === recipId && !t.done && t.action.includes('妊娠鑑定') && t.date === addDays(etDate, 35)));
+  });
+
+  // 採卵記録を削除
+  collectionRecordsNew = collectionRecordsNew.filter(r => r.id !== id);
+
+  save();
+  renderCollectionTab();
+  renderAll();
 }
 
 function renderPendingEtList() {
@@ -7820,6 +7870,7 @@ function saveCollection() {
   cultureEmbryos.forEach((ce, i) => {
     const ceEmbryoNo = ce.embryoNo || `${lot||date}-cul-${i+1}`;
     const ceCaneNo   = ce.caneNo   || '';
+    console.log(`培養胚[${i}] result=${ce.cultureResult} recip=${ce.recipientId}`);
     if (ce.cultureResult === 'et' && ce.recipientId) {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
