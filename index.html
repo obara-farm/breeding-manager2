@@ -6846,9 +6846,12 @@ function selectPetRecip(idx, id, label) {
 function onFreshRecipSearch(input) {
   const q = input.value;
   const row = input.closest('tr');
+  if (!row) { console.error('row not found'); return; }
   const list = row.querySelector('.cfr-recip-list');
+  if (!list) { console.error('cfr-recip-list not found'); return; }
   if (!q) { list.style.display='none'; return; }
   const results = searchCows(q, c => !['retired','dead'].includes(c.status));
+  console.log('検索結果:', q, results.length, '件');
   if (!results.length) { list.style.display='none'; return; }
   // position:fixedで入力欄の直下に表示
   const rect = input.getBoundingClientRect();
@@ -7135,9 +7138,19 @@ function onColFreshCountInput(val, existing) {
   const wrap = document.getElementById('col-fresh-tbody-wrap');
   const tbody = document.getElementById('col-fresh-tbody');
   wrap.style.display = n > 0 ? '' : 'none';
-  const cur = tbody.querySelectorAll('tr').length;
-  if (cur < n) {
-    for (let i = cur; i < n; i++) {
+  // 既存行の入力値を保存してから全行再生成
+  const savedFresh = Array.from(tbody.querySelectorAll('tr')).map(r => ({
+    embryoNo:    r.querySelector('.cfr-embryo-no')?.value || '',
+    stage:       r.querySelector('.cfr-stage')?.value || '',
+    rank:        r.querySelector('.cfr-rank')?.value || '',
+    comment:     r.querySelector('.cfr-comment')?.value || '',
+    recipientId: r.querySelector('.cfr-recipient')?.value || '',
+    recipLabel:  r.querySelector('.cfr-recip-search')?.value || '',
+  }));
+  tbody.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const exSaved = savedFresh[i];
+    const ex = exSaved?.embryoNo ? exSaved : (existing && existing[i]);
       const ex = existing && existing[i];
       const lot2 = document.getElementById('col-lot').value || '';
       const date2 = document.getElementById('col-date').value || '';
@@ -7177,15 +7190,25 @@ function onColFreshCountInput(val, existing) {
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
-            oninput="onFreshRecipSearch(this)" autocomplete="off"
+            oninput="onFreshRecipSearch(this)" onkeyup="onFreshRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;">
           <div class="cfr-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
         </td>`;
-      if (ex?.recipientId) { const s = tr.querySelector('.cfr-recipient'); if (s) s.value = ex.recipientId; }
+      // recipientId復元
+      const recipId = ex?.recipientId || '';
+      if (recipId) {
+        const s = tr.querySelector('.cfr-recipient');
+        if (s) s.value = recipId;
+        const searchInp = tr.querySelector('.cfr-recip-search');
+        if (searchInp) {
+          const savedLabel = ex?.recipLabel || '';
+          const recipName = cowDisplayName(recipId) || recipId;
+          searchInp.value = savedLabel || `${recipId} ${recipName}`;
+          searchInp.style.borderColor = 'var(--accent2)';
+        }
+      }
       tbody.appendChild(tr);
     }
-  } else {
-    while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
   }
 }
 
