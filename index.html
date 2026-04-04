@@ -6560,32 +6560,29 @@ function renderEmbryoDetails(details) {
   if (!details || !details.length) return '';
   const frozen = details.filter(d => d.frozen);
   const fresh = details.filter(d => d.fresh);
-  const stageBadge = s => ({CM:'胚盤胞',EB:'初期胚盤胞',BL:'拡張胚盤胞',EX:'孵化胚盤胞',MO:'桑実胚'}[s]||s||'');
-  const rows = details.map((d, i) => `<tr>
-    <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${i+1}</td>
-    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text);">${d.no||'—'}</td>
+  const stageBadge = s => ({CM:'CM',EB:'EB',BL:'BL',EX:'EX',MO:'MO'}[s]||s||'—');
+  const rows = details.map((d, i) => `<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'};">
+    <td style="padding:3px 5px;font-size:10px;color:var(--muted);text-align:center;">${i+1}</td>
+    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--info);">${d.no||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${stageBadge(d.stage)}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--text);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.frozen?'❄️':''}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.fresh?'🌱':''}</td>
-    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.cultured?`<span style="display:inline-block;background:transparent;border:1.5px solid var(--purple);color:var(--purple);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;line-height:1.6;">${d.originalStage||''}${d.originalRank||''}→<br>培養</span>`:''}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${d.collectedDate?fmtDate(d.collectedDate):'—'}</td>
+    <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.cultured?`<span style="background:transparent;border:1.5px solid var(--purple);color:var(--purple);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">[培養]</span>`:''}</td>
   </tr>`).join('');
-  return `<div style="margin-top:8px;">
-    <div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">📋 胚内訳 凍結${frozen.length}本 / 新鮮${fresh.length}本</div>
-    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;">
+  return `<div style="margin-top:8px;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:11px;">
       <thead><tr style="background:var(--bg3);">
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">#</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);text-align:left;">胚番号</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ケーン番号</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ステージ</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ランク</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">❄️</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">🌱</th>
-        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">培養</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);text-align:center;">#</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--info);text-align:left;">胚番号</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">ケーン</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">S</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">R</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--muted);">入庫日</th>
+        <th style="padding:3px 5px;font-size:9px;color:var(--purple);">培養</th>
       </tr></thead>
       <tbody>${rows}</tbody>
-    </table></div>
+    </table>
   </div>`;
 }
 // ===== 採卵記録タブ =====
@@ -7760,12 +7757,12 @@ function saveCollection() {
       !(inv.dam?.includes(donorId) && inv.collectionDate === date && inv.stock === 0 && (inv.history||[]).length === 0)
     );
   }
-  // 凍結胚を受精卵在庫に追加（selfcollect）
+  // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
-    // 既存の同ロット在庫を探すか新規作成
+    // 同ロット・同ドナーの既存アイテムを探す（完全一致）
     let invItem = embryoInventory.find(e =>
-      e.dam && e.dam.includes(donorId) && e.lot === lot && e.type === 'frozen'
+      e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen' && e.collectionDate === date
     );
     if (!invItem) {
       invItem = {
@@ -7774,17 +7771,27 @@ function saveCollection() {
         type: 'frozen', breed: '黒毛', stage: frozenEmbryos[0]?.stage||'',
         stock: 0, alertThreshold: 2, noAlert: false,
         collectionDate: date, history: [],
-        embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false})),
+        embryoDetails: [],
       };
       embryoInventory.push(invItem);
-    } else {
-      invItem.embryoDetails = frozenEmbryos.map(e=>({...e, frozen:true, fresh:false}));
     }
-    invItem.stock += frozenEmbryos.length;
-    invItem.history.push({
-      date, type:'selfcollect', count: frozenEmbryos.length,
-      memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
+    if (!invItem.embryoDetails) invItem.embryoDetails = [];
+    // 胚詳細に入庫日（採卵日）を付与して追記
+    const newDetails = frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date}));
+    // 既存と重複しない胚番号のみ追加
+    newDetails.forEach(nd => {
+      if (!nd.no || !invItem.embryoDetails.some(ed=>ed.no===nd.no)) {
+        invItem.embryoDetails.push(nd);
+      }
     });
+    invItem.stock = invItem.embryoDetails.filter(ed=>ed.frozen).length;
+    // 履歴重複防止
+    if (!invItem.history.some(h=>h.type==='selfcollect'&&h.date===date&&h.memo?.includes(lot||date))) {
+      invItem.history.push({
+        date, type:'selfcollect', count: frozenEmbryos.length,
+        memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
+      });
+    }
   }
 
   // 新鮮胚の処理
@@ -8090,12 +8097,15 @@ function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
     embryoInventory.push(invItem);
   }
   if (!invItem.embryoDetails) invItem.embryoDetails = [];
+  // 培養→凍結は翌日入庫
+  const cultureCollectedDate = addDays(date, 1);
   invItem.embryoDetails.push({
     no: embryoNo, cane: caneNo, stage: finalStage, rank: finalRank,
     frozen: true, fresh: false,
     cultured: true,
     originalStage: fe.stage,
     originalRank:  fe.rank,
+    collectedDate: cultureCollectedDate,
   });
   invItem.stock += 1;
   invItem.history.push({
@@ -10747,38 +10757,58 @@ function renderEmbryo() {
       ? (totalFrozen&&totalFresh?`❄️${totalFrozen}本+🌱${totalFresh}本`:totalFrozen?`❄️凍結胚 ${totalFrozen}本`:`🌱新鮮胚 ${totalFresh}本`)
       : `${totalStock}本`;
 
-    // ロット別カード
-    const lotCards = items.sort((a,b)=>(b.collectionDate||'').localeCompare(a.collectionDate||'')).map(e => {
-      const isLow = !e.noAlert && e.stock <= (e.alertThreshold||2);
-      const det = e.embryoDetails || getSheet2DetailsForLot(e.lot);
-      const frozenCnt = det ? det.filter(d=>d.frozen).length : 0;
-      const freshCnt  = det ? det.filter(d=>d.fresh).length  : 0;
-      const lotBadge  = frozenCnt||freshCnt
-        ? (frozenCnt&&freshCnt?`❄️${frozenCnt}+🌱${freshCnt}`:frozenCnt?`❄️${frozenCnt}本`:`🌱${freshCnt}本`)
-        : `${e.stock}本`;
-      const detailId = 'embryo-lot-detail-' + e.id;
-      const totalUsed = (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
+    // ロット別に統合（同じlotの複数アイテムをまとめる）
+    const lotMap = {};
+    const lotOrder = [];
+    items.forEach(e => {
+      const lotKey = e.lot || e.collectionDate || '—';
+      if (!lotMap[lotKey]) { lotMap[lotKey] = []; lotOrder.push(lotKey); }
+      lotMap[lotKey].push(e);
+    });
+    lotOrder.sort((a,b) => {
+      const da = lotMap[b][0].collectionDate||'';
+      const db = lotMap[a][0].collectionDate||'';
+      return da.localeCompare(db);
+    });
+
+    const lotCards = lotOrder.map(lotKey => {
+      const lotItems = lotMap[lotKey];
+      const lotStock = lotItems.reduce((s,e)=>s+e.stock, 0);
+      const isLow = lotItems.some(e=>!e.noAlert && e.stock<=(e.alertThreshold||2));
+      const collDate = lotItems[0].collectionDate || '';
+      // 全アイテムの胚詳細を統合
+      const allDetails = [];
+      lotItems.forEach(e => {
+        const det = e.embryoDetails || getSheet2DetailsForLot(e.lot);
+        if (det) det.forEach(d => allDetails.push({...d, _invId: e.id}));
+      });
+      const frozenCnt = allDetails.filter(d=>d.frozen).length;
+      const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
+      const detailId = 'embryo-lot-detail-' + lotKey.replace(/[^a-zA-Z0-9]/g,'_');
+      const totalUsed = lotItems.reduce((s,e)=>{
+        return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
+      },0);
+      // 代表アイテムID（操作用）
+      const mainId = lotItems[0].id;
+
       return `<div style="background:var(--bg2);border:1px solid ${isLow?'var(--danger)':'var(--border)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'':'none'">
           <div style="flex:1;">
-            <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${e.lot||e.collectionDate||'—'}</span>
-            <span style="font-size:11px;color:var(--muted);margin-left:6px;">${e.collectionDate?fmtDate(e.collectionDate):''}</span>
-            <span style="background:${e.type==='frozen'?'#0a1a2a':'#0a2a1a'};border:1px solid ${e.type==='frozen'?'var(--info)':'var(--accent2)'};color:${e.type==='frozen'?'var(--info)':'var(--accent)'};padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-left:6px;">${lotBadge}</span>
+            <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${lotKey}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:6px;">${collDate?fmtDate(collDate):''}</span>
+            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-left:6px;">${lotBadge}</span>
           </div>
-          <div style="font-size:22px;font-weight:900;color:${isLow||e.stock<0?'var(--danger)':'var(--purple)'};">${e.stock<0?'⚠'+e.stock:e.stock}<span style="font-size:10px;color:var(--muted);">本</span></div>
+          <div style="font-size:22px;font-weight:900;color:${isLow||lotStock<0?'var(--danger)':'var(--purple)'};">${lotStock<0?'⚠'+lotStock:lotStock}<span style="font-size:10px;color:var(--muted);">本</span></div>
           <span style="font-size:11px;color:var(--muted);">▾</span>
         </div>
         <div id="${detailId}" style="display:none;margin-top:8px;">
-          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:var(--muted);">累計使用: ${totalUsed}本</span>
-            <span style="font-size:11px;color:var(--warn);">アラート: ${e.alertThreshold||2}本</span>
-          </div>
-          ${det ? renderEmbryoDetails(det) : ''}
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
+          ${allDetails.length ? renderEmbryoDetails(allDetails) : ''}
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-            <button class="btn btn-primary" style="font-size:11px;padding:5px 10px;" onclick="openEmbryoRestock('${e.id}')">📦 入荷・補充</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openEditEmbryo('${e.id}')">✏ 編集</button>
-            <button onclick="openUseRecord('embryo','${e.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
-            <button onclick="confirmDeleteEmbryo('${e.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">削除</button>
+            <button class="btn btn-primary" style="font-size:11px;padding:5px 10px;" onclick="openEmbryoRestock('${mainId}')">📦 入荷・補充</button>
+            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openEditEmbryo('${mainId}')">✏ 編集</button>
+            <button onclick="openUseRecord('embryo','${mainId}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
+            <button onclick="confirmDeleteEmbryo('${mainId}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">削除</button>
           </div>
         </div>
       </div>`;
