@@ -6609,9 +6609,9 @@ function renderCollectionTab() {
           <span style="font-size:13px;font-weight:700;color:var(--text);">${fmtDate(r.date)}</span>
           <span style="font-size:12px;color:var(--muted);margin-left:8px;">${r.lot||''}</span>
         </div>
-        <div style="display:flex;gap:6px;">
-          <button onclick="openEditCollection('${r.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">✏ 編集</button>
-          <button onclick="deleteCollectionRecord('${r.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:3px 8px;border-radius:5px;cursor:pointer;">🗑 削除</button>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          <button onclick="openEditCollection('${r.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;">✏ 編集</button>
+          <button onclick="deleteCollectionRecord('${r.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:3px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;">🗑 削除</button>
         </div>
       </div>
       <div style="font-size:12px;color:var(--accent);font-weight:700;">${donorName} × ${r.sire||''}</div>
