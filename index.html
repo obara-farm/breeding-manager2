@@ -7555,8 +7555,7 @@ function saveCollection() {
   const cultureEmbryos = getColCultureEmbryos();
   const editId = document.getElementById('collection-edit-id').value;
 
-  // デバッグ確認
-  alert(`保存開始\n日付:${date}\nドナー:${donorId}\n凍結:${frozenEmbryos.length}本\n新鮮:${freshEmbryos.length}本\n培養:${cultureEmbryos.length}本\n編集ID:${editId||'新規'}`);
+
 
   const rec = {
     id: editId || Math.random().toString(36).slice(2),
@@ -7664,8 +7663,27 @@ function saveCollection() {
     collectionRecordsNew.push(rec);
   }
 
-  // 新規保存時のみ在庫追加・タスク生成を実行
-  if (!editId) {
+  // 在庫追加・タスク生成を実行（新規・編集ともに）
+  // 編集時は既存在庫を一旦削除して再登録
+  if (editId) {
+    // 同ロット在庫から今回の採卵分の履歴を削除してstock再計算
+    embryoInventory.forEach(inv => {
+      if (!inv.dam || !inv.dam.includes(donorId)) return;
+      if (inv.lot !== (lot||date) && inv.collectionDate !== date) return;
+      // selfcollect履歴のうちこの採卵記録分を削除
+      inv.history = (inv.history||[]).filter(h =>
+        !(h.type === 'selfcollect' && h.date === date && h.memo?.includes(lot||date))
+      );
+      // embryoDetailsも今回分をリセット
+      inv.embryoDetails = [];
+      inv.stock = 0;
+      syncStockFromHistory(inv);
+    });
+    // stock=0になった在庫アイテムを削除
+    embryoInventory = embryoInventory.filter(inv =>
+      !(inv.dam?.includes(donorId) && inv.collectionDate === date && inv.stock === 0 && (inv.history||[]).length === 0)
+    );
+  }
   // 凍結胚を受精卵在庫に追加（selfcollect）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
@@ -7833,7 +7851,7 @@ function saveCollection() {
       }
     }
   }
-  } // 新規保存ブロック終了
+
 
   // タスクから開いた場合は培養タスクを完了に
   const taskIdFromTask = document.getElementById('collection-edit-id').dataset.taskId;
