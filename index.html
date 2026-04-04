@@ -7801,7 +7801,7 @@ function saveCollection() {
     if (fe.recipientId) {
       // 当日移植：受卵牛にET記録（新鮮胚は常に当日移植）
       const freshNo = fe.embryoNo || `${lot||date}-${i+1}`;
-      _processFreshEtNow(rec, fe, freshNo, date);
+      _processFreshEtNow(rec, fe, freshNo, date, '🌱新鮮胚');
     } else if (fe.action === 'freeze_now') {
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
@@ -7813,7 +7813,7 @@ function saveCollection() {
       const feNo = fe.embryoNo || `${lot||date}-c${i+1}`;
       if (fe.cultureResult === 'et' && fe.recipientId) {
         // 翌日移植確定
-        _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, feNo, date);
+        _processFreshEtNow(rec, {...fe, stage: fe.cultureStage||fe.stage, rank: fe.cultureRank||fe.rank}, feNo, date, '🌱新鮮培養胚');
       } else if (fe.cultureResult === 'freeze') {
         // 翌日凍結
         _processFreshToFreeze(rec, fe, feNo, date, lot);
@@ -7884,7 +7884,7 @@ function saveCollection() {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
         recipientId: ce.recipientId,
-      }, ceEmbryoNo, date);
+      }, ceEmbryoNo, date, '🌱新鮮培養胚');
     } else if (ce.cultureResult === 'freeze') {
       // 入力済み胚番号・ケーン番号を使って凍結処理
       _processFreshToFreezeWithNo(rec, {
@@ -7955,46 +7955,62 @@ function saveCollection() {
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
 }
 
-function _processFreshEtNow(rec, fe, embryoNo, date) {
+function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
+  // embryoTypeLabel: '🌱新鮮胚' or '🌱新鮮培養胚'
+  const label = embryoTypeLabel || '🌱新鮮胚';
   const donorName = cowDisplayName(rec.donorId)||rec.donorId;
-  // 在庫に新鮮胚として一時入庫→即使用
-  const invItem = {
-    id: Math.random().toString(36).slice(2),
-    sire: rec.sire||'', dam: donorName, lot: rec.lot||date,
-    type: 'fresh', breed: '黒毛', stage: fe.stage||'',
-    stock: 0, alertThreshold: 0, noAlert: true,
-    collectionDate: date, history: [
-      { date, type:'selfcollect', count:1, memo:`採卵 新鮮胚${embryoNo}` },
-      { date, type:'use', count:1, cowId: fe.recipientId, memo:`当日移植 ${embryoNo}` },
-    ],
-  };
-  embryoInventory.push(invItem);
-  // 受卵牛にET記録
   const recip = cows.find(c=>c.id===fe.recipientId);
-  if (recip) {
+  if (!recip) return;
+
+  // 受卵牛の既存ET記録チェック（同日・同胚番号の重複防止）
+  const memo = `胚番号:${embryoNo} ドナー:${donorName} ランク:${fe.rank||'—'} ${label}`;
+  const alreadyRecorded = (recip.events||[]).some(ev =>
+    ev.type === 'et_done' && ev.date === date && ev.memo?.includes(embryoNo)
+  );
+
+  // 在庫に新鮮胚として一時入庫→即使用（重複防止）
+  const alreadyInInv = embryoInventory.some(inv =>
+    inv.lot === (rec.lot||date) && inv.dam?.includes(rec.donorId) && inv.type === 'fresh' &&
+    (inv.history||[]).some(h=>h.type==='use'&&h.cowId===fe.recipientId&&h.memo?.includes(embryoNo))
+  );
+  if (!alreadyInInv) {
+    const invItem = {
+      id: Math.random().toString(36).slice(2),
+      sire: rec.sire||'', dam: donorName, lot: rec.lot||date,
+      type: 'fresh', breed: '黒毛', stage: fe.stage||'',
+      stock: 0, alertThreshold: 0, noAlert: true,
+      collectionDate: date, history: [
+        { date, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
+        { date, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
+      ],
+    };
+    embryoInventory.push(invItem);
+  }
+
+  if (!alreadyRecorded) {
     recip.events = recip.events||[];
-    const memo = `胚番号:${embryoNo} ドナー:${donorName} ランク:${fe.rank||'—'} 🌱新鮮胚`;
     recip.events.push({ type:'et_done', date, memo });
     recip.status = 'program';
-    // 妊鑑タスク
+    // 妊鑑タスク（既存を更新）
     const pregDate = addDays(date, 35);
     tasks = tasks.filter(t=>!(t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定')));
     tasks.push({
       id: Math.random().toString(36).slice(2), cowId: fe.recipientId,
       date: pregDate, action: '妊娠鑑定',
-      detail: `ET後35日 (ET日:${fmtDate(date)}) 新鮮胚`,
+      detail: `ET後35日 (ET日:${fmtDate(date)}) ${label}`,
       color: '#f59e0b', priority: 'high', done: false,
     });
-    addInsemBookRecord(fe.recipientId, date, memo, 'et');
-    // ET実施タスクを自動完了
+    // 授精簿（重複防止）
+    const alreadyInBook = insemBookRecords.some(r =>
+      r.t === fe.recipientId && r.d === date && r.m?.includes(embryoNo)
+    );
+    if (!alreadyInBook) addInsemBookRecord(fe.recipientId, date, memo, 'et');
+    // ET実施タスク自動完了
     const etTask = tasks.find(t =>
       t.cowId === fe.recipientId && !t.done &&
       (t.action.includes('胚移植') || t.action.includes('ET'))
     );
-    if (etTask) {
-      etTask.done = true;
-      etTask.doneAt = new Date().toISOString();
-    }
+    if (etTask) { etTask.done = true; etTask.doneAt = new Date().toISOString(); }
   }
 }
 
