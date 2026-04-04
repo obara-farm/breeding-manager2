@@ -7216,7 +7216,7 @@ function onColFreshCountInput(val, existing) {
         </td>
         <td style="padding:2px 3px;color:var(--muted);font-size:10px;text-align:center;">—</td><!-- ケーン列（空） -->
         <td style="padding:2px 3px;">
-          <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:54px;">
             <option value="">—</option>
             <option value="CM" ${ex?.stage==='CM'?'selected':''}>CM</option>
             <option value="EB" ${ex?.stage==='EB'?'selected':''}>EB</option>
@@ -7225,7 +7225,7 @@ function onColFreshCountInput(val, existing) {
           </select>
         </td>
         <td style="padding:2px 3px;">
-          <select class="cfr-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+          <select class="cfr-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:44px;">
             <option value="">—</option>
             <option value="A" ${ex?.rank==='A'?'selected':''}>A</option>
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
@@ -7373,8 +7373,8 @@ function onColCultureCountInput(val, existing) {
             readonly style="background:${ex?.embryoNo?'var(--bg2)':'var(--bg3)'};border:1px solid ${ex?.embryoNo?'var(--info)':'var(--border)'};color:${ex?.embryoNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
         </td>
         <td style="padding:2px 2px;min-width:70px;">
-          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="—"
-            readonly style="background:${ex?.caneNo?'var(--bg2)':'var(--bg3)'};border:1px solid ${ex?.caneNo?'var(--info)':'var(--border)'};color:${ex?.caneNo?'var(--info)':'var(--muted)'};font-size:10px;padding:2px 3px;border-radius:3px;width:68px;">
+          <input type="text" class="cul-cane-no" value="${ex?.caneNo||''}" placeholder="自動"
+            style="background:var(--bg);border:1px solid ${ex?.caneNo?'var(--info)':'var(--border)'};color:${ex?.caneNo?'var(--info)':'var(--text)'};font-size:10px;padding:2px 3px;border-radius:3px;width:80px;">
         </td>
         <td style="padding:2px 3px;">
           <select class="cul-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:46px;">
@@ -7526,29 +7526,31 @@ function onCultureActionChange(sel) {
         embryoNoInput.style.color = 'var(--info)';
       }
 
-      // ケーン番号：既存在庫の最後のケーン末尾アルファベットの次
-      let maxCaneCode = 64; // 'A'-1
-      embryoInventory.forEach(inv => {
-        if (!inv.dam || !inv.dam.includes(document.getElementById('col-donor').value)) return;
-        if (inv.lot !== (lot || colDate)) return;
-        (inv.embryoDetails||[]).forEach(ed => {
-          if (ed.cane) {
-            const m = ed.cane.match(/([A-Z])$/);
-            if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0));
-          }
-        });
-      });
-      // 凍結胚テーブルのケーン番号も考慮
-      const frozenCanes = new Set();
-      document.querySelectorAll('#col-frozen-tbody .cf-cane').forEach(inp => { if (inp.value) frozenCanes.add(inp.value); });
-      frozenCanes.forEach(c => { const m = c.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); });
-      // 今回すでに割り当てたケーン
-      rows.forEach(r => { const inp = r.querySelector('.cul-cane-no'); if (inp && inp.value) { const m = inp.value.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); } });
-
-      const newCane = lot ? `${lot}-${String.fromCharCode(maxCaneCode+1)}` : '';
+      // ケーン番号：凍結胚テーブルのケーンの続きから、5本ごとに同じケーン
       if (caneNoInput && !caneNoInput.value) {
+        // 既存ケーンの最大アルファベットを取得
+        let maxCaneCode = 64; // 'A'-1
+        embryoInventory.forEach(inv => {
+          if (!inv.dam?.includes(document.getElementById('col-donor').value)) return;
+          if (inv.lot !== (lot || colDate)) return;
+          (inv.embryoDetails||[]).forEach(ed => {
+            if (ed.cane) { const m = ed.cane.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); }
+          });
+        });
+        // 凍結胚テーブルのケーン
+        document.querySelectorAll('#col-frozen-tbody .cf-cane').forEach(inp => {
+          if (inp.value) { const m = inp.value.match(/([A-Z])$/); if (m) maxCaneCode = Math.max(maxCaneCode, m[1].charCodeAt(0)); }
+        });
+        // 培養胚テーブルで既に凍結選択した行数を数える（5本ごとに同ケーン）
+        let cultureFreezeCnt = 0;
+        rows.forEach(r => {
+          if (r === row) return;
+          if (r.querySelector('.cul-action')?.value === 'freeze') cultureFreezeCnt++;
+        });
+        const baseCaneCode = maxCaneCode + 1; // 凍結胚テーブルの次のアルファベット
+        const caneOffset = Math.floor(cultureFreezeCnt / 5);
+        const newCane = lot ? `${lot}-${String.fromCharCode(baseCaneCode + caneOffset)}` : '';
         caneNoInput.value = newCane;
-        caneNoInput.style.background = 'var(--bg2)';
         caneNoInput.style.borderColor = 'var(--info)';
         caneNoInput.style.color = 'var(--info)';
       }
@@ -12894,7 +12896,7 @@ try {
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--accent);">💉 当日移植</th>
+              <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">💉 当日移植</th>
               <th style="padding:4px 5px;color:var(--muted);">移植先</th>
             </tr>
           </thead>
