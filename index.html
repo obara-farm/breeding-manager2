@@ -7554,11 +7554,14 @@ function onCultureRecipSearch(input) {
 }
 
 function selectCultureRecip(el, id, label) {
-  const td = el.closest('td');
-  td.querySelector('.cul-recipient').value = id;
-  const inp = td.querySelector('.cul-recip-search');
-  inp.value = label; inp.style.borderColor = 'var(--accent2)';
-  td.querySelector('.cul-recip-list').style.display = 'none';
+  const row = el.closest('tr');
+  if (!row) return;
+  const hidden = row.querySelector('.cul-recipient');
+  if (hidden) hidden.value = id;
+  const inp = row.querySelector('.cul-recip-search');
+  if (inp) { inp.value = label; inp.style.borderColor = 'var(--accent2)'; }
+  const list = row.querySelector('.cul-recip-list');
+  if (list) list.style.display = 'none';
 }
 
 
