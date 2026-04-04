@@ -7818,8 +7818,6 @@ function saveCollection() {
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
       _processFreshToFreezeWithNo(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, freezeNo, '', date, lot);
-      if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
-      rec.frozenEmbryos.push({no: freezeNo});
     } else if (fe.action === 'culture') {
       // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
       const feNo = fe.embryoNo || `${lot||date}-c${i+1}`;
@@ -7903,8 +7901,6 @@ function saveCollection() {
         stage: ce.stage, rank: ce.rank,
         cultureStage: ce.cultureStage, cultureRank: ce.cultureRank,
       }, ceEmbryoNo, ceCaneNo, date, lot);
-      if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
-      rec.frozenEmbryos.push({no: ceEmbryoNo});
     } else if (ce.cultureResult === '') {
       // 結果未入力→翌日タスク生成
       tasks.push({
