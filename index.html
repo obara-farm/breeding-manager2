@@ -7788,40 +7788,24 @@ function saveCollection() {
   // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
-    // 同ロット・同採卵日の既存アイテムを探す
-    // 編集時は全アイテムの胚詳細をリセットしてから再登録（重複防止）
-    const existingItems = embryoInventory.filter(e =>
-      e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen' && e.collectionDate === date
+    // 同ロット・同採卵日の既存アイテムを全て削除してから再作成（完全リセット）
+    embryoInventory = embryoInventory.filter(e =>
+      !(e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen' && e.collectionDate === date && !(e.embryoDetails||[]).some(d=>d.cultured))
     );
-    // 既存の当日凍結胚詳細をクリア（培養胚は保持）
-    existingItems.forEach(e => {
-      e.embryoDetails = (e.embryoDetails||[]).filter(d => d.cultured);
-      e.stock = e.embryoDetails.filter(d=>d.frozen).length;
-    });
-    // 代表アイテムを使う or 新規作成
-    let invItem = existingItems[0];
-    if (!invItem) {
-      invItem = {
-        id: Math.random().toString(36).slice(2),
-        sire: sire||'', dam: donorName, lot: lot||date,
-        type: 'frozen', breed: '黒毛', stage: frozenEmbryos[0]?.stage||'',
-        stock: 0, alertThreshold: 2, noAlert: false,
-        collectionDate: date, history: [],
-        embryoDetails: [],
-      };
-      embryoInventory.push(invItem);
-    }
-    if (!invItem.embryoDetails) invItem.embryoDetails = [];
-    // 胚詳細に入庫日（採卵日）を付与して登録
-    const newDetails = frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date}));
-    newDetails.forEach(nd => { invItem.embryoDetails.push(nd); });
-    invItem.stock = invItem.embryoDetails.filter(ed=>ed.frozen).length;
-    // 履歴重複防止
-    invItem.history = (invItem.history||[]).filter(h=>!(h.type==='selfcollect'&&h.date===date&&h.memo?.includes(lot||date)));
-    invItem.history.push({
-      date, type:'selfcollect', count: frozenEmbryos.length,
-      memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
-    });
+    // 新規作成
+    const invItem = {
+      id: Math.random().toString(36).slice(2),
+      sire: sire||'', dam: donorName, lot: lot||date,
+      type: 'frozen', breed: '黒毛', stage: frozenEmbryos[0]?.stage||'',
+      stock: frozenEmbryos.length, alertThreshold: 2, noAlert: false,
+      collectionDate: date,
+      history: [{
+        date, type:'selfcollect', count: frozenEmbryos.length,
+        memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
+      }],
+      embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
+    };
+    embryoInventory.push(invItem);
   }
 
   // 新鮮胚の処理
@@ -8143,21 +8127,26 @@ function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
     embryoInventory.push(invItem);
   }
   if (!invItem.embryoDetails) invItem.embryoDetails = [];
-  // 培養→凍結は翌日入庫
+  // 培養→凍結は翌日入庫（重複防止：同じ胚番号が既にあればスキップ）
   const cultureCollectedDate = addDays(date, 1);
-  invItem.embryoDetails.push({
-    no: embryoNo, cane: caneNo, stage: finalStage, rank: finalRank,
-    frozen: true, fresh: false,
-    cultured: true,
-    originalStage: fe.stage,
-    originalRank:  fe.rank,
-    collectedDate: cultureCollectedDate,
-  });
-  invItem.stock += 1;
-  invItem.history.push({
-    date, type:'selfcollect', count:1,
-    memo:`培養→凍結 ${embryoNo} ケーン:${caneNo} (採卵時:${fe.stage||'—'}${fe.rank||'—'}→培養後:${finalStage}${finalRank})`,
-  });
+  if (!invItem.embryoDetails.some(d=>d.no===embryoNo)) {
+    invItem.embryoDetails.push({
+      no: embryoNo, cane: caneNo, stage: finalStage, rank: finalRank,
+      frozen: true, fresh: false,
+      cultured: true,
+      originalStage: fe.stage,
+      originalRank:  fe.rank,
+      collectedDate: cultureCollectedDate,
+    });
+    invItem.stock += 1;
+  }
+  // 履歴重複防止
+  if (!invItem.history.some(h=>h.type==='selfcollect'&&h.memo?.includes(embryoNo))) {
+    invItem.history.push({
+      date, type:'selfcollect', count:1,
+      memo:`培養→凍結 ${embryoNo} ケーン:${caneNo} (採卵時:${fe.stage||'—'}${fe.rank||'—'}→培養後:${finalStage}${finalRank})`,
+    });
+  }
 }
 
 
