@@ -7201,7 +7201,6 @@ function onColFreshCountInput(val, existing) {
   for (let i = 0; i < n; i++) {
     const exSaved = savedFresh[i];
     const ex = exSaved?.embryoNo ? exSaved : (existing && existing[i]);
-      const ex = existing && existing[i];
       const lot2 = document.getElementById('col-lot').value || '';
       const date2 = document.getElementById('col-date').value || '';
       // 新鮮胚・培養胚テーブル横断で最大番号取得して連番
