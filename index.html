@@ -7555,6 +7555,9 @@ function saveCollection() {
   const cultureEmbryos = getColCultureEmbryos();
   const editId = document.getElementById('collection-edit-id').value;
 
+  // デバッグ確認
+  alert(`保存開始\n日付:${date}\nドナー:${donorId}\n凍結:${frozenEmbryos.length}本\n新鮮:${freshEmbryos.length}本\n培養:${cultureEmbryos.length}本\n編集ID:${editId||'新規'}`);
+
   const rec = {
     id: editId || Math.random().toString(36).slice(2),
     date, lot, donorId, sire, operator, aiDate, pg,
