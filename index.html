@@ -1262,7 +1262,7 @@ textarea{resize:vertical;}
     </div>
 
     <!-- 日付・メモ -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
       <div class="form-group">
         <label>日付</label>
         <input type="date" id="embryo-restock-date">
@@ -1270,6 +1270,25 @@ textarea{resize:vertical;}
       <div class="form-group">
         <label>相手先・メモ（任意）</label>
         <input type="text" id="embryo-restock-memo" placeholder="例: ○○農協より">
+      </div>
+    </div>
+    <!-- 採卵日（入庫時のみ：プレフィックス自動生成） -->
+    <div id="ert-collect-date-row" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">採卵日（胚番号自動生成用）</label>
+          <input type="date" id="ert-collect-date" oninput="onErtCollectDateChange()"
+            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:4px 8px;border-radius:6px;width:100%;">
+        </div>
+        <div style="flex:2;min-width:200px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px;">生成されるプレフィックス</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--muted);">❄️凍結番号:</span>
+            <code id="ert-prefix-frozen" style="font-size:12px;color:var(--info);background:var(--bg);padding:2px 6px;border-radius:4px;">—</code>
+            <span style="font-size:11px;color:var(--muted);">ケーン/新鮮:</span>
+            <code id="ert-prefix-lot" style="font-size:12px;color:var(--accent);background:var(--bg);padding:2px 6px;border-radius:4px;">—</code>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -10832,9 +10851,16 @@ function renderEmbryo() {
       return `<div style="background:var(--bg2);border:1px solid ${isLow?'var(--danger)':'var(--border)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="const el=document.getElementById('${detailId}');if(el)el.style.display=el.style.display==='none'?'':'none'">
           <div style="flex:1;">
-            <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${lotKey}</span>
+            <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${lotKey==='—'?'（ロット未設定）':lotKey}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:6px;">${collDate?fmtDate(collDate):''}</span>
             <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700;margin-left:6px;">${lotBadge}</span>
+            ${(()=>{
+              const h = lotItems[0]?.history||[];
+              if (!h.length) return '';
+              const first = h[0];
+              const typeLabel = {restock:'🤝譲受',selfcollect:'🥚自家採卵',carryover:'📦繰越',use:'🧬使用',transfer:'📤譲渡',discard:'🗑廃棄'}[first.type]||first.type;
+              return `<span style="font-size:10px;color:var(--muted);margin-left:6px;">${typeLabel} ${first.date?fmtDate(first.date):''}</span>`;
+            })()}
           </div>
           <div style="font-size:22px;font-weight:900;color:${isLow||lotStock<0?'var(--danger)':'var(--purple)'};">${lotStock<0?'⚠'+lotStock:lotStock}<span style="font-size:10px;color:var(--muted);">本</span></div>
           <span style="font-size:11px;color:var(--muted);">▾</span>
@@ -10999,6 +11025,9 @@ function setEmbryoRestockType(type) {
     btn.style.color = active ? (colors[t]||'var(--purple)') : 'var(--muted)';
     btn.style.background = active ? 'var(--bg2)' : 'var(--bg3)';
   });
+  // 採卵日欄は入庫時のみ表示
+  const collectRow = document.getElementById('ert-collect-date-row');
+  if (collectRow) collectRow.style.display = isIn ? '' : 'none';
   if (!isIn) {
     renderErtOutList();
   }
@@ -11008,6 +11037,18 @@ function _buildErtRows(tbodyId, n, saved, hasCane) {
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
   tbody.innerHTML = '';
+  // プレフィックスを取得
+  const collectDate = document.getElementById('ert-collect-date')?.value||'';
+  let frozenPrefix = '01L237Rx-', lotPrefix = 'YYMMB';
+  if (collectDate) {
+    const d = new Date(collectDate);
+    const yr2 = String(d.getFullYear()).slice(-2);
+    const mc  = String.fromCharCode(64 + d.getMonth() + 1);
+    const day = String(d.getDate()).padStart(2,'0');
+    const fy  = d.getFullYear() - 2018;
+    lotPrefix    = `${yr2}${mc}${day}B`;
+    frozenPrefix = `01L237R${fy}-`;
+  }
   for (let i = 0; i < n; i++) {
     const s = saved[i]||{};
     const tr = document.createElement('tr');
@@ -11015,12 +11056,12 @@ function _buildErtRows(tbodyId, n, saved, hasCane) {
     let html = `
       <td style="padding:3px 4px;text-align:center;color:var(--muted);font-size:11px;">${i+1}</td>
       <td style="padding:2px 3px;">
-        <input type="text" class="ert-no" value="${s.no||''}" placeholder="胚番号（任意）"
+        <input type="text" class="ert-no" value="${s.no||''}" placeholder="${hasCane ? frozenPrefix+'(番号)' : lotPrefix+'(1/2...)'}"
           style="background:var(--bg);border:1px solid var(--border);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;">
       </td>`;
     if (hasCane) {
       html += `<td style="padding:2px 3px;">
-        <input type="text" class="ert-cane" value="${s.cane||''}" placeholder="ケーン"
+        <input type="text" class="ert-cane" value="${s.cane||''}" placeholder="${lotPrefix}(A/B...)"
           style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:80px;">
       </td>`;
     }
@@ -11044,6 +11085,36 @@ function _buildErtRows(tbodyId, n, saved, hasCane) {
     tr.innerHTML = html;
     tbody.appendChild(tr);
   }
+}
+
+function onErtCollectDateChange() {
+  const dateVal = document.getElementById('ert-collect-date').value;
+  const prefixFrozen = document.getElementById('ert-prefix-frozen');
+  const prefixLot    = document.getElementById('ert-prefix-lot');
+  if (!dateVal) {
+    if (prefixFrozen) prefixFrozen.textContent = '—';
+    if (prefixLot)    prefixLot.textContent    = '—';
+    return;
+  }
+  const d = new Date(dateVal);
+  const yr2  = String(d.getFullYear()).slice(-2);           // 26
+  const monthChar = String.fromCharCode(64 + d.getMonth() + 1); // 1月=A, 3月=C
+  const day  = String(d.getDate()).padStart(2,'0');          // 31
+  const fy   = d.getFullYear() - 2018;                      // R8
+  const lotPrefix    = `${yr2}${monthChar}${day}B`;         // 26C31B
+  const frozenPrefix = `01L237R${fy}-`;                     // 01L237R8-
+  if (prefixFrozen) prefixFrozen.textContent = frozenPrefix;
+  if (prefixLot)    prefixLot.textContent    = lotPrefix;
+  // テーブルの既存行のプレースホルダーを更新
+  document.querySelectorAll('#ert-frozen-tbody .ert-no').forEach(inp => {
+    inp.placeholder = frozenPrefix + '(番号)';
+  });
+  document.querySelectorAll('#ert-frozen-tbody .ert-cane').forEach(inp => {
+    inp.placeholder = lotPrefix + '(A/B/C...)';
+  });
+  document.querySelectorAll('#ert-fresh-tbody .ert-no').forEach(inp => {
+    inp.placeholder = lotPrefix + '(1/2/3...)';
+  });
 }
 
 function onErtFrozenCountChange(val) {
@@ -11112,19 +11183,25 @@ function updateErtOutCount() {
 }
 
 function openEmbryoRestock(id) {
-  // ロットの全アイテムのIDを探す（mainIdから同ロット全体のinvを特定）
   const mainInv = embryoInventory.find(e=>e.id===id);
   if (!mainInv) return;
   document.getElementById('embryo-restock-id').value = id;
   document.getElementById('embryo-restock-title').textContent =
     `📋 ${mainInv.dam?mainInv.dam+"×":""}${mainInv.sire} — 在庫を記録`;
-  // 同ロットの合計在庫を表示
   const lotItems = embryoInventory.filter(e=>e.lot===mainInv.lot&&e.collectionDate===mainInv.collectionDate);
   const totalStock = lotItems.reduce((s,e)=>s+e.stock,0);
   document.getElementById('embryo-restock-info').innerHTML =
     `現在の在庫: <strong style="color:var(--purple);font-size:18px;">${totalStock}本</strong>`;
   document.getElementById('embryo-restock-date').value = today();
   document.getElementById('embryo-restock-memo').value = '';
+  // 採卵日・プレフィックスリセット
+  const cdEl = document.getElementById('ert-collect-date');
+  if (cdEl) cdEl.value = '';
+  const pfEl = document.getElementById('ert-prefix-frozen');
+  const plEl = document.getElementById('ert-prefix-lot');
+  if (pfEl) pfEl.textContent = '—';
+  if (plEl) plEl.textContent = '—';
+  // 入力欄リセット
   document.getElementById('ert-frozen-count').value = 0;
   document.getElementById('ert-fresh-count').value = 0;
   document.getElementById('ert-unknown-count').value = 0;
@@ -11135,6 +11212,7 @@ function openEmbryoRestock(id) {
   setEmbryoRestockType('restock');
   openModal('modal-embryo-restock');
 }
+
 
 function saveEmbryoRestock() {
   const id = document.getElementById('embryo-restock-id').value;
