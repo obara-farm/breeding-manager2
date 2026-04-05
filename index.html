@@ -7099,12 +7099,24 @@ function onColDonorChange() {
     e.type === 'ai_done' && e.donorAI && e.date
   ).sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
 
-  // 両方をマージ（日付でユニーク化）
+  // 既存の採卵記録で使用済みのAI日付を収集（編集中の記録は除く）
+  const editingId = document.getElementById('collection-edit-id')?.value || '';
+  const usedAIDates = new Set();
+  (collectionRecordsNew||[]).forEach(rec => {
+    if (rec.id === editingId) return; // 編集中の記録自身は除外しない
+    if (rec.donorId !== donorId) return;
+    (rec.aiDates||[]).forEach(ai => usedAIDates.add(ai.date));
+    if (rec.aiDate) usedAIDates.add(rec.aiDate);
+  });
+
+  // 両方をマージ（日付でユニーク化・使用済みは除外）
   const allAIDates = {};
   darList.forEach(r => {
+    if (usedAIDates.has(r.date)) return;
     allAIDates[r.date] = allAIDates[r.date] || { date:r.date, semen:r.semenName, time:r.time, count:r.count };
   });
   donorEventsAI.forEach(e => {
+    if (usedAIDates.has(e.date)) return;
     if (!allAIDates[e.date]) {
       const sm = (e.memo||'').match(/精液:([^／\s]+)/);
       allAIDates[e.date] = { date:e.date, semen:sm?sm[1]:'', time:e.time||'', count:1 };
