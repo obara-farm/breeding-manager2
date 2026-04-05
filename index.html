@@ -7336,6 +7336,8 @@ function onColFreshCountInput(val, existing) {
     recipientId: r.querySelector('.cfr-recipient')?.value || '',
     recipLabel:  r.querySelector('.cfr-recip-search')?.value || '',
     embryoNo2:   r.querySelector('.cfr-embryo-no2')?.value || '',
+    stage2:      r.querySelector('.cfr-stage2')?.value || '',
+    rank2:       r.querySelector('.cfr-rank2')?.value || '',
   }));
   tbody.innerHTML = '';
   const lot2 = document.getElementById('col-lot').value || '';
@@ -7386,7 +7388,22 @@ function onColFreshCountInput(val, existing) {
         <td style="padding:2px 4px;white-space:nowrap;vertical-align:top;">
           <button type="button" onclick="toggleFreshSecondEmbryo(this)" style="background:#0a1a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">＋2卵目</button>
           <div class="cfr-second-wrap" style="display:${ex?.embryoNo2?'':' none'};margin-top:3px;">
-            <input type="text" class="cfr-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目の胚番号" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
+            <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
+              <input type="text" class="cfr-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目（自動）"
+                style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:110px;font-family:'JetBrains Mono',monospace;">
+              <select class="cfr-stage2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:46px;">
+                <option value="">S</option>
+                <option value="CM" ${ex?.stage2==='CM'?'selected':''}>CM</option>
+                <option value="EB" ${ex?.stage2==='EB'?'selected':''}>EB</option>
+                <option value="BL" ${ex?.stage2==='BL'?'selected':''}>BL</option>
+                <option value="EX" ${ex?.stage2==='EX'?'selected':''}>EX</option>
+              </select>
+              <select class="cfr-rank2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:38px;">
+                <option value="">R</option>
+                <option value="A" ${ex?.rank2==='A'?'selected':''}>A</option>
+                <option value="B" ${ex?.rank2==='B'?'selected':''}>B</option>
+              </select>
+            </div>
           </div>
         </td>`;
       // recipientId復元
@@ -7420,14 +7437,58 @@ function toggleCultureSecondEmbryo(btn) {
   const wrap = btn.closest('td').querySelector('.cul-second-wrap');
   if (!wrap) return;
   const isHidden = wrap.style.display === 'none' || wrap.style.display === '';
-  wrap.style.display = isHidden ? 'block' : 'none';
+  wrap.style.display = isHidden ? '' : 'none';
   btn.textContent = isHidden ? '－2卵目' : '＋2卵目';
   btn.style.borderColor = isHidden ? 'var(--warn)' : 'var(--purple)';
   btn.style.color = isHidden ? 'var(--warn)' : 'var(--purple)';
-  if (!isHidden) {
+  if (isHidden) {
+    const inp = wrap.querySelector('.cul-embryo-no2');
+    if (inp && !inp.value) {
+      // 1卵目の胚番号から連番で採番
+      const row = btn.closest('tr');
+      const no1inp = row.querySelector('.cul-embryo-no');
+      const no1 = no1inp ? no1inp.value : '';
+      const colDate = document.getElementById('col-date').value || '';
+      const d = colDate ? new Date(colDate) : new Date();
+      const fy = d.getFullYear() - 2018;
+      const yl = `R${fy}`;
+      const exLot = (document.getElementById('col-lot').value||'') || colDate;
+      let maxNo = getMaxEmbryoNo(yl, exLot, colDate);
+      // 現在行の1卵目番号も参照
+      const m = no1.match(/01L237R\d+-(\d+)$/);
+      if (m) maxNo = Math.max(maxNo, parseInt(m[1]));
+      inp.value = `01L237${yl}-${String(maxNo + 1).padStart(4,'0')}`;
+    }
+  } else {
     const inp = wrap.querySelector('.cul-embryo-no2');
     if (inp) inp.value = '';
   }
+}
+
+function addManualAIDate() {
+  const inp = document.getElementById('col-ai-date');
+  const date = inp.value;
+  if (!date) return;
+  // 重複チェック
+  const existing = getManualAIDates();
+  if (existing.includes(date)) { inp.value = ''; return; }
+  const list = document.getElementById('col-ai-manual-list');
+  const tag = document.createElement('div');
+  tag.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--accent2);border-radius:5px;padding:2px 8px;margin:2px;font-size:11px;';
+  tag.dataset.date = date;
+  tag.innerHTML = `<span style="color:var(--accent2);">${fmtDate(date)}</span><button type="button" onclick="this.closest('[data-date]').remove()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:0 2px;">✕</button>`;
+  list.appendChild(tag);
+  inp.value = '';
+}
+
+function getManualAIDates() {
+  const tags = document.querySelectorAll('#col-ai-manual-list [data-date]');
+  return Array.from(tags).map(t => t.dataset.date);
+}
+
+function clearManualAIDates() {
+  const list = document.getElementById('col-ai-manual-list');
+  if (list) list.innerHTML = '';
 }
 
 function toggleFreshSecondEmbryo(btn) {
@@ -7438,7 +7499,22 @@ function toggleFreshSecondEmbryo(btn) {
   btn.textContent = isHidden ? '－2卵目' : '＋2卵目';
   btn.style.borderColor = isHidden ? 'var(--warn)' : 'var(--purple)';
   btn.style.color = isHidden ? 'var(--warn)' : 'var(--purple)';
-  if (!isHidden) {
+  if (isHidden) {
+    // 展開時：2卵目胚番号を自動採番
+    const inp = wrap.querySelector('.cfr-embryo-no2');
+    if (inp && !inp.value) {
+      const lot2 = document.getElementById('col-lot').value || '';
+      const date2 = document.getElementById('col-date').value || '';
+      const freshBase = getMaxFreshNo(lot2);
+      // 現在の行の1卵目番号から末尾数字を取得して+1
+      const row = btn.closest('tr');
+      const no1inp = row.querySelector('.cfr-embryo-no');
+      const no1 = no1inp ? no1inp.value : '';
+      const m = no1.match(/-(\d+)$/);
+      const nextN = m ? parseInt(m[1]) + 1 : freshBase + 1;
+      inp.value = lot2 ? `${lot2}-${nextN}` : `${date2}-${nextN}`;
+    }
+  } else {
     const inp = wrap.querySelector('.cfr-embryo-no2');
     if (inp) inp.value = '';
   }
@@ -7516,6 +7592,8 @@ function getColFreshEmbryos() {
   return Array.from(rows).map(r => ({
     embryoNo:    r.querySelector('.cfr-embryo-no')?.value||'',
     embryoNo2:   r.querySelector('.cfr-embryo-no2')?.value||'',
+    stage2:      r.querySelector('.cfr-stage2')?.value||'',
+    rank2:       r.querySelector('.cfr-rank2')?.value||'',
     stage:       r.querySelector('.cfr-stage')?.value||'',
     rank:        r.querySelector('.cfr-rank')?.value||'',
     comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
@@ -7529,6 +7607,8 @@ function getColCultureEmbryos() {
   return Array.from(rows).map(r => ({
     embryoNo:      r.querySelector('.cul-embryo-no')?.value||'',
     embryoNo2:     r.querySelector('.cul-embryo-no2')?.value||'',
+    stage2:        r.querySelector('.cul-stage2')?.value||'',
+    rank2:         r.querySelector('.cul-rank2')?.value||'',
     caneNo:        r.querySelector('.cul-cane-no')?.value||'',
     stage:         r.querySelector('.cul-stage')?.value||'',
     rank:          r.querySelector('.cul-rank')?.value||'',
@@ -7615,7 +7695,22 @@ function onColCultureCountInput(val, existing) {
         <td style="padding:2px 4px;white-space:nowrap;vertical-align:top;display:${isET?'':'none'}" class="cul-second-td">
           <button type="button" onclick="toggleCultureSecondEmbryo(this)" style="background:#0a1a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">＋2卵目</button>
           <div class="cul-second-wrap" style="display:${ex?.embryoNo2?'':'none'};margin-top:3px;">
-            <input type="text" class="cul-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目の胚番号" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
+            <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
+              <input type="text" class="cul-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目（自動）"
+                style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:110px;font-family:'JetBrains Mono',monospace;">
+              <select class="cul-stage2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:46px;">
+                <option value="">S</option>
+                <option value="CM" ${ex?.stage2==='CM'?'selected':''}>CM</option>
+                <option value="EB" ${ex?.stage2==='EB'?'selected':''}>EB</option>
+                <option value="BL" ${ex?.stage2==='BL'?'selected':''}>BL</option>
+                <option value="EX" ${ex?.stage2==='EX'?'selected':''}>EX</option>
+              </select>
+              <select class="cul-rank2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:38px;">
+                <option value="">R</option>
+                <option value="A" ${ex?.rank2==='A'?'selected':''}>A</option>
+                <option value="B" ${ex?.rank2==='B'?'selected':''}>B</option>
+              </select>
+            </div>
           </div>
         </td>`;
       if (ex?.recipientId) {
@@ -7956,7 +8051,7 @@ function saveCollection() {
       // 当日移植：受卵牛にET記録（新鮮胚は常に当日移植）
       const freshNo = fe.embryoNo || `${lot||date}-${i+1}`;
       const freshNo2 = fe.embryoNo2 || '';
-      _processFreshEtNow(rec, fe, freshNo, date, '🌱新鮮胚', freshNo2);
+      _processFreshEtNow(rec, {...fe, stage2: fe.stage2||'', rank2: fe.rank2||''}, freshNo, date, '🌱新鮮胚', freshNo2);
     } else if (fe.action === 'freeze_now') {
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
@@ -8130,7 +8225,10 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2)
 
   // メモ：2卵移植の場合は両胚番号を記載
   const embryoNos = embryoNo2 ? `${embryoNo}・${embryoNo2}` : embryoNo;
-  const memo = `胚番号:${embryoNos} ドナー:${donorName} ランク:${fe.rank||'—'} ${label}`;
+  const rankInfo = embryoNo2
+    ? `${fe.stage||'—'}${fe.rank||'—'}・${fe.stage2||'—'}${fe.rank2||'—'}`
+    : `${fe.stage||'—'}${fe.rank||'—'}`;
+  const memo = `胚番号:${embryoNos} ドナー:${donorName} ${rankInfo} ${label}`;
   const alreadyRecorded = (recip.events||[]).some(ev =>
     ev.type === 'et_done' && ev.date === date && ev.memo?.includes(embryoNo)
   );
@@ -13440,7 +13538,13 @@ try {
         <div class="form-group">
           <label>AI日（授精日）</label>
           <div id="col-ai-date-list" style="display:none;background:var(--bg3);border:1px solid var(--accent2);border-radius:6px;padding:6px 8px;margin-bottom:4px;"></div>
-          <input type="date" id="col-ai-date" style="font-size:13px;">
+          <div id="col-ai-manual-wrap">
+            <div id="col-ai-manual-list" style="margin-bottom:4px;"></div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="date" id="col-ai-date" style="font-size:13px;flex:1;">
+              <button type="button" onclick="addManualAIDate()" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent2);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">＋ 追加</button>
+            </div>
+          </div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">ドナーAI記録がある場合は上に候補表示</div>
         </div>
       </div>
