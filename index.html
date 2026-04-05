@@ -1239,40 +1239,73 @@ textarea{resize:vertical;}
 
 <!-- EMBRYO RESTOCK MODAL -->
 <div class="modal-overlay" id="modal-embryo-restock">
-  <div class="modal">
+  <div class="modal" style="max-width:min(98vw,700px);">
     <div class="modal-title">
       <span id="embryo-restock-title">📋 受精卵 在庫を記録</span>
       <button class="modal-close" onclick="closeModal('modal-embryo-restock')">✕</button>
     </div>
     <input type="hidden" id="embryo-restock-id">
     <div id="embryo-restock-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;"></div>
+
+    <!-- 取引種別 -->
     <div class="form-group" style="margin-bottom:12px;">
       <label>取引種別</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-        <button type="button" id="ert-btn-restock" onclick="setEmbryoRestockType('restock')" style="background:#0a1a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
+        <button type="button" id="ert-btn-restock"     onclick="setEmbryoRestockType('restock')"     style="background:#0a1a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🤝 譲受</button>
         <button type="button" id="ert-btn-selfcollect" onclick="setEmbryoRestockType('selfcollect')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🥚 自家採卵</button>
-        <button type="button" id="ert-btn-carryover" onclick="setEmbryoRestockType('carryover')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
-        <button type="button" id="ert-btn-use" onclick="setEmbryoRestockType('use')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🧬 使用</button>
-        <button type="button" id="ert-btn-transfer" onclick="setEmbryoRestockType('transfer')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
-        <button type="button" id="ert-btn-discard" onclick="setEmbryoRestockType('discard')" style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🗑 廃棄</button>
+        <button type="button" id="ert-btn-carryover"   onclick="setEmbryoRestockType('carryover')"   style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📦 繰越</button>
+        <button type="button" id="ert-btn-use"         onclick="setEmbryoRestockType('use')"         style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🧬 使用</button>
+        <button type="button" id="ert-btn-transfer"    onclick="setEmbryoRestockType('transfer')"    style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">📤 譲渡</button>
+        <button type="button" id="ert-btn-discard"     onclick="setEmbryoRestockType('discard')"     style="background:var(--bg3);border:2px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px;border-radius:8px;cursor:pointer;">🗑 廃棄</button>
       </div>
       <input type="hidden" id="embryo-restock-type" value="restock">
     </div>
+
+    <!-- 日付・メモ -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <div class="form-group">
-        <label id="embryo-restock-count-label">本数</label>
-        <input type="number" id="embryo-restock-count" min="1" placeholder="例: 5">
-      </div>
       <div class="form-group">
         <label>日付</label>
         <input type="date" id="embryo-restock-date">
       </div>
+      <div class="form-group">
+        <label>相手先・メモ（任意）</label>
+        <input type="text" id="embryo-restock-memo" placeholder="例: ○○農協より">
+      </div>
     </div>
-    <div class="form-group" style="margin-bottom:14px;">
-      <label>相手先・メモ（任意）</label>
-      <input type="text" id="embryo-restock-memo" placeholder="例: ○○農協より、○○さんへ譲渡など">
+
+    <!-- 入庫系：胚詳細テーブル -->
+    <div id="ert-in-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <label style="font-size:12px;color:var(--info);">胚詳細（1本ずつ入力）</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="ert-in-count" min="1" value="1" oninput="onErtInCountChange(this.value)"
+            style="width:60px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:3px 6px;border-radius:6px;text-align:center;">
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px;">
+          <thead><tr style="background:var(--bg3);">
+            <th style="padding:4px 6px;color:var(--muted);text-align:center;width:28px;">#</th>
+            <th style="padding:4px 6px;color:var(--info);text-align:left;">胚番号</th>
+            <th style="padding:4px 6px;color:var(--info);">ケーン</th>
+            <th style="padding:4px 6px;color:var(--muted);">S</th>
+            <th style="padding:4px 6px;color:var(--muted);">R</th>
+          </tr></thead>
+          <tbody id="ert-in-tbody"></tbody>
+        </table>
+      </div>
     </div>
-    <button class="btn btn-primary" onclick="saveEmbryoRestock()" style="width:100%;">記録する</button>
+
+    <!-- 出庫系：在庫一覧から選択 -->
+    <div id="ert-out-section" style="display:none;">
+      <label style="font-size:12px;color:var(--danger);margin-bottom:6px;display:block;">出庫する胚を選択</label>
+      <div id="ert-out-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px;background:var(--bg3);">
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted);">選択数: <strong id="ert-out-count" style="color:var(--danger);">0</strong> 本</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveEmbryoRestock()" style="width:100%;margin-top:14px;">記録する</button>
   </div>
 </div>
 
@@ -10917,67 +10950,170 @@ function saveEmbryo() {
 
 function setEmbryoRestockType(type) {
   document.getElementById('embryo-restock-type').value = type;
-  const types = ['restock','selfcollect','carryover','use','transfer','discard'];
-  const activeColors = {
-    restock:     ['#0a1a2a','var(--purple)','var(--purple)'],
-    selfcollect: ['#0a2a1a','var(--accent2)','var(--accent)'],
-    carryover:   ['#1a1a2a','#3b4a6b','#e2e8f0'],
-    use:         ['#0a1a0a','var(--accent2)','var(--accent)'],
-    transfer:    ['#0a1a2a','var(--info)','var(--info)'],
-    discard:     ['#1a0808','var(--danger)','var(--danger)']
-  };
-  types.forEach(t => {
+  const isIn = ['restock','selfcollect','carryover'].includes(type);
+  document.getElementById('ert-in-section').style.display = isIn ? '' : 'none';
+  document.getElementById('ert-out-section').style.display = isIn ? 'none' : '';
+  ['restock','selfcollect','carryover','use','transfer','discard'].forEach(t => {
     const btn = document.getElementById(`ert-btn-${t}`);
     if (!btn) return;
-    if (t === type) {
-      btn.style.background = activeColors[t][0];
-      btn.style.borderColor = activeColors[t][1];
-      btn.style.color = activeColors[t][2];
-    } else {
-      btn.style.background = 'var(--bg3)';
-      btn.style.borderColor = 'var(--border)';
-      btn.style.color = 'var(--muted)';
-    }
+    const active = t === type;
+    const colors = {restock:'var(--purple)',selfcollect:'var(--accent2)',carryover:'var(--info)',use:'var(--danger)',transfer:'var(--warn)',discard:'var(--muted)'};
+    btn.style.borderColor = active ? (colors[t]||'var(--purple)') : 'var(--border)';
+    btn.style.color = active ? (colors[t]||'var(--purple)') : 'var(--muted)';
+    btn.style.background = active ? 'var(--bg2)' : 'var(--bg3)';
   });
-  const countLabel = document.getElementById('embryo-restock-count-label');
-  if (countLabel) countLabel.textContent =
-    type === 'restock' ? '譲受本数' : type === 'selfcollect' ? '採卵本数' :
-    type === 'carryover' ? '繰越本数' :
-    type === 'use' ? '使用本数' : type === 'transfer' ? '譲渡本数' : '廃棄本数';
+  if (isIn) {
+    onErtInCountChange(document.getElementById('ert-in-count').value||1);
+  } else {
+    renderErtOutList();
+  }
+}
+
+function onErtInCountChange(val) {
+  const n = parseInt(val)||1;
+  const tbody = document.getElementById('ert-in-tbody');
+  if (!tbody) return;
+  // 現在の入力値を保存
+  const saved = Array.from(tbody.querySelectorAll('tr')).map(r=>({
+    no: r.querySelector('.ert-no')?.value||'',
+    cane: r.querySelector('.ert-cane')?.value||'',
+    stage: r.querySelector('.ert-stage')?.value||'',
+    rank: r.querySelector('.ert-rank')?.value||'',
+  }));
+  tbody.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const s = saved[i]||{};
+    const tr = document.createElement('tr');
+    tr.style.background = i%2===0?'var(--bg2)':'var(--bg3)';
+    tr.innerHTML = `
+      <td style="padding:3px 4px;text-align:center;color:var(--muted);font-size:11px;">${i+1}</td>
+      <td style="padding:2px 3px;">
+        <input type="text" class="ert-no" value="${s.no||''}" placeholder="胚番号（任意）"
+          style="background:var(--bg);border:1px solid var(--border);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;">
+      </td>
+      <td style="padding:2px 3px;">
+        <input type="text" class="ert-cane" value="${s.cane||''}" placeholder="ケーン"
+          style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:80px;">
+      </td>
+      <td style="padding:2px 3px;">
+        <select class="ert-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:52px;">
+          <option value="">—</option>
+          <option value="CM" ${s.stage==='CM'?'selected':''}>CM</option>
+          <option value="EB" ${s.stage==='EB'?'selected':''}>EB</option>
+          <option value="BL" ${s.stage==='BL'?'selected':''}>BL</option>
+          <option value="EX" ${s.stage==='EX'?'selected':''}>EX</option>
+        </select>
+      </td>
+      <td style="padding:2px 3px;">
+        <select class="ert-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:44px;">
+          <option value="">—</option>
+          <option value="A" ${s.rank==='A'?'selected':''}>A</option>
+          <option value="B" ${s.rank==='B'?'selected':''}>B</option>
+        </select>
+      </td>`;
+    tbody.appendChild(tr);
+  }
+}
+
+function renderErtOutList() {
+  const id = document.getElementById('embryo-restock-id').value;
+  const inv = embryoInventory.find(e=>e.id===id);
+  const container = document.getElementById('ert-out-list');
+  if (!container) return;
+  const details = inv?.embryoDetails||[];
+  if (!details.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px;">胚番号の詳細が登録されていません。本数で直接入力してください。</div>';
+    // 本数入力欄を表示
+    container.innerHTML += `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:12px;color:var(--muted);">本数:</span>
+      <input type="number" id="ert-out-manual" min="1" placeholder="例: 2"
+        style="width:80px;background:var(--bg);border:1px solid var(--danger);color:var(--text);font-size:13px;padding:4px 8px;border-radius:6px;">
+    </div>`;
+    return;
+  }
+  container.innerHTML = details.map((d,i)=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;">
+      <input type="checkbox" class="ert-out-check" data-idx="${i}" onchange="updateErtOutCount()"
+        style="width:16px;height:16px;cursor:pointer;">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--info);min-width:130px;">${d.no||'—'}</span>
+      <span style="font-size:11px;color:var(--muted);">${d.cane||''}</span>
+      <span style="font-size:11px;color:var(--text);">${d.stage||'—'}</span>
+      <span style="font-size:11px;font-weight:700;color:${d.rank==='A'?'var(--accent)':'var(--warn)'};">${d.rank||'—'}</span>
+      ${d.cultured?'<span style="font-size:9px;color:var(--purple);border:1px solid var(--purple);padding:1px 4px;border-radius:3px;">[培養]</span>':''}
+    </label>`).join('');
+}
+
+function updateErtOutCount() {
+  const count = document.querySelectorAll('.ert-out-check:checked').length;
+  const el = document.getElementById('ert-out-count');
+  if (el) el.textContent = count;
 }
 
 function openEmbryoRestock(id) {
-  const e = embryoInventory.find(e=>e.id===id);
-  if (!e) return;
+  // ロットの全アイテムのIDを探す（mainIdから同ロット全体のinvを特定）
+  const mainInv = embryoInventory.find(e=>e.id===id);
+  if (!mainInv) return;
   document.getElementById('embryo-restock-id').value = id;
-  document.getElementById('embryo-restock-title').textContent = `📋 ${e.dam?e.dam+"×":""}${e.sire} — 在庫を記録`;
-  document.getElementById('embryo-restock-info').innerHTML = `現在の在庫: <strong style="color:var(--purple);font-size:18px;">${e.stock}本</strong>`;
-  document.getElementById('embryo-restock-count').value = '';
+  document.getElementById('embryo-restock-title').textContent =
+    `📋 ${mainInv.dam?mainInv.dam+"×":""}${mainInv.sire} — 在庫を記録`;
+  // 同ロットの合計在庫を表示
+  const lotItems = embryoInventory.filter(e=>e.lot===mainInv.lot&&e.collectionDate===mainInv.collectionDate);
+  const totalStock = lotItems.reduce((s,e)=>s+e.stock,0);
+  document.getElementById('embryo-restock-info').innerHTML =
+    `現在の在庫: <strong style="color:var(--purple);font-size:18px;">${totalStock}本</strong>`;
   document.getElementById('embryo-restock-date').value = today();
   document.getElementById('embryo-restock-memo').value = '';
+  document.getElementById('ert-in-count').value = 1;
   setEmbryoRestockType('restock');
   openModal('modal-embryo-restock');
 }
 
 function saveEmbryoRestock() {
   const id = document.getElementById('embryo-restock-id').value;
-  const count = parseInt(document.getElementById('embryo-restock-count').value);
   const type = document.getElementById('embryo-restock-type').value;
-  if (!count || count < 1) { alert('本数を入力してください'); return; }
-  const e = embryoInventory.find(e=>e.id===id);
-  if (!e) return;
-  if (type === 'restock' || type === 'carryover' || type === 'selfcollect') {
-    e.stock = (e.stock||0) + count;
+  const date = document.getElementById('embryo-restock-date').value;
+  const memo = document.getElementById('embryo-restock-memo').value.trim();
+  const isIn = ['restock','selfcollect','carryover'].includes(type);
+  const inv = embryoInventory.find(e=>e.id===id);
+  if (!inv) return;
+
+  if (isIn) {
+    // 入庫：胚詳細テーブルから取得
+    const rows = document.querySelectorAll('#ert-in-tbody tr');
+    if (!rows.length) { alert('胚を入力してください'); return; }
+    const newDetails = Array.from(rows).map(r=>({
+      no:    r.querySelector('.ert-no')?.value.trim()||'',
+      cane:  r.querySelector('.ert-cane')?.value.trim()||'',
+      stage: r.querySelector('.ert-stage')?.value||'',
+      rank:  r.querySelector('.ert-rank')?.value||'',
+      frozen: true, fresh: false,
+      collectedDate: date,
+    }));
+    if (!inv.embryoDetails) inv.embryoDetails = [];
+    newDetails.forEach(d => inv.embryoDetails.push(d));
+    inv.stock = (inv.stock||0) + newDetails.length;
+    inv.history = inv.history||[];
+    inv.history.push({ date, type, count: newDetails.length, memo });
   } else {
-    e.stock = (e.stock||0) - count;
+    // 出庫：チェックされた胚番号を削除
+    const checks = document.querySelectorAll('.ert-out-check:checked');
+    let count = checks.length;
+    if (!count) {
+      // 胚番号なしの場合は手動入力
+      const manual = parseInt(document.getElementById('ert-out-manual')?.value||'0');
+      if (!manual) { alert('出庫する胚を選択または本数を入力してください'); return; }
+      count = manual;
+      inv.stock = Math.max(0, (inv.stock||0) - count);
+    } else {
+      const idxToRemove = Array.from(checks).map(c=>parseInt(c.dataset.idx)).sort((a,b)=>b-a);
+      idxToRemove.forEach(idx => {
+        if (inv.embryoDetails && inv.embryoDetails[idx]) inv.embryoDetails.splice(idx,1);
+      });
+      inv.stock = Math.max(0, (inv.stock||0) - count);
+    }
+    inv.history = inv.history||[];
+    inv.history.push({ date, type, count, memo });
   }
-  e.history = e.history||[];
-  e.history.push({
-    date: document.getElementById('embryo-restock-date').value,
-    type,
-    count,
-    memo: document.getElementById('embryo-restock-memo').value.trim()
-  });
   save(); closeModal('modal-embryo-restock'); renderEmbryo();
 }
 
