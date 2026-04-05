@@ -7234,33 +7234,31 @@ function getMaxFreshNo(lot) {
   return maxN;
 }
 
-function getMaxEmbryoNo(yearLabel, excludeLot, excludeDate) {
-  // 【胚番号一意性保証】全ソースを参照して当該年度の最大番号を返す
-  // 胚番号は農場全体で絶対に重複してはならない
+function getMaxEmbryoNo(yearLabel) {
+  // 【胚番号一意性保証】農場全体で胚番号は絶対に重複してはならない
+  // 当該年度(yearLabel)の最大番号を全ソースから取得する
+  // 除外するのは「現在編集中の記録ID」のみ（lot/date除外は他ドナーを巻き込むため廃止）
   const RE = /01L237R(\d+)-(\d+)/;
+  let maxNo = 0;
   const checkNo = str => {
     if (!str) return;
     const m = str.match(RE);
     if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
   };
-  let maxNo = 0;
-  // 編集中の記録IDを取得（この記録由来のデータは採番対象から除外）
+
+  // 編集中の記録IDを取得（この記録由来の採卵記録データのみ除外）
   const editId = document.getElementById('collection-edit-id')?.value || '';
 
-  // 1. 既存在庫の embryoDetails（現在編集中の記録由来のロットは除外）
+  // 1. 既存在庫の embryoDetails（全件参照：別ドナー含む）
   embryoInventory.forEach(inv => {
-    // 編集中記録由来の在庫は除外（lot+date で判定、旧データを採番に混入させない）
-    if (excludeLot && excludeDate) {
-      const invLotKey = inv.lot || inv.collectionDate || '';
-      if (invLotKey === excludeLot && inv.collectionDate === excludeDate) return;
-    }
     (inv.embryoDetails||[]).forEach(ed => checkNo(ed.no));
   });
 
   // 2. 採卵記録（collectionRecordsNew）の frozenEmbryos・cultureEmbryos
-  //    → 在庫保存前でも採卵記録に番号が残っている場合を拾う
+  //    在庫保存前でも採卵記録に番号が残っていれば拾う
+  //    編集中の記録だけ除外（再保存時に自分の古い番号を参照しないため）
   (collectionRecordsNew||[]).forEach(rec => {
-    if (editId && rec.id === editId) return; // 編集中の記録は除外
+    if (editId && rec.id === editId) return;
     (rec.frozenEmbryos||[]).forEach(e => checkNo(e.embryoNo));
     (rec.cultureEmbryos||[]).forEach(e => {
       checkNo(e.embryoNo);
@@ -7303,11 +7301,8 @@ function onColFrozenCountInput(val, existing) {
     comment: r.querySelector('.cf-comment')?.value || '',
   }));
   tbody.innerHTML = '';
-  // クリア後に参照（自テーブル＋現在編集中ロットを除いた最大番号）
-  // _exLotはlotが空の場合colDateをlotとして使う（在庫のlot: lot||dateと合わせる）
-  const _exLotVal = document.getElementById('col-lot').value||'';
-  const _exLot = _exLotVal || colDate;
-  const maxUsed = getMaxEmbryoNo(yearLabel, _exLot, colDate);
+  // 農場全体の最大胚番号を取得（編集中の記録IDは除外済み）
+  const maxUsed = getMaxEmbryoNo(yearLabel);
   // デバッグ: maxUsedが0なら既存在庫を参照できていない可能性
 
   const lot = document.getElementById('col-lot').value || '';
@@ -7477,7 +7472,7 @@ function toggleCultureSecondEmbryo(btn) {
       const fy = d.getFullYear() - 2018;
       const yl = `R${fy}`;
       const exLot = (document.getElementById('col-lot').value||'') || colDate;
-      let maxNo = getMaxEmbryoNo(yl, exLot, colDate);
+      let maxNo = getMaxEmbryoNo(yl);
       // 現在行の1卵目番号も参照
       const m = no1.match(/01L237R\d+-(\d+)$/);
       if (m) maxNo = Math.max(maxNo, parseInt(m[1]));
@@ -7544,7 +7539,7 @@ function onFreshActionChange(sel) {
       if (embryoNoInp) embryoNoInp.value = '';  // 一時的に空にして自分を除外
       const _exLot2 = (document.getElementById('col-lot').value||'') || (document.getElementById('col-date').value||'');
       const _exDate2 = document.getElementById('col-date').value||'';
-      let maxNo = getMaxEmbryoNo(yl, _exLot2, _exDate2);
+      let maxNo = getMaxEmbryoNo(yl);
       embryoNoInp.value = `01L237${yl}-${String(maxNo+1).padStart(4,'0')}`;
       embryoNoInp.style.background = 'var(--bg)';
       embryoNoInp.style.borderColor = 'var(--info)';
@@ -7801,9 +7796,8 @@ function onCultureActionChange(sel) {
     const fiscalYear = d.getFullYear() - 2018;
     const yearLabel = `R${fiscalYear}`;
 
-    // 凍結胚：getMaxEmbryoNoで全ソース参照（採卵記録・在庫・他テーブル全て含む）
-    const exLot = (document.getElementById('col-lot').value||'') || colDate;
-    let maxNo = getMaxEmbryoNo(yearLabel, exLot, colDate);
+    // 凍結胚：農場全体の最大胚番号を取得（editIdベースで編集中記録のみ除外）
+    let maxNo = getMaxEmbryoNo(yearLabel);
 
     if (isFreeze) {
       // 凍結胚番号・ケーン番号を採番
@@ -7923,6 +7917,63 @@ function saveCollection() {
   const freshEmbryos = getColFreshEmbryos();
   const cultureEmbryos = getColCultureEmbryos();
   const editId = document.getElementById('collection-edit-id').value;
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 【重複チェック】胚番号・ロット番号の一意性を保証
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  // ① ロット番号の重複チェック
+  if (lot) {
+    const dupLot = collectionRecordsNew.find(r => r.id !== editId && r.lot === lot);
+    if (dupLot) {
+      _savingCollection = false;
+      const dupDonor = (cows.find(c=>c.id===dupLot.donorId)||{}).name || dupLot.donorId;
+      alert(`⚠️ ロット番号が重複しています\n\n「${lot}」はすでに別の採卵記録で使用されています。\n\n使用中の記録：${dupDonor}（${dupLot.date}）\n\nB1→B2など別の番号を選択してください。`);
+      return;
+    }
+  }
+
+  // ② 胚番号の重複チェック（全採卵記録・在庫と照合）
+  const newEmbryoNos = [
+    ...frozenEmbryos.map(e => e.embryoNo),
+    ...freshEmbryos.map(e => e.embryoNo).filter(Boolean),
+    ...cultureEmbryos.map(e => e.embryoNo).filter(Boolean),
+    ...cultureEmbryos.map(e => e.embryoNo2).filter(Boolean),
+  ].filter(Boolean);
+
+  if (newEmbryoNos.length > 0) {
+    // 重複を自テーブル内でチェック
+    const seen = new Set();
+    const selfDups = newEmbryoNos.filter(no => { if(seen.has(no)) return true; seen.add(no); return false; });
+    if (selfDups.length > 0) {
+      _savingCollection = false;
+      alert(`⚠️ 入力した胚番号に重複があります\n\n重複番号：${[...new Set(selfDups)].join('、')}\n\n胚番号は1つの胚に1つだけ割り当てられます。`);
+      return;
+    }
+
+    // 既存採卵記録との重複チェック
+    const existingNosFromRecords = new Set();
+    collectionRecordsNew.forEach(r => {
+      if (r.id === editId) return; // 編集中の記録自身は除外
+      (r.frozenEmbryos||[]).forEach(e => { if(e.embryoNo) existingNosFromRecords.add(e.embryoNo); });
+      (r.cultureEmbryos||[]).forEach(e => {
+        if(e.embryoNo) existingNosFromRecords.add(e.embryoNo);
+        if(e.embryoNo2) existingNosFromRecords.add(e.embryoNo2);
+      });
+    });
+    // 既存在庫との重複チェック
+    embryoInventory.forEach(inv => {
+      // 編集中記録由来の在庫は採卵記録側で既にチェック済みなのでスキップ不要（在庫は全件チェック）
+      (inv.embryoDetails||[]).forEach(ed => { if(ed.no) existingNosFromRecords.add(ed.no); });
+    });
+
+    const conflictNos = newEmbryoNos.filter(no => existingNosFromRecords.has(no));
+    if (conflictNos.length > 0) {
+      _savingCollection = false;
+      alert(`⚠️ 胚番号が他の記録と重複しています\n\n重複番号：${conflictNos.join('、')}\n\n胚番号は農場全体で唯一無二でなければなりません。\n自動採番をやり直すか、番号を確認してください。`);
+      return;
+    }
+  }
 
 
 
