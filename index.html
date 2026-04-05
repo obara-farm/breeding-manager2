@@ -7700,9 +7700,9 @@ function saveCollection() {
   // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
-    // 同ロット・同採卵日の凍結胚アイテムを全て削除（培養胚分も含む完全リセット）
+    // 同ロット・同採卵日の在庫を全削除（lot+collectionDateのみで特定）
     embryoInventory = embryoInventory.filter(e =>
-      !(e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen' && e.collectionDate === date)
+      !(e.lot === (lot||date) && e.collectionDate === date)
     );
     // 新規作成（凍結胚テーブルの入力値のみ）
     const invItem = {
