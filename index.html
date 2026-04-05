@@ -6836,6 +6836,11 @@ function openNewCollection() {
   document.getElementById('col-sire').value = '';
   document.getElementById('col-operator').value = '';
   document.getElementById('col-ai-date').value = '';
+  // AIリストをクリア
+  const _aiList = document.getElementById('col-ai-date-list');
+  if (_aiList) { _aiList.innerHTML = ''; _aiList.style.display = 'none'; }
+  const _aiDateInp = document.getElementById('col-ai-date');
+  if (_aiDateInp) _aiDateInp.style.display = '';
   // ドナー検索欄初期化
   document.getElementById('col-donor').value = '';
   document.getElementById('col-donor-search').value = '';
