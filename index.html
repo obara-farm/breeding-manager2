@@ -7393,6 +7393,20 @@ function onColFreshCountInput(val, existing) {
 }
 
 
+function toggleCultureSecondEmbryo(btn) {
+  const wrap = btn.closest('td').querySelector('.cul-second-wrap');
+  if (!wrap) return;
+  const isHidden = wrap.style.display === 'none' || wrap.style.display === '';
+  wrap.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? '－2卵目' : '＋2卵目';
+  btn.style.borderColor = isHidden ? 'var(--warn)' : 'var(--purple)';
+  btn.style.color = isHidden ? 'var(--warn)' : 'var(--purple)';
+  if (!isHidden) {
+    const inp = wrap.querySelector('.cul-embryo-no2');
+    if (inp) inp.value = '';
+  }
+}
+
 function toggleFreshSecondEmbryo(btn) {
   const wrap = btn.closest('td').querySelector('.cfr-second-wrap');
   if (!wrap) return;
@@ -7491,6 +7505,7 @@ function getColCultureEmbryos() {
   const rows = document.querySelectorAll('#col-culture-tbody tr');
   return Array.from(rows).map(r => ({
     embryoNo:      r.querySelector('.cul-embryo-no')?.value||'',
+    embryoNo2:     r.querySelector('.cul-embryo-no2')?.value||'',
     caneNo:        r.querySelector('.cul-cane-no')?.value||'',
     stage:         r.querySelector('.cul-stage')?.value||'',
     rank:          r.querySelector('.cul-rank')?.value||'',
@@ -7573,6 +7588,12 @@ function onColCultureCountInput(val, existing) {
             oninput="onCultureRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
           <div class="cul-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
+        </td>
+        <td style="padding:2px 4px;white-space:nowrap;vertical-align:top;display:${isET?'':'none'}" class="cul-second-td">
+          <button type="button" onclick="toggleCultureSecondEmbryo(this)" style="background:#0a1a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">＋2卵目</button>
+          <div class="cul-second-wrap" style="display:${ex?.embryoNo2?'':'none'};margin-top:3px;">
+            <input type="text" class="cul-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目の胚番号" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
+          </div>
         </td>`;
       if (ex?.recipientId) {
         const s = tr.querySelector('.cul-recipient');
@@ -7583,6 +7604,15 @@ function onColCultureCountInput(val, existing) {
           const recipCow = cows.find(c => c.id === ex.recipientId);
           searchInput.value = recipCow ? `${ex.recipientId} ${cowDisplayName(ex.recipientId)||''}`.trim() : ex.recipientId;
         }
+      }
+      // embryoNo2復元
+      if (ex?.embryoNo2) {
+        const wrap2 = tr.querySelector('.cul-second-wrap');
+        const inp2 = tr.querySelector('.cul-embryo-no2');
+        const btn2 = tr.querySelector('button[onclick*="toggleCultureSecondEmbryo"]');
+        if (wrap2) wrap2.style.display = '';
+        if (inp2) inp2.value = ex.embryoNo2;
+        if (btn2) { btn2.textContent = '－2卵目'; btn2.style.borderColor='var(--warn)'; btn2.style.color='var(--warn)'; }
       }
       tbody.appendChild(tr);
       // 初期表示：処置が設定済みなら表示状態を正しく反映
@@ -7624,6 +7654,9 @@ function onCultureActionChange(sel) {
   // 受卵牛検索
   const recip = row.querySelector('.cul-recip-search');
   if (recip) recip.style.display = isET ? '' : 'none';
+  // 2卵目td
+  const secondTd = row.querySelector('.cul-second-td');
+  if (secondTd) secondTd.style.display = isET ? '' : 'none';
 
   // 胚番号欄
   const embryoNoInput = row.querySelector('.cul-embryo-no');
@@ -7980,7 +8013,7 @@ function saveCollection() {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
         recipientId: ce.recipientId,
-      }, ceEmbryoNo, date, '🌱新鮮培養胚');
+      }, ceEmbryoNo, date, '🌱新鮮培養胚', ce.embryoNo2||'');
     } else if (ce.cultureResult === 'freeze') {
       // 入力済み胚番号・ケーン番号を使って凍結処理
       _processFreshToFreezeWithNo(rec, {
