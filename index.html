@@ -10869,12 +10869,12 @@ function renderEmbryo() {
         <div id="${detailId}" style="display:none;margin-top:8px;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
           ${allDetails.length ? renderEmbryoDetails(allDetails) : ''}
-          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
-            <button class="btn btn-primary" style="font-size:11px;padding:5px 10px;" onclick="openEmbryoRestock('${mainId}')">📦 入荷・補充</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openEditEmbryo('${mainId}')">✏ 編集</button>
-            <button onclick="openUseRecord('embryo','${mainId}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
-            <button onclick="confirmDeleteEmbryoLot('${lotKey}','${encodeURIComponent(key)}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">削除</button>
-          </div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="font-size:11px;padding:5px 10px;" onclick="openEmbryoRestock('${mainId}')">📦 入荷・補充</button>
+          <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="openEditEmbryo('${mainId}')">✏ 編集</button>
+          <button onclick="openUseRecord('embryo','${mainId}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
+          <button onclick="confirmDeleteEmbryoLot('${lotKey}','${encodeURIComponent(key)}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:8px;cursor:pointer;">削除</button>
         </div>
       </div>`;
     }).join('');
