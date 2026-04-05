@@ -10887,6 +10887,7 @@ function renderEmbryo() {
         <div style="text-align:right;">
           <div style="font-size:32px;font-weight:900;color:${anyLow||totalStock<0?'var(--danger)':'var(--purple)'};">${totalStock<0?'⚠'+totalStock:totalStock}</div>
           <div style="font-size:11px;color:var(--muted);">本在庫（合計）</div>
+          <button onclick="openNewEmbryoEntry('${sample.id}')" style="margin-top:6px;background:var(--accent2);border:none;color:#000;font-size:11px;font-weight:700;padding:5px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">＋ 新規入庫</button>
         </div>
       </div>
       ${lotCards}
@@ -11188,6 +11189,22 @@ function updateErtOutCount() {
   if (el) el.textContent = count;
 }
 
+function openNewEmbryoEntry(sampleId) {
+  // 同じドナー×種雄牛の新しいロットとして新規アイテムを作成してからモーダルを開く
+  const sample = embryoInventory.find(e=>e.id===sampleId);
+  if (!sample) return;
+  const newItem = {
+    id: Math.random().toString(36).slice(2),
+    sire: sample.sire||'', dam: sample.dam||'',
+    lot: '', collectionDate: '',
+    type: 'frozen', breed: sample.breed||'黒毛',
+    stage: '', stock: 0, alertThreshold: 2, noAlert: false,
+    history: [], embryoDetails: [],
+  };
+  embryoInventory.push(newItem);
+  openEmbryoRestock(newItem.id);
+}
+
 function openEmbryoRestock(id) {
   const mainInv = embryoInventory.find(e=>e.id===id);
   if (!mainInv) return;
@@ -11201,7 +11218,10 @@ function openEmbryoRestock(id) {
     : [mainInv];
   const totalStock = lotItems.reduce((s,e)=>s+e.stock,0);
   document.getElementById('embryo-restock-info').innerHTML =
-    `現在の在庫: <strong style="color:var(--purple);font-size:18px;">${totalStock}本</strong>`;
+    `<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span>現在の在庫: <strong style="color:var(--purple);font-size:18px;">${totalStock}本</strong></span>
+      <span style="font-size:11px;color:var(--muted);">ロット: <strong style="color:var(--info);">${mainInv.lot||'（未設定）'}</strong></span>
+    </div>`;
   document.getElementById('embryo-restock-date').value = today();
   document.getElementById('embryo-restock-memo').value = '';
   // 採卵日・プレフィックスリセット
@@ -11292,6 +11312,31 @@ function saveEmbryoRestock() {
     }
     inv.history = inv.history||[];
     inv.history.push({ date, type, count, memo });
+  }
+  // ロット・採卵日が未設定の場合は採卵日入力欄から更新
+  const collectDate = document.getElementById('ert-collect-date')?.value||'';
+  if (collectDate && !inv.collectionDate) {
+    inv.collectionDate = collectDate;
+    // ロット番号を採卵日から自動生成（例: 26C31B）
+    if (!inv.lot) {
+      const d = new Date(collectDate);
+      const yr2 = String(d.getFullYear()).slice(-2);
+      const mc  = String.fromCharCode(64 + d.getMonth() + 1);
+      const day = String(d.getDate()).padStart(2,'0');
+      inv.lot = `${yr2}${mc}${day}B`;
+    }
+  }
+  // ロット・採卵日が未設定の場合は採卵日入力欄から設定
+  const collectDateForLot = document.getElementById('ert-collect-date')?.value||'';
+  if (collectDateForLot && !inv.collectionDate) {
+    inv.collectionDate = collectDateForLot;
+    if (!inv.lot) {
+      const dL = new Date(collectDateForLot);
+      const yr2L = String(dL.getFullYear()).slice(-2);
+      const mcL  = String.fromCharCode(64 + dL.getMonth() + 1);
+      const dayL = String(dL.getDate()).padStart(2,'0');
+      inv.lot = `${yr2L}${mcL}${dayL}B`;
+    }
   }
   save(); closeModal('modal-embryo-restock'); renderEmbryo();
 }
