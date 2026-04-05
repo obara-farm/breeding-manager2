@@ -7511,7 +7511,16 @@ function onColCultureCountInput(val, existing) {
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
           <div class="cul-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
         </td>`;
-      if (ex?.recipientId) { const s = tr.querySelector('.cul-recipient'); if (s) s.value = ex.recipientId; }
+      if (ex?.recipientId) {
+        const s = tr.querySelector('.cul-recipient');
+        if (s) s.value = ex.recipientId;
+        // 検索テキスト欄に牛名を復元
+        const searchInput = tr.querySelector('.cul-recip-search');
+        if (searchInput) {
+          const recipCow = cows.find(c => c.id === ex.recipientId);
+          searchInput.value = recipCow ? `${ex.recipientId} ${cowDisplayName(ex.recipientId)||''}`.trim() : ex.recipientId;
+        }
+      }
       tbody.appendChild(tr);
       // 初期表示：処置が設定済みなら表示状態を正しく反映
       if (isET || isFreeze) {
