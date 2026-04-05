@@ -10799,7 +10799,7 @@ function renderEmbryo() {
     groups[key].push(e);
   });
 
-  container.innerHTML = groupOrder.map(key => {
+  container.innerHTML = groupOrder.map((key, gIdx) => {
     const items = groups[key];
     // グループ全体の合計在庫
     const totalStock = items.reduce((s,e) => s+e.stock, 0);
@@ -10828,7 +10828,7 @@ function renderEmbryo() {
       return da.localeCompare(db);
     });
 
-    const lotCards = lotOrder.map(lotKey => {
+    const lotCards = lotOrder.map((lotKey, lIdx) => {
       const lotItems = lotMap[lotKey];
       const lotStock = lotItems.reduce((s,e)=>s+e.stock, 0);
       const isLow = lotItems.some(e=>!e.noAlert && e.stock<=(e.alertThreshold||2));
@@ -10841,7 +10841,7 @@ function renderEmbryo() {
       });
       const frozenCnt = allDetails.filter(d=>d.frozen).length;
       const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
-      const detailId = 'embryo-lot-detail-' + (key + '_' + lotKey).replace(/[^a-zA-Z0-9]/g,'_');
+      const detailId = `embryo-lot-detail-${gIdx}-${lIdx}`;
       const totalUsed = lotItems.reduce((s,e)=>{
         return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
       },0);
@@ -10849,7 +10849,7 @@ function renderEmbryo() {
       const mainId = lotItems[0].id;
 
       return `<div style="background:var(--bg2);border:1px solid ${isLow?'var(--danger)':'var(--border)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="const el=document.getElementById('${detailId}');if(el)el.style.display=el.style.display==='none'?'':'none'">
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="toggleEmbryoLotDetail('${detailId}')">
           <div style="flex:1;">
             <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${lotKey==='—'?'（ロット未設定）':lotKey}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:6px;">${collDate?fmtDate(collDate):''}</span>
@@ -11138,6 +11138,11 @@ function onErtFreshCountChange(val) {
     rank: r.querySelector('.ert-rank')?.value||'',
   }));
   _buildErtRows('ert-fresh-tbody', n, saved, false);
+}
+
+function toggleEmbryoLotDetail(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 function renderErtOutList() {
