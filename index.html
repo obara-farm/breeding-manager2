@@ -1320,6 +1320,18 @@ textarea{resize:vertical;}
           </table>
         </div>
       </div>
+      <!-- 本数のみ -->
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;font-weight:700;color:var(--muted);">📦 種別不明（本数のみ）</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:var(--muted);">本数:</span>
+            <input type="number" id="ert-unknown-count" min="0" value="0"
+              style="width:55px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:3px 6px;border-radius:6px;text-align:center;">
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">胚番号・種別不明の場合に本数だけ記録</div>
+      </div>
     </div>
 
     <!-- 出庫系：在庫一覧から選択 -->
@@ -11062,25 +11074,33 @@ function renderErtOutList() {
   const inv = embryoInventory.find(e=>e.id===id);
   const container = document.getElementById('ert-out-list');
   if (!container) return;
-  const details = inv?.embryoDetails||[];
-  if (!details.length) {
-    container.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px;">胚番号の詳細が登録されていません。本数で直接入力してください。</div>';
-    // 本数入力欄を表示
-    container.innerHTML += `<div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+
+  // 同ロットの全アイテムの胚詳細を統合
+  const lotItems = inv ? embryoInventory.filter(e=>e.lot===inv.lot && e.collectionDate===inv.collectionDate) : [inv].filter(Boolean);
+  const allDetails = [];
+  lotItems.forEach(e => {
+    (e.embryoDetails||[]).forEach((d,i) => allDetails.push({...d, _invId: e.id, _idx: i}));
+  });
+
+  if (!allDetails.length) {
+    container.innerHTML = `<div style="color:var(--muted);font-size:12px;padding:8px;">胚番号の詳細が登録されていません。本数で直接入力してください。</div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
       <span style="font-size:12px;color:var(--muted);">本数:</span>
       <input type="number" id="ert-out-manual" min="1" placeholder="例: 2"
         style="width:80px;background:var(--bg);border:1px solid var(--danger);color:var(--text);font-size:13px;padding:4px 8px;border-radius:6px;">
     </div>`;
     return;
   }
-  container.innerHTML = details.map((d,i)=>`
-    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;">
-      <input type="checkbox" class="ert-out-check" data-idx="${i}" onchange="updateErtOutCount()"
-        style="width:16px;height:16px;cursor:pointer;">
+
+  container.innerHTML = allDetails.map((d,i)=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border);cursor:pointer;${i%2===0?'background:var(--bg2)':''}">
+      <input type="checkbox" class="ert-out-check" data-inv-id="${d._invId}" data-idx="${d._idx}" onchange="updateErtOutCount()"
+        style="width:16px;height:16px;cursor:pointer;flex-shrink:0;">
       <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--info);min-width:130px;">${d.no||'—'}</span>
-      <span style="font-size:11px;color:var(--muted);">${d.cane||''}</span>
-      <span style="font-size:11px;color:var(--text);">${d.stage||'—'}</span>
-      <span style="font-size:11px;font-weight:700;color:${d.rank==='A'?'var(--accent)':'var(--warn)'};">${d.rank||'—'}</span>
+      <span style="font-size:11px;color:var(--muted);min-width:80px;">${d.cane||''}</span>
+      <span style="font-size:11px;color:var(--text);min-width:32px;">${d.stage||'—'}</span>
+      <span style="font-size:11px;font-weight:700;min-width:28px;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</span>
+      <span style="font-size:10px;color:${d.frozen?'var(--info)':'var(--accent)'};">${d.frozen?'❄️':'🌱'}</span>
       ${d.cultured?'<span style="font-size:9px;color:var(--purple);border:1px solid var(--purple);padding:1px 4px;border-radius:3px;">[培養]</span>':''}
     </label>`).join('');
 }
@@ -11107,6 +11127,7 @@ function openEmbryoRestock(id) {
   document.getElementById('embryo-restock-memo').value = '';
   document.getElementById('ert-frozen-count').value = 0;
   document.getElementById('ert-fresh-count').value = 0;
+  document.getElementById('ert-unknown-count').value = 0;
   document.getElementById('ert-frozen-wrap').style.display = 'none';
   document.getElementById('ert-fresh-wrap').style.display = 'none';
   document.getElementById('ert-frozen-tbody').innerHTML = '';
@@ -11147,10 +11168,13 @@ function saveEmbryoRestock() {
         frozen: false, fresh: true, collectedDate: date,
       });
     });
-    const totalAdded = frozenRows.length + freshRows.length;
+    const unknownCount = parseInt(document.getElementById('ert-unknown-count')?.value||'0')||0;
+    const totalAdded = frozenRows.length + freshRows.length + unknownCount;
+    if (!totalAdded) { alert('胚の個数を入力してください'); return; }
+    // 種別不明分はembryo詳細なしでstock加算のみ
     inv.stock = (inv.stock||0) + totalAdded;
     inv.history = inv.history||[];
-    inv.history.push({ date, type, count: totalAdded, memo });
+    inv.history.push({ date, type, count: totalAdded, memo: memo + (unknownCount>0?` (種別不明${unknownCount}本)`:'') });
   } else {
     // 出庫：チェックされた胚番号を削除
     const checks = document.querySelectorAll('.ert-out-check:checked');
@@ -11162,11 +11186,21 @@ function saveEmbryoRestock() {
       count = manual;
       inv.stock = Math.max(0, (inv.stock||0) - count);
     } else {
-      const idxToRemove = Array.from(checks).map(c=>parseInt(c.dataset.idx)).sort((a,b)=>b-a);
-      idxToRemove.forEach(idx => {
-        if (inv.embryoDetails && inv.embryoDetails[idx]) inv.embryoDetails.splice(idx,1);
+      // invIdごとにグループ化して削除（後ろから削除して添字ズレを防ぐ）
+      const byInv = {};
+      Array.from(checks).forEach(c => {
+        const iid = c.dataset.invId;
+        if (!byInv[iid]) byInv[iid] = [];
+        byInv[iid].push(parseInt(c.dataset.idx));
       });
-      inv.stock = Math.max(0, (inv.stock||0) - count);
+      Object.entries(byInv).forEach(([iid, idxs]) => {
+        const target = embryoInventory.find(e=>e.id===iid);
+        if (!target) return;
+        idxs.sort((a,b)=>b-a).forEach(idx => {
+          if (target.embryoDetails?.[idx] !== undefined) target.embryoDetails.splice(idx,1);
+        });
+        target.stock = Math.max(0, (target.stock||0) - idxs.length);
+      });
     }
     inv.history = inv.history||[];
     inv.history.push({ date, type, count, memo });
