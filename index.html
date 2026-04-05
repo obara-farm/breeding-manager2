@@ -13556,15 +13556,19 @@ function saveToFirebase() {
   if (!dbRef || !currentUser) return;
   clearTimeout(syncTimer);
   setSyncStatus('syncing');
+  // 書き込み開始を予告してリスナーの誤受信を防ぐ
+  isSyncing = true;
   syncTimer = setTimeout(() => {
-    isSyncing = true;
-    const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','etRecords','fatteningRecords','data_version'];
+    const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','collectionRecordsNew','etRecords','fatteningRecords','insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
     const payload = {};
     keys.forEach(k => { const v = _store.getItem(k); if (v !== null) payload[k] = v; });
     dbRef.set(payload)
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); })
-      .finally(() => { isSyncing = false; });
+      .finally(() => {
+        // 書き込み完了後、少し待ってからリスナーを再開（自分の書き込みのエコーを読み飛ばすため）
+        setTimeout(() => { isSyncing = false; }, 1500);
+      });
   }, 800);
 }
 
