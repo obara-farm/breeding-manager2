@@ -8034,14 +8034,16 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
     (inv.history||[]).some(h=>h.type==='use'&&h.cowId===fe.recipientId&&h.memo?.includes(embryoNo))
   );
   if (!alreadyInInv) {
+    // 入庫日・使用日（翌日移植の場合は date が移植日=翌日になっている）
+    const invDate = date;
     const invItem = {
       id: Math.random().toString(36).slice(2),
-      sire: rec.sire||'', dam: donorName, lot: rec.lot||date,
+      sire: rec.sire||'', dam: donorName, lot: rec.lot||rec.date,
       type: 'fresh', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: fe.stage||'',
-      stock: 0, alertThreshold: 0, noAlert: true,
-      collectionDate: date, history: [
-        { date, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
-        { date, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
+      stock: 0, alertThreshold: 0, noAlert: false,
+      collectionDate: rec.date, history: [
+        { date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
+        { date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
       ],
     };
     embryoInventory.push(invItem);
@@ -8213,9 +8215,9 @@ function executePendingET(idx) {
     id: Math.random().toString(36).slice(2),
     sire: e.sire||'', dam: donorName, lot: e.lot||e.collectDate,
     type: 'fresh', breed: cows.find(c=>c.id===e.donorId)?.breed||'黒毛', stage: e.stage||'',
-    stock: 0, alertThreshold: 0, noAlert: true,
+    stock: 0, alertThreshold: 0, noAlert: false,
     collectionDate: e.collectDate, history: [
-      { date: e.collectDate, type:'selfcollect', count:1, memo:`採卵 新鮮胚${e.embryoNo}` },
+      { date, type:'selfcollect', count:1, memo:`採卵 新鮮胚${e.embryoNo}` },
       { date, type:'use', count:1, cowId: recipientId, memo:`翌日ET ${e.embryoNo}` },
     ],
   };
@@ -10927,8 +10929,14 @@ function renderEmbryo() {
     const breedBadge = sample.breed ? ` <span style="font-size:11px;font-weight:700;background:${sample.breed==='褐毛'?'#3b0000':sample.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${sample.breed==='褐毛'?'#7f1d1d':sample.breed==='黒毛'?'#374151':'#334155'};color:${sample.breed==='褐毛'?'#fca5a5':sample.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${sample.breed==='褐毛'?'🟥':'⬛'} ${sample.breed}</span>` : '';
     const totalFrozen = items.reduce((s,e)=>s+((e.embryoDetails||[]).filter(d=>d.frozen).length||0),0);
     const totalFresh = items.reduce((s,e)=>s+((e.embryoDetails||[]).filter(d=>d.fresh).length||0),0);
+    // 新鮮胚入庫→即使用アイテムの使用済み本数（stock=0, type='fresh', use履歴あり）
+    const totalFreshUsed = items.reduce((s,e)=>{
+      if (e.type!=='fresh'||e.stock!==0) return s;
+      return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+(b.count||1),0);
+    },0);
     const stockBadge = totalFrozen||totalFresh
       ? (totalFrozen&&totalFresh?`❄️${totalFrozen}本+🌱${totalFresh}本`:totalFrozen?`❄️凍結胚 ${totalFrozen}本`:`🌱新鮮胚 ${totalFresh}本`)
+      : totalFreshUsed > 0 ? `🌱新鮮 ${totalFreshUsed}本使用済み`
       : `${totalStock}本`;
 
     // ロット別に統合（同じlotの複数アイテムをまとめる）
