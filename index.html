@@ -6741,10 +6741,9 @@ function deleteCollectionRecord(id) {
   const donorName = cowDisplayName(rec.donorId)||rec.donorId||'';
   if (!confirm(`${fmtDate(rec.date)} ${donorName} の採卵記録を削除しますか？\n在庫・授精簿への反映も取り消されます。`)) return;
 
-  // 在庫から削除（同ロットの selfcollect 履歴を削除して stock 再計算）
+  // 在庫から削除（lot+collectionDateで特定）
   embryoInventory.forEach(inv => {
-    if (!inv.dam?.includes(rec.donorId) && inv.sire !== rec.sire) return;
-    if (inv.collectionDate !== rec.date && inv.lot !== (rec.lot||rec.date)) return;
+    if (inv.collectionDate !== rec.date || inv.lot !== (rec.lot||rec.date)) return;
     inv.history = (inv.history||[]).filter(h => !(h.type === 'selfcollect' && h.date === rec.date));
     inv.embryoDetails = [];
     inv.stock = 0;
@@ -6752,7 +6751,7 @@ function deleteCollectionRecord(id) {
   });
   // stock=0 で履歴も空の在庫アイテムを削除
   embryoInventory = embryoInventory.filter(inv =>
-    !(inv.collectionDate === rec.date && inv.dam?.includes(rec.donorId) && inv.stock === 0 && !(inv.history||[]).length)
+    !(inv.collectionDate === rec.date && inv.lot === (rec.lot||rec.date) && inv.stock === 0 && !(inv.history||[]).length)
   );
 
   // 関連タスクを削除
@@ -10879,6 +10878,7 @@ function renderEmbryo() {
             })()}
             <button onclick="openEmbryoRestock('${mainId}');event.stopPropagation()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📦 入荷・補充</button>
             <button onclick="openUseRecord('embryo','${mainId}');event.stopPropagation()" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📝 使用記録</button>
+            <button onclick="confirmDeleteEmbryoLot('${lotKey}','${encodeURIComponent(key)}');event.stopPropagation()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">🗑 このロットを削除</button>
           </div>
         </div>
 
