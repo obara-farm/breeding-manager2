@@ -7830,7 +7830,7 @@ function saveCollection() {
         _processFreshToFreeze(rec, fe, feNo, date, lot);
         // 採番後の番号をrecに追記して次の培養胚が正しく連番できるよう記録
         if (!rec.frozenEmbryos) rec.frozenEmbryos = [];
-        const lastInv = embryoInventory.find(e => e.dam && e.dam.includes(donorId) && e.lot === (lot||date) && e.type === 'frozen');
+        const lastInv = embryoInventory.find(e => e.lot === (lot||date) && e.collectionDate === date && e.type === 'frozen');
         const lastDetail = lastInv && lastInv.embryoDetails && lastInv.embryoDetails[lastInv.embryoDetails.length-1];
         if (lastDetail) rec.frozenEmbryos.push({no: lastDetail.no});
       } else if (fe.cultureResult === 'discard') {
@@ -7869,7 +7869,7 @@ function saveCollection() {
     } else if (fe.action === 'freeze') {
       // 凍結胚在庫に追加（既存ロットに追記）
       let invItem = embryoInventory.find(e =>
-        e.dam && e.dam.includes(donorId) && e.lot === lot && e.type === 'frozen'
+        e.lot === (lot||date) && e.collectionDate === date && e.type === 'frozen'
       );
       if (!invItem) {
         invItem = {
@@ -7978,7 +7978,7 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
 
   // 在庫に新鮮胚として一時入庫→即使用（重複防止）
   const alreadyInInv = embryoInventory.some(inv =>
-    inv.lot === (rec.lot||date) && inv.dam?.includes(rec.donorId) && inv.type === 'fresh' &&
+    inv.lot === (rec.lot||date) && inv.collectionDate === date && inv.type === 'fresh' &&
     (inv.history||[]).some(h=>h.type==='use'&&h.cowId===fe.recipientId&&h.memo?.includes(embryoNo))
   );
   if (!alreadyInInv) {
@@ -8048,7 +8048,7 @@ function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
 
   // 既存のケーン番号を取得して次のケーンを決定
   let invItem = embryoInventory.find(e =>
-    e.dam && e.dam.includes(rec.donorId) && e.lot === (lot||date) && e.type === 'frozen'
+    e.lot === (lot||date) && e.collectionDate === date && e.type === 'frozen'
   );
   let newCane = '';
   if (lot) {
@@ -8109,7 +8109,7 @@ function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
   const finalRank  = fe.cultureRank  || fe.rank  || '';
 
   let invItem = embryoInventory.find(e =>
-    e.dam && e.dam.includes(rec.donorId) && e.lot === (lot||date) && e.type === 'frozen'
+    e.lot === (lot||date) && e.collectionDate === date && e.type === 'frozen'
   );
   if (!invItem) {
     invItem = {
@@ -8204,7 +8204,7 @@ function freezePendingEmbryo(idx) {
   const rank = prompt('ランクを入力してください（A/B）') || e.rank || '';
   const date = today();
   const donorName = cowDisplayName(e.donorId)||e.donorId||'';
-  let invItem = embryoInventory.find(x=>x.dam&&x.dam.includes(e.donorId)&&x.lot===e.lot&&x.type==='frozen');
+  let invItem = embryoInventory.find(x=>x.lot===e.lot&&x.collectionDate===e.collectDate&&x.type==='frozen');
   if (!invItem) {
     invItem = {
       id: Math.random().toString(36).slice(2),
@@ -10870,6 +10870,16 @@ function renderEmbryo() {
         <div id="${detailId}" style="display:none;margin-top:8px;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
           ${allDetails.length ? renderEmbryoDetails(allDetails) : ''}
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+            ${(()=>{
+              const colRec = collectionRecordsNew.find(r => r.lot === (lotKey.startsWith('__noLot__') ? null : lotKey) && r.date === collDate);
+              return colRec
+                ? '<button onclick="openEditCollection(\'' + colRec.id + '\');event.stopPropagation()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">✏ 採卵記録を編集</button>'
+                : '';
+            })()}
+            <button onclick="openEmbryoRestock('${mainId}');event.stopPropagation()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📦 入荷・補充</button>
+            <button onclick="openUseRecord('embryo','${mainId}');event.stopPropagation()" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📝 使用記録</button>
+          </div>
         </div>
 
       </div>`;
