@@ -11149,7 +11149,7 @@ function saveEmbryoRestock() {
     // 凍結胚
     const frozenRows = Array.from(document.querySelectorAll('#ert-frozen-tbody tr'));
     const freshRows  = Array.from(document.querySelectorAll('#ert-fresh-tbody tr'));
-    if (!frozenRows.length && !freshRows.length) { alert('胚の個数を入力してください'); return; }
+
     if (!inv.embryoDetails) inv.embryoDetails = [];
     frozenRows.forEach(r => {
       inv.embryoDetails.push({
@@ -11170,7 +11170,7 @@ function saveEmbryoRestock() {
     });
     const unknownCount = parseInt(document.getElementById('ert-unknown-count')?.value||'0')||0;
     const totalAdded = frozenRows.length + freshRows.length + unknownCount;
-    if (!totalAdded) { alert('胚の個数を入力してください'); return; }
+    if (!totalAdded) { alert('凍結胚・新鮮胚・種別不明のいずれかに本数を入力してください'); return; }
     // 種別不明分はembryo詳細なしでstock加算のみ
     inv.stock = (inv.stock||0) + totalAdded;
     inv.history = inv.history||[];
