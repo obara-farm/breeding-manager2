@@ -7729,7 +7729,7 @@ let _savingCollection = false;
 function saveCollection() {
   if (_savingCollection) return;
   _savingCollection = true;
-  setTimeout(() => { _savingCollection = false; }, 3000);
+  setTimeout(() => { _savingCollection = false; }, 1000);
   const date = document.getElementById('col-date').value;
   const donorId = document.getElementById('col-donor').value;
   if (!date) { _savingCollection = false; alert('採卵日を入力してください'); return; }
@@ -7982,6 +7982,7 @@ function saveCollection() {
     if (cultTask) { cultTask.done = true; cultTask.doneAt = new Date().toISOString(); }
     delete document.getElementById('collection-edit-id').dataset.taskId;
   }
+  _savingCollection = false;
   save();
   closeModal('modal-collection');
   renderCollectionTab();
