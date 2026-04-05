@@ -13788,9 +13788,13 @@ function initFirebaseSync() {
     setSyncStatus('synced');
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
-    // リアルタイム受信
+    // リアルタイム受信（isSyncingまたは最後の保存から3秒以内は無視）
+    let _lastSaveTime = 0;
+    const _origSaveToFirebase = saveToFirebase;
+    window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
     dbRef.on('value', snapshot => {
       if (isSyncing) return;
+      if (Date.now() - _lastSaveTime < 3000) return; // 保存後3秒は受信無視
       const remote = snapshot.val();
       if (!remote) return;
       Object.keys(remote).forEach(k => _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k])));
@@ -13806,6 +13810,7 @@ function saveToFirebase() {
   setSyncStatus('syncing');
   // 書き込み開始を予告してリスナーの誤受信を防ぐ
   isSyncing = true;
+  if (typeof window._notifyFirebaseSave === 'function') window._notifyFirebaseSave();
   syncTimer = setTimeout(() => {
     const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','collectionRecordsNew','etRecords','fatteningRecords','insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
     const payload = {};
