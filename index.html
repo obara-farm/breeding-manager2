@@ -7788,6 +7788,7 @@ function saveCollection() {
   // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
+    const donorBreed = cows.find(c=>c.id===donorId)?.breed||'黒毛';
     // 同ロット・同採卵日の在庫を全削除（lot+collectionDateのみで特定）
     embryoInventory = embryoInventory.filter(e =>
       !(e.lot === (lot||date) && e.collectionDate === date)
@@ -7796,7 +7797,7 @@ function saveCollection() {
     const invItem = {
       id: Math.random().toString(36).slice(2),
       sire: sire||'', dam: donorName, lot: lot||date,
-      type: 'frozen', breed: '黒毛', stage: frozenEmbryos[0]?.stage||'',
+      type: 'frozen', breed: donorBreed, stage: frozenEmbryos[0]?.stage||'',
       stock: frozenEmbryos.length, alertThreshold: 2, noAlert: false,
       collectionDate: date,
       history: [{
@@ -7874,7 +7875,7 @@ function saveCollection() {
         invItem = {
           id: Math.random().toString(36).slice(2),
           sire: sire||'', dam: cowDisplayName(donorId)||donorId, lot: lot||date,
-          type: 'frozen', breed: '黒毛', stage: fe.stage||'',
+          type: 'frozen', breed: cows.find(c=>c.id===donorId)?.breed||'黒毛', stage: fe.stage||'',
           stock: 0, alertThreshold: 2, noAlert: false,
           collectionDate: date, history: [],
         };
@@ -7984,7 +7985,7 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
     const invItem = {
       id: Math.random().toString(36).slice(2),
       sire: rec.sire||'', dam: donorName, lot: rec.lot||date,
-      type: 'fresh', breed: '黒毛', stage: fe.stage||'',
+      type: 'fresh', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: fe.stage||'',
       stock: 0, alertThreshold: 0, noAlert: true,
       collectionDate: date, history: [
         { date, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
@@ -8079,7 +8080,7 @@ function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
     invItem = {
       id: Math.random().toString(36).slice(2),
       sire: rec.sire||'', dam: donorName, lot: lot||date,
-      type: 'frozen', breed: '黒毛', stage: finalStage,
+      type: 'frozen', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: finalStage,
       stock: 0, alertThreshold: 2, noAlert: false,
       collectionDate: date, history: [],
       embryoDetails: [],
@@ -8114,7 +8115,7 @@ function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
     invItem = {
       id: Math.random().toString(36).slice(2),
       sire: rec.sire||'', dam: donorName, lot: lot||date,
-      type: 'frozen', breed: '黒毛', stage: finalStage,
+      type: 'frozen', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: finalStage,
       stock: 0, alertThreshold: 2, noAlert: false,
       collectionDate: date, history: [],
       embryoDetails: [],
@@ -8159,7 +8160,7 @@ function executePendingET(idx) {
   const invItem = {
     id: Math.random().toString(36).slice(2),
     sire: e.sire||'', dam: donorName, lot: e.lot||e.collectDate,
-    type: 'fresh', breed: '黒毛', stage: e.stage||'',
+    type: 'fresh', breed: cows.find(c=>c.id===e.donorId)?.breed||'黒毛', stage: e.stage||'',
     stock: 0, alertThreshold: 0, noAlert: true,
     collectionDate: e.collectDate, history: [
       { date: e.collectDate, type:'selfcollect', count:1, memo:`採卵 新鮮胚${e.embryoNo}` },
