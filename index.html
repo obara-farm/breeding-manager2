@@ -403,6 +403,17 @@ textarea{resize:vertical;}
 
     </div>
 
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🔧 データ修復</div>
+    <div style="background:#0a1a2a;border:1px solid var(--info);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--info);margin-bottom:4px;">🧹 受精卵在庫の重複胚番号をクリーンアップ</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">採卵記録の重複保存などで在庫内部に同じ胚番号が複数登録されてしまった場合に修復します。<br>胚番号の重複のみ除去します。在庫・採卵記録・牛データは削除しません。</div>
+      <div id="cleanup-result" style="font-size:12px;margin-bottom:8px;display:none;"></div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="checkEmbryoDuplicates()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;flex:1;">🔍 重複を確認</button>
+        <button id="cleanup-exec-btn" onclick="execEmbryoCleanup()" style="background:var(--danger);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;flex:1;display:none;">🧹 クリーンアップ実行</button>
+      </div>
+    </div>
+
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">📊 現在のデータ</div>
     <div id="settings-stats" style="background:var(--bg3);border-radius:8px;padding:12px;font-size:13px;line-height:2;"></div>
   </div>
@@ -7181,11 +7192,12 @@ function getMaxFreshNo(lot) {
   return maxN;
 }
 
-function getMaxEmbryoNo(yearLabel) {
+function getMaxEmbryoNo(yearLabel, excludeLot, excludeDate) {
   // 在庫・凍結テーブル・培養テーブル・新鮮胚テーブル全て参照して最大番号を返す
   let maxNo = 0;
-  // 1. 既存在庫
+  // 1. 既存在庫（現在編集中のロットは除外：保存前の古いデータを参照しないため）
   embryoInventory.forEach(inv => {
+    if (excludeLot && excludeDate && inv.lot === excludeLot && inv.collectionDate === excludeDate) return;
     (inv.embryoDetails||[]).forEach(ed => {
       const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
       if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
@@ -7237,8 +7249,9 @@ function onColFrozenCountInput(val, existing) {
     comment: r.querySelector('.cf-comment')?.value || '',
   }));
   tbody.innerHTML = '';
-  // クリア後に参照（自テーブルを除いた最大番号）
-  const maxUsed = getMaxEmbryoNo(yearLabel);
+  // クリア後に参照（自テーブル＋現在編集中ロットを除いた最大番号）
+  const _exLot = (document.getElementById('col-lot').value||'') || colDate;
+  const maxUsed = getMaxEmbryoNo(yearLabel, _exLot, colDate);
 
   const lot = document.getElementById('col-lot').value || '';
   for (let i = 0; i < n; i++) {
@@ -7372,7 +7385,9 @@ function onFreshActionChange(sel) {
       const yl = `R${fy}`;
       // 全テーブル横断で最大番号取得（この行自身は除外）
       if (embryoNoInp) embryoNoInp.value = '';  // 一時的に空にして自分を除外
-      let maxNo = getMaxEmbryoNo(yl);
+      const _exLot2 = (document.getElementById('col-lot').value||'') || (document.getElementById('col-date').value||'');
+      const _exDate2 = document.getElementById('col-date').value||'';
+      let maxNo = getMaxEmbryoNo(yl, _exLot2, _exDate2);
       embryoNoInp.value = `01L237${yl}-${String(maxNo+1).padStart(4,'0')}`;
       embryoNoInp.style.background = 'var(--bg)';
       embryoNoInp.style.borderColor = 'var(--info)';
@@ -7710,11 +7725,15 @@ function selectCultureRecip(el, id, label) {
 }
 
 
+let _savingCollection = false;
 function saveCollection() {
+  if (_savingCollection) return;
+  _savingCollection = true;
+  setTimeout(() => { _savingCollection = false; }, 3000);
   const date = document.getElementById('col-date').value;
   const donorId = document.getElementById('col-donor').value;
-  if (!date) { alert('採卵日を入力してください'); return; }
-  if (!donorId) { alert('供卵牛を選択してください'); return; }
+  if (!date) { _savingCollection = false; alert('採卵日を入力してください'); return; }
+  if (!donorId) { _savingCollection = false; alert('供卵牛を選択してください'); return; }
 
   const lot = document.getElementById('col-lot').value.trim();
   const sire = document.getElementById('col-sire').value.trim();
@@ -9159,6 +9178,70 @@ function restoreBackup() {
   } catch(e) {
     alert('復元中にエラーが発生しました: ' + e.message);
   }
+}
+
+function checkEmbryoDuplicates() {
+  let totalDups = 0;
+  let details = [];
+  embryoInventory.forEach(function(inv) {
+    var seen = new Set();
+    var dups = 0;
+    (inv.embryoDetails||[]).forEach(function(ed) {
+      if (ed.no) {
+        if (seen.has(ed.no)) dups++;
+        else seen.add(ed.no);
+      }
+    });
+    if (dups > 0) {
+      totalDups += dups;
+      var name = (inv.dam ? inv.dam + '×' : '') + (inv.sire||'');
+      details.push(name + '(' + (inv.lot||'ロット未設定') + '): 重複 ' + dups + '件');
+    }
+  });
+
+  var resultEl = document.getElementById('cleanup-result');
+  var execBtn = document.getElementById('cleanup-exec-btn');
+  resultEl.style.display = '';
+
+  if (totalDups === 0) {
+    resultEl.innerHTML = '<span style="color:var(--accent);">✅ 重複は見つかりませんでした。クリーンアップ不要です。</span>';
+    execBtn.style.display = 'none';
+  } else {
+    resultEl.innerHTML = '<span style="color:var(--warn);">⚠ 重複胚番号が合計 <strong>' + totalDups + '件</strong> 見つかりました。</span><br>'
+      + details.map(function(d){ return '<span style="font-size:11px;color:var(--muted);">・' + d + '</span>'; }).join('<br>');
+    execBtn.style.display = '';
+  }
+}
+
+function execEmbryoCleanup() {
+  if (!confirm('重複した胚番号を削除します。\n在庫・採卵記録・牛データは変更しません。\n実行しますか？')) return;
+
+  var totalRemoved = 0;
+  embryoInventory.forEach(function(inv) {
+    var seen = new Set();
+    var before = (inv.embryoDetails||[]).length;
+    inv.embryoDetails = (inv.embryoDetails||[]).filter(function(ed) {
+      if (!ed.no) return true;
+      if (seen.has(ed.no)) return false;
+      seen.add(ed.no);
+      return true;
+    });
+    totalRemoved += before - inv.embryoDetails.length;
+    var frozenCount = (inv.embryoDetails||[]).filter(function(d){ return d.frozen; }).length;
+    if (frozenCount > 0 && inv.stock !== frozenCount) {
+      inv.stock = frozenCount;
+    }
+  });
+
+  save();
+
+  var resultEl = document.getElementById('cleanup-result');
+  var execBtn = document.getElementById('cleanup-exec-btn');
+  resultEl.innerHTML = '<span style="color:var(--accent);">✅ 完了。重複 <strong>' + totalRemoved + '件</strong> を除去しました。</span>';
+  execBtn.style.display = 'none';
+
+  renderEmbryo();
+  renderSettingsStats();
 }
 
 function resetAllEstrus() {
