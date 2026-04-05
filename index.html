@@ -10910,9 +10910,14 @@ function renderEmbryo() {
   empty.style.display = 'none';
 
   const qe = (document.getElementById('embryo-search')?.value || '').trim().toLowerCase();
+  // 新鮮胚の使用済みアイテム（stock:0 + use履歴あり）は在庫タブに表示しない
+  const _visibleEmbryo = embryoInventory.filter(e => {
+    if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
+    return true;
+  });
   const filteredEmbryo = qe
-    ? embryoInventory.filter(e => (e.sire||'').toLowerCase().includes(qe) || (e.breed||'').includes(qe) || (e.dam||'').toLowerCase().includes(qe) || (e.lot||'').toLowerCase().includes(qe))
-    : embryoInventory;
+    ? _visibleEmbryo.filter(e => (e.sire||'').toLowerCase().includes(qe) || (e.breed||'').includes(qe) || (e.dam||'').toLowerCase().includes(qe) || (e.lot||'').toLowerCase().includes(qe))
+    : _visibleEmbryo;
 
   if (!filteredEmbryo.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">「${qe}」に一致する受精卵がありません</div>`; return; }
 
@@ -11032,7 +11037,7 @@ function renderEmbryo() {
           ${damName?`<div style="font-size:11px;color:var(--muted);">ドナー牛: ${damName}</div>`:''}
           <div style="font-size:11px;margin-top:4px;">
             <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);padding:1px 7px;border-radius:4px;font-weight:700;">${stockBadge}</span>
-            <span style="font-size:11px;color:var(--muted);margin-left:8px;">${items.length}ロット</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px;">${new Set(items.filter(e=>e.lot&&e.collectionDate).map(e=>e.lot)).size}ロット</span>
           </div>
         </div>
         <div style="text-align:right;">
