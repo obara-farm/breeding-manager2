@@ -5612,6 +5612,7 @@ function renderHistory() {
 
 // ===== COLLECTION RESULT =====
 function openCollectionModal(cowId, taskId) {
+  _savingCollection = false;
   document.getElementById('col-cowid').value = cowId;
   document.getElementById('col-taskid').value = taskId||'';
   document.getElementById('modal-col-title').textContent = `${cowId} ${cowDisplayName(cowId)} — 採卵結果`;
@@ -6752,15 +6753,17 @@ function deleteCollectionRecord(id) {
   const donorName = cowDisplayName(rec.donorId)||rec.donorId||'';
   if (!confirm(`${fmtDate(rec.date)} ${donorName} の採卵記録を削除しますか？\n在庫・授精簿への反映も取り消されます。`)) return;
 
-  // 在庫から削除（lot+collectionDateで特定）
+  // 在庫から削除（lot+collectionDate+selfcollect履歴で採卵由来のみ特定）
   embryoInventory.forEach(inv => {
     if (inv.collectionDate !== rec.date || inv.lot !== (rec.lot||rec.date)) return;
+    const hasSelfCollect = (inv.history||[]).some(h => h.type === 'selfcollect');
+    if (!hasSelfCollect) return; // 繰越・手動入庫は触らない
     inv.history = (inv.history||[]).filter(h => !(h.type === 'selfcollect' && h.date === rec.date));
     inv.embryoDetails = [];
     inv.stock = 0;
     syncStockFromHistory(inv);
   });
-  // stock=0 で履歴も空の在庫アイテムを削除
+  // stock=0 で履歴も空の在庫アイテムを削除（採卵由来のみ）
   embryoInventory = embryoInventory.filter(inv =>
     !(inv.collectionDate === rec.date && inv.lot === (rec.lot||rec.date) && inv.stock === 0 && !(inv.history||[]).length)
   );
@@ -6825,6 +6828,7 @@ function renderPendingEtList() {
 }
 
 function openNewCollection() {
+  _savingCollection = false;
   document.getElementById('collection-edit-id').value = '';
   document.getElementById('collection-modal-title').textContent = '🌱 採卵記録 — 新規';
   document.getElementById('col-date').value = today();
@@ -6872,6 +6876,7 @@ function openEditCollectionFromTask(collectionId, taskId) {
 }
 
 function openEditCollection(id) {
+  _savingCollection = false;
   const r = collectionRecordsNew.find(x=>x.id===id);
   if (!r) return;
   document.getElementById('collection-edit-id').value = id;
@@ -7801,10 +7806,12 @@ function saveCollection() {
       insemBookRecords = insemBookRecords.filter(r=>!(allOldRecip.includes(r.t)&&r.d===oldDate));
       // 新鮮胚在庫（noAlert）を削除
       embryoInventory = embryoInventory.filter(inv=>!(inv.noAlert&&inv.collectionDate===oldDate));
-      // 在庫を全削除（lot+collectionDateのみで特定）
-      embryoInventory = embryoInventory.filter(inv=>
-        !(inv.collectionDate===oldDate && inv.lot===(oldRec.lot||oldDate))
-      );
+      // 在庫を削除（採卵由来のみ：selfcollect履歴があるもの）繰越・手動入庫は残す
+      embryoInventory = embryoInventory.filter(inv => {
+        if (!(inv.collectionDate===oldDate && inv.lot===(oldRec.lot||oldDate))) return true;
+        const hasSC = (inv.history||[]).some(h => h.type === 'selfcollect');
+        return !hasSC;
+      });
       // ドナーの妊鑑タスクを削除
       tasks = tasks.filter(t=>!(t.cowId===oldRec.donorId&&!t.done&&t.action==='妊娠鑑定'));
     }
@@ -7817,10 +7824,14 @@ function saveCollection() {
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
     const donorBreed = cows.find(c=>c.id===donorId)?.breed||'黒毛';
-    // 同ロット・同採卵日の在庫を全削除（lot+collectionDateのみで特定）
-    embryoInventory = embryoInventory.filter(e =>
-      !(e.lot === (lot||date) && e.collectionDate === date)
-    );
+    // 同ロット・同採卵日の在庫を全削除（採卵由来のみ：selfcollect履歴があるもの）
+    // 繰越・手動入庫アイテムは collectionDate が一致していても削除しない
+    embryoInventory = embryoInventory.filter(e => {
+      if (!(e.lot === (lot||date) && e.collectionDate === date)) return true;
+      // selfcollect履歴がある＝採卵記録由来なので削除対象
+      const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect');
+      return !hasSelfCollect;
+    });
     // 新規作成（凍結胚テーブルの入力値のみ）
     const invItem = {
       id: Math.random().toString(36).slice(2),
