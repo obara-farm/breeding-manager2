@@ -7686,7 +7686,9 @@ function saveCollection() {
       // 新鮮胚在庫（noAlert）を削除
       embryoInventory = embryoInventory.filter(inv=>!(inv.noAlert&&inv.collectionDate===oldDate&&inv.dam?.includes(oldRec.donorId)));
       // 凍結胚在庫を完全削除（再登録するため）
+      const beforeCount = embryoInventory.length;
       embryoInventory = embryoInventory.filter(inv=>!(inv.type==='frozen'&&inv.collectionDate===oldDate&&inv.dam?.includes(oldRec.donorId)&&inv.lot===(oldRec.lot||oldDate)));
+      console.log(`在庫削除: ${beforeCount}→${embryoInventory.length}件 (oldDate=${oldDate} donor=${oldRec.donorId} lot=${oldRec.lot||oldDate})`);
       // ドナーの妊鑑タスクを削除
       tasks = tasks.filter(t=>!(t.cowId===oldRec.donorId&&!t.done&&t.action==='妊娠鑑定'));
     }
@@ -7716,6 +7718,7 @@ function saveCollection() {
       embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
     };
     embryoInventory.push(invItem);
+    console.log(`在庫新規作成: ${invItem.lot} ${invItem.dam} ${invItem.embryoDetails?.length}本詳細`);
   }
 
   // 新鮮胚の処理
