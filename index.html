@@ -13794,7 +13794,7 @@ function initFirebaseSync() {
     window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
     dbRef.on('value', snapshot => {
       if (isSyncing) return;
-      if (Date.now() - _lastSaveTime < 3000) return; // 保存後3秒は受信無視
+      if (Date.now() - _lastSaveTime < 5000) return; // 保存後5秒は受信無視
       const remote = snapshot.val();
       if (!remote) return;
       Object.keys(remote).forEach(k => _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k])));
@@ -13806,11 +13806,12 @@ function initFirebaseSync() {
 
 function saveToFirebase() {
   if (!dbRef || !currentUser) return;
-  clearTimeout(syncTimer);
-  setSyncStatus('syncing');
-  // 書き込み開始を予告してリスナーの誤受信を防ぐ
+  // タイマーをリセットせず即座にisSyncingをtrueにしてリスナーをブロック
   isSyncing = true;
   if (typeof window._notifyFirebaseSave === 'function') window._notifyFirebaseSave();
+  setSyncStatus('syncing');
+  // 前のタイマーをキャンセルして最新データで上書き送信（デバウンス200ms）
+  clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','collectionRecordsNew','etRecords','fatteningRecords','insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
     const payload = {};
@@ -13819,10 +13820,9 @@ function saveToFirebase() {
       .then(() => { setSyncStatus('synced'); })
       .catch(() => { setSyncStatus('error'); })
       .finally(() => {
-        // 書き込み完了後、少し待ってからリスナーを再開（自分の書き込みのエコーを読み飛ばすため）
-        setTimeout(() => { isSyncing = false; }, 1500);
+        setTimeout(() => { isSyncing = false; }, 2000);
       });
-  }, 800);
+  }, 200);
 }
 
 // save関数をオーバーライド
