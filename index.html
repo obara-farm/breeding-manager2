@@ -1273,27 +1273,52 @@ textarea{resize:vertical;}
       </div>
     </div>
 
-    <!-- 入庫系：胚詳細テーブル -->
+    <!-- 入庫系：凍結胚・新鮮胚テーブル -->
     <div id="ert-in-section">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <label style="font-size:12px;color:var(--info);">胚詳細（1本ずつ入力）</label>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:11px;color:var(--muted);">個数:</span>
-          <input type="number" id="ert-in-count" min="1" value="1" oninput="onErtInCountChange(this.value)"
-            style="width:60px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:3px 6px;border-radius:6px;text-align:center;">
+      <!-- 凍結胚 -->
+      <div style="background:var(--bg2);border:1px solid var(--info);border-radius:8px;padding:10px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:var(--muted);">個数:</span>
+            <input type="number" id="ert-frozen-count" min="0" value="0" oninput="onErtFrozenCountChange(this.value)"
+              style="width:55px;background:var(--bg);border:1px solid var(--info);color:var(--info);font-size:13px;padding:3px 6px;border-radius:6px;text-align:center;">
+          </div>
+        </div>
+        <div id="ert-frozen-wrap" style="display:none;overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:420px;">
+            <thead><tr style="background:var(--bg3);">
+              <th style="padding:3px 5px;color:var(--muted);text-align:center;width:24px;">#</th>
+              <th style="padding:3px 5px;color:var(--info);text-align:left;">胚番号</th>
+              <th style="padding:3px 5px;color:var(--info);">ケーン</th>
+              <th style="padding:3px 5px;color:var(--muted);">S</th>
+              <th style="padding:3px 5px;color:var(--muted);">R</th>
+            </tr></thead>
+            <tbody id="ert-frozen-tbody"></tbody>
+          </table>
         </div>
       </div>
-      <div style="overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px;">
-          <thead><tr style="background:var(--bg3);">
-            <th style="padding:4px 6px;color:var(--muted);text-align:center;width:28px;">#</th>
-            <th style="padding:4px 6px;color:var(--info);text-align:left;">胚番号</th>
-            <th style="padding:4px 6px;color:var(--info);">ケーン</th>
-            <th style="padding:4px 6px;color:var(--muted);">S</th>
-            <th style="padding:4px 6px;color:var(--muted);">R</th>
-          </tr></thead>
-          <tbody id="ert-in-tbody"></tbody>
-        </table>
+      <!-- 新鮮胚 -->
+      <div style="background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;padding:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:var(--muted);">個数:</span>
+            <input type="number" id="ert-fresh-count" min="0" value="0" oninput="onErtFreshCountChange(this.value)"
+              style="width:55px;background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:13px;padding:3px 6px;border-radius:6px;text-align:center;">
+          </div>
+        </div>
+        <div id="ert-fresh-wrap" style="display:none;overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:360px;">
+            <thead><tr style="background:var(--bg3);">
+              <th style="padding:3px 5px;color:var(--muted);text-align:center;width:24px;">#</th>
+              <th style="padding:3px 5px;color:var(--accent);text-align:left;">胚番号</th>
+              <th style="padding:3px 5px;color:var(--muted);">S</th>
+              <th style="padding:3px 5px;color:var(--muted);">R</th>
+            </tr></thead>
+            <tbody id="ert-fresh-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -10962,39 +10987,32 @@ function setEmbryoRestockType(type) {
     btn.style.color = active ? (colors[t]||'var(--purple)') : 'var(--muted)';
     btn.style.background = active ? 'var(--bg2)' : 'var(--bg3)';
   });
-  if (isIn) {
-    onErtInCountChange(document.getElementById('ert-in-count').value||1);
-  } else {
+  if (!isIn) {
     renderErtOutList();
   }
 }
 
-function onErtInCountChange(val) {
-  const n = parseInt(val)||1;
-  const tbody = document.getElementById('ert-in-tbody');
+function _buildErtRows(tbodyId, n, saved, hasCane) {
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
-  // 現在の入力値を保存
-  const saved = Array.from(tbody.querySelectorAll('tr')).map(r=>({
-    no: r.querySelector('.ert-no')?.value||'',
-    cane: r.querySelector('.ert-cane')?.value||'',
-    stage: r.querySelector('.ert-stage')?.value||'',
-    rank: r.querySelector('.ert-rank')?.value||'',
-  }));
   tbody.innerHTML = '';
   for (let i = 0; i < n; i++) {
     const s = saved[i]||{};
     const tr = document.createElement('tr');
     tr.style.background = i%2===0?'var(--bg2)':'var(--bg3)';
-    tr.innerHTML = `
+    let html = `
       <td style="padding:3px 4px;text-align:center;color:var(--muted);font-size:11px;">${i+1}</td>
       <td style="padding:2px 3px;">
         <input type="text" class="ert-no" value="${s.no||''}" placeholder="胚番号（任意）"
           style="background:var(--bg);border:1px solid var(--border);color:var(--info);font-size:10px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;">
-      </td>
-      <td style="padding:2px 3px;">
+      </td>`;
+    if (hasCane) {
+      html += `<td style="padding:2px 3px;">
         <input type="text" class="ert-cane" value="${s.cane||''}" placeholder="ケーン"
           style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:10px;padding:2px 4px;border-radius:3px;width:80px;">
-      </td>
+      </td>`;
+    }
+    html += `
       <td style="padding:2px 3px;">
         <select class="ert-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:52px;">
           <option value="">—</option>
@@ -11011,8 +11029,32 @@ function onErtInCountChange(val) {
           <option value="B" ${s.rank==='B'?'selected':''}>B</option>
         </select>
       </td>`;
+    tr.innerHTML = html;
     tbody.appendChild(tr);
   }
+}
+
+function onErtFrozenCountChange(val) {
+  const n = parseInt(val)||0;
+  document.getElementById('ert-frozen-wrap').style.display = n>0 ? '' : 'none';
+  const saved = Array.from(document.querySelectorAll('#ert-frozen-tbody tr')).map(r=>({
+    no: r.querySelector('.ert-no')?.value||'',
+    cane: r.querySelector('.ert-cane')?.value||'',
+    stage: r.querySelector('.ert-stage')?.value||'',
+    rank: r.querySelector('.ert-rank')?.value||'',
+  }));
+  _buildErtRows('ert-frozen-tbody', n, saved, true);
+}
+
+function onErtFreshCountChange(val) {
+  const n = parseInt(val)||0;
+  document.getElementById('ert-fresh-wrap').style.display = n>0 ? '' : 'none';
+  const saved = Array.from(document.querySelectorAll('#ert-fresh-tbody tr')).map(r=>({
+    no: r.querySelector('.ert-no')?.value||'',
+    stage: r.querySelector('.ert-stage')?.value||'',
+    rank: r.querySelector('.ert-rank')?.value||'',
+  }));
+  _buildErtRows('ert-fresh-tbody', n, saved, false);
 }
 
 function renderErtOutList() {
@@ -11063,7 +11105,12 @@ function openEmbryoRestock(id) {
     `現在の在庫: <strong style="color:var(--purple);font-size:18px;">${totalStock}本</strong>`;
   document.getElementById('embryo-restock-date').value = today();
   document.getElementById('embryo-restock-memo').value = '';
-  document.getElementById('ert-in-count').value = 1;
+  document.getElementById('ert-frozen-count').value = 0;
+  document.getElementById('ert-fresh-count').value = 0;
+  document.getElementById('ert-frozen-wrap').style.display = 'none';
+  document.getElementById('ert-fresh-wrap').style.display = 'none';
+  document.getElementById('ert-frozen-tbody').innerHTML = '';
+  document.getElementById('ert-fresh-tbody').innerHTML = '';
   setEmbryoRestockType('restock');
   openModal('modal-embryo-restock');
 }
@@ -11078,22 +11125,32 @@ function saveEmbryoRestock() {
   if (!inv) return;
 
   if (isIn) {
-    // 入庫：胚詳細テーブルから取得
-    const rows = document.querySelectorAll('#ert-in-tbody tr');
-    if (!rows.length) { alert('胚を入力してください'); return; }
-    const newDetails = Array.from(rows).map(r=>({
-      no:    r.querySelector('.ert-no')?.value.trim()||'',
-      cane:  r.querySelector('.ert-cane')?.value.trim()||'',
-      stage: r.querySelector('.ert-stage')?.value||'',
-      rank:  r.querySelector('.ert-rank')?.value||'',
-      frozen: true, fresh: false,
-      collectedDate: date,
-    }));
+    // 凍結胚
+    const frozenRows = Array.from(document.querySelectorAll('#ert-frozen-tbody tr'));
+    const freshRows  = Array.from(document.querySelectorAll('#ert-fresh-tbody tr'));
+    if (!frozenRows.length && !freshRows.length) { alert('胚の個数を入力してください'); return; }
     if (!inv.embryoDetails) inv.embryoDetails = [];
-    newDetails.forEach(d => inv.embryoDetails.push(d));
-    inv.stock = (inv.stock||0) + newDetails.length;
+    frozenRows.forEach(r => {
+      inv.embryoDetails.push({
+        no:    r.querySelector('.ert-no')?.value.trim()||'',
+        cane:  r.querySelector('.ert-cane')?.value.trim()||'',
+        stage: r.querySelector('.ert-stage')?.value||'',
+        rank:  r.querySelector('.ert-rank')?.value||'',
+        frozen: true, fresh: false, collectedDate: date,
+      });
+    });
+    freshRows.forEach(r => {
+      inv.embryoDetails.push({
+        no:    r.querySelector('.ert-no')?.value.trim()||'',
+        stage: r.querySelector('.ert-stage')?.value||'',
+        rank:  r.querySelector('.ert-rank')?.value||'',
+        frozen: false, fresh: true, collectedDate: date,
+      });
+    });
+    const totalAdded = frozenRows.length + freshRows.length;
+    inv.stock = (inv.stock||0) + totalAdded;
     inv.history = inv.history||[];
-    inv.history.push({ date, type, count: newDetails.length, memo });
+    inv.history.push({ date, type, count: totalAdded, memo });
   } else {
     // 出庫：チェックされた胚番号を削除
     const checks = document.querySelectorAll('.ert-out-check:checked');
