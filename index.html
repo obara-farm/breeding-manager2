@@ -10769,7 +10769,8 @@ function switchSemenTab(tab) {
 
 // ===== 受精卵在庫管理 =====
 function renderEmbryo() {
-  embryoInventory.forEach(syncStockFromHistory);
+  // stockは各操作で直接管理するためsyncは呼ばない
+  // embryoInventory.forEach(syncStockFromHistory);
 
   const lowItems = embryoInventory.filter(e => !e.noAlert && e.stock <= (e.alertThreshold || 2));
   const alertEl = document.getElementById('embryo-low-alert');
@@ -10891,11 +10892,6 @@ function renderEmbryo() {
         </div>
       </div>
       ${lotCards}
-      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);">
-        <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="openEmbryoRestock('${lotMap[lotOrder[0]][0].id}')">📦 入荷・補充</button>
-        <button class="btn btn-secondary" style="font-size:12px;padding:6px 12px;" onclick="openEditEmbryo('${items[0].id}')">✏ 編集</button>
-        <button onclick="openUseRecord('embryo','${items[0].id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
-      </div>
     </div>`;
   }).join('');
 }
