@@ -10841,7 +10841,7 @@ function renderEmbryo() {
       });
       const frozenCnt = allDetails.filter(d=>d.frozen).length;
       const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
-      const detailId = 'embryo-lot-detail-' + (lotKey + '_' + key).replace(/[^a-zA-Z0-9]/g,'_').slice(0,40);
+      const detailId = 'embryo-lot-detail-' + (key + '_' + lotKey).replace(/[^a-zA-Z0-9]/g,'_');
       const totalUsed = lotItems.reduce((s,e)=>{
         return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
       },0);
