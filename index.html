@@ -7284,13 +7284,13 @@ function onColFreshCountInput(val, existing) {
     recipLabel:  r.querySelector('.cfr-recip-search')?.value || '',
   }));
   tbody.innerHTML = '';
+  const lot2 = document.getElementById('col-lot').value || '';
+  const date2 = document.getElementById('col-date').value || '';
+  // ループ前に一度だけmax取得（ループ内で取ると行追加のたびに値が増えて飛び番になる）
+  const freshBase = getMaxFreshNo(lot2);
   for (let i = 0; i < n; i++) {
     const exSaved = savedFresh[i];
     const ex = exSaved?.embryoNo ? exSaved : (existing && existing[i]);
-      const lot2 = document.getElementById('col-lot').value || '';
-      const date2 = document.getElementById('col-date').value || '';
-      // 新鮮胚・培養胚テーブル横断で最大番号取得して連番
-      const freshBase = getMaxFreshNo(lot2);
       const autoFreshNo = ex?.embryoNo || (lot2 ? `${lot2}-${freshBase + i + 1}` : `${date2}-${i+1}`);
       const tr = document.createElement('tr');
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
