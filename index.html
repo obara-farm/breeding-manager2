@@ -7109,9 +7109,12 @@ function onColDonorChange() {
     ? getDonorAIRecordsForCow(donorId, collectDate)
     : donorAIRecords.filter(r => r.cowId === donorId).slice(-5);
 
-  // cow.eventsのdonorAI記録も取得
+  // cow.eventsのAI記録を取得（donorAIフラグに関わらず、採卵日前後-10〜-4日の範囲）
+  const _aiFrom = collectDate ? addDays(collectDate, -10) : '';
+  const _aiTo   = collectDate ? addDays(collectDate, -4)  : '';
   const donorEventsAI = (cow.events||[]).filter(e =>
-    e.type === 'ai_done' && e.donorAI && e.date
+    e.type === 'ai_done' && e.date &&
+    (!collectDate || (e.date >= _aiFrom && e.date <= _aiTo))
   ).sort((a,b) => b.date.localeCompare(a.date)).slice(0,5);
 
   // 既存の採卵記録で使用済みのAI日付を収集（編集中の記録は除く）
