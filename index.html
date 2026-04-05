@@ -7816,8 +7816,11 @@ function saveCollection() {
       });
       // 授精簿のET記録を削除
       insemBookRecords = insemBookRecords.filter(r=>!(allOldRecip.includes(r.t)&&r.d===oldDate));
-      // 新鮮胚在庫（noAlert）を削除
-      embryoInventory = embryoInventory.filter(inv=>!(inv.noAlert&&inv.collectionDate===oldDate));
+      // 新鮮胚在庫（noAlert・採卵日一致）を削除
+      embryoInventory = embryoInventory.filter(inv=>
+        !(inv.type==='fresh' && inv.collectionDate===oldDate && (inv.noAlert||inv.stock===0) &&
+          (inv.lot===(oldRec.lot||oldDate)))
+      );
       // 在庫を削除（採卵由来のみ：selfcollect履歴があるもの）繰越・手動入庫は残す
       embryoInventory = embryoInventory.filter(inv => {
         if (!(inv.collectionDate===oldDate && inv.lot===(oldRec.lot||oldDate))) return true;
@@ -10890,7 +10893,11 @@ function renderEmbryo() {
   // stockは各操作で直接管理するためsyncは呼ばない
   // embryoInventory.forEach(syncStockFromHistory);
 
-  const lowItems = embryoInventory.filter(e => !e.noAlert && e.stock <= (e.alertThreshold || 2));
+  const lowItems = embryoInventory.filter(e => {
+    if (e.noAlert) return false;
+    if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
+    return e.stock <= (e.alertThreshold || 2);
+  });
   const alertEl = document.getElementById('embryo-low-alert');
   if (lowItems.length) {
     alertEl.style.display = '';
@@ -10922,7 +10929,11 @@ function renderEmbryo() {
     const items = groups[key];
     // グループ全体の合計在庫
     const totalStock = items.reduce((s,e) => s+e.stock, 0);
-    const anyLow = items.some(e => !e.noAlert && e.stock <= (e.alertThreshold||2));
+    const anyLow = items.some(e => {
+      if (e.noAlert) return false;
+      if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
+      return e.stock <= (e.alertThreshold||2);
+    });
     const sample = items[0];
     const damName = sample.dam || '';
     const sireName = sample.sire || '';
@@ -10957,7 +10968,11 @@ function renderEmbryo() {
     const lotCards = lotOrder.map((lotKey, lIdx) => {
       const lotItems = lotMap[lotKey];
       const lotStock = lotItems.reduce((s,e)=>s+e.stock, 0);
-      const isLow = lotItems.some(e=>!e.noAlert && e.stock<=(e.alertThreshold||2));
+      const isLow = lotItems.some(e=>{
+        if (e.noAlert) return false;
+        if (e.type==='fresh' && e.stock===0 && (e.history||[]).some(h=>h.type==='use')) return false;
+        return e.stock<=(e.alertThreshold||2);
+      });
       const collDate = lotItems[0].collectionDate || '';
       // 全アイテムの胚詳細を統合
       const allDetails = [];
