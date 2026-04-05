@@ -7312,6 +7312,7 @@ function onColFreshCountInput(val, existing) {
     comment:     r.querySelector('.cfr-comment')?.value || '',
     recipientId: r.querySelector('.cfr-recipient')?.value || '',
     recipLabel:  r.querySelector('.cfr-recip-search')?.value || '',
+    embryoNo2:   r.querySelector('.cfr-embryo-no2')?.value || '',
   }));
   tbody.innerHTML = '';
   const lot2 = document.getElementById('col-lot').value || '';
@@ -7358,6 +7359,12 @@ function onColFreshCountInput(val, existing) {
             oninput="onFreshRecipSearch(this)" onkeyup="onFreshRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;">
           <div class="cfr-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
+        </td>
+        <td style="padding:2px 4px;white-space:nowrap;vertical-align:top;">
+          <button type="button" onclick="toggleFreshSecondEmbryo(this)" style="background:#0a1a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">＋2卵目</button>
+          <div class="cfr-second-wrap" style="display:${ex?.embryoNo2?'':' none'};margin-top:3px;">
+            <input type="text" class="cfr-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目の胚番号" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
+          </div>
         </td>`;
       // recipientId復元
       const recipId = ex?.recipientId || '';
@@ -7372,10 +7379,33 @@ function onColFreshCountInput(val, existing) {
           searchInp.style.borderColor = 'var(--accent2)';
         }
       }
+      // embryoNo2復元
+      if (ex?.embryoNo2) {
+        const wrap = tr.querySelector('.cfr-second-wrap');
+        const inp2 = tr.querySelector('.cfr-embryo-no2');
+        const btn2 = tr.querySelector('button[onclick*="toggleFreshSecondEmbryo"]');
+        if (wrap) wrap.style.display = '';
+        if (inp2) inp2.value = ex.embryoNo2;
+        if (btn2) { btn2.textContent = '－2卵目'; btn2.style.borderColor='var(--warn)'; btn2.style.color='var(--warn)'; }
+      }
       tbody.appendChild(tr);
     }
 }
 
+
+function toggleFreshSecondEmbryo(btn) {
+  const wrap = btn.closest('td').querySelector('.cfr-second-wrap');
+  if (!wrap) return;
+  const isHidden = wrap.style.display === 'none' || wrap.style.display === ' none';
+  wrap.style.display = isHidden ? '' : 'none';
+  btn.textContent = isHidden ? '－2卵目' : '＋2卵目';
+  btn.style.borderColor = isHidden ? 'var(--warn)' : 'var(--purple)';
+  btn.style.color = isHidden ? 'var(--warn)' : 'var(--purple)';
+  if (!isHidden) {
+    const inp = wrap.querySelector('.cfr-embryo-no2');
+    if (inp) inp.value = '';
+  }
+}
 
 function onFreshActionChange(sel) {
   const row = sel.closest('tr');
@@ -7448,6 +7478,7 @@ function getColFreshEmbryos() {
   const rows = document.querySelectorAll('#col-fresh-tbody tr');
   return Array.from(rows).map(r => ({
     embryoNo:    r.querySelector('.cfr-embryo-no')?.value||'',
+    embryoNo2:   r.querySelector('.cfr-embryo-no2')?.value||'',
     stage:       r.querySelector('.cfr-stage')?.value||'',
     rank:        r.querySelector('.cfr-rank')?.value||'',
     comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
@@ -7868,7 +7899,8 @@ function saveCollection() {
     if (fe.recipientId) {
       // 当日移植：受卵牛にET記録（新鮮胚は常に当日移植）
       const freshNo = fe.embryoNo || `${lot||date}-${i+1}`;
-      _processFreshEtNow(rec, fe, freshNo, date, '🌱新鮮胚');
+      const freshNo2 = fe.embryoNo2 || '';
+      _processFreshEtNow(rec, fe, freshNo, date, '🌱新鮮胚', freshNo2);
     } else if (fe.action === 'freeze_now') {
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
@@ -8018,15 +8050,17 @@ function saveCollection() {
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
 }
 
-function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
+function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2) {
   // embryoTypeLabel: '🌱新鮮胚' or '🌱新鮮培養胚'
+  // embryoNo2: 2卵目胚番号（2卵移植の場合）
   const label = embryoTypeLabel || '🌱新鮮胚';
   const donorName = cowDisplayName(rec.donorId)||rec.donorId;
   const recip = cows.find(c=>c.id===fe.recipientId);
   if (!recip) return;
 
-  // 受卵牛の既存ET記録チェック（同日・同胚番号の重複防止）
-  const memo = `胚番号:${embryoNo} ドナー:${donorName} ランク:${fe.rank||'—'} ${label}`;
+  // メモ：2卵移植の場合は両胚番号を記載
+  const embryoNos = embryoNo2 ? `${embryoNo}・${embryoNo2}` : embryoNo;
+  const memo = `胚番号:${embryoNos} ドナー:${donorName} ランク:${fe.rank||'—'} ${label}`;
   const alreadyRecorded = (recip.events||[]).some(ev =>
     ev.type === 'et_done' && ev.date === date && ev.memo?.includes(embryoNo)
   );
@@ -8037,17 +8071,22 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel) {
     (inv.history||[]).some(h=>h.type==='use'&&h.cowId===fe.recipientId&&h.memo?.includes(embryoNo))
   );
   if (!alreadyInInv) {
-    // 入庫日・使用日（翌日移植の場合は date が移植日=翌日になっている）
     const invDate = date;
+    const hist = [
+      { date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
+      { date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
+    ];
+    // 2卵目がある場合も入出庫記録
+    if (embryoNo2) {
+      hist.push({ date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo2}` });
+      hist.push({ date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo2}（2卵目）` });
+    }
     const invItem = {
       id: Math.random().toString(36).slice(2),
       sire: rec.sire||'', dam: donorName, lot: rec.lot||rec.date,
       type: 'fresh', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: fe.stage||'',
       stock: 0, alertThreshold: 0, noAlert: false,
-      collectionDate: rec.date, history: [
-        { date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
-        { date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
-      ],
+      collectionDate: rec.date, history: hist,
     };
     embryoInventory.push(invItem);
   }
