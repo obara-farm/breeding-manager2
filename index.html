@@ -6902,6 +6902,21 @@ function openEditCollection(id) {
   selEl.style.display = donorLabel ? '' : 'none';
   if (donorLabel) selEl.textContent = `✓ ${donorLabel}（タップで変更）`;
   document.getElementById('col-donor-list').style.display = 'none';
+  // ドナー変更イベント発火してAI記録チェックボックスを生成
+  onColDonorChange();
+  // aiDatesのチェック状態を復元
+  if (r.aiDates && r.aiDates.length > 0) {
+    setTimeout(() => {
+      document.querySelectorAll('.col-ai-check').forEach(chk => {
+        if (r.aiDates.some(ai => ai.date === chk.value)) {
+          chk.checked = true;
+        } else {
+          chk.checked = false;
+        }
+      });
+      onColAICheckChange();
+    }, 50);
+  }
   // 凍結胚
   const fc = (r.frozenEmbryos||[]).length;
   document.getElementById('col-frozen-count').value = fc;
