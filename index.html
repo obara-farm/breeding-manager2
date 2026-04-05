@@ -6852,8 +6852,12 @@ function openNewCollection() {
   document.getElementById('col-cl-right').value = '';
   document.getElementById('col-cl-left').value = '';
   document.getElementById('col-recovered').value = '';
+  document.getElementById('col-degenerate-base').value = '';
   document.getElementById('col-degenerate').value = '';
   document.getElementById('col-unfertilized').value = '';
+  document.getElementById('col-grade-a').value = '';
+  document.getElementById('col-grade-b').value = '';
+  updateEmbryoSubtotal();
   document.getElementById('col-memo').value = '';
   document.getElementById('col-frozen-count').value = '0';
   document.getElementById('col-fresh-count').value = '0';
@@ -6896,8 +6900,11 @@ function openEditCollection(id) {
   document.getElementById('col-cl-right').value = r.clRight||'';
   document.getElementById('col-cl-left').value = r.clLeft||'';
   document.getElementById('col-recovered').value = r.recovered||'';
-  document.getElementById('col-degenerate').value = r.degenerate||'';
+  document.getElementById('col-degenerate-base').value = r.degenerateBase !== undefined ? (r.degenerateBase||'') : (r.degenerate||'');
   document.getElementById('col-unfertilized').value = r.unfertilized||'';
+  document.getElementById('col-grade-a').value = r.gradeA||'';
+  document.getElementById('col-grade-b').value = r.gradeB||'';
+  updateEmbryoSubtotal();
   document.getElementById('col-memo').value = r.memo||'';
   setColPG(r.pg !== false);
   // ドナー検索欄復元
@@ -6944,6 +6951,8 @@ function openEditCollection(id) {
   const crc = trueCulture.length;
   document.getElementById('col-culture-count').value = crc;
   onColCultureCountInput(crc, trueCulture);
+  // テーブル復元後に採卵成績を再集計（培養胚の変性等を反映）
+  setTimeout(() => syncEmbryoGrades(), 50);
   openModal('modal-collection');
 }
 
@@ -7326,12 +7335,13 @@ function onColFrozenCountInput(val, existing) {
       <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
         <option value="">—</option><option value="CM" ${stage==='CM'?'selected':''}>CM</option><option value="EB" ${stage==='EB'?'selected':''}>EB</option><option value="BL" ${stage==='BL'?'selected':''}>BL</option><option value="EX" ${stage==='EX'?'selected':''}>EX</option>
       </select></td>
-      <td style="padding:2px 3px;"><select class="cf-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
+      <td style="padding:2px 3px;"><select class="cf-rank" onchange="syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
         <option value="">—</option><option value="A" ${rank==='A'?'selected':''}>A</option><option value="B" ${rank==='B'?'selected':''}>B</option>
       </select></td>
       <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
     tbody.appendChild(tr);
   }
+  syncEmbryoGrades();
 }
 
 function onColFreshCountInput(val, existing) {
@@ -7380,7 +7390,7 @@ function onColFreshCountInput(val, existing) {
           </select>
         </td>
         <td style="padding:2px 3px;">
-          <select class="cfr-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:44px;">
+          <select class="cfr-rank" onchange="syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:44px;">
             <option value="">—</option>
             <option value="A" ${ex?.rank==='A'?'selected':''}>A</option>
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
@@ -7648,14 +7658,14 @@ function onColCultureCountInput(val, existing) {
           </select>
         </td>
         <td style="padding:2px 3px;">
-          <select class="cul-rank" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:38px;">
+          <select class="cul-rank" onchange="syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:38px;">
             <option value="">—</option>
             <option value="A" ${ex?.rank==='A'?'selected':''}>A</option>
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
           </select>
         </td>
         <td style="padding:2px 3px;">
-          <select class="cul-next-stage" onchange="onCultureNextStageChange(this)" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;min-width:46px;">
+          <select class="cul-next-stage" onchange="onCultureNextStageChange(this); syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:11px;padding:2px 3px;border-radius:3px;min-width:46px;">
             <option value="">—</option>
             <option value="CM"   ${ex?.cultureStage==='CM'?'selected':''}>CM</option>
             <option value="EB"   ${ex?.cultureStage==='EB'?'selected':''}>EB</option>
@@ -7757,6 +7767,61 @@ function onCultureNextStageChange(sel) {
       if (rh) rh.value = '';
     }
   }
+  // 培養胚の変性変更を採卵成績欄に反映
+  syncEmbryoGrades();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 採卵成績の胚集計（A胚・B胚・変性）を自動更新
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateEmbryoSubtotal() {
+  const a = parseInt(document.getElementById('col-grade-a')?.value)||0;
+  const b = parseInt(document.getElementById('col-grade-b')?.value)||0;
+  const sub = document.getElementById('col-embryo-subtotal');
+  if (sub) sub.value = (a + b) || '';
+}
+
+function syncEmbryoGrades() {
+  let countA = 0, countB = 0, countCultureDegen = 0;
+
+  // 凍結胚テーブルのランク集計
+  document.querySelectorAll('#col-frozen-tbody tr').forEach(row => {
+    const rank = row.querySelector('.cf-rank')?.value || '';
+    if (rank === 'A') countA++;
+    else if (rank === 'B') countB++;
+  });
+
+  // 新鮮胚テーブルのランク集計（サブ行は除く）
+  document.querySelectorAll('#col-fresh-tbody tr').forEach(row => {
+    if (row.classList.contains('fresh-sub-row')) return;
+    const rank = row.querySelector('.cfr-rank')?.value || '';
+    if (rank === 'A') countA++;
+    else if (rank === 'B') countB++;
+  });
+
+  // 培養胚テーブルのランク集計＋変性カウント
+  document.querySelectorAll('#col-culture-tbody tr').forEach(row => {
+    const nextStage = row.querySelector('.cul-next-stage')?.value || '';
+    if (nextStage === '変性') {
+      countCultureDegen++;
+      return; // 変性は胚品質集計対象外
+    }
+    const rank = row.querySelector('.cul-rank')?.value || '';
+    if (rank === 'A') countA++;
+    else if (rank === 'B') countB++;
+  });
+
+  // A胚・B胚を自動表示
+  const gradeAInp = document.getElementById('col-grade-a');
+  const gradeBInp = document.getElementById('col-grade-b');
+  if (gradeAInp) gradeAInp.value = countA || '';
+  if (gradeBInp) gradeBInp.value = countB || '';
+  updateEmbryoSubtotal();
+
+  // 変性合計 = 当日手動入力（col-degenerate-base）+ 培養胚変性数
+  const baseVal = parseInt(document.getElementById('col-degenerate-base')?.value)||0;
+  const degenTotal = document.getElementById('col-degenerate');
+  if (degenTotal) degenTotal.value = (baseVal + countCultureDegen) || '';
 }
 
 function onCultureActionChange(sel) {
@@ -7984,7 +8049,10 @@ function saveCollection() {
     clLeft: parseInt(document.getElementById('col-cl-left').value)||0,
     recovered: parseInt(document.getElementById('col-recovered').value)||0,
     degenerate: parseInt(document.getElementById('col-degenerate').value)||0,
+    degenerateBase: parseInt(document.getElementById('col-degenerate-base').value)||0,
     unfertilized: parseInt(document.getElementById('col-unfertilized').value)||0,
+    gradeA: parseInt(document.getElementById('col-grade-a').value)||0,
+    gradeB: parseInt(document.getElementById('col-grade-b').value)||0,
     // ドナーAI連携：チェックされたAI日リスト
     aiDates: Array.from(document.querySelectorAll('.col-ai-check:checked')).map(c=>({
       date: c.value, semen: c.dataset.semen, count: parseInt(c.dataset.count)||1
@@ -13605,12 +13673,35 @@ try {
           <input type="number" id="col-recovered" min="0" style="font-size:13px;text-align:center;">
         </div>
         <div class="form-group">
-          <label style="font-size:10px;">変性</label>
-          <input type="number" id="col-degenerate" min="0" style="font-size:13px;text-align:center;">
+          <label style="font-size:10px;">変性（当日）</label>
+          <input type="number" id="col-degenerate-base" min="0" data-manual="true"
+            oninput="syncEmbryoGrades()"
+            style="font-size:13px;text-align:center;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">変性（合計）</label>
+          <input type="number" id="col-degenerate" min="0" readonly
+            style="font-size:13px;text-align:center;background:var(--bg2);color:var(--warn,#f59e0b);font-weight:700;cursor:default;"
+            title="当日変性＋培養胚変性の合計">
         </div>
         <div class="form-group">
           <label style="font-size:10px;">未受精</label>
           <input type="number" id="col-unfertilized" min="0" style="font-size:13px;text-align:center;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">A胚（自動）</label>
+          <input type="number" id="col-grade-a" min="0" readonly
+            style="font-size:13px;text-align:center;background:var(--bg2);color:var(--info);font-weight:700;cursor:default;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">B胚（自動）</label>
+          <input type="number" id="col-grade-b" min="0" readonly
+            style="font-size:13px;text-align:center;background:var(--bg2);color:var(--info);font-weight:700;cursor:default;">
+        </div>
+        <div class="form-group">
+          <label style="font-size:10px;">胚小計（A＋B）</label>
+          <input type="number" id="col-embryo-subtotal" min="0" readonly
+            style="font-size:13px;text-align:center;background:var(--bg2);color:var(--info);font-weight:700;cursor:default;">
         </div>
       </div>
       <!-- PG投与 -->
