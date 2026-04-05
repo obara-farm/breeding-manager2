@@ -10752,7 +10752,7 @@ function renderEmbryo() {
       });
       const frozenCnt = allDetails.filter(d=>d.frozen).length;
       const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
-      const detailId = 'embryo-lot-detail-' + lotKey.replace(/[^a-zA-Z0-9]/g,'_');
+      const detailId = 'embryo-lot-detail-' + (lotKey + '_' + key).replace(/[^a-zA-Z0-9]/g,'_').slice(0,40);
       const totalUsed = lotItems.reduce((s,e)=>{
         return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
       },0);
@@ -10760,7 +10760,7 @@ function renderEmbryo() {
       const mainId = lotItems[0].id;
 
       return `<div style="background:var(--bg2);border:1px solid ${isLow?'var(--danger)':'var(--border)'};border-radius:8px;padding:10px 12px;margin-bottom:6px;">
-        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="document.getElementById('${detailId}').style.display=document.getElementById('${detailId}').style.display==='none'?'':'none'">
+        <div style="display:flex;align-items:center;gap:8px;cursor:pointer;" onclick="const el=document.getElementById('${detailId}');if(el)el.style.display=el.style.display==='none'?'':'none'">
           <div style="flex:1;">
             <span style="font-size:12px;font-weight:700;color:${isLow?'var(--danger)':'var(--info)'};">${lotKey}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:6px;">${collDate?fmtDate(collDate):''}</span>
@@ -10994,7 +10994,12 @@ function manualUseEmbryo(id) {
 function confirmDeleteEmbryoLot(lotKey, encodedGroupKey) {
   // ロット内の全アイテムを削除
   const groupKey = decodeURIComponent(encodedGroupKey);
-  const targets = embryoInventory.filter(e => (e.lot||e.collectionDate||'—') === lotKey);
+  const targets = embryoInventory.filter(e => {
+    const k = (e.lot||e.collectionDate||'—');
+    // groupKeyでドナー×種雄牛も絞り込み
+    const damSire = (e.dam||'') + '×' + (e.sire||'');
+    return k === lotKey && damSire === groupKey;
+  });
   if (!targets.length) { alert('該当する在庫が見つかりません'); return; }
   const sample = targets[0];
   const name = `${sample.dam?sample.dam+'×':''}${sample.sire}`;
