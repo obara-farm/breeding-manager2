@@ -8032,7 +8032,21 @@ function saveCollection() {
       });
     }
   });
-  // ドナー牛のスケジュール処理（PG投与なし = 妊鑑タスク生成 + ドナーAIフラグOFF）
+  // 採卵記録に紐づいたAI日のdonorAIフラグをOFF（PG投与有無に関わらず）
+  const _allAIDates = [...(rec.aiDates||[]).map(a=>a.date), ...(rec.aiDate?[rec.aiDate]:[])];
+  if (_allAIDates.length > 0) {
+    const donorCow = cows.find(c=>c.id===donorId);
+    _allAIDates.forEach(aiD => {
+      const r = insemBookRecords.find(r => r.t === donorId && r.d === aiD && r.donorAI);
+      if (r) r.donorAI = false;
+      if (donorCow) {
+        const ev = (donorCow.events||[]).find(e => e.type==='ai_done' && e.date===aiD && e.donorAI);
+        if (ev) ev.donorAI = false;
+      }
+    });
+  }
+
+  // ドナー牛のスケジュール処理（PG投与なし = 妊鑑タスク生成）
   if (!pg && aiDate) {
     const cow = cows.find(c=>c.id===donorId);
     if (cow) {
