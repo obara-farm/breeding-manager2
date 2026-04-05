@@ -7718,7 +7718,6 @@ function saveCollection() {
       embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
     };
     embryoInventory.push(invItem);
-    console.log(`在庫新規作成: ${invItem.lot} ${invItem.dam} ${invItem.embryoDetails?.length}本詳細`);
   }
 
   // 新鮮胚の処理
@@ -7802,7 +7801,6 @@ function saveCollection() {
   cultureEmbryos.forEach((ce, i) => {
     const ceEmbryoNo = ce.embryoNo || `${lot||date}-cul-${i+1}`;
     const ceCaneNo   = ce.caneNo   || '';
-    console.log(`培養胚[${i}] result=${ce.cultureResult} recip=${ce.recipientId}`);
     if (ce.cultureResult === 'et' && ce.recipientId) {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
