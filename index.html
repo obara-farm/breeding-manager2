@@ -7316,6 +7316,11 @@ function onColFrozenCountInput(val, existing) {
     comment: r.querySelector('.cf-comment')?.value || '',
   }));
   tbody.innerHTML = '';
+  // 年度を計算（1月始まり：2026年=R8）
+  const colDate = document.getElementById('col-date').value;
+  const d = colDate ? new Date(colDate) : new Date();
+  const fiscalYear = d.getFullYear() - 2018;
+  const yearLabel = `R${fiscalYear}`;
   // 農場全体の最大胚番号を取得（編集中の記録IDは除外済み）
   const maxUsed = getMaxEmbryoNo(yearLabel);
   // デバッグ: maxUsedが0なら既存在庫を参照できていない可能性
