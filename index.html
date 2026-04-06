@@ -14037,18 +14037,18 @@ function initFirebaseSync() {
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
 
-    // リアルタイムリスナー（複数端末でのリアルタイム共有用）
-    // 自分の書き込みのエコーは無視する
-    window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
+    // リアルタイムリスナー（別端末の変更検知用）
+    // 注意：自分の書き込みのエコーでloadData()を呼ぶとデータが破壊されるため
+    // リスナーはステータス表示のみに使用。データ読み込みは行わない。
     dbRef.on('value', snapshot => {
-      // 自分が保存中は受信を無視
+      // 自分が保存中は無視
       if (isSyncing) return;
-      // 自分の保存完了から30秒以内は受信を無視（エコー除外）
+      // 保存後30秒以内は無視（エコー除外）
       if (Date.now() - _lastSaveTime < 30000) return;
+      // 別端末からの変更を検知したらバッジを表示するだけ
+      // （loadData()は呼ばない → データ破壊を防ぐ）
       const remote = snapshot.val();
       if (!remote) return;
-      // 別端末からの更新のみ反映
-      // _lastSentSnapshotと同じ値のキーは自分のエコーなので無視
       const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
         'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
         'etRecords','fatteningRecords','insemBookRecords','insemBookEdits',
@@ -14057,18 +14057,30 @@ function initFirebaseSync() {
       safeKeys.forEach(k => {
         if (!(k in remote)) return;
         const remoteVal = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
-        // 自分が最後に送った値と同じ＝エコー → 無視
         if (_lastSentSnapshot[k] === remoteVal) return;
-        // ローカルと同じ → 無視
         const localVal = _store.getItem(k);
         if (localVal === remoteVal) return;
-        // 別端末からの変更 → 反映
-        _store.setItem(k, remoteVal);
         anyChanged = true;
       });
       if (anyChanged) {
-        if (typeof loadData === 'function') { loadData(); renderAll(); }
-        setSyncStatus('synced');
+        // 別端末からの変更あり → 更新ボタンを強調表示
+        const syncEl = document.getElementById('sync-status');
+        if (syncEl) {
+          syncEl.textContent = '🔄 他端末が更新';
+          syncEl.style.cursor = 'pointer';
+          syncEl.onclick = function() {
+            if (confirm('他の端末で変更がありました。最新データを読み込みますか？\n（未保存の変更は失われます）')) {
+              safeKeys.forEach(k => {
+                if (!(k in remote)) return;
+                const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+                _store.setItem(k, rv);
+              });
+              if (typeof loadData === 'function') { loadData(); renderAll(); }
+              setSyncStatus('synced');
+              syncEl.onclick = null;
+            }
+          };
+        }
       }
     });
   }).catch(() => setSyncStatus('error'));
