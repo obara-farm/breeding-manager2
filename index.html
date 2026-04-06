@@ -8195,18 +8195,22 @@ function saveCollection() {
 
       // 新鮮胚在庫（type:fresh）は旧ロットの同ドナー分を削除→再作成
       const _oldDonorName2 = cowDisplayName(oldRec.donorId)||oldRec.donorId;
-      embryoInventory = embryoInventory.filter(inv=>
-        !(inv.type==='fresh' && inv.collectionDate===oldDate &&
-          inv.lot===(oldRec.lot||oldDate) && (!inv.dam || inv.dam === _oldDonorName2))
-      );
+      if (oldRec.lot) {
+        embryoInventory = embryoInventory.filter(inv=>
+          !(inv.type==='fresh' && inv.collectionDate===oldDate &&
+            inv.lot===oldRec.lot && (!inv.dam || inv.dam === _oldDonorName2))
+        );
+      }
       // 凍結胚在庫（採卵由来・同ドナー）を削除→再作成
       const _oldDonorName = cowDisplayName(oldRec.donorId)||oldRec.donorId;
-      embryoInventory = embryoInventory.filter(inv => {
-        if (!(inv.collectionDate===oldDate && inv.lot===(oldRec.lot||oldDate))) return true;
-        if (inv.dam && inv.dam !== _oldDonorName) return true;
-        const hasSC = (inv.history||[]).some(h => h.type === 'selfcollect');
-        return !hasSC;
-      });
+      if (oldRec.lot) {
+        embryoInventory = embryoInventory.filter(inv => {
+          if (!(inv.collectionDate===oldDate && inv.lot===oldRec.lot)) return true;
+          if (inv.dam && inv.dam !== _oldDonorName) return true;
+          const hasSC = (inv.history||[]).some(h => h.type === 'selfcollect');
+          return !hasSC;
+        });
+      }
       // ドナーの妊鑑タスクを削除
       tasks = tasks.filter(t=>!(t.cowId===oldRec.donorId&&!t.done&&t.action==='妊娠鑑定'));
     }
@@ -8220,14 +8224,16 @@ function saveCollection() {
     const donorName = cowDisplayName(donorId)||donorId;
     const donorBreed = cows.find(c=>c.id===donorId)?.breed||'黒毛';
     // 同ロット・同採卵日・同ドナーの在庫を削除（採卵由来のみ）
-    const _donorName = cowDisplayName(donorId)||donorId;
-    embryoInventory = embryoInventory.filter(e => {
-      if (!(e.lot === (lot||date) && e.collectionDate === date)) return true;
-      // ドナーが違う場合は削除しない（同日別ドナーの在庫を守る）
-      if (e.dam && e.dam !== _donorName) return true;
-      const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect');
-      return !hasSelfCollect;
-    });
+    // lotが空の場合は削除しない（別ドナーの在庫を誤って消さないため）
+    if (lot) {
+      embryoInventory = embryoInventory.filter(e => {
+        if (!(e.lot === lot && e.collectionDate === date)) return true;
+        // ドナーが違う場合は削除しない（同日別ドナーの在庫を守る）
+        if (e.dam && e.dam !== donorName) return true;
+        const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect');
+        return !hasSelfCollect;
+      });
+    }
     // 新規作成（凍結胚テーブルの入力値のみ）
     const invItem = {
       id: Math.random().toString(36).slice(2),
@@ -14035,9 +14041,9 @@ function initFirebaseSync() {
     // 自分の書き込みのエコーは無視する
     window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
     dbRef.on('value', snapshot => {
-      // 自分が保存中、または保存直後8秒以内は受信を無視（自分のエコーを除外）
+      // 自分が保存中、または保存直後30秒以内は受信を無視（自分のエコーを除外）
       if (isSyncing) return;
-      if (Date.now() - _lastSaveTime < 8000) return;
+      if (Date.now() - _lastSaveTime < 30000) return;
       const remote = snapshot.val();
       if (!remote) return;
       Object.keys(remote).forEach(k => {
@@ -14095,7 +14101,7 @@ function saveToFirebase() {
       })
       .finally(() => {
         // 書き込み完了後8秒間はリスナーをブロック（自分の書き込みのエコーを確実に無視）
-        setTimeout(() => { isSyncing = false; }, 8000);
+        setTimeout(() => { isSyncing = false; }, 30000);
       });
   }, 200);
 }
