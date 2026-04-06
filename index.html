@@ -8464,29 +8464,29 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
     recip.events = recip.events||[];
     recip.events.push({ type:'et_done', date, memo });
     recip.status = 'program';
-    // 妊鑑タスク（2卵目の場合は既存タスクがあればスキップ）
-    const pregDate = addDays(date, 35);
-    const hasExistingPregTask = tasks.some(t=>t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定'));
-    if (!isDitto || !hasExistingPregTask) {
-    tasks = tasks.filter(t=>!(t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定')));
-    tasks.push({
-      id: Math.random().toString(36).slice(2), cowId: fe.recipientId,
-      date: pregDate, action: '妊娠鑑定',
-      detail: `ET後35日 (ET日:${fmtDate(date)}) ${label}`,
-      color: '#f59e0b', priority: 'high', done: false,
-    });
-    // 授精簿（重複防止）
+    // 授精簿に追加（必ず実行）
     const alreadyInBook = insemBookRecords.some(r =>
       r.t === fe.recipientId && r.d === date && r.m?.includes(embryoNo)
     );
     if (!alreadyInBook) addInsemBookRecord(fe.recipientId, date, memo, 'et');
+    // 妊鑑タスク（2卵目の場合は既存タスクがあればスキップ）
+    const pregDate = addDays(date, 35);
+    const hasExistingPregTask = tasks.some(t=>t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定'));
+    if (!isDitto || !hasExistingPregTask) {
+      tasks = tasks.filter(t=>!(t.cowId===fe.recipientId&&!t.done&&t.action.includes('妊娠鑑定')));
+      tasks.push({
+        id: Math.random().toString(36).slice(2), cowId: fe.recipientId,
+        date: pregDate, action: '妊娠鑑定',
+        detail: `ET後35日 (ET日:${fmtDate(date)}) ${label}`,
+        color: '#f59e0b', priority: 'high', done: false,
+      });
+    }
     // ET実施タスク自動完了
     const etTask = tasks.find(t =>
       t.cowId === fe.recipientId && !t.done &&
       (t.action.includes('胚移植') || t.action.includes('ET'))
     );
     if (etTask) { etTask.done = true; etTask.doneAt = new Date().toISOString(); }
-    } // end if(!isDitto || !hasExistingPregTask)
   }
 }
 
