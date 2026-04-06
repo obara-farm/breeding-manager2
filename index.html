@@ -8219,6 +8219,7 @@ function saveCollection() {
   } else {
     collectionRecordsNew.push(rec);
   }
+  console.log('[saveCollection] 保存後のcollectionRecordsNew件数:', collectionRecordsNew.length, collectionRecordsNew.map(r=>({id:r.id,donorId:r.donorId,lot:r.lot,fresh:r.freshEmbryos?.length,frozen:r.frozenEmbryos?.length})));
   // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
     const donorName = cowDisplayName(donorId)||donorId;
