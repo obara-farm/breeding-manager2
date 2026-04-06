@@ -8108,6 +8108,49 @@ function saveCollection() {
       // ── 削除された胚番号 = 旧にあって新にない ──
       const removedNos = [...oldEmbryoNos].filter(no => !newEmbryoNosInFresh.has(no));
 
+      // ── 受卵牛が変わった胚番号を検出 ──
+      // 胚番号は同じでも受卵牛が変わった場合、旧受卵牛のET記録を削除する
+      const oldRecipByNo = {};
+      (oldRec.freshEmbryos||[]).forEach(fe => {
+        if (fe.embryoNo && fe.recipientId) oldRecipByNo[fe.embryoNo] = fe.recipientId;
+        if (fe.embryoNo2 && fe.recipientId) oldRecipByNo[fe.embryoNo2] = fe.recipientId;
+      });
+      (oldRec.cultureEmbryos||[]).forEach(ce => {
+        if (ce.embryoNo && ce.recipientId) oldRecipByNo[ce.embryoNo] = ce.recipientId;
+        if (ce.embryoNo2 && ce.recipientId) oldRecipByNo[ce.embryoNo2] = ce.recipientId;
+      });
+      const newRecipByNo = {};
+      (freshEmbryos||[]).forEach(fe => {
+        if (fe.embryoNo && fe.recipientId) newRecipByNo[fe.embryoNo] = fe.recipientId;
+        if (fe.embryoNo2 && fe.recipientId) newRecipByNo[fe.embryoNo2] = fe.recipientId;
+      });
+      (cultureEmbryos||[]).forEach(ce => {
+        if (ce.embryoNo && ce.recipientId) newRecipByNo[ce.embryoNo] = ce.recipientId;
+        if (ce.embryoNo2 && ce.recipientId) newRecipByNo[ce.embryoNo2] = ce.recipientId;
+      });
+      // 受卵牛が変わった胚番号の旧受卵牛からET記録を削除
+      Object.entries(oldRecipByNo).forEach(([embryoNo, oldRecipId]) => {
+        const newRecipId = newRecipByNo[embryoNo];
+        if (newRecipId === oldRecipId) return; // 変わっていない
+        const oldRecip = cows.find(c => c.id === oldRecipId);
+        if (!oldRecip) return;
+        oldRecip.events = (oldRecip.events||[]).filter(ev => {
+          if (ev.type !== 'et_done') return true;
+          return !ev.memo?.includes(embryoNo);
+        });
+        // 旧受卵牛のET記録がなくなったらステータスをopenに
+        const remainingET = (oldRecip.events||[]).filter(ev =>
+          ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
+        );
+        if (!remainingET.length) {
+          oldRecip.status = 'open';
+          oldRecip.dueDate = null;
+          tasks = tasks.filter(t=>!(t.cowId===oldRecipId&&!t.done&&t.action.includes('妊娠鑑定')));
+        }
+        // 授精簿からも削除
+        insemBookRecords = insemBookRecords.filter(r => !r.m?.includes(embryoNo) || r.t !== oldRecipId);
+      });
+
       // 削除された胚番号に紐づくET記録・授精簿・妊鑑タスクのみ削除
       if (removedNos.length > 0) {
         const oldAllRecip = [
@@ -8374,6 +8417,8 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
     ? `${fe.stage||'—'}${fe.rank||'—'}・${fe.stage2||'—'}${fe.rank2||'—'}`
     : `${fe.stage||'—'}${fe.rank||'—'}`;
   const memo = `胚番号:${embryoNos} ドナー:${donorName} ${rankInfo} ${label}`;
+  // 同じ受卵牛・同じ胚番号・同じ日のET記録がある場合のみスキップ
+  // （受卵牛が変わった場合は旧受卵牛からは削除済みなので新受卡牛に追加する）
   const alreadyRecorded = (recip.events||[]).some(ev =>
     ev.type === 'et_done' && ev.date === date && ev.memo?.includes(embryoNo)
   );
