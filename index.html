@@ -6901,7 +6901,9 @@ function openEditCollectionFromTask(collectionId, taskId) {
 
 function openEditCollection(id) {
   _savingCollection = false;
+  console.log('[openEditCollection] id:', id, '現在の件数:', collectionRecordsNew.length, collectionRecordsNew.map(r=>r.id+'/'+r.donorId));
   const r = collectionRecordsNew.find(x=>x.id===id);
+  console.log('[openEditCollection] 該当レコード:', r ? {donorId:r.donorId,lot:r.lot,fresh:r.freshEmbryos?.length,frozen:r.frozenEmbryos?.length} : 'NOT FOUND');
   if (!r) return;
   document.getElementById('collection-edit-id').value = id;
   document.getElementById('collection-modal-title').textContent = '🌱 採卵記録 — 編集';
