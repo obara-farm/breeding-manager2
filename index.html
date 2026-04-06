@@ -14022,7 +14022,6 @@ function initFirebaseSync() {
 
     // リアルタイムリスナー（複数端末でのリアルタイム共有用）
     // 自分の書き込みのエコーは無視する
-    // リアルタイムリスナー（複数端末でのリアルタイム共有用）
     window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
     dbRef.on('value', snapshot => {
       // 自分が保存中、または保存直後10秒以内は受信を完全無視（自分のエコーを除外）
