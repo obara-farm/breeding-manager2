@@ -8412,10 +8412,16 @@ function saveCollection() {
     delete document.getElementById('collection-edit-id').dataset.taskId;
   }
   _savingCollection = false;
+  console.log('[1] save()直前 件数:', collectionRecordsNew.length, collectionRecordsNew.map(r=>r.donorId));
   save();
+  console.log('[2] save()直後 件数:', collectionRecordsNew.length);
+  console.log('[3] localStorage件数:', JSON.parse(localStorage.getItem('collectionRecordsNew')||'[]').length);
   closeModal('modal-collection');
+  console.log('[4] closeModal後 件数:', collectionRecordsNew.length);
   renderCollectionTab();
+  console.log('[5] renderCollectionTab後 件数:', collectionRecordsNew.length);
   renderAll();
+  console.log('[6] renderAll後 件数:', collectionRecordsNew.length);
   // バッジ更新
   const badge = document.getElementById('collection-pending-badge');
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
