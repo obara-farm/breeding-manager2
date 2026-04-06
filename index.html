@@ -7305,6 +7305,7 @@ function getMaxEmbryoNo(yearLabel) {
 
 function onColFrozenCountInput(val, existing) {
   const n = parseInt(val)||0;
+  console.log('[onColFrozenCountInput] n:', n, 'existing:', existing?.map(e=>e.no||e.embryoNo));
   const wrap = document.getElementById('col-frozen-tbody-wrap');
   const tbody = document.getElementById('col-frozen-tbody');
   wrap.style.display = n > 0 ? '' : 'none';
@@ -7335,6 +7336,7 @@ function onColFrozenCountInput(val, existing) {
     const saved = savedRows[i];
     const ex    = existing && existing[i];
     const autoNo   = saved?.no   || ex?.no   || `01L237${yearLabel}-${String(maxUsed + i + 1).padStart(4,'0')}`;
+    console.log(`[frozen row ${i}] saved.no=${saved?.no}, ex.no=${ex?.no}, autoNo=${autoNo}`);
     // ※ maxUsedは既在庫+他テーブル参照済みなので i+1 は「このテーブルで何番目か」を意味する
     const caneIdx  = Math.floor(i / 5);
     const caneLabel = String.fromCharCode(65 + caneIdx);
