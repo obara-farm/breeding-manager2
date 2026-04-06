@@ -14041,16 +14041,35 @@ function initFirebaseSync() {
     // 自分の書き込みのエコーは無視する
     window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
     dbRef.on('value', snapshot => {
-      // 自分が保存中、または保存直後30秒以内は受信を無視（自分のエコーを除外）
+      // 自分が保存中は受信を無視
       if (isSyncing) return;
+      // 自分の保存完了から30秒以内は受信を無視（エコー除外）
       if (Date.now() - _lastSaveTime < 30000) return;
       const remote = snapshot.val();
       if (!remote) return;
-      Object.keys(remote).forEach(k => {
-        _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+      // 別端末からの更新のみ反映
+      // _lastSentSnapshotと同じ値のキーは自分のエコーなので無視
+      const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
+        'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
+        'etRecords','fatteningRecords','insemBookRecords','insemBookEdits',
+        'donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
+      let anyChanged = false;
+      safeKeys.forEach(k => {
+        if (!(k in remote)) return;
+        const remoteVal = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+        // 自分が最後に送った値と同じ＝エコー → 無視
+        if (_lastSentSnapshot[k] === remoteVal) return;
+        // ローカルと同じ → 無視
+        const localVal = _store.getItem(k);
+        if (localVal === remoteVal) return;
+        // 別端末からの変更 → 反映
+        _store.setItem(k, remoteVal);
+        anyChanged = true;
       });
-      if (typeof loadData === 'function') { loadData(); renderAll(); }
-      setSyncStatus('synced');
+      if (anyChanged) {
+        if (typeof loadData === 'function') { loadData(); renderAll(); }
+        setSyncStatus('synced');
+      }
     });
   }).catch(() => setSyncStatus('error'));
 }
@@ -14086,7 +14105,7 @@ function saveToFirebase() {
     });
     if (!hasChanges) {
       setSyncStatus('synced');
-      setTimeout(() => { isSyncing = false; }, 500);
+      setTimeout(() => { isSyncing = false; }, 30000);
       return;
     }
     dbRef.update(updates)
