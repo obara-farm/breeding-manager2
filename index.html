@@ -8091,57 +8091,65 @@ function saveCollection() {
     const recIdx = collectionRecordsNew.findIndex(x=>x.id===editId);
     const oldRec = recIdx >= 0 ? JSON.parse(JSON.stringify(collectionRecordsNew[recIdx])) : null;
 
-    // 旧データに紐づく全記録を削除してから再登録
     if (oldRec) {
       const oldDate = oldRec.date;
 
-      // 旧記録に含まれる全胚番号を収集（ET記録の絞り込みに使用）
+      // ── 旧記録の全胚番号セット ──
       const oldEmbryoNos = new Set([
         ...(oldRec.freshEmbryos||[]).flatMap(fe => [fe.embryoNo, fe.embryoNo2].filter(Boolean)),
         ...(oldRec.cultureEmbryos||[]).flatMap(ce => [ce.embryoNo, ce.embryoNo2].filter(Boolean)),
       ]);
+      // ── 新記録の全胚番号セット ──
+      const newEmbryoNosInFresh = new Set([
+        ...(freshEmbryos||[]).flatMap(fe => [fe.embryoNo, fe.embryoNo2].filter(Boolean)),
+        ...(cultureEmbryos||[]).flatMap(ce => [ce.embryoNo, ce.embryoNo2].filter(Boolean)),
+      ]);
 
-      const allOldRecip = [
-        ...(oldRec.freshEmbryos||[]).map(fe=>fe.recipientId),
-        ...(oldRec.cultureEmbryos||[]).map(ce=>ce.recipientId),
-      ].filter(Boolean);
+      // ── 削除された胚番号 = 旧にあって新にない ──
+      const removedNos = [...oldEmbryoNos].filter(no => !newEmbryoNosInFresh.has(no));
 
-      // 受卵牛のET記録を削除：「同日 かつ この採卵記録の胚番号が含まれる」ものだけ削除
-      allOldRecip.forEach(recipId => {
-        const recip = cows.find(c=>c.id===recipId);
-        if (!recip) return;
-        recip.events = (recip.events||[]).filter(ev => {
-          if (ev.type !== 'et_done' || ev.date !== oldDate) return true;
-          // この採卵記録の胚番号がmemoに含まれる場合のみ削除
-          if (oldEmbryoNos.size > 0) {
-            const memoHasNo = [...oldEmbryoNos].some(no => ev.memo?.includes(no));
-            if (!memoHasNo) return true; // 他の採卵記録由来のETは残す
+      // 削除された胚番号に紐づくET記録・授精簿・妊鑑タスクのみ削除
+      if (removedNos.length > 0) {
+        const oldAllRecip = [
+          ...(oldRec.freshEmbryos||[]).map(fe=>fe.recipientId),
+          ...(oldRec.cultureEmbryos||[]).map(ce=>ce.recipientId),
+        ].filter(Boolean);
+        oldAllRecip.forEach(recipId => {
+          const recip = cows.find(c=>c.id===recipId);
+          if (!recip) return;
+          // この採卵記録の削除された胚番号に紐づくETのみ削除
+          recip.events = (recip.events||[]).filter(ev => {
+            if (ev.type !== 'et_done' || ev.date !== oldDate) return true;
+            return !removedNos.some(no => ev.memo?.includes(no));
+          });
+          // 妊鑑タスクは、その受卵牛の全ET記録がなくなった場合のみ削除
+          const remainingET = (recip.events||[]).filter(ev =>
+            ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
+          );
+          if (!remainingET.length) {
+            recip.status = 'open';
+            recip.dueDate = null;
+            tasks = tasks.filter(t=>!(t.cowId===recipId&&!t.done&&t.action.includes('妊娠鑑定')));
           }
-          return false;
         });
-        tasks = tasks.filter(t=>!(t.cowId===recipId&&!t.done&&t.action.includes('妊娠鑑定')));
-        const remaining=(recip.events||[]).filter(ev=>['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type));
-        if (!remaining.length){recip.status='open';recip.dueDate=null;}
-      });
-      // 授精簿のET記録を削除（この採卵記録の胚番号に紐づくものだけ）
-      insemBookRecords = insemBookRecords.filter(r => {
-        if (!(allOldRecip.includes(r.t) && r.d === oldDate)) return true;
-        if (oldEmbryoNos.size > 0) {
-          return ![...oldEmbryoNos].some(no => r.m?.includes(no));
-        }
-        return false;
-      });
-      // 新鮮胚在庫（noAlert・採卵日一致・同ドナー）を削除
+        // 授精簿も削除された胚番号に紐づくものだけ削除
+        insemBookRecords = insemBookRecords.filter(r => {
+          if (r.d !== oldDate) return true;
+          return !removedNos.some(no => r.m?.includes(no));
+        });
+      }
+
+      // 新鮮胚在庫（type:fresh）は旧ロットの同ドナー分を削除→再作成
       const _oldDonorName2 = cowDisplayName(oldRec.donorId)||oldRec.donorId;
       embryoInventory = embryoInventory.filter(inv=>
-        !(inv.type==='fresh' && inv.collectionDate===oldDate && (inv.noAlert||inv.stock===0) &&
+        !(inv.type==='fresh' && inv.collectionDate===oldDate &&
           inv.lot===(oldRec.lot||oldDate) && (!inv.dam || inv.dam === _oldDonorName2))
       );
-      // 在庫を削除（採卵由来のみ・同ドナーのみ）
+      // 凍結胚在庫（採卵由来・同ドナー）を削除→再作成
       const _oldDonorName = cowDisplayName(oldRec.donorId)||oldRec.donorId;
       embryoInventory = embryoInventory.filter(inv => {
         if (!(inv.collectionDate===oldDate && inv.lot===(oldRec.lot||oldDate))) return true;
-        if (inv.dam && inv.dam !== _oldDonorName) return true; // 別ドナーは残す
+        if (inv.dam && inv.dam !== _oldDonorName) return true;
         const hasSC = (inv.history||[]).some(h => h.type === 'selfcollect');
         return !hasSC;
       });
