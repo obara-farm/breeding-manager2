@@ -14021,26 +14021,35 @@ function initFirebaseSync() {
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
 
     // リアルタイムリスナー（複数端末でのリアルタイム共有用）
-    // 自分の書き込みのエコーは無視する
-    window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
+    // 「自分が最後に送ったデータ」と受信データを比較してエコーを除外する
     dbRef.on('value', snapshot => {
-      // 自分が保存中、または保存直後10秒以内は受信を完全無視（自分のエコーを除外）
       if (isSyncing) return;
-      if (Date.now() - _lastSaveTime < 10000) return;
       const remote = snapshot.val();
       if (!remote) return;
-      // 別端末からの更新：全キーをそのまま反映
+
       const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
         'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
         'etRecords','fatteningRecords','insemBookRecords','insemBookEdits',
         'donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
+
+      // 受信データが「自分が最後に送ったデータ」と完全一致するキーは無視
+      // 一致しないキー（他端末が変更したキー）のみ反映
+      let changed = false;
       safeKeys.forEach(k => {
         if (!(k in remote)) return;
         const remoteVal = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+        // 自分が送ったデータと同じなら無視（エコー除外）
+        if (_lastSentSnapshot[k] === remoteVal) return;
+        // 自分が送ったデータと違う＝他端末からの更新
+        const localVal = _store.getItem(k);
+        if (localVal === remoteVal) return; // ローカルと同じなら不要
         _store.setItem(k, remoteVal);
+        changed = true;
       });
-      if (typeof loadData === 'function') { loadData(); renderAll(); }
-      setSyncStatus('synced');
+      if (changed) {
+        if (typeof loadData === 'function') { loadData(); renderAll(); }
+        setSyncStatus('synced');
+      }
     });
   }).catch(() => setSyncStatus('error'));
 }
@@ -14053,8 +14062,6 @@ function saveToFirebase() {
   if (!dbRef || !currentUser) return;
   // 即座にisSyncingをtrueにしてFirebaseリスナーをブロック
   isSyncing = true;
-  _lastSaveTime = Date.now(); // 保存開始時刻を記録
-  if (typeof window._notifyFirebaseSave === 'function') window._notifyFirebaseSave();
   setSyncStatus('syncing');
   // デバウンス200ms：連続保存時は最後の1回だけ送信
   clearTimeout(syncTimer);
@@ -14082,7 +14089,6 @@ function saveToFirebase() {
     dbRef.update(updates)
       .then(() => {
         setSyncStatus('synced');
-        _lastSaveTime = Date.now(); // 送信完了時刻を更新（エコー除外タイマーをリセット）
       })
       .catch(err => {
         console.error('Firebase update error:', err);
@@ -14090,8 +14096,8 @@ function saveToFirebase() {
         setSyncStatus('error');
       })
       .finally(() => {
-        // 書き込み完了後10秒間はリスナーをブロック（リスナーの10秒と合わせる）
-        setTimeout(() => { isSyncing = false; }, 10000);
+        // 送信完了後1秒でリスナー再開（内容ベース比較なのでエコーは自動除外）
+        setTimeout(() => { isSyncing = false; }, 1000);
       });
   }, 200);
 }
