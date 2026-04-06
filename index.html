@@ -6452,9 +6452,16 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
 
 // 授精簿に新規記録を追加
 function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
-  // 同日同牛の重複チェック
-  const all = [...INSEM_BOOK_DATA, ...insemBookRecords];
-  if (all.some(r => r.t === cowId && r.d === date)) return;
+  // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
+  if (type === 'ai') {
+    const all = [...INSEM_BOOK_DATA, ...insemBookRecords];
+    if (all.some(r => r.t === cowId && r.d === date)) return;
+  } else {
+    // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
+    const embryoNoMatch = memo.match(/胚番号:([^\s]+)/);
+    const embryoNo = embryoNoMatch ? embryoNoMatch[1] : '';
+    if (insemBookRecords.some(r => r.t === cowId && r.d === date && (embryoNo ? r.m?.includes(embryoNo) : false))) return;
+  }
   const cow = cows.find(c => c.id === cowId);
   const cowName = cow ? (cow.nationalId ? cow.nationalId.toString().replace(/(\d{5})(\d{5})(\d)$/, '$1- $2-$3') + '[' + (cow.name||'') + ']' : (cow.name||'')) : '';
   // 種雄牛名をmemoから抽出
@@ -6463,14 +6470,14 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
     const m = memo.match(/精液:([^／\s]+)/);
     sire = m ? m[1].trim() : '';
   } else {
-    const m = memo.match(/胚番号:([^／\s]+)/);
+    const m = memo.match(/胚番号:([^\s]+)/);
     sire = m ? m[1].trim() : (memo.match(/種雄牛:([^\/\s]+)/)?.[1]?.trim() || '');
   }
-  const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : 'R7';
+  const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : date < '2026-04-01' ? 'R7' : 'R8';
   // memoから術者を抽出
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = opMatch ? opMatch[1].trim() : '';
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: '', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: memo||'', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
 }
 
 function saveInsemBookRecord(src, idx) {
@@ -6755,27 +6762,25 @@ function deleteCollectionRecord(id) {
 
   // 在庫から削除（lot+collectionDate+同ドナーで特定）
   const _delDonorName = cowDisplayName(rec.donorId)||rec.donorId;
-  embryoInventory.forEach(inv => {
-    if (inv.collectionDate !== rec.date || inv.lot !== (rec.lot||rec.date)) return;
-    if (inv.dam && inv.dam !== _delDonorName) return; // 別ドナーは触らない
+  embryoInventory = embryoInventory.filter(inv => {
+    if (inv.collectionDate !== rec.date) return true;
+    if (inv.lot !== (rec.lot||rec.date)) return true;
+    if (inv.dam && inv.dam !== _delDonorName) return true; // 別ドナーは触らない
     const hasSelfCollect = (inv.history||[]).some(h => h.type === 'selfcollect');
-    if (!hasSelfCollect) return;
-    inv.history = (inv.history||[]).filter(h => !(h.type === 'selfcollect' && h.date === rec.date));
-    inv.embryoDetails = [];
-    inv.stock = 0;
-    syncStockFromHistory(inv);
+    return !hasSelfCollect; // 自家採卵由来の在庫のみ削除
   });
-  embryoInventory = embryoInventory.filter(inv =>
-    !(inv.collectionDate === rec.date && inv.lot === (rec.lot||rec.date) &&
-      (!inv.dam || inv.dam === _delDonorName) && inv.stock === 0 && !(inv.history||[]).length)
-  );
 
-  // 関連タスクを削除
-  tasks = tasks.filter(t => t.collectionId !== id && !(t.cowId === rec.donorId && !t.done && t.date === rec.date));
+  // ドナー牛の妊鑑タスクを削除
+  tasks = tasks.filter(t => !(t.cowId === rec.donorId && !t.done && t.action === '妊娠鑑定'));
 
-  // 授精簿から関連ET記録を削除
-  const etDate = rec.date;
-  insemBookRecords = insemBookRecords.filter(r => !(r.d === etDate && r.t && (rec.freshEmbryos||[]).some(fe => fe.recipientId === r.t)));
+  // 授精簿から関連ET記録を削除（胚番号ベース）
+  const allEmbryoNos = [
+    ...(rec.freshEmbryos||[]).flatMap(fe => [fe.embryoNo, fe.embryoNo2].filter(Boolean)),
+    ...(rec.cultureEmbryos||[]).flatMap(ce => [ce.embryoNo, ce.embryoNo2].filter(Boolean)),
+  ];
+  if (allEmbryoNos.length) {
+    insemBookRecords = insemBookRecords.filter(r => !allEmbryoNos.some(no => r.m?.includes(no)));
+  }
 
   // 受卵牛のET記録を削除してステータスリセット
   [...(rec.freshEmbryos||[]), ...(rec.cultureEmbryos||[])].forEach(fe => {
@@ -6783,10 +6788,16 @@ function deleteCollectionRecord(id) {
     if (!recipId) return;
     const recip = cows.find(c => c.id === recipId);
     if (!recip) return;
-    recip.events = (recip.events||[]).filter(ev => !(ev.type === 'et_done' && ev.date === etDate));
+    // この採卵記録の胚番号に紐づくET記録のみ削除
+    const feNos = [fe.embryoNo, fe.embryoNo2].filter(Boolean);
+    recip.events = (recip.events||[]).filter(ev => {
+      if (ev.type !== 'et_done') return true;
+      return !feNos.some(no => ev.memo?.includes(no));
+    });
     const remaining = (recip.events||[]).filter(ev => ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type));
     if (!remaining.length) { recip.status = 'open'; recip.dueDate = null; }
-    tasks = tasks.filter(t => !(t.cowId === recipId && !t.done && t.action.includes('妊娠鑑定') && t.date === addDays(etDate, 35)));
+    // 妊鑑タスクを削除（この受卵牛のET由来のもの）
+    tasks = tasks.filter(t => !(t.cowId === recipId && !t.done && t.action.includes('妊娠鑑定')));
   });
 
   // 採卵記録を削除
