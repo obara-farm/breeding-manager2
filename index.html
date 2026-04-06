@@ -7822,6 +7822,13 @@ function syncEmbryoGrades() {
   const baseVal = parseInt(document.getElementById('col-degenerate-base')?.value)||0;
   const degenTotal = document.getElementById('col-degenerate');
   if (degenTotal) degenTotal.value = (baseVal + countCultureDegen) || '';
+
+  // 回収卵 = 胚小計（A＋B）＋ 変性合計 ＋ 未受精
+  const subtotal = (countA + countB);
+  const degen    = baseVal + countCultureDegen;
+  const unf      = parseInt(document.getElementById('col-unfertilized')?.value)||0;
+  const recovered = document.getElementById('col-recovered');
+  if (recovered) recovered.value = (subtotal + degen + unf) || '';
 }
 
 function onCultureActionChange(sel) {
@@ -13669,8 +13676,10 @@ try {
           <input type="number" id="col-cl-left" min="0" style="font-size:13px;text-align:center;">
         </div>
         <div class="form-group">
-          <label style="font-size:10px;">回収卵</label>
-          <input type="number" id="col-recovered" min="0" style="font-size:13px;text-align:center;">
+          <label style="font-size:10px;">回収卵（自動）</label>
+          <input type="number" id="col-recovered" min="0" readonly
+            style="font-size:13px;text-align:center;background:var(--bg2);color:var(--info);font-weight:700;cursor:default;"
+            title="胚小計＋変性合計＋未受精の合計">
         </div>
         <div class="form-group">
           <label style="font-size:10px;">変性（当日）</label>
@@ -13686,7 +13695,7 @@ try {
         </div>
         <div class="form-group">
           <label style="font-size:10px;">未受精</label>
-          <input type="number" id="col-unfertilized" min="0" style="font-size:13px;text-align:center;">
+          <input type="number" id="col-unfertilized" min="0" oninput="syncEmbryoGrades()" style="font-size:13px;text-align:center;">
         </div>
         <div class="form-group">
           <label style="font-size:10px;">A胚（自動）</label>
