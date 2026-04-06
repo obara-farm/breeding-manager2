@@ -13988,22 +13988,50 @@ function initFirebaseSync() {
   }).catch(() => setSyncStatus('error'));
 }
 
+// 前回送信時のスナップショット（変更検知用）
+let _lastSentSnapshot = {};
+
 function saveToFirebase() {
   if (!dbRef || !currentUser) return;
-  // タイマーをリセットせず即座にisSyncingをtrueにしてリスナーをブロック
+  // 即座にisSyncingをtrueにしてFirebaseリスナーをブロック
   isSyncing = true;
   if (typeof window._notifyFirebaseSave === 'function') window._notifyFirebaseSave();
   setSyncStatus('syncing');
-  // 前のタイマーをキャンセルして最新データで上書き送信（デバウンス200ms）
+  // デバウンス200ms：連続保存時は最後の1回だけ送信
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory','collectionRecords','collectionRecordsNew','etRecords','fatteningRecords','insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
-    const payload = {};
-    keys.forEach(k => { const v = _store.getItem(k); if (v !== null) payload[k] = v; });
-    dbRef.set(payload)
+    const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory',
+      'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
+      'insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList',
+      'pendingUseRecords','data_version'];
+    // 変更があったキーのみupdate()で差分送信
+    // set()と違い、書き込み中に他のキーが上書きされるリスクがない
+    // さらに変更検知で不要な送信をスキップし、競合リスクを最小化
+    const updates = {};
+    let hasChanges = false;
+    keys.forEach(k => {
+      const v = _store.getItem(k);
+      if (v !== null && v !== _lastSentSnapshot[k]) {
+        updates[k] = v;
+        _lastSentSnapshot[k] = v;
+        hasChanges = true;
+      }
+    });
+    if (!hasChanges) {
+      setSyncStatus('synced');
+      setTimeout(() => { isSyncing = false; }, 500);
+      return;
+    }
+    dbRef.update(updates)
       .then(() => { setSyncStatus('synced'); })
-      .catch(() => { setSyncStatus('error'); })
+      .catch(err => {
+        console.error('Firebase update error:', err);
+        // 送信失敗したキーはスナップショットから削除（次回保存時に再送）
+        Object.keys(updates).forEach(k => { delete _lastSentSnapshot[k]; });
+        setSyncStatus('error');
+      })
       .finally(() => {
+        // 書き込み完了後2秒間はリスナーをブロック（自分の書き込みのエコーを無視）
         setTimeout(() => { isSyncing = false; }, 2000);
       });
   }, 200);
