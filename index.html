@@ -14009,9 +14009,6 @@ function setSyncStatus(state) {
 // ===== Firebase同期 =====
 function initFirebaseSync() {
   setSyncStatus('syncing');
-  // ログイン時に1回だけFirebaseからデータを読み込む
-  // リアルタイムリスナー（dbRef.on）は使用しない
-  // 理由：1台運用のため不要、かつ自分の書き込みを受信して上書きするバグの原因になる
   dbRef.once('value').then(snapshot => {
     const remote = snapshot.val();
     if (remote) {
@@ -14022,28 +14019,52 @@ function initFirebaseSync() {
     setSyncStatus('synced');
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
+
+    // リアルタイムリスナー（複数端末でのリアルタイム共有用）
+    // 自分の書き込みのエコーは無視する
+    // リアルタイムリスナー（複数端末でのリアルタイム共有用）
+    window._notifyFirebaseSave = function() { _lastSaveTime = Date.now(); };
+    dbRef.on('value', snapshot => {
+      // 自分が保存中、または保存直後10秒以内は受信を完全無視（自分のエコーを除外）
+      if (isSyncing) return;
+      if (Date.now() - _lastSaveTime < 10000) return;
+      const remote = snapshot.val();
+      if (!remote) return;
+      // 別端末からの更新：全キーをそのまま反映
+      const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
+        'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
+        'etRecords','fatteningRecords','insemBookRecords','insemBookEdits',
+        'donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
+      safeKeys.forEach(k => {
+        if (!(k in remote)) return;
+        const remoteVal = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+        _store.setItem(k, remoteVal);
+      });
+      if (typeof loadData === 'function') { loadData(); renderAll(); }
+      setSyncStatus('synced');
+    });
   }).catch(() => setSyncStatus('error'));
 }
 
 // 前回送信時のスナップショット（変更検知用）
 let _lastSentSnapshot = {};
+let _lastSaveTime = 0; // 最後にFirebaseへ保存した時刻（リスナーのエコー除外用）
 
 function saveToFirebase() {
   if (!dbRef || !currentUser) return;
   // 即座にisSyncingをtrueにしてFirebaseリスナーをブロック
   isSyncing = true;
+  _lastSaveTime = Date.now(); // 保存開始時刻を記録
   if (typeof window._notifyFirebaseSave === 'function') window._notifyFirebaseSave();
   setSyncStatus('syncing');
   // デバウンス200ms：連続保存時は最後の1回だけ送信
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    const keys = ['cows','tasks','calves','retiredCows','semenInventory','embryoInventory',
+    const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
       'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
       'insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList',
       'pendingUseRecords','data_version'];
     // 変更があったキーのみupdate()で差分送信
-    // set()と違い、書き込み中に他のキーが上書きされるリスクがない
-    // さらに変更検知で不要な送信をスキップし、競合リスクを最小化
     const updates = {};
     let hasChanges = false;
     keys.forEach(k => {
@@ -14060,16 +14081,18 @@ function saveToFirebase() {
       return;
     }
     dbRef.update(updates)
-      .then(() => { setSyncStatus('synced'); })
+      .then(() => {
+        setSyncStatus('synced');
+        _lastSaveTime = Date.now(); // 送信完了時刻を更新（エコー除外タイマーをリセット）
+      })
       .catch(err => {
         console.error('Firebase update error:', err);
-        // 送信失敗したキーはスナップショットから削除（次回保存時に再送）
         Object.keys(updates).forEach(k => { delete _lastSentSnapshot[k]; });
         setSyncStatus('error');
       })
       .finally(() => {
-        // 書き込み完了後2秒間はリスナーをブロック（自分の書き込みのエコーを無視）
-        setTimeout(() => { isSyncing = false; }, 2000);
+        // 書き込み完了後10秒間はリスナーをブロック（リスナーの10秒と合わせる）
+        setTimeout(() => { isSyncing = false; }, 10000);
       });
   }, 200);
 }
