@@ -7514,7 +7514,11 @@ function onColFrozenCountInput(val, existing) {
       <td style="padding:2px 3px;"><select class="cf-rank" onchange="syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
         <option value="">—</option><option value="A" ${rank==='A'?'selected':''}>A</option><option value="B" ${rank==='B'?'selected':''}>B</option>
       </select></td>
-      <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
+      <td style="background:var(--bg3);opacity:.4;"></td>
+      <td style="background:var(--bg3);opacity:.4;"></td>
+      <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:100px;"></td>
+      <td style="background:var(--bg3);opacity:.4;"></td>
+      <td style="background:var(--bg3);opacity:.4;"></td>`;
     tbody.appendChild(tr);
   }
   syncEmbryoGrades();
@@ -7556,7 +7560,7 @@ function onColFreshCountInput(val, existing) {
           <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
         </td>
-        <td></td>
+        <td style="background:var(--bg3);opacity:.4;"></td>
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:54px;">
             <option value="">—</option>
@@ -7573,11 +7577,11 @@ function onColFreshCountInput(val, existing) {
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
           </select>
         </td>
-        <td></td>
-        <td></td>
+        <td style="background:var(--bg3);opacity:.4;"></td>
+        <td style="background:var(--bg3);opacity:.4;"></td>
         <td style="padding:2px 3px;">
           <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
-            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:110px;">
+            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:100px;">
         </td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
@@ -14028,8 +14032,11 @@ try {
       </div>
     </div>
 
+    <!-- 胚記録（凍結・新鮮・培養）共通コンテナ -->
+    <div style="overflow-x:auto;" id="col-embryo-outer">
+
     <!-- 凍結胚記録 -->
-    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:12px;margin-bottom:14px;">
+    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:12px 12px 4px 12px;margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -14037,25 +14044,32 @@ try {
           <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
         </div>
       </div>
-      <div id="col-frozen-tbody-wrap" style="display:none;overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:11px;">
-          <thead>
-            <tr style="background:var(--bg3);">
-              <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
-              <th style="padding:4px 5px;color:var(--muted);text-align:left;">胚番号</th>
-              <th style="padding:4px 5px;color:var(--muted);text-align:left;">ケーン番号</th>
-              <th style="padding:4px 5px;color:var(--muted);">ステージ</th>
-              <th style="padding:4px 5px;color:var(--muted);">ランク</th>
-              <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-            </tr>
-          </thead>
+      <div id="col-frozen-tbody-wrap" style="display:none;">
+        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
+          <colgroup>
+            <col style="width:28px"><col style="width:140px"><col style="width:100px">
+            <col style="width:60px"><col style="width:52px"><col style="width:60px">
+            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
+          </colgroup>
+          <thead><tr style="background:var(--bg3);">
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
+            <th style="padding:4px 5px;color:var(--info);">胚番号</th>
+            <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+            <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+            <th style="padding:4px 5px;color:var(--muted);"></th>
+            <th style="padding:4px 3px;"></th>
+          </tr></thead>
           <tbody id="col-frozen-tbody"></tbody>
         </table>
       </div>
     </div>
 
     <!-- 新鮮胚記録 -->
-    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px;padding:12px;margin-bottom:14px;">
+    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-left:1px solid var(--accent2);border-right:1px solid var(--accent2);border-top:none;border-bottom:none;padding:12px 12px 4px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚記録</div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -14063,45 +14077,36 @@ try {
           <input type="number" id="col-fresh-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFreshCountInput(this.value)" onchange="onColFreshCountInput(this.value)">
         </div>
       </div>
-      <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
-        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
+      <div id="col-fresh-tbody-wrap" style="display:none;">
+        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
           <colgroup>
-            <col style="width:28px">
-            <col style="width:140px">
-            <col style="width:100px"><!-- ケーン相当（空） -->
-            <col style="width:60px"><!-- 採卵S -->
-            <col style="width:52px"><!-- 採卵R -->
-            <col style="width:60px"><!-- 翌日S相当（空） -->
-            <col style="width:52px"><!-- 翌日R相当（空） -->
-            <col style="width:120px"><!-- 処置相当（コメント） -->
-            <col><!-- 移植先 -->
-            <col style="width:44px"><!-- 同上 -->
+            <col style="width:28px"><col style="width:140px"><col style="width:100px">
+            <col style="width:60px"><col style="width:52px"><col style="width:60px">
+            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
           </colgroup>
-          <thead>
-            <tr style="background:var(--bg3);">
-              <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
-              <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
-              <th style="padding:4px 5px;"></th>
-              <th style="padding:4px 5px;color:var(--muted);">採卵S</th>
-              <th style="padding:4px 5px;color:var(--muted);">採卵R</th>
-              <th style="padding:4px 5px;"></th>
-              <th style="padding:4px 5px;"></th>
-              <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
-              <th style="padding:4px 5px;"></th>
-            </tr>
-          </thead>
+          <thead><tr style="background:var(--bg3);">
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
+            <th style="padding:4px 5px;color:var(--accent);">胚番号</th>
+            <th style="padding:4px 5px;color:var(--muted);"></th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
+            <th style="padding:4px 3px;"></th>
+            <th style="padding:4px 3px;"></th>
+            <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+            <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+          </tr></thead>
           <tbody id="col-fresh-tbody"></tbody>
         </table>
       </div>
     </div>
 
-    <!-- 培養胚記録（翌日処理専用） -->
-    <div style="background:#0a0a1a;border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:14px;">
+    <!-- 培養胚記録 -->
+    <div style="background:#0a0a1a;border:1px solid var(--purple);border-top:none;border-radius:0 0 8px 8px;padding:12px 12px 12px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--purple);">🔬 培養胚記録</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:2px;">翌日処理専用（移植 / 凍結→胚番号自動採番 / 破棄）</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">翌日処理専用（移植 / 凍結 / 破棄）</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
           <span style="font-size:11px;color:var(--muted);">個数:</span>
@@ -14110,26 +14115,30 @@ try {
             oninput="onColCultureCountInput(this.value)" onchange="onColCultureCountInput(this.value)">
         </div>
       </div>
-      <div id="col-culture-tbody-wrap" style="display:none;overflow-x:auto;">
-        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
-          <thead>
-            <tr style="background:var(--bg3);">
-              <th style="padding:3px 4px;color:var(--muted);text-align:center;width:28px;">#</th>
-              <th style="padding:3px 4px;color:var(--info);width:140px;">胚番号</th>
-              <th style="padding:3px 4px;color:var(--info);width:100px;">ケーン番号</th>
-              <th style="padding:3px 4px;color:var(--muted);width:60px;">採卵S</th>
-              <th style="padding:3px 4px;color:var(--muted);width:52px;">採卵R</th>
-              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:60px;">翌日S</th>
-              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:52px;">翌日R</th>
-              <th style="padding:3px 4px;color:var(--muted);">処置</th>
-              <th style="padding:3px 4px;color:var(--muted);">移植先</th>
-              <th style="padding:3px 4px;color:var(--muted);width:44px;"></th>
-            </tr>
-          </thead>
+      <div id="col-culture-tbody-wrap" style="display:none;">
+        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
+          <colgroup>
+            <col style="width:28px"><col style="width:140px"><col style="width:100px">
+            <col style="width:60px"><col style="width:52px"><col style="width:60px">
+            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
+          </colgroup>
+          <thead><tr style="background:var(--bg3);">
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
+            <th style="padding:4px 5px;color:var(--info);">胚番号</th>
+            <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
+            <th style="padding:4px 3px;color:var(--purple);text-align:center;">翌日S</th>
+            <th style="padding:4px 3px;color:var(--purple);text-align:center;">翌日R</th>
+            <th style="padding:4px 5px;color:var(--muted);">処置</th>
+            <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+          </tr></thead>
           <tbody id="col-culture-tbody"></tbody>
         </table>
       </div>
     </div>
+    </div><!-- /col-embryo-outer -->
 
     <div class="form-group" style="margin-bottom:14px;">
       <label>メモ</label>
