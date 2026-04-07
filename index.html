@@ -7556,6 +7556,7 @@ function onColFreshCountInput(val, existing) {
           <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
         </td>
+        <td></td>
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:54px;">
             <option value="">—</option>
@@ -14059,11 +14060,12 @@ try {
           <colgroup>
             <col style="width:28px">
             <col style="width:140px">
-            <col style="width:60px">
-            <col style="width:52px">
-            <col style="width:60px"><!-- S相当 -->
-            <col style="width:52px"><!-- R相当 -->
-            <col style="width:120px"><!-- 処置列相当（空） -->
+            <col style="width:100px"><!-- ケーン相当（空） -->
+            <col style="width:60px"><!-- 採卵S -->
+            <col style="width:52px"><!-- 採卵R -->
+            <col style="width:60px"><!-- 翌日S相当（空） -->
+            <col style="width:52px"><!-- 翌日R相当（空） -->
+            <col style="width:120px"><!-- 処置相当（コメント） -->
             <col><!-- 移植先 -->
             <col style="width:44px"><!-- 同上 -->
           </colgroup>
@@ -14071,13 +14073,14 @@ try {
             <tr style="background:var(--bg3);">
               <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
               <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
-              <th style="padding:4px 5px;color:var(--muted);">S</th>
-              <th style="padding:4px 5px;color:var(--muted);">R</th>
-              <th style="padding:4px 5px;color:var(--muted);"></th>
-              <th style="padding:4px 5px;color:var(--muted);"></th>
+              <th style="padding:4px 5px;"></th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵S</th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵R</th>
+              <th style="padding:4px 5px;"></th>
+              <th style="padding:4px 5px;"></th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
               <th style="padding:4px 5px;color:var(--muted);">移植先</th>
-              <th style="padding:4px 5px;color:var(--muted);"></th>
+              <th style="padding:4px 5px;"></th>
             </tr>
           </thead>
           <tbody id="col-fresh-tbody"></tbody>
