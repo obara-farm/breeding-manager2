@@ -12366,7 +12366,7 @@ function renderSemen() {
           <div style="font-size:10px;color:var(--muted);">受胎率</div>
         </div>
         <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:15px;font-weight:700;color:var(--warn);">${s.alertThreshold||3}</div>
+          <div style="font-size:${s.noAlert?'11':'15'}px;font-weight:700;color:${s.noAlert?'var(--muted)':'var(--warn)'};">${s.noAlert ? '通知なし' : (s.alertThreshold||3)}</div>
           <div style="font-size:10px;color:var(--muted);">アラート本数</div>
         </div>
       </div>
