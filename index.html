@@ -342,7 +342,6 @@ textarea{resize:vertical;}
   }
   #col-fresh-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
   #col-fresh-tbody td:first-child { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
-  #col-fresh-tbody td:nth-child(3) { display: none !important; } /* ケーン列（空）を非表示 */
   #col-fresh-tbody .cfr-embryo-no { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
   #col-fresh-tbody .cfr-stage,
   #col-fresh-tbody .cfr-rank {
@@ -7557,7 +7556,6 @@ function onColFreshCountInput(val, existing) {
           <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
         </td>
-        <td style="padding:2px 3px;color:var(--muted);font-size:10px;text-align:center;">—</td><!-- ケーン列（空） -->
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:54px;">
             <option value="">—</option>
@@ -14059,18 +14057,16 @@ try {
           <colgroup>
             <col style="width:28px">
             <col style="width:140px">
-            <col style="width:100px"><!-- ケーン列（新鮮胚は空） -->
             <col style="width:60px">
             <col style="width:52px">
             <col style="width:80px">
-            <col style="width:80px">
             <col>
+            <col style="width:44px">
           </colgroup>
           <thead>
             <tr style="background:var(--bg3);">
               <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
               <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
-              <th style="padding:4px 5px;color:var(--muted);"></th><!-- ケーン列（空） -->
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
