@@ -6374,10 +6374,12 @@ function execInsemWithOperator(action) {
         inv.history = inv.history || [];
         inv.history.push({ date: p.date, type: 'transfer', count: 1, usage: null, cowId: null, memo: '術者:' + p.operator });
       }
-      save();
-      renderSemen();
     }
   }
+  // スキップの場合は在庫処理なし（cow.eventsとタスクは既に追加済み）
+  save();
+  renderInsemBook();
+  renderAll();
   const resultEl = document.getElementById('insembook-sync-result');
   if (resultEl) {
     resultEl.innerHTML = action === 'transfer'
@@ -6481,9 +6483,6 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
 
   // 術者ありの場合：在庫処理をモーダルで選択
   if (addInventory && !isET && isOther) {
-    save();
-    renderInsemBook();
-    renderAll();
     window._pendingInsemInv = { sire, date, cowId, operator };
     const infoEl = document.getElementById('insem-operator-info');
     if (infoEl) {
