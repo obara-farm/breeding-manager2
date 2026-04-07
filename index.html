@@ -14033,43 +14033,11 @@ try {
     </div>
 
     <!-- 胚記録（凍結・新鮮・培養）共通コンテナ -->
-    <div style="overflow-x:auto;" id="col-embryo-outer">
+    <div id="col-embryo-outer" style="overflow-x:auto;margin-bottom:14px;">
+    <div style="width:880px;">
 
-    <!-- 凍結胚記録 -->
-    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:12px 12px 4px 12px;margin-bottom:0;border-bottom-left-radius:0;border-bottom-right-radius:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <span style="font-size:11px;color:var(--muted);">個数:</span>
-          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
-        </div>
-      </div>
-      <div id="col-frozen-tbody-wrap" style="display:none;">
-        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
-          <colgroup>
-            <col style="width:28px"><col style="width:140px"><col style="width:100px">
-            <col style="width:60px"><col style="width:52px"><col style="width:60px">
-            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
-          </colgroup>
-          <thead><tr style="background:var(--bg3);">
-            <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
-            <th style="padding:4px 5px;color:var(--info);">胚番号</th>
-            <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
-            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
-            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
-            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
-            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
-            <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-            <th style="padding:4px 5px;color:var(--muted);"></th>
-            <th style="padding:4px 3px;"></th>
-          </tr></thead>
-          <tbody id="col-frozen-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 新鮮胚記録 -->
-    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-left:1px solid var(--accent2);border-right:1px solid var(--accent2);border-top:none;border-bottom:none;padding:12px 12px 4px 12px;">
+    <!-- 🌱 新鮮胚記録（1番目） -->
+    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px 8px 0 0;padding:12px 12px 8px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚記録</div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -14078,11 +14046,11 @@ try {
         </div>
       </div>
       <div id="col-fresh-tbody-wrap" style="display:none;">
-        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
+        <table style="width:880px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
           <colgroup>
             <col style="width:28px"><col style="width:140px"><col style="width:100px">
             <col style="width:60px"><col style="width:52px"><col style="width:60px">
-            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
+            <col style="width:52px"><col style="width:110px"><col style="width:190px"><col style="width:44px">
           </colgroup>
           <thead><tr style="background:var(--bg3);">
             <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
@@ -14101,8 +14069,41 @@ try {
       </div>
     </div>
 
-    <!-- 培養胚記録 -->
-    <div style="background:#0a0a1a;border:1px solid var(--purple);border-top:none;border-radius:0 0 8px 8px;padding:12px 12px 12px 12px;">
+    <!-- ❄️ 凍結胚記録（2番目） -->
+    <div style="background:#0a0a1a;border:1px solid var(--info);border-top:2px solid var(--info);border-radius:0;padding:12px 12px 8px 12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-frozen-tbody-wrap" style="display:none;">
+        <table style="width:880px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
+          <colgroup>
+            <col style="width:28px"><col style="width:140px"><col style="width:100px">
+            <col style="width:60px"><col style="width:52px"><col style="width:60px">
+            <col style="width:52px"><col style="width:110px"><col style="width:190px"><col style="width:44px">
+          </colgroup>
+          <thead><tr style="background:var(--bg3);">
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
+            <th style="padding:4px 5px;color:var(--info);">胚番号</th>
+            <th style="padding:4px 5px;color:var(--info);">ケーン番号</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+            <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
+            <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+            <th style="padding:4px 5px;color:var(--muted);"></th>
+            <th style="padding:4px 3px;"></th>
+          </tr></thead>
+          <tbody id="col-frozen-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 🔬 培養胚記録（3番目） -->
+    <div style="background:#0a0a1a;border:1px solid var(--purple);border-top:2px solid var(--purple);border-radius:0 0 8px 8px;padding:12px 12px 12px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div>
           <div style="font-size:12px;font-weight:700;color:var(--purple);">🔬 培養胚記録</div>
@@ -14116,11 +14117,11 @@ try {
         </div>
       </div>
       <div id="col-culture-tbody-wrap" style="display:none;">
-        <table style="width:820px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
+        <table style="width:880px;border-collapse:collapse;font-size:11px;table-layout:fixed;">
           <colgroup>
             <col style="width:28px"><col style="width:140px"><col style="width:100px">
             <col style="width:60px"><col style="width:52px"><col style="width:60px">
-            <col style="width:52px"><col style="width:110px"><col><col style="width:44px">
+            <col style="width:52px"><col style="width:110px"><col style="width:190px"><col style="width:44px">
           </colgroup>
           <thead><tr style="background:var(--bg3);">
             <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
@@ -14137,6 +14138,8 @@ try {
           <tbody id="col-culture-tbody"></tbody>
         </table>
       </div>
+    </div>
+
     </div>
     </div><!-- /col-embryo-outer -->
 
