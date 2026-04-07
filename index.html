@@ -308,7 +308,7 @@ textarea{resize:vertical;}
 @media (max-width: 430px) {
 
   /* 採卵モーダル：凍結胚テーブルをカード形式に */
-  
+  #col-frozen-tbody-wrap { overflow-x: visible !important; }
   #col-frozen-tbody tr {
     display: block;
     background: var(--bg2);
@@ -331,7 +331,7 @@ textarea{resize:vertical;}
   #col-frozen-tbody .cf-comment { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
 
   /* 採卵モーダル：新鮮胚テーブルをカード形式に */
-  
+  #col-fresh-tbody-wrap { overflow-x: visible !important; }
   #col-fresh-tbody tr {
     display: block;
     background: var(--bg2);
@@ -352,7 +352,7 @@ textarea{resize:vertical;}
   #col-fresh-tbody .cfr-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
 
   /* 採卵モーダル：培養胚テーブルをカード形式に */
-  
+  #col-culture-tbody-wrap { overflow-x: visible !important; }
   #col-culture-tbody tr {
     display: block;
     background: var(--bg2);
@@ -376,10 +376,14 @@ textarea{resize:vertical;}
   #col-culture-tbody .cul-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
 
   /* テーブルのtheadをスマホでは非表示（カード形式なので不要） */
-  #col-unified-wrap thead { display: none !important; }
+  #col-frozen-tbody-wrap thead,
+  #col-fresh-tbody-wrap thead,
+  #col-culture-tbody-wrap thead { display: none !important; }
 
   /* テーブル本体のmin-widthを解除 */
-  #col-unified-wrap table { min-width: unset !important; width: 100% !important; }
+  #col-frozen-tbody-wrap table,
+  #col-fresh-tbody-wrap table,
+  #col-culture-tbody-wrap table { min-width: unset !important; width: 100% !important; }
 
   /* 授精簿：行をタップで展開するためのスタイル */
   .insem-row-header {
@@ -7036,9 +7040,11 @@ function openNewCollection() {
   document.getElementById('col-fresh-count').value = '0';
   document.getElementById('col-frozen-tbody').innerHTML = '';
   document.getElementById('col-fresh-tbody').innerHTML = '';
+  document.getElementById('col-frozen-tbody-wrap').style.display = 'none';
   const _cc = document.getElementById('col-culture-count'); if (_cc) _cc.value = '0';
   const _ct = document.getElementById('col-culture-tbody'); if (_ct) _ct.innerHTML = '';
-  const _uw = document.getElementById('col-unified-wrap'); if (_uw) _uw.style.display = 'none';
+  const _cw = document.getElementById('col-culture-tbody-wrap'); if (_cw) _cw.style.display = 'none';
+  document.getElementById('col-fresh-tbody-wrap').style.display = 'none';
   setColPG(true);
   // ドナー牛セレクトを構築
   const sel = document.getElementById('col-donor');
@@ -7459,20 +7465,11 @@ function getMaxEmbryoNo(yearLabel) {
   return maxNo;
 }
 
-function _updateUnifiedWrap() {
-  const frozen  = document.getElementById('col-frozen-tbody');
-  const fresh   = document.getElementById('col-fresh-tbody');
-  const culture = document.getElementById('col-culture-tbody');
-  const wrap    = document.getElementById('col-unified-wrap');
-  if (!wrap) return;
-  const hasRows = (frozen&&frozen.rows.length>0) || (fresh&&fresh.rows.length>0) || (culture&&culture.rows.length>0);
-  wrap.style.display = hasRows ? '' : 'none';
-}
-
 function onColFrozenCountInput(val, existing) {
   const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-frozen-tbody-wrap');
   const tbody = document.getElementById('col-frozen-tbody');
-  _updateUnifiedWrap();
+  wrap.style.display = n > 0 ? '' : 'none';
 
   // existingがある場合（編集で開くとき）は必ずDOMをクリアして復元
   // existingがない場合（手動入力）は現在の入力値を保存して再生成
@@ -7509,7 +7506,6 @@ function onColFrozenCountInput(val, existing) {
     const tr = document.createElement('tr');
     tr.style.cssText = `border-bottom:${i%2===0?'1px solid var(--border)':'2px solid var(--bg)'};background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
     tr.innerHTML = `<td style="padding:3px 4px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
-      <td style="padding:2px 3px;text-align:center;font-size:13px;">❄️</td>
       <td style="padding:2px 3px;"><input class="cf-no" type="text" value="${autoNo}" placeholder="胚番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;font-family:'JetBrains Mono',monospace;"></td>
       <td style="padding:2px 3px;"><input class="cf-cane" type="text" value="${autoCane}" placeholder="ケーン番号" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:90px;"></td>
       <td style="padding:2px 3px;"><select class="cf-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
@@ -7518,12 +7514,7 @@ function onColFrozenCountInput(val, existing) {
       <td style="padding:2px 3px;"><select class="cf-rank" onchange="syncEmbryoGrades()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;">
         <option value="">—</option><option value="A" ${rank==='A'?'selected':''}>A</option><option value="B" ${rank==='B'?'selected':''}>B</option>
       </select></td>
-      <td style="background:var(--bg3);"></td>
-      <td style="background:var(--bg3);"></td>
-      <td style="background:var(--bg3);"></td>
-      <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:75px;"></td>
-      <td style="background:var(--bg3);"></td>
-      <td style="background:var(--bg3);"></td>`;
+      <td style="padding:2px 3px;"><input class="cf-comment" type="text" value="${comment}" placeholder="コメント" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:80px;"></td>`;
     tbody.appendChild(tr);
   }
   syncEmbryoGrades();
@@ -7531,8 +7522,9 @@ function onColFrozenCountInput(val, existing) {
 
 function onColFreshCountInput(val, existing) {
   const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-fresh-tbody-wrap');
   const tbody = document.getElementById('col-fresh-tbody');
-  _updateUnifiedWrap();
+  wrap.style.display = n > 0 ? '' : 'none';
   // existingがある場合（編集で開くとき）はDOMをクリアして復元
   // existingがない場合（手動入力）は現在の入力値を保存して再生成
   const savedFresh = existing ? [] : Array.from(tbody.querySelectorAll('tr')).map(r => {
@@ -7560,12 +7552,11 @@ function onColFreshCountInput(val, existing) {
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:4px 6px;color:var(--muted);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;text-align:center;font-size:13px;">🌱</td>
         <td style="padding:2px 3px;">
           <input type="text" class="cfr-embryo-no" value="${autoFreshNo}"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--accent);font-size:10px;padding:2px 3px;border-radius:3px;width:128px;font-family:'JetBrains Mono',monospace;">
         </td>
-        <td style="background:var(--bg3);"></td>
+        <td></td>
         <td style="padding:2px 3px;">
           <select class="cfr-stage" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 3px;border-radius:3px;min-width:54px;">
             <option value="">—</option>
@@ -7582,11 +7573,11 @@ function onColFreshCountInput(val, existing) {
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
           </select>
         </td>
-        <td style="background:var(--bg3);"></td>
-        <td style="background:var(--bg3);"></td>
-        <td style="background:var(--bg3);"></td>
-        <td style="padding:2px 3px;"><input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
-            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:75px;">
+        <td></td>
+        <td></td>
+        <td style="padding:2px 3px;">
+          <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
+            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:110px;">
         </td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
@@ -7838,9 +7829,10 @@ function getColCultureEmbryos() {
 
 function onColCultureCountInput(val, existing) {
   const n = parseInt(val)||0;
+  const wrap = document.getElementById('col-culture-tbody-wrap');
   const tbody = document.getElementById('col-culture-tbody');
-  if (!tbody) return;
-  _updateUnifiedWrap();
+  if (!wrap||!tbody) return;
+  wrap.style.display = n > 0 ? '' : 'none';
   // existingがある場合（編集で開くとき）は必ずクリアして再生成
   if (existing) tbody.innerHTML = '';
   const cur = tbody.querySelectorAll('tr').length;
@@ -7853,7 +7845,6 @@ function onColCultureCountInput(val, existing) {
       tr.style.cssText = `border-bottom:1px solid var(--border);background:${i%2===0?'var(--bg2)':'var(--bg3)'};`;
       tr.innerHTML = `
         <td style="padding:3px 4px;color:var(--purple);font-size:11px;text-align:center;">${i+1}</td>
-        <td style="padding:2px 3px;text-align:center;font-size:13px;">🔬</td>
         <td style="padding:2px 2px;min-width:110px;">
           <input type="text" class="cul-embryo-no" value="${ex?.embryoNo||''}" placeholder="処置選択で自動"
             style="background:var(--bg);border:1px solid ${ex?.embryoNo?'var(--info)':'var(--border)'};color:${ex?.embryoNo?'var(--info)':'var(--text)'};font-size:10px;padding:2px 3px;border-radius:3px;width:108px;font-family:'JetBrains Mono',monospace;">
@@ -14037,67 +14028,104 @@ try {
       </div>
     </div>
 
-    <!-- 統合胚記録テーブル -->
-    <div style="background:#0a0a1a;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
-      <!-- 個数入力行 -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div style="display:flex;align-items:center;gap:6px;background:#0a0a1a;border:1px solid var(--info);border-radius:6px;padding:6px 8px;">
-          <span style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結</span>
-          <input type="number" id="col-frozen-count" min="0" value="0"
-            style="width:44px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;"
-            oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
-          <span style="font-size:10px;color:var(--muted);">本</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;background:#0a1a0a;border:1px solid var(--accent2);border-radius:6px;padding:6px 8px;">
-          <span style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮</span>
-          <input type="number" id="col-fresh-count" min="0" value="0"
-            style="width:44px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;"
-            oninput="onColFreshCountInput(this.value)" onchange="onColFreshCountInput(this.value)">
-          <span style="font-size:10px;color:var(--muted);">本</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;background:#0a0a1a;border:1px solid var(--purple);border-radius:6px;padding:6px 8px;">
-          <span style="font-size:12px;font-weight:700;color:var(--purple);">🔬 培養</span>
-          <input type="number" id="col-culture-count" min="0" value="0"
-            style="width:44px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;"
-            oninput="onColCultureCountInput(this.value)" onchange="onColCultureCountInput(this.value)">
-          <span style="font-size:10px;color:var(--muted);">本</span>
+    <!-- 凍結胚記録 -->
+    <div style="background:#0a0a1a;border:1px solid var(--info);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--info);">❄️ 凍結胚記録</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-frozen-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFrozenCountInput(this.value)" onchange="onColFrozenCountInput(this.value)">
         </div>
       </div>
-      <!-- 統合テーブル -->
-      <div id="col-unified-wrap" style="display:none;overflow-x:auto;">
-        <table id="col-unified-table" style="width:100%;min-width:820px;border-collapse:collapse;font-size:11px;">
-          <colgroup>
-            <col style="width:24px">  <!-- # -->
-            <col style="width:28px">  <!-- 種別 -->
-            <col style="width:140px"> <!-- 胚番号 -->
-            <col style="width:100px"> <!-- ケーン番号 -->
-            <col style="width:58px">  <!-- 採卵S -->
-            <col style="width:50px">  <!-- 採卵R -->
-            <col style="width:58px">  <!-- 翌日S -->
-            <col style="width:50px">  <!-- 翌日R -->
-            <col style="width:90px">  <!-- 処置 -->
-            <col style="width:80px">  <!-- コメント -->
-            <col>                     <!-- 移植先 -->
-            <col style="width:44px">  <!-- 同上 -->
-          </colgroup>
+      <div id="col-frozen-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;">
           <thead>
-            <tr style="background:var(--bg3);border-bottom:2px solid var(--border);">
-              <th style="padding:4px 3px;color:var(--muted);text-align:center;">#</th>
-              <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
-              <th style="padding:4px 5px;color:var(--text);">胚番号</th>
-              <th style="padding:4px 5px;color:var(--muted);">ケーン番号</th>
-              <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵S</th>
-              <th style="padding:4px 3px;color:var(--muted);text-align:center;">採卵R</th>
-              <th style="padding:4px 3px;color:var(--purple);text-align:center;">翌日S</th>
-              <th style="padding:4px 3px;color:var(--purple);text-align:center;">翌日R</th>
-              <th style="padding:4px 5px;color:var(--muted);">処置</th>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">#</th>
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">胚番号</th>
+              <th style="padding:4px 5px;color:var(--muted);text-align:left;">ケーン番号</th>
+              <th style="padding:4px 5px;color:var(--muted);">ステージ</th>
+              <th style="padding:4px 5px;color:var(--muted);">ランク</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
-              <th style="padding:4px 3px;color:var(--muted);text-align:center;"></th>
             </tr>
           </thead>
           <tbody id="col-frozen-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 新鮮胚記録 -->
+    <div style="background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);">🌱 新鮮胚記録</div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-fresh-count" min="0" value="0" style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;" oninput="onColFreshCountInput(this.value)" onchange="onColFreshCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
+          <colgroup>
+            <col style="width:28px">
+            <col style="width:140px">
+            <col style="width:100px"><!-- ケーン相当（空） -->
+            <col style="width:60px"><!-- 採卵S -->
+            <col style="width:52px"><!-- 採卵R -->
+            <col style="width:60px"><!-- 翌日S相当（空） -->
+            <col style="width:52px"><!-- 翌日R相当（空） -->
+            <col style="width:120px"><!-- 処置相当（コメント） -->
+            <col><!-- 移植先 -->
+            <col style="width:44px"><!-- 同上 -->
+          </colgroup>
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:4px 5px;color:var(--muted);text-align:center;">#</th>
+              <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
+              <th style="padding:4px 5px;"></th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵S</th>
+              <th style="padding:4px 5px;color:var(--muted);">採卵R</th>
+              <th style="padding:4px 5px;"></th>
+              <th style="padding:4px 5px;"></th>
+              <th style="padding:4px 5px;color:var(--muted);">コメント</th>
+              <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+              <th style="padding:4px 5px;"></th>
+            </tr>
+          </thead>
           <tbody id="col-fresh-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 培養胚記録（翌日処理専用） -->
+    <div style="background:#0a0a1a;border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--purple);">🔬 培養胚記録</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">翌日処理専用（移植 / 凍結→胚番号自動採番 / 破棄）</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);">個数:</span>
+          <input type="number" id="col-culture-count" min="0" value="0"
+            style="width:50px;font-size:13px;text-align:center;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:3px;border-radius:4px;"
+            oninput="onColCultureCountInput(this.value)" onchange="onColCultureCountInput(this.value)">
+        </div>
+      </div>
+      <div id="col-culture-tbody-wrap" style="display:none;overflow-x:auto;">
+        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
+          <thead>
+            <tr style="background:var(--bg3);">
+              <th style="padding:3px 4px;color:var(--muted);text-align:center;width:28px;">#</th>
+              <th style="padding:3px 4px;color:var(--info);width:140px;">胚番号</th>
+              <th style="padding:3px 4px;color:var(--info);width:100px;">ケーン番号</th>
+              <th style="padding:3px 4px;color:var(--muted);width:60px;">採卵S</th>
+              <th style="padding:3px 4px;color:var(--muted);width:52px;">採卵R</th>
+              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:60px;">翌日S</th>
+              <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:52px;">翌日R</th>
+              <th style="padding:3px 4px;color:var(--muted);">処置</th>
+              <th style="padding:3px 4px;color:var(--muted);">移植先</th>
+              <th style="padding:3px 4px;color:var(--muted);width:44px;"></th>
+            </tr>
+          </thead>
           <tbody id="col-culture-tbody"></tbody>
         </table>
       </div>
