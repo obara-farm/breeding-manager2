@@ -2520,6 +2520,20 @@ function loadData() {
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
   donorAIRecords    = JSON.parse(_store.getItem('donorAIRecords') || '[]');
   pendingEtList    = JSON.parse(_store.getItem('pendingEtList') || '[]');
+
+  // 孤立したpendingUseRecordsを自動クリア
+  // cow.eventsに対応するai_done/et_doneが存在しないものを削除
+  const before2 = pendingUseRecords.length;
+  pendingUseRecords = pendingUseRecords.filter(p => {
+    if (!p.cowId) return true; // cowIdなしは保持（外部使用候補）
+    const cow = cows.find(c => c.id === p.cowId);
+    if (!cow) return false; // 牛が存在しない→削除
+    const evType = p.kind === 'embryo' ? 'et_done' : 'ai_done';
+    return (cow.events||[]).some(e => e.type === evType && e.date === p.date);
+  });
+  if (pendingUseRecords.length !== before2) {
+    _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
+  }
 }
 
 function save() {
@@ -10341,10 +10355,11 @@ function deleteCowEvent(cowId, eventIdx) {
     }
   }
 
-  // 5. pendingUseRecordsから対応記録を削除
+  // 5. pendingUseRecordsから対応記録を削除（cowIdなしのケースも含む）
   if (sireFromMemo) {
     pendingUseRecords = pendingUseRecords.filter(p =>
-      !(p.cowId === cowId && p.date === e.date && p.name === sireFromMemo)
+      !(p.date === e.date && p.name === sireFromMemo &&
+        (p.cowId === cowId || !p.cowId))
     );
   }
 
@@ -12839,12 +12854,53 @@ function confirmDeleteSemen(id) {
   const s = semenInventory.find(s=>s.id===id);
   if (!s) return;
   document.getElementById('confirm-title').innerHTML = `🗑 ${s.name} を削除`;
-  document.getElementById('confirm-body').innerHTML = `精液「<strong>${s.name}</strong>」の在庫情報と履歴をすべて削除します。`;
+  document.getElementById('confirm-body').innerHTML = `精液「<strong>${s.name}</strong>」の在庫情報と履歴をすべて削除します。<br><small style="color:var(--muted);">関連する種付け記録・タスク・授精簿も連動して削除されます。</small>`;
   document.getElementById('confirm-ok-btn').textContent = '削除する';
   document.getElementById('confirm-ok-btn').style.cssText = 'background:var(--danger);border-color:var(--danger);color:#fff;';
   document.getElementById('confirm-ok-btn').onclick = () => {
-    semenInventory = semenInventory.filter(s=>s.id!==id);
-    save(); closeModal('modal-confirm'); renderSemen();
+    const sireName = s.name;
+    // 1. 在庫から削除
+    semenInventory = semenInventory.filter(x=>x.id!==id);
+    // 2. cow.eventsから該当AI記録を削除・タスクも削除
+    cows.forEach(cow => {
+      const before = (cow.events||[]).length;
+      const removed = (cow.events||[]).filter(ev =>
+        ev.type === 'ai_done' && (ev.memo||'').includes(sireName)
+      );
+      cow.events = (cow.events||[]).filter(ev =>
+        !(ev.type === 'ai_done' && (ev.memo||'').includes(sireName))
+      );
+      removed.forEach(ev => {
+        // タスク削除
+        tasks = tasks.filter(t => !(
+          t.cowId === cow.id && !t.done &&
+          (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) &&
+          (t.date === addDays(ev.date, 45) || t.date === addDays(ev.date, 21))
+        ));
+        // pendingUseRecords削除
+        pendingUseRecords = pendingUseRecords.filter(p =>
+          !(p.kind === 'semen' && p.date === ev.date && p.cowId === cow.id)
+        );
+        // 授精簿（insemBookRecords）から削除
+        insemBookRecords = insemBookRecords.filter(r =>
+          !(r.t === cow.id && r.d === ev.date && r.s === sireName)
+        );
+      });
+      // ステータスリセット
+      if (removed.length > 0) {
+        const hasActive = (cow.events||[]).some(ev =>
+          ['ai_done','et_done'].includes(ev.type)
+        );
+        if (!hasActive && ['program','pregnant'].includes(cow.status)) {
+          cow.status = 'open';
+        }
+      }
+    });
+    // 3. pendingUseRecordsから名前で削除（cowIdなしのものも）
+    pendingUseRecords = pendingUseRecords.filter(p =>
+      !(p.kind === 'semen' && p.name === sireName)
+    );
+    save(); closeModal('modal-confirm'); renderSemen(); renderAll();
   };
   openModal('modal-confirm');
 }
