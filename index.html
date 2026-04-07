@@ -6343,7 +6343,14 @@ function switchTab(name) {
   if (name==='calves') renderCalves();
   if (name==='retired') renderRetiredList();
   if (name==='fattening') { updateFatYearFilter(); renderFattening(); }
-  if (name==='insembook') renderInsemBook();
+  if (name==='insembook') {
+    // 現在の年度を自動選択（1月始まり）
+    const now = new Date();
+    const currentFY = now.getFullYear() - 2018;
+    const yearSel = document.getElementById('insembook-year');
+    if (yearSel) yearSel.value = 'R' + currentFY;
+    renderInsemBook();
+  }
   if (name==='collection') renderCollectionTab();
 }
 
@@ -6581,7 +6588,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
     const m = memo.match(/胚番号:([^\s]+)/);
     sire = m ? m[1].trim() : (memo.match(/種雄牛:([^\/\s]+)/)?.[1]?.trim() || '');
   }
-  const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : date < '2026-04-01' ? 'R7' : 'R8';
+  const year = date < '2024-01-01' ? 'R5' : date < '2025-01-01' ? 'R6' : date < '2026-01-01' ? 'R7' : date < '2027-01-01' ? 'R8' : 'R9';
   // memoから術者を抽出
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = opMatch ? opMatch[1].trim() : '';
@@ -13933,9 +13940,6 @@ try {
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
     <select id="insembook-year" onchange="renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
-      <option value="R7">R7（2025）</option>
-      <option value="R6">R6（2024）</option>
-      <option value="R5">R5（2023）</option>
     </select>
     <input type="text" id="insembook-search" placeholder="🔍 耳標・牛名・種雄牛で検索..." oninput="renderInsemBook()" style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 12px;border-radius:8px;outline:none;">
     <button onclick="syncInsemBookToCows()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📥 種付け記録に反映</button>
