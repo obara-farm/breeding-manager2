@@ -14394,16 +14394,11 @@ function initFirebaseSync() {
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
 
-    // リアルタイムリスナー（別端末の変更検知用）
-    // 注意：自分の書き込みのエコーでloadData()を呼ぶとデータが破壊されるため
-    // リスナーはステータス表示のみに使用。データ読み込みは行わない。
+    // リアルタイムリスナー（自動同期）
+    // エコー対策：自分が送信したデータ(_lastSentSnapshot)と一致する場合のみ無視
     dbRef.on('value', snapshot => {
       // 自分が保存中は無視
       if (isSyncing) return;
-      // 保存後30秒以内は無視（エコー除外）
-      if (Date.now() - _lastSaveTime < 30000) return;
-      // 別端末からの変更を検知したらバッジを表示するだけ
-      // （loadData()は呼ばない → データ破壊を防ぐ）
       const remote = snapshot.val();
       if (!remote) return;
       const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
@@ -14414,30 +14409,23 @@ function initFirebaseSync() {
       safeKeys.forEach(k => {
         if (!(k in remote)) return;
         const remoteVal = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+        // 自分が送信した値と同じなら自分のエコー→無視
         if (_lastSentSnapshot[k] === remoteVal) return;
         const localVal = _store.getItem(k);
         if (localVal === remoteVal) return;
         anyChanged = true;
       });
       if (anyChanged) {
-        // 別端末からの変更あり → 更新ボタンを強調表示
-        const syncEl = document.getElementById('sync-status');
-        if (syncEl) {
-          syncEl.textContent = '🔄 他端末が更新';
-          syncEl.style.cursor = 'pointer';
-          syncEl.onclick = function() {
-            if (confirm('他の端末で変更がありました。最新データを読み込みますか？\n（未保存の変更は失われます）')) {
-              safeKeys.forEach(k => {
-                if (!(k in remote)) return;
-                const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
-                _store.setItem(k, rv);
-              });
-              if (typeof loadData === 'function') { loadData(); renderAll(); }
-              setSyncStatus('synced');
-              syncEl.onclick = null;
-            }
-          };
-        }
+        // 別端末からの変更あり → 自動でデータを読み込む
+        safeKeys.forEach(k => {
+          if (!(k in remote)) return;
+          const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+          // 自分のエコーでないものだけ上書き
+          if (_lastSentSnapshot[k] === rv) return;
+          _store.setItem(k, rv);
+        });
+        if (typeof loadData === 'function') { loadData(); renderAll(); }
+        setSyncStatus('synced');
       }
     });
   }).catch(() => setSyncStatus('error'));
@@ -14474,7 +14462,7 @@ function saveToFirebase() {
     });
     if (!hasChanges) {
       setSyncStatus('synced');
-      setTimeout(() => { isSyncing = false; }, 30000);
+      setTimeout(() => { isSyncing = false; }, 3000);
       return;
     }
     dbRef.update(updates)
@@ -14489,7 +14477,7 @@ function saveToFirebase() {
       })
       .finally(() => {
         // 書き込み完了後8秒間はリスナーをブロック（自分の書き込みのエコーを確実に無視）
-        setTimeout(() => { isSyncing = false; }, 30000);
+        setTimeout(() => { isSyncing = false; }, 3000);
       });
   }, 200);
 }
