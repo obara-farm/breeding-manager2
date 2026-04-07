@@ -2520,6 +2520,20 @@ function loadData() {
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
   donorAIRecords    = JSON.parse(_store.getItem('donorAIRecords') || '[]');
   pendingEtList    = JSON.parse(_store.getItem('pendingEtList') || '[]');
+
+  // 孤立したpendingUseRecordsを自動クリア
+  // cow.eventsに対応するai_done/et_doneが存在しないものを削除
+  const before2 = pendingUseRecords.length;
+  pendingUseRecords = pendingUseRecords.filter(p => {
+    if (!p.cowId) return true; // cowIdなしは保持（外部使用候補）
+    const cow = cows.find(c => c.id === p.cowId);
+    if (!cow) return false; // 牛が存在しない→削除
+    const evType = p.kind === 'embryo' ? 'et_done' : 'ai_done';
+    return (cow.events||[]).some(e => e.type === evType && e.date === p.date);
+  });
+  if (pendingUseRecords.length !== before2) {
+    _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
+  }
 }
 
 function save() {
@@ -6329,7 +6343,14 @@ function switchTab(name) {
   if (name==='calves') renderCalves();
   if (name==='retired') renderRetiredList();
   if (name==='fattening') { updateFatYearFilter(); renderFattening(); }
-  if (name==='insembook') renderInsemBook();
+  if (name==='insembook') {
+    // 現在の年度を自動選択（1月始まり）
+    const now = new Date();
+    const currentFY = now.getFullYear() - 2018;
+    const yearSel = document.getElementById('insembook-year');
+    if (yearSel) yearSel.value = 'R' + currentFY;
+    renderInsemBook();
+  }
   if (name==='collection') renderCollectionTab();
 }
 
@@ -6549,7 +6570,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
     const all = [...INSEM_BOOK_DATA, ...insemBookRecords];
-    if (all.some(r => r.t === cowId && r.d === date)) return;
+    if (all.some(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date)) return;
   } else {
     // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
     const embryoNoMatch = memo.match(/胚番号:([^\s]+)/);
@@ -6567,11 +6588,24 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
     const m = memo.match(/胚番号:([^\s]+)/);
     sire = m ? m[1].trim() : (memo.match(/種雄牛:([^\/\s]+)/)?.[1]?.trim() || '');
   }
-  const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : date < '2026-04-01' ? 'R7' : 'R8';
+  const year = date < '2024-04-01' ? 'R5' : date < '2025-04-01' ? 'R6' : date < '2026-04-01' ? 'R7' : date < '2027-04-01' ? 'R8' : 'R9';
   // memoから術者を抽出
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = opMatch ? opMatch[1].trim() : '';
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: memo||'', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
+  let certQ = '';
+  if (date > '2025-11-05' && !op) {
+    const allQ = [...INSEM_BOOK_DATA, ...insemBookRecords]
+      .map(r => parseInt(r.q))
+      .filter(n => !isNaN(n) && n >= 587);
+    const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
+    certQ = String(maxQ + 1);
+  }
+  // memoから精液名・術者・胚番号を除いた備考部分のみ抽出
+  const memoClean = (memo||'').split('／')
+    .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
+    .join('／').trim();
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
 }
 
 function saveInsemBookRecord(src, idx) {
@@ -6598,7 +6632,13 @@ function saveInsemBookRecord(src, idx) {
 }
 
 function renderInsemBook() {
-  const year = document.getElementById('insembook-year').value;
+  // 現在年度を自動セット
+  const yearSel = document.getElementById('insembook-year');
+  if (yearSel && !yearSel.dataset.userChanged) {
+    const currentFY = new Date().getFullYear() - 2018;
+    yearSel.value = 'R' + currentFY;
+  }
+  const year = yearSel ? yearSel.value : 'R8';
   const q = (document.getElementById('insembook-search').value || '').trim().toLowerCase();
   // 固定データ＋新規記録を統合してソート
   const combined = [
@@ -6616,7 +6656,11 @@ function renderInsemBook() {
     );
   }
   document.getElementById('insembook-count').textContent = data.length + '件';
-  const isET = r => r.s.includes('×') || r.m.startsWith('01L') || r._src === 'dynamic' && r.s && !r.s.includes('精液');
+  const isET = r => {
+    if (r.insemType === 'et') return true;
+    if (r.insemType === 'ai') return false;
+    return r.s.includes('×') || r.m.startsWith('01L');
+  };
   document.getElementById('insembook-tbody').innerHTML = data.map((r, i) => {
     const et = isET(r);
     const bg = i % 2 === 0 ? 'var(--bg2)' : 'var(--bg3)';
@@ -9149,14 +9193,14 @@ function deleteInsemRecord(src, idx) {
         if (!hasActiveEvent) cow.status = 'open';
       }
 
-      // 3. 妊鑑タスクを削除（該当牛の未完了妊鑑タスクのうち、AI日から生成されたもの）
+      // 3. 妊鑑タスク・再発情タスクを削除
       tasks = tasks.filter(function(t) {
         if (t.cowId !== cowId || t.done) return true;
-        if (!t.action.includes('妊娠鑑定')) return true;
-        // AI日から45日後 or ET日から35日後のタスクを削除
+        if (!t.action.includes('妊娠鑑定') && !t.action.includes('再発情')) return true;
         var expectedDate45 = addDays(date, 45);
         var expectedDate35 = addDays(date, 35);
-        return t.date !== expectedDate45 && t.date !== expectedDate35;
+        var expectedDate21 = addDays(date, 21);
+        return t.date !== expectedDate45 && t.date !== expectedDate35 && t.date !== expectedDate21;
       });
 
       // 4. 精液/受精卵在庫の使用記録を取り消し
@@ -10324,7 +10368,15 @@ function deleteCowEvent(cowId, eventIdx) {
     }
   }
 
-  // 5. ステータスリセット：残りのAI/ETイベントがなければopenに
+  // 5. pendingUseRecordsから対応記録を削除（cowIdなしのケースも含む）
+  if (sireFromMemo) {
+    pendingUseRecords = pendingUseRecords.filter(p =>
+      !(p.date === e.date && p.name === sireFromMemo &&
+        (p.cowId === cowId || !p.cowId))
+    );
+  }
+
+  // 6. ステータスリセット：残りのAI/ETイベントがなければopenに
   const remaining = (cow.events||[]).filter(ev =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
   );
@@ -12815,12 +12867,53 @@ function confirmDeleteSemen(id) {
   const s = semenInventory.find(s=>s.id===id);
   if (!s) return;
   document.getElementById('confirm-title').innerHTML = `🗑 ${s.name} を削除`;
-  document.getElementById('confirm-body').innerHTML = `精液「<strong>${s.name}</strong>」の在庫情報と履歴をすべて削除します。`;
+  document.getElementById('confirm-body').innerHTML = `精液「<strong>${s.name}</strong>」の在庫情報と履歴をすべて削除します。<br><small style="color:var(--muted);">関連する種付け記録・タスク・授精簿も連動して削除されます。</small>`;
   document.getElementById('confirm-ok-btn').textContent = '削除する';
   document.getElementById('confirm-ok-btn').style.cssText = 'background:var(--danger);border-color:var(--danger);color:#fff;';
   document.getElementById('confirm-ok-btn').onclick = () => {
-    semenInventory = semenInventory.filter(s=>s.id!==id);
-    save(); closeModal('modal-confirm'); renderSemen();
+    const sireName = s.name;
+    // 1. 在庫から削除
+    semenInventory = semenInventory.filter(x=>x.id!==id);
+    // 2. cow.eventsから該当AI記録を削除・タスクも削除
+    cows.forEach(cow => {
+      const before = (cow.events||[]).length;
+      const removed = (cow.events||[]).filter(ev =>
+        ev.type === 'ai_done' && (ev.memo||'').includes(sireName)
+      );
+      cow.events = (cow.events||[]).filter(ev =>
+        !(ev.type === 'ai_done' && (ev.memo||'').includes(sireName))
+      );
+      removed.forEach(ev => {
+        // タスク削除
+        tasks = tasks.filter(t => !(
+          t.cowId === cow.id && !t.done &&
+          (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) &&
+          (t.date === addDays(ev.date, 45) || t.date === addDays(ev.date, 21))
+        ));
+        // pendingUseRecords削除
+        pendingUseRecords = pendingUseRecords.filter(p =>
+          !(p.kind === 'semen' && p.date === ev.date && p.cowId === cow.id)
+        );
+        // 授精簿（insemBookRecords）から削除
+        insemBookRecords = insemBookRecords.filter(r =>
+          !(r.t === cow.id && r.d === ev.date && r.s === sireName)
+        );
+      });
+      // ステータスリセット
+      if (removed.length > 0) {
+        const hasActive = (cow.events||[]).some(ev =>
+          ['ai_done','et_done'].includes(ev.type)
+        );
+        if (!hasActive && ['program','pregnant'].includes(cow.status)) {
+          cow.status = 'open';
+        }
+      }
+    });
+    // 3. pendingUseRecordsから名前で削除（cowIdなしのものも）
+    pendingUseRecords = pendingUseRecords.filter(p =>
+      !(p.kind === 'semen' && p.name === sireName)
+    );
+    save(); closeModal('modal-confirm'); renderSemen(); renderAll();
   };
   openModal('modal-confirm');
 }
@@ -13852,7 +13945,9 @@ try {
     <button onclick="toggleAllEtCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">ET全選択/解除</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-    <select id="insembook-year" onchange="renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
+    <select id="insembook-year" onchange="this.dataset.userChanged='1';renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
+      <option value="R9">R9（2027）</option>
+      <option value="R8">R8（2026）</option>
       <option value="R7">R7（2025）</option>
       <option value="R6">R6（2024）</option>
       <option value="R5">R5（2023）</option>
