@@ -6370,11 +6370,11 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     if (!confirm(`${cowId} ${fmtDate(date)} の反映を取り消しますか？\n（cow.events・タスク・在庫履歴を削除します）`)) return;
     // cow.eventsから削除
     cow.events = cow.events.filter(e => !(e.type === eventType && e.date === date));
-    // タスク削除
+    // タスク削除（日付は移動されている可能性があるのでcowIdとactionのみで判定）
     tasks = tasks.filter(t => !(
       t.cowId === cowId && !t.done &&
-      (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) &&
-      (t.date === addDays(date, 45) || t.date === addDays(date, 35) || t.date === addDays(date, 21))
+      (t.action.includes('妊娠鑑定') || t.action.includes('再発情確認')) &&
+      (t.memo?.includes(sire) || t.detail?.includes(fmtDate(date)) || t.detail?.includes(date))
     ));
     // 在庫履歴を戻す
     if (!isET) {
