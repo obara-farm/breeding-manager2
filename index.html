@@ -6441,193 +6441,6 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
 }
 
 // 授精簿データをcow.eventsに反映
-function openInsemStockPreview() {
-  const TARGET_START = '2025-01-01';
-  const TARGET_END   = '2025-11-05';
-
-  // 対象レコードを抽出（固定データのみ・AI記録のみ）
-  const target = INSEM_BOOK_DATA.map((r, i) => ({...r, _src:'static', _idx:i}))
-    .filter(r => r.d >= TARGET_START && r.d <= TARGET_END && !r.s.includes('×'));
-
-  // すでに反映済みかチェック
-  const records = target.map(r => {
-    const edit = insemBookEdits['static_' + r._idx] || {};
-    const op = edit.op !== undefined ? edit.op : (r.op || '');
-    const cow = cows.find(c => c.id === r.t);
-    const alreadySynced = cow && (cow.events||[]).some(e => e.type === 'ai_done' && e.date === r.d);
-    const inv = semenInventory.find(s => s.name === r.s);
-    const alreadyInInv = inv && (inv.history||[]).some(h =>
-      h.date === r.d && (h.type === 'use' || h.type === 'transfer') &&
-      (!h.cowId || h.cowId === r.t)
-    );
-    return { ...r, op, alreadySynced, alreadyInInv, inv,
-      // 術者ありの場合のデフォルト：自分の在庫から譲渡
-      stockAction: op ? 'transfer' : 'use'
-    };
-  });
-
-  const done    = records.filter(r => r.alreadySynced && r.alreadyInInv);
-  const pending = records.filter(r => !r.alreadySynced || !r.alreadyInInv);
-  const noOp    = pending.filter(r => !r.op);
-  const hasOp   = pending.filter(r => r.op);
-
-  // サマリー
-  const summaryEl = document.getElementById('insem-stock-preview-summary');
-  summaryEl.innerHTML =
-    `<div style="color:var(--text);">対象件数: <strong>${target.length}件</strong>（2025/01/01〜2025/11/05 AI記録）</div>` +
-    `<div style="color:var(--accent);">✅ 反映済み: ${done.length}件</div>` +
-    `<div style="color:var(--warn);">⏳ 未反映: ${pending.length}件（術者なし ${noOp.length}件・術者あり ${hasOp.length}件）</div>`;
-
-  // 未反映リスト
-  const listEl = document.getElementById('insem-stock-preview-list');
-  if (pending.length === 0) {
-    listEl.innerHTML = '<div style="text-align:center;color:var(--accent);padding:20px;">すべて反映済みです ✅</div>';
-    document.getElementById('insem-stock-exec-btn').style.display = 'none';
-  } else {
-    document.getElementById('insem-stock-exec-btn').style.display = '';
-    listEl.innerHTML = `
-      <table style="width:100%;border-collapse:collapse;font-size:11px;">
-        <thead>
-          <tr style="background:var(--bg3);">
-            <th style="padding:5px 6px;text-align:left;color:var(--muted);">日付</th>
-            <th style="padding:5px 6px;text-align:left;color:var(--muted);">耳標</th>
-            <th style="padding:5px 6px;text-align:left;color:var(--muted);">精液名</th>
-            <th style="padding:5px 6px;text-align:left;color:var(--warn);">術者</th>
-            <th style="padding:5px 6px;text-align:left;color:var(--muted);">在庫</th>
-            <th style="padding:5px 6px;text-align:left;color:var(--muted);">処理</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${pending.map((r, i) => {
-            const invName = r.inv ? r.inv.name : '—';
-            const invStock = r.inv ? r.inv.stock : null;
-            const invLabel = r.inv
-              ? `<span style="color:var(--accent);">${invName}（残${invStock}本）</span>`
-              : `<span style="color:var(--danger);">在庫なし</span>`;
-            if (!r.op) {
-              // 術者なし：自動「使用」
-              return `<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'};border-bottom:1px solid var(--border);">
-                <td style="padding:4px 6px;">${fmtDate(r.d)}</td>
-                <td style="padding:4px 6px;font-family:'JetBrains Mono',monospace;">${r.t}</td>
-                <td style="padding:4px 6px;">${r.s}</td>
-                <td style="padding:4px 6px;color:var(--muted);">—</td>
-                <td style="padding:4px 6px;">${invLabel}</td>
-                <td style="padding:4px 6px;color:var(--accent);">💉 使用</td>
-              </tr>`;
-            } else {
-              // 術者あり：選択
-              return `<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'};border-bottom:1px solid var(--border);">
-                <td style="padding:4px 6px;">${fmtDate(r.d)}</td>
-                <td style="padding:4px 6px;font-family:'JetBrains Mono',monospace;">${r.t}</td>
-                <td style="padding:4px 6px;">${r.s}</td>
-                <td style="padding:4px 6px;color:var(--warn);">${r.op}</td>
-                <td style="padding:4px 6px;">${invLabel}</td>
-                <td style="padding:4px 6px;">
-                  <select data-idx="${r._idx}" class="insem-stock-action-sel"
-                    style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:2px 4px;border-radius:4px;">
-                    <option value="transfer">📤 自分の在庫から譲渡</option>
-                    <option value="skip">⏭ 他人の在庫（スキップ）</option>
-                  </select>
-                </td>
-              </tr>`;
-            }
-          }).join('')}
-        </tbody>
-      </table>`;
-  }
-
-  document.getElementById('insem-stock-preview-result').style.display = 'none';
-  openModal('modal-insem-stock-preview');
-}
-
-function execInsemStockSync() {
-  const TARGET_START = '2025-01-01';
-  const TARGET_END   = '2025-11-05';
-
-  const target = INSEM_BOOK_DATA.map((r, i) => ({...r, _src:'static', _idx:i}))
-    .filter(r => r.d >= TARGET_START && r.d <= TARGET_END && !r.s.includes('×'));
-
-  // 術者ありの選択値を取得
-  const selMap = {};
-  document.querySelectorAll('.insem-stock-action-sel').forEach(sel => {
-    selMap[sel.dataset.idx] = sel.value;
-  });
-
-  let added = 0, invUsed = 0, invSkipped = 0, noInv = 0, alreadyDone = 0;
-  const todayStr = today();
-
-  target.forEach(r => {
-    const edit = insemBookEdits['static_' + r._idx] || {};
-    const op = edit.op !== undefined ? edit.op : (r.op || '');
-    const isOther = op !== '';
-    const stockAction = isOther ? (selMap[r._idx] || 'transfer') : 'use';
-
-    const cow = cows.find(c => c.id === r.t);
-    if (!cow) return;
-
-    // cow.eventsへの追加
-    const alreadySynced = (cow.events||[]).some(e => e.type === 'ai_done' && e.date === r.d);
-    if (!alreadySynced) {
-      cow.events = cow.events || [];
-      const memo = `精液:${r.s}${op ? ' ／ 術者:' + op : ''}`;
-      cow.events.push({ type: 'ai_done', date: r.d, memo });
-      cow.aiDate = r.d;
-      cow.status = cow.status === 'open' ? 'program' : cow.status;
-
-      // 妊鑑タスク生成
-      const pregDate = addDays(r.d, 45);
-      const reEstrusDate = addDays(r.d, 21);
-      tasks = tasks.filter(t => !(t.cowId === r.t && !t.done &&
-        (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) &&
-        (t.date === pregDate || t.date === reEstrusDate)
-      ));
-      tasks.push({
-        id: Math.random().toString(36).slice(2),
-        cowId: r.t, date: pregDate, action: '妊娠鑑定',
-        detail: `AI後45日 (AI日:${fmtDate(r.d)})`,
-        color: '#f59e0b', priority: 'high', done: false,
-        memo: `精液:${r.s}`
-      });
-      added++;
-    } else {
-      alreadyDone++;
-    }
-
-    // 在庫への反映
-    if (stockAction === 'skip') { invSkipped++; return; }
-    const inv = semenInventory.find(s => s.name === r.s);
-    if (!inv) { noInv++; return; }
-    const alreadyInInv = (inv.history||[]).some(h =>
-      h.date === r.d && (h.type === 'use' || h.type === 'transfer') &&
-      (!h.cowId || h.cowId === r.t)
-    );
-    if (alreadyInInv) return;
-    inv.stock = (inv.stock || 0) - 1;
-    inv.history = inv.history || [];
-    inv.history.push({
-      date: r.d, type: stockAction, count: 1,
-      usage: isOther ? null : 'AI',
-      cowId: isOther ? null : r.t,
-      memo: op ? '術者:' + op : null
-    });
-    invUsed++;
-  });
-
-  save();
-  renderAll();
-
-  const resultEl = document.getElementById('insem-stock-preview-result');
-  resultEl.innerHTML =
-    `✅ 反映完了<br>` +
-    `• 種付け記録・妊鑑タスク追加: ${added}件<br>` +
-    `• 在庫反映（使用/譲渡）: ${invUsed}件<br>` +
-    (invSkipped ? `• スキップ（他人の在庫）: ${invSkipped}件<br>` : '') +
-    (noInv     ? `• 在庫なし（スキップ）: ${noInv}件<br>` : '') +
-    (alreadyDone ? `• 反映済み（スキップ）: ${alreadyDone}件` : '');
-  resultEl.style.display = '';
-  document.getElementById('insem-stock-exec-btn').style.display = 'none';
-}
-
 function syncInsemBookToCows() {
   const all = [
     ...INSEM_BOOK_DATA.map((r,i) => ({...r, _src:'static', _idx:i})),
@@ -6873,10 +6686,11 @@ function renderInsemBook() {
     const etType = r.s.includes('×') ? 'et_done' : 'ai_done';
     const alreadySynced = cowForSync && (cowForSync.events||[]).some(e => e.type === etType && e.date === r.d);
     const sireEsc = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const addInv = r.d >= '2025-10-07' && !r.s.includes('×');
+    const addInv = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
+    const showSyncBtn = addInv || r.d <= '2025-11-05';
     const syncBtn = alreadySynced
       ? '<span style="font-size:10px;color:var(--accent);">✓済</span>'
-      : '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc + '\',' + addInv + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">📥' + (addInv ? '💉' : '') + '</button>';
+      : showSyncBtn ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc + '\',' + addInv + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">📥' + (addInv ? '💉' : '') + '</button>' : '<span style="font-size:10px;color:var(--muted);">—</span>';
     // 証明書No・No・備考は編集可能
     if (isNew) {
       return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);outline:1px solid var(--info);">' +
@@ -6944,10 +6758,11 @@ function renderInsemBook() {
       const etType2      = r.s.includes('×') ? 'et_done' : 'ai_done';
       const alreadySynced2 = cowForSync2 && (cowForSync2.events||[]).some(e => e.type === etType2 && e.date === r.d);
       const sireEsc2 = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const addInv2  = r.d >= '2025-10-07' && !r.s.includes('×');
+      const addInv2  = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
+      const showSyncBtn2 = addInv2 || r.d <= '2025-11-05';
       const syncBtn2 = alreadySynced2
         ? '<span style="font-size:11px;color:var(--accent);">✓済</span>'
-        : '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc2 + '\',' + addInv2 + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📥</button>';
+        : showSyncBtn2 ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc2 + '\',' + addInv2 + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📥' + (addInv2 ? '💉' : '') + '</button>' : '<span style="font-size:10px;color:var(--muted);">—</span>';
       const uid    = 'imb-' + i;
       const onSave = isNew2 ? 'saveInsemBookRecord(\'dynamic\',' + idx2 + ')' : 'saveInsemBookRecord(\'static\',' + r._idx + ')';
       const nId    = isNew2 ? 'ib-n-' + idx2        : 'ib-n-'  + sid2;
@@ -14148,7 +13963,6 @@ try {
     </select>
     <input type="text" id="insembook-search" placeholder="🔍 耳標・牛名・種雄牛で検索..." oninput="renderInsemBook()" style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 12px;border-radius:8px;outline:none;">
     <button onclick="syncInsemBookToCows()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📥 種付け記録に反映</button>
-    <button onclick="openInsemStockPreview()" style="background:#0a1a2a;border:1px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📦 在庫・タスクに一括反映</button>
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
   </div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
@@ -14438,23 +14252,6 @@ try {
       <input type="text" id="col-memo" placeholder="特記事項など" style="font-size:13px;">
     </div>
     <button class="btn btn-primary" onclick="saveCollection()" style="width:100%;" id="save-collection-btn">保存する</button>
-  </div>
-</div>
-
-<!-- 在庫・タスク一括反映プレビューモーダル -->
-<div class="modal-overlay" id="modal-insem-stock-preview">
-  <div class="modal" style="max-width:min(98vw,700px);width:98vw;">
-    <div class="modal-title">
-      <span>📦 在庫・タスクに一括反映（〜2025/11/5）</span>
-      <button class="modal-close" onclick="closeModal('modal-insem-stock-preview')">✕</button>
-    </div>
-    <div id="insem-stock-preview-summary" style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8;"></div>
-    <div id="insem-stock-preview-list" style="max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
-    <div id="insem-stock-preview-result" style="display:none;background:#0a1a0a;border:1px solid var(--accent2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--accent);"></div>
-    <div style="display:flex;gap:8px;">
-      <button onclick="execInsemStockSync()" id="insem-stock-exec-btn" class="btn btn-primary" style="flex:1;">反映実行</button>
-      <button onclick="closeModal('modal-insem-stock-preview')" class="btn btn-secondary" style="flex:1;">閉じる</button>
-    </div>
   </div>
 </div>
 
