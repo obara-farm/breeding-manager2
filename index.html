@@ -12253,6 +12253,15 @@ function updateSemenBadge() {
   else { badge.style.display = 'none'; }
 }
 
+function toggleSemenCard(id) {
+  const detail = document.getElementById('semen-detail-' + id);
+  const chevron = document.getElementById('semen-chevron-' + id);
+  if (!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : '';
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
 function renderSemen() {
   // historyから在庫数を再計算して同期
   semenInventory.forEach(syncStockFromHistory);
@@ -12343,54 +12352,67 @@ function renderSemen() {
 
     const recentHistory = (s.history||[]).slice(-5).reverse();
 
-    return `<div style="background:var(--card);border:${isLow?'2px solid var(--danger)':'1px solid var(--border)'};border-radius:12px;padding:14px;margin-bottom:12px;${isLow?'background:linear-gradient(135deg,#1a0808,#150505);':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-        <div>
-          <div style="font-size:16px;font-weight:900;color:var(--text);">${s.name}${s.breed ? ` <span style="font-size:11px;font-weight:700;background:${s.breed==='褐毛'?'#3b0000':s.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${s.breed==='褐毛'?'#7f1d1d':s.breed==='黒毛'?'#374151':'#334155'};color:${s.breed==='褐毛'?'#fca5a5':s.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${s.breed==='褐毛'?'🟥':'⬛'} ${s.breed}</span>` : ''}</div>
+    return `<div style="background:var(--card);border:${isLow?'2px solid var(--danger)':'1px solid var(--border)'};border-radius:12px;margin-bottom:8px;${isLow?'background:linear-gradient(135deg,#1a0808,#150505);':''}overflow:hidden;">
+      <!-- ヘッダー（常時表示・タップで展開） -->
+      <div onclick="toggleSemenCard('${s.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;user-select:none;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:15px;font-weight:900;color:var(--text);display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${isLow ? '<span style="color:var(--danger);">🚨</span>' : ''}
+            ${s.name}
+            ${s.breed ? `<span style="font-size:11px;font-weight:700;background:${s.breed==='褐毛'?'#3b0000':s.breed==='黒毛'?'#111827':'#1e293b'};border:1px solid ${s.breed==='褐毛'?'#7f1d1d':s.breed==='黒毛'?'#374151':'#334155'};color:${s.breed==='褐毛'?'#fca5a5':s.breed==='黒毛'?'#d1d5db':'#94a3b8'};padding:1px 7px;border-radius:4px;">${s.breed==='褐毛'?'🟥':'⬛'} ${s.breed}</span>` : ''}
+          </div>
           ${s.lot?`<div style="font-size:11px;color:var(--muted);">ロット: ${s.lot}</div>`:''}
-          ${s.sireCert?`<div style="font-size:11px;color:var(--info);">📋 種畜証明書番号: ${s.sireCert}</div>`:''}
-          ${s.regOrg||s.regNo?`<div style="font-size:11px;color:var(--muted);">🏛 ${[s.regOrg,s.regNo].filter(Boolean).join('　')}</div>`:''}          ${s.location?`<div style="font-size:11px;color:var(--muted);">📍 ${s.location}</div>`:''}          ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).length ? `<div style="font-size:11px;color:var(--warn);font-weight:700;">⏳ 未紐付け使用記録 ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).reduce((a,b)=>a+b.count,0)}本分あり</div>` : ''}
         </div>
-        <div style="text-align:right;">
-          <div style="font-size:32px;font-weight:900;color:${isLow||s.stock<0?'var(--danger)':'var(--accent)'};">${s.stock < 0 ? '⚠'+s.stock : s.stock}</div>
-          <div style="font-size:11px;color:var(--muted);">本在庫</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
-        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:15px;font-weight:700;color:var(--text);">${totalUsed}</div>
-          <div style="font-size:10px;color:var(--muted);">累計使用本数</div>
-        </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:13px;font-weight:700;">${rateHtml}</div>
-          <div style="font-size:10px;color:var(--muted);">受胎率</div>
-        </div>
-        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
-          <div style="font-size:${s.noAlert?'11':'15'}px;font-weight:700;color:${s.noAlert?'var(--muted)':'var(--warn)'};">${s.noAlert ? '通知なし' : (s.alertThreshold||3)}</div>
-          <div style="font-size:10px;color:var(--muted);">アラート本数</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <div style="text-align:right;">
+            <div style="font-size:28px;font-weight:900;color:${isLow||s.stock<0?'var(--danger)':'var(--accent)'};">${s.stock < 0 ? '⚠'+s.stock : s.stock}</div>
+            <div style="font-size:10px;color:var(--muted);">本在庫</div>
+          </div>
+          <div id="semen-chevron-${s.id}" style="color:var(--muted);font-size:16px;transition:transform 0.2s;">▼</div>
         </div>
       </div>
-      ${s.memo?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">📝 ${s.memo}</div>`:''}
-      ${recentHistory.length ? `
-        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;">直近の履歴</div>
-        <div style="font-size:11px;line-height:2;">
-          ${recentHistory.map((h,i)=>{
-            const histLen = (s.history||[]).length;
-            const sliceStart = Math.max(0, histLen - 5);
-            const realIdx = sliceStart + (recentHistory.length - 1 - i);
-            const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
-            const col = h.type==='restock'?'var(--accent)':h.type==='carryover'?'#e2e8f0':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':h.type==='use'?'var(--danger)':'var(--text)';
-            return `<span style="display:flex;align-items:center;gap:6px;">
-              <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.memo?' ('+h.memo+')':''}</span>
-              <button class="history-edit-btn" data-kind="semen" data-id="${s.id}" data-idx="${realIdx}" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
-            </span>`;
-          }).join('')}
-        </div>` : ''}
-      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button class="btn btn-primary" style="font-size:12px;flex:1;" onclick="openRestock('${s.id}')">📦 入荷・補充</button>
-        <button class="btn btn-secondary" style="font-size:12px;flex:1;" onclick="openEditSemen('${s.id}')">✏ 編集</button>
-        <button onclick="openUseRecord('semen','${s.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
-        <button onclick="confirmDeleteSemen('${s.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">削除</button>
+      <!-- 詳細（折りたたみ） -->
+      <div id="semen-detail-${s.id}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid var(--border);">
+        ${s.sireCert?`<div style="font-size:11px;color:var(--info);margin-top:8px;">📋 種畜証明書番号: ${s.sireCert}</div>`:''}
+        ${s.regOrg||s.regNo?`<div style="font-size:11px;color:var(--muted);margin-top:4px;">🏛 ${[s.regOrg,s.regNo].filter(Boolean).join('　')}</div>`:''}
+        ${s.location?`<div style="font-size:11px;color:var(--muted);margin-top:4px;">📍 ${s.location}</div>`:''}
+        ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).length ? `<div style="font-size:11px;color:var(--warn);font-weight:700;margin-top:4px;">⏳ 未紐付け使用記録 ${pendingUseRecords.filter(p=>p.kind==='semen'&&p.name===s.name).reduce((a,b)=>a+b.count,0)}本分あり</div>` : ''}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:10px 0;">
+          <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:15px;font-weight:700;color:var(--text);">${totalUsed}</div>
+            <div style="font-size:10px;color:var(--muted);">累計使用本数</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:13px;font-weight:700;">${rateHtml}</div>
+            <div style="font-size:10px;color:var(--muted);">受胎率</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+            <div style="font-size:${s.noAlert?'11':'15'}px;font-weight:700;color:${s.noAlert?'var(--muted)':'var(--warn)'};">${s.noAlert ? '通知なし' : (s.alertThreshold||3)}</div>
+            <div style="font-size:10px;color:var(--muted);">アラート本数</div>
+          </div>
+        </div>
+        ${s.memo?`<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">📝 ${s.memo}</div>`:''}
+        ${recentHistory.length ? `
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;">直近の履歴</div>
+          <div style="font-size:11px;line-height:2;">
+            ${recentHistory.map((h,i)=>{
+              const histLen = (s.history||[]).length;
+              const sliceStart = Math.max(0, histLen - 5);
+              const realIdx = sliceStart + (recentHistory.length - 1 - i);
+              const typeLabel2 = h.type==='restock'?'🤝譲受':h.type==='selfcollect'?'🥚自家採卵':h.type==='carryover'?'📦繰越':h.type==='transfer'?'📤譲渡':h.type==='discard'?'🗑廃棄':'💉使用';
+              const col = h.type==='restock'?'var(--accent)':h.type==='carryover'?'#e2e8f0':h.type==='transfer'?'var(--warn)':h.type==='discard'?'var(--danger)':h.type==='use'?'var(--danger)':'var(--text)';
+              return `<span style="display:flex;align-items:center;gap:6px;">
+                <span style="color:${col};">${fmtDate(h.date)} ${typeLabel2} ${h.count}本${h.memo?' ('+h.memo+')':''}</span>
+                <button class="history-edit-btn" data-kind="semen" data-id="${s.id}" data-idx="${realIdx}" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;flex-shrink:0;">✏</button>
+              </span>`;
+            }).join('')}
+          </div>` : ''}
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+          <button class="btn btn-primary" style="font-size:12px;flex:1;" onclick="openRestock('${s.id}')">📦 入荷・補充</button>
+          <button class="btn btn-secondary" style="font-size:12px;flex:1;" onclick="openEditSemen('${s.id}')">✏ 編集</button>
+          <button onclick="openUseRecord('semen','${s.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">📝 使用記録</button>
+          <button onclick="confirmDeleteSemen('${s.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:7px 12px;border-radius:8px;cursor:pointer;">削除</button>
+        </div>
       </div>
     </div>`;
   };
