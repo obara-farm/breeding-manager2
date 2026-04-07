@@ -6580,7 +6580,11 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
     const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
     certQ = String(maxQ + 1);
   }
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memo||'', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  // memoから精液名・術者・胚番号を除いた備考部分のみ抽出
+  const memoClean = (memo||'').split('／')
+    .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
+    .join('／').trim();
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
 }
 
 function saveInsemBookRecord(src, idx) {
@@ -6625,7 +6629,11 @@ function renderInsemBook() {
     );
   }
   document.getElementById('insembook-count').textContent = data.length + '件';
-  const isET = r => r.s.includes('×') || r.m.startsWith('01L') || r._src === 'dynamic' && r.s && !r.s.includes('精液');
+  const isET = r => {
+    if (r.insemType === 'et') return true;
+    if (r.insemType === 'ai') return false;
+    return r.s.includes('×') || r.m.startsWith('01L');
+  };
   document.getElementById('insembook-tbody').innerHTML = data.map((r, i) => {
     const et = isET(r);
     const bg = i % 2 === 0 ? 'var(--bg2)' : 'var(--bg3)';
@@ -9158,14 +9166,14 @@ function deleteInsemRecord(src, idx) {
         if (!hasActiveEvent) cow.status = 'open';
       }
 
-      // 3. 妊鑑タスクを削除（該当牛の未完了妊鑑タスクのうち、AI日から生成されたもの）
+      // 3. 妊鑑タスク・再発情タスクを削除
       tasks = tasks.filter(function(t) {
         if (t.cowId !== cowId || t.done) return true;
-        if (!t.action.includes('妊娠鑑定')) return true;
-        // AI日から45日後 or ET日から35日後のタスクを削除
+        if (!t.action.includes('妊娠鑑定') && !t.action.includes('再発情')) return true;
         var expectedDate45 = addDays(date, 45);
         var expectedDate35 = addDays(date, 35);
-        return t.date !== expectedDate45 && t.date !== expectedDate35;
+        var expectedDate21 = addDays(date, 21);
+        return t.date !== expectedDate45 && t.date !== expectedDate35 && t.date !== expectedDate21;
       });
 
       // 4. 精液/受精卵在庫の使用記録を取り消し
