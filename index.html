@@ -7572,9 +7572,11 @@ function onColFreshCountInput(val, existing) {
             <option value="B" ${ex?.rank==='B'?'selected':''}>B</option>
           </select>
         </td>
+        <td></td>
+        <td></td>
         <td style="padding:2px 3px;">
           <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
-            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:60px;">
+            style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:110px;">
         </td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
@@ -14053,15 +14055,17 @@ try {
         </div>
       </div>
       <div id="col-fresh-tbody-wrap" style="display:none;overflow-x:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <table style="width:100%;min-width:750px;border-collapse:collapse;font-size:11px;">
           <colgroup>
             <col style="width:28px">
             <col style="width:140px">
             <col style="width:60px">
             <col style="width:52px">
-            <col style="width:80px">
-            <col>
-            <col style="width:44px">
+            <col style="width:60px"><!-- S相当 -->
+            <col style="width:52px"><!-- R相当 -->
+            <col style="width:120px"><!-- 処置列相当（空） -->
+            <col><!-- 移植先 -->
+            <col style="width:44px"><!-- 同上 -->
           </colgroup>
           <thead>
             <tr style="background:var(--bg3);">
@@ -14069,6 +14073,8 @@ try {
               <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">胚番号</th>
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
+              <th style="padding:4px 5px;color:var(--muted);"></th>
+              <th style="padding:4px 5px;color:var(--muted);"></th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
               <th style="padding:4px 5px;color:var(--muted);">移植先</th>
               <th style="padding:4px 5px;color:var(--muted);"></th>
