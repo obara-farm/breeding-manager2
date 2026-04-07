@@ -7640,6 +7640,29 @@ function setFreshSameAsAbove(btn) {
   btn.style.color = 'var(--warn)';
 }
 
+function setCultureSameAsAbove(btn) {
+  const row = btn.closest('tr');
+  const tbody = row.closest('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const idx = rows.indexOf(row);
+  if (idx <= 0) return;
+  const prevRow = rows[idx - 1];
+  const prevRecipId = prevRow.querySelector('.cul-recipient')?.value || '';
+  const prevRecipLabel = prevRow.querySelector('.cul-recip-search')?.value || '';
+  if (!prevRecipId) { alert('直前の行に移植先が設定されていません'); return; }
+  const recipHidden = row.querySelector('.cul-recipient');
+  const recipSearch = row.querySelector('.cul-recip-search');
+  if (recipHidden) recipHidden.value = prevRecipId;
+  if (recipSearch) {
+    recipSearch.style.display = '';
+    recipSearch.value = prevRecipLabel || prevRecipId;
+    recipSearch.style.borderColor = 'var(--warn)';
+  }
+  btn.textContent = '✓同上';
+  btn.style.borderColor = 'var(--warn)';
+  btn.style.color = 'var(--warn)';
+}
+
 function toggleCultureSecondEmbryo(btn) {
   const wrap = btn.closest('td').querySelector('.cul-second-wrap');
   if (!wrap) return;
@@ -7787,19 +7810,21 @@ function getColFreshEmbryos() {
 
 function getColCultureEmbryos() {
   const rows = document.querySelectorAll('#col-culture-tbody tr');
-  return Array.from(rows).map(r => ({
-    embryoNo:      r.querySelector('.cul-embryo-no')?.value||'',
-    embryoNo2:     r.querySelector('.cul-embryo-no2')?.value||'',
-    stage2:        r.querySelector('.cul-stage2')?.value||'',
-    rank2:         r.querySelector('.cul-rank2')?.value||'',
-    caneNo:        r.querySelector('.cul-cane-no')?.value||'',
-    stage:         r.querySelector('.cul-stage')?.value||'',
-    rank:          r.querySelector('.cul-rank')?.value||'',
-    cultureStage:  r.querySelector('.cul-next-stage')?.value||'',
-    cultureRank:   r.querySelector('.cul-next-rank')?.value||'',
-    cultureResult: r.querySelector('.cul-action')?.value||'',
-    recipientId:   r.querySelector('.cul-recipient')?.value||'',
-  }));
+  return Array.from(rows).map(r => {
+    const btn = r.querySelector('button[onclick*="setCultureSameAsAbove"]');
+    const isDitto = btn && (btn.textContent === '✓同上');
+    return {
+      embryoNo:      r.querySelector('.cul-embryo-no')?.value||'',
+      caneNo:        r.querySelector('.cul-cane-no')?.value||'',
+      stage:         r.querySelector('.cul-stage')?.value||'',
+      rank:          r.querySelector('.cul-rank')?.value||'',
+      cultureStage:  r.querySelector('.cul-next-stage')?.value||'',
+      cultureRank:   r.querySelector('.cul-next-rank')?.value||'',
+      cultureResult: r.querySelector('.cul-action')?.value||'',
+      recipientId:   r.querySelector('.cul-recipient')?.value||'',
+      isDitto:       isDitto,
+    };
+  });
 }
 
 function onColCultureCountInput(val, existing) {
@@ -7877,26 +7902,8 @@ function onColCultureCountInput(val, existing) {
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:130px;display:${isET?'':'none'};">
           <div class="cul-recip-list" style="display:none;position:fixed;z-index:9999;background:var(--card);border:1px solid var(--accent2);border-radius:8px;width:220px;max-height:200px;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.8);"></div>
         </td>
-        <td style="padding:2px 4px;white-space:nowrap;vertical-align:top;display:${isET?'':'none'}" class="cul-second-td">
-          <button type="button" onclick="toggleCultureSecondEmbryo(this)" style="background:#0a1a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">＋2卵目</button>
-          <div class="cul-second-wrap" style="display:${ex?.embryoNo2?'':'none'};margin-top:3px;">
-            <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
-              <input type="text" class="cul-embryo-no2" value="${ex?.embryoNo2||''}" placeholder="2卵目（自動）"
-                style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;width:110px;font-family:'JetBrains Mono',monospace;">
-              <select class="cul-stage2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:46px;">
-                <option value="">S</option>
-                <option value="CM" ${ex?.stage2==='CM'?'selected':''}>CM</option>
-                <option value="EB" ${ex?.stage2==='EB'?'selected':''}>EB</option>
-                <option value="BL" ${ex?.stage2==='BL'?'selected':''}>BL</option>
-                <option value="EX" ${ex?.stage2==='EX'?'selected':''}>EX</option>
-              </select>
-              <select class="cul-rank2" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);font-size:10px;padding:2px 3px;border-radius:3px;min-width:38px;">
-                <option value="">R</option>
-                <option value="A" ${ex?.rank2==='A'?'selected':''}>A</option>
-                <option value="B" ${ex?.rank2==='B'?'selected':''}>B</option>
-              </select>
-            </div>
-          </div>
+        <td style="padding:2px 4px;text-align:center;">
+          <button type="button" onclick="setCultureSameAsAbove(this)" style="background:#0a1a2a;border:1px solid var(--muted);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;white-space:nowrap;">同上</button>
         </td>`;
       if (ex?.recipientId) {
         const s = tr.querySelector('.cul-recipient');
@@ -7908,14 +7915,14 @@ function onColCultureCountInput(val, existing) {
           searchInput.value = recipCow ? `${ex.recipientId} ${cowDisplayName(ex.recipientId)||''}`.trim() : ex.recipientId;
         }
       }
-      // embryoNo2復元
-      if (ex?.embryoNo2) {
-        const wrap2 = tr.querySelector('.cul-second-wrap');
-        const inp2 = tr.querySelector('.cul-embryo-no2');
-        const btn2 = tr.querySelector('button[onclick*="toggleCultureSecondEmbryo"]');
-        if (wrap2) wrap2.style.display = '';
-        if (inp2) inp2.value = ex.embryoNo2;
-        if (btn2) { btn2.textContent = '－2卵目'; btn2.style.borderColor='var(--warn)'; btn2.style.color='var(--warn)'; }
+      // isDitto復元（同上ボタンの状態を復元）
+      if (ex?.isDitto) {
+        const dittoBtn = tr.querySelector('button[onclick*="setCultureSameAsAbove"]');
+        if (dittoBtn) {
+          dittoBtn.textContent = '✓同上';
+          dittoBtn.style.borderColor = 'var(--warn)';
+          dittoBtn.style.color = 'var(--warn)';
+        }
       }
       tbody.appendChild(tr);
       // 初期表示：処置が設定済みなら表示状態を正しく反映
@@ -8505,7 +8512,8 @@ function saveCollection() {
       _processFreshEtNow(rec, {
         stage: ce.cultureStage||ce.stage, rank: ce.cultureRank||ce.rank,
         recipientId: ce.recipientId,
-      }, ceEmbryoNo, date, '🌱新鮮培養胚', ce.embryoNo2||'');
+        isDitto: ce.isDitto||false,
+      }, ceEmbryoNo, date, ce.isDitto ? '🌱新鮮培養胚（2卵目）' : '🌱新鮮培養胚', '', ce.isDitto||false);
     } else if (ce.cultureResult === 'freeze') {
       // 入力済み胚番号・ケーン番号を使って凍結処理
       _processFreshToFreezeWithNo(rec, {
@@ -14108,13 +14116,14 @@ try {
             <tr style="background:var(--bg3);">
               <th style="padding:3px 4px;color:var(--muted);text-align:center;width:28px;">#</th>
               <th style="padding:3px 4px;color:var(--info);width:140px;">胚番号</th>
-              <th style="padding:3px 4px;color:var(--info);width:100px;">ケーン</th>
+              <th style="padding:3px 4px;color:var(--info);width:100px;">ケーン番号</th>
               <th style="padding:3px 4px;color:var(--muted);width:60px;">採卵S</th>
               <th style="padding:3px 4px;color:var(--muted);width:52px;">採卵R</th>
               <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:60px;">翌日S</th>
               <th style="padding:3px 4px;color:var(--purple);font-weight:700;width:52px;">翌日R</th>
               <th style="padding:3px 4px;color:var(--muted);">処置</th>
               <th style="padding:3px 4px;color:var(--muted);">移植先</th>
+              <th style="padding:3px 4px;color:var(--muted);width:44px;"></th>
             </tr>
           </thead>
           <tbody id="col-culture-tbody"></tbody>
