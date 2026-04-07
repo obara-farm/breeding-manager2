@@ -6549,7 +6549,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
     const all = [...INSEM_BOOK_DATA, ...insemBookRecords];
-    if (all.some(r => r.t === cowId && r.d === date)) return;
+    if (all.some(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date)) return;
   } else {
     // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
     const embryoNoMatch = memo.match(/胚番号:([^\s]+)/);
@@ -10333,7 +10333,14 @@ function deleteCowEvent(cowId, eventIdx) {
     }
   }
 
-  // 5. ステータスリセット：残りのAI/ETイベントがなければopenに
+  // 5. pendingUseRecordsから対応記録を削除
+  if (sireFromMemo) {
+    pendingUseRecords = pendingUseRecords.filter(p =>
+      !(p.cowId === cowId && p.date === e.date && p.name === sireFromMemo)
+    );
+  }
+
+  // 6. ステータスリセット：残りのAI/ETイベントがなければopenに
   const remaining = (cow.events||[]).filter(ev =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(ev.type)
   );
