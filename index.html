@@ -304,6 +304,100 @@ textarea{resize:vertical;}
   .modal-overlay:not(#modal-cert-preview) { display: none !important; }
   #cert-preview-container > div { page-break-after: always; }
 }
+/* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
+@media (max-width: 430px) {
+
+  /* 採卵モーダル：凍結胚テーブルをカード形式に */
+  #col-frozen-tbody-wrap { overflow-x: visible !important; }
+  #col-frozen-tbody tr {
+    display: block;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+  }
+  #col-frozen-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
+  #col-frozen-tbody td:first-child { /* 行番号 */
+    font-size: 10px; color: var(--muted); margin-bottom: 2px;
+  }
+  #col-frozen-tbody .cf-no  { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-frozen-tbody .cf-cane { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-frozen-tbody .cf-stage,
+  #col-frozen-tbody .cf-rank {
+    display: inline-block !important; width: 48% !important;
+    font-size: 13px !important; padding: 6px 4px !important;
+  }
+  #col-frozen-tbody .cf-comment { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+
+  /* 採卵モーダル：新鮮胚テーブルをカード形式に */
+  #col-fresh-tbody-wrap { overflow-x: visible !important; }
+  #col-fresh-tbody tr {
+    display: block;
+    background: var(--bg2);
+    border: 1px solid var(--accent2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+  }
+  #col-fresh-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
+  #col-fresh-tbody td:first-child { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  #col-fresh-tbody td:nth-child(3) { display: none !important; } /* ケーン列（空）を非表示 */
+  #col-fresh-tbody .cfr-embryo-no { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-fresh-tbody .cfr-stage,
+  #col-fresh-tbody .cfr-rank {
+    display: inline-block !important; width: 48% !important;
+    font-size: 13px !important; padding: 6px 4px !important;
+  }
+  #col-fresh-tbody .cfr-comment { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-fresh-tbody .cfr-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
+
+  /* 採卵モーダル：培養胚テーブルをカード形式に */
+  #col-culture-tbody-wrap { overflow-x: visible !important; }
+  #col-culture-tbody tr {
+    display: block;
+    background: var(--bg2);
+    border: 1px solid var(--purple);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+  }
+  #col-culture-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
+  #col-culture-tbody td:first-child { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+  #col-culture-tbody .cul-embryo-no { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-culture-tbody .cul-cane-no   { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-culture-tbody .cul-stage,
+  #col-culture-tbody .cul-rank,
+  #col-culture-tbody .cul-next-stage,
+  #col-culture-tbody .cul-next-rank {
+    display: inline-block !important; width: 48% !important;
+    font-size: 13px !important; padding: 6px 4px !important;
+  }
+  #col-culture-tbody .cul-action { width: 100% !important; font-size: 13px !important; padding: 6px 4px !important; }
+  #col-culture-tbody .cul-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
+
+  /* テーブルのtheadをスマホでは非表示（カード形式なので不要） */
+  #col-frozen-tbody-wrap thead,
+  #col-fresh-tbody-wrap thead,
+  #col-culture-tbody-wrap thead { display: none !important; }
+
+  /* テーブル本体のmin-widthを解除 */
+  #col-frozen-tbody-wrap table,
+  #col-fresh-tbody-wrap table,
+  #col-culture-tbody-wrap table { min-width: unset !important; width: 100% !important; }
+
+  /* 授精簿：行をタップで展開するためのスタイル */
+  .insem-row-header {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    cursor: pointer;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .insem-row-detail { padding: 8px 10px; }
+}
 </style>
 </head>
 <body>
@@ -6583,10 +6677,82 @@ function renderInsemBook() {
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
     '</tr>';
   }).join('');
+
+  // スマホ版：アコーディオンカード（430px以下）
+  const isMobile = window.innerWidth <= 430;
+  const tableWrap = document.getElementById('insembook-table-wrap');
+  const mobileEl  = document.getElementById('insembook-mobile');
+  if (tableWrap) tableWrap.style.display = isMobile ? 'none' : '';
+  if (mobileEl)  mobileEl.style.display  = isMobile ? ''     : 'none';
+  if (isMobile && mobileEl) {
+    mobileEl.innerHTML = data.map((r, i) => {
+      const et2 = isET(r);
+      const typeColor2 = et2 ? 'var(--purple)' : 'var(--info)';
+      const typeLabel2 = et2 ? '🧬' : '💉';
+      const isNew2 = r._src === 'dynamic';
+      const idx2   = r._idx;
+      const sid2   = r._src + r._idx;
+      const edit2  = insemBookEdits[r._src + '_' + r._idx] || {};
+      const dispN2  = edit2.n  !== undefined ? edit2.n  : (r.n||'');
+      const dispQ2  = edit2.q  !== undefined ? edit2.q  : (r.q||'');
+      const dispM2  = edit2.m  !== undefined ? edit2.m  : (r.m||'');
+      const dispD2  = edit2.d  || r.d;
+      const dispOp2 = edit2.op !== undefined ? edit2.op : (r.op||'');
+      const cowForSync2  = cows.find(c => c.id === r.t);
+      const etType2      = r.s.includes('×') ? 'et_done' : 'ai_done';
+      const alreadySynced2 = cowForSync2 && (cowForSync2.events||[]).some(e => e.type === etType2 && e.date === r.d);
+      const sireEsc2 = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const addInv2  = r.d >= '2025-10-07' && !r.s.includes('×');
+      const syncBtn2 = alreadySynced2
+        ? '<span style="font-size:11px;color:var(--accent);">✓済</span>'
+        : '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc2 + '\',' + addInv2 + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📥</button>';
+      const uid    = 'imb-' + i;
+      const onSave = isNew2 ? 'saveInsemBookRecord(\'dynamic\',' + idx2 + ')' : 'saveInsemBookRecord(\'static\',' + r._idx + ')';
+      const nId    = isNew2 ? 'ib-n-' + idx2        : 'ib-n-'  + sid2;
+      const qId    = isNew2 ? 'ib-q-' + idx2        : 'ib-q-'  + sid2;
+      const mId    = isNew2 ? 'ib-m-' + idx2        : 'ib-m-'  + sid2;
+      const opId   = isNew2 ? 'ib-op-dynamic' + idx2 : 'ib-op-' + sid2;
+      return (
+        '<div style="background:var(--card);border:1px solid ' + (isNew2 ? 'var(--info)' : 'var(--border)') + ';border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
+          '<div onclick="toggleInsemCard(\'' + uid + '\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--bg2);">' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:700;color:var(--text);">' + fmtDate(dispD2) + '　<span style="color:var(--accent);font-family:\'JetBrains Mono\',monospace;">' + r.t + '</span></div>' +
+              '<div style="font-size:12px;color:' + typeColor2 + ';font-weight:700;margin-top:2px;">' + typeLabel2 + ' ' + r.s + '</div>' +
+            '</div>' +
+            '<div style="color:var(--muted);font-size:16px;transition:transform .2s;" id="' + uid + '-chev">▼</div>' +
+          '</div>' +
+          '<div id="' + uid + '" style="display:none;padding:10px 12px;border-top:1px solid var(--border);">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">' +
+              '<div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">証明書No</div>' +
+              '<input id="' + nId + '" value="' + dispN2.replace(/"/g,'&quot;') + '" onchange="' + onSave + '" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
+              '<div><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">No</div>' +
+              '<input id="' + qId + '" value="' + dispQ2.replace(/"/g,'&quot;') + '" onchange="' + onSave + '" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
+            '</div>' +
+            '<div style="margin-bottom:8px;"><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">備考</div>' +
+            '<input id="' + mId + '" value="' + dispM2.replace(/"/g,'&quot;') + '" onchange="' + onSave + '" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
+            '<div style="margin-bottom:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">術者</div>' +
+            '<input id="' + opId + '" value="' + (dispOp2||'').replace(/"/g,'&quot;') + '" onchange="' + onSave + '" placeholder="術者" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+              syncBtn2 +
+              '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--purple);">📄 授精証</span></label>' +
+              (et2 ? '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--info);">🧬 移植証</span></label>' : '') +
+              '<button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
 }
 
-
-// ===== 採卵記録簿 Sheet2データ =====
+function toggleInsemCard(uid) {
+  const el   = document.getElementById(uid);
+  const chev = document.getElementById(uid + '-chev');
+  if (!el) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+}
 const EMBRYO_SHEET2_DATA = [{"collect_date": "R5年06月20日", "name": "にわか×光晴重5/4", "donor_id": "15015-3232-8", "lot": "01L237R7-0", "embryos": [{"no": "01L237R7-0002", "cane": "25E04B2A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0003", "cane": "25E04B2A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0004", "cane": "25E04B2A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0005", "cane": "25E04B2A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0006", "cane": "25E04B2A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0001", "cane": "25E04B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0007", "cane": "25F24B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0008", "cane": "25F24B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0009", "cane": "25F24B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0010", "cane": "25F24B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0011", "cane": "25F24B1A", "stage": "EX", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0012", "cane": "25F26B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0013", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0014", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0015", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0016", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0017", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0018", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0019", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0020", "cane": "25I08B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0021", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0022", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0023", "cane": "25I09B1A", "stage": "EB", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0024", "cane": "25I09B1A", "stage": "BL", "rank": "A", "fresh": false, "frozen": false}, {"no": "01L237R7-0025", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0026", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0027", "cane": "25I09B1B", "stage": "CM", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0028", "cane": "25I09B1B", "stage": "EB", "rank": "B", "fresh": false, "frozen": false}, {"no": "01L237R7-0029", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0030", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0031", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0032", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0033", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0034", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0035", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}, {"no": "01L237R7-0036", "cane": "25J09B1A", "stage": "CM", "rank": "A", "fresh": false, "frozen": true}]}, {"collect_date": "R6年05月12日", "name": "にわか×光晴重5/4", "donor_id": "15015-3232-8", "lot": "25E04B2", "embryos": [{"no": "01L237-25E04B2-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-5", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-6", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-7", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E04B2-8", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×福勝鶴5/4", "donor_id": "15758-3484-7", "lot": "25E04B1", "embryos": [{"no": "01L237-25E04B1-1", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25E04B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みひえ×菊鶴ETI5/19", "donor_id": "13576-3040-7", "lot": "25E19B1", "embryos": [{"no": "01L237-25E19B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "わかつる×幸泉5/19", "donor_id": "14773-0655-8", "lot": "25E19B2", "embryos": [{"no": "01L237-25E19B2-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25E19B2-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×暁之藤6/23", "donor_id": "15758-3484-7", "lot": "25F23B1", "embryos": [{"no": "01L237-25F23B1-1", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25F23B1-2", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}, {"no": "01L237-25F23B1-3", "cane": "", "stage": "CM", "rank": "A", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "にわか×光晴重6/24", "donor_id": "15015-3232-8", "lot": "25F24B1", "embryos": [{"no": "01L237-25F24B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-4", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-5", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25F24B1-6", "cane": "", "stage": "EB", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みなと×幸泉6/26", "donor_id": "15015-3232-8", "lot": "25F26B1", "embryos": [{"no": "01L237-25F26B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "みなと×幸泉9/8", "donor_id": "15015-3232-8", "lot": "25I08B1", "embryos": [{"no": "01L237-25I08B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I08B1-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "にわか×光晴重9/9", "donor_id": "15015-3232-8", "lot": "25I09B1", "embryos": [{"no": "01L237-25I09B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25I09B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}, {"collect_date": "R6年06月17日", "name": "おひさ×福勝鶴10/9", "donor_id": "15015-3232-8", "lot": "25J09B1", "embryos": [{"no": "01L237-25J09B1-1", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-2", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-3", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}, {"no": "01L237-25J09B1-4", "cane": "", "stage": "CM", "rank": "B", "fresh": true, "frozen": false}]}];
 
 // 本数入力時に胚詳細欄を展開
@@ -7412,7 +7578,6 @@ function onColFreshCountInput(val, existing) {
           <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
             style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:60px;">
         </td>
-        <td style="padding:2px 3px;color:var(--accent);font-size:11px;font-weight:700;">💉 当日移植</td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
@@ -13684,7 +13849,7 @@ try {
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
   </div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
-  <div style="overflow-x:auto;">
+  <div style="overflow-x:auto;" id="insembook-table-wrap">
     <table id="insembook-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px;">
       <thead>
         <tr style="background:var(--bg3);border-bottom:2px solid var(--border);">
@@ -13705,6 +13870,8 @@ try {
       <tbody id="insembook-tbody"></tbody>
     </table>
   </div>
+  <!-- スマホ版：アコーディオンカード -->
+  <div id="insembook-mobile" style="display:none;"></div>
 </div>
 
 <!-- COLLECTION PAGE -->
@@ -13907,8 +14074,8 @@ try {
               <th style="padding:4px 5px;color:var(--muted);">S</th>
               <th style="padding:4px 5px;color:var(--muted);">R</th>
               <th style="padding:4px 5px;color:var(--muted);">コメント</th>
-              <th style="padding:4px 5px;color:var(--accent);white-space:nowrap;">💉 当日移植</th>
               <th style="padding:4px 5px;color:var(--muted);">移植先</th>
+              <th style="padding:4px 5px;color:var(--muted);"></th>
             </tr>
           </thead>
           <tbody id="col-fresh-tbody"></tbody>
