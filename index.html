@@ -3848,8 +3848,8 @@ function renderCowList() {
   container.innerHTML = filtered.map(cow => {
     const master = getMasterCow(cow.id);
     const cowName = cowDisplayName(cow.id);
-    const cowDob = master ? master.dob : cow.dob||'';
-    const cowAge = master ? master.ageYears : cow.ageYears||'';
+    const cowDob = cow.dob || (master ? master.dob : '');
+    const cowAge = cow.ageYears || (master ? master.ageYears : '');
     const cowTasks = tasks.filter(t=>t.cowId===cow.id&&!t.done);
     const openDays = cow.calvingDate ? diffDays(today(), cow.calvingDate) : null;
     // 次回発情予測：発情確認日から21日後
