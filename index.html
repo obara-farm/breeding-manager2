@@ -6571,7 +6571,16 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
   // memoから術者を抽出
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = opMatch ? opMatch[1].trim() : '';
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: memo||'', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
+  let certQ = '';
+  if (date > '2025-11-05' && !op) {
+    const allQ = [...INSEM_BOOK_DATA, ...insemBookRecords]
+      .map(r => parseInt(r.q))
+      .filter(n => !isNaN(n) && n >= 587);
+    const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
+    certQ = String(maxQ + 1);
+  }
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memo||'', op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
 }
 
 function saveInsemBookRecord(src, idx) {
