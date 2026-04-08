@@ -6700,9 +6700,10 @@ function renderInsemBook() {
   }
   const year = yearSel ? yearSel.value : ('R' + (new Date().getFullYear() - 2018));
   const q = (document.getElementById('insembook-search').value || '').trim().toLowerCase();
-  // 固定データ＋新規記録を統合してソート
+  // 固定データ＋新規記録を統合してソート（_deletedフラグのものは除外）
   const combined = [
-    ...INSEM_BOOK_DATA.map((r, i) => ({...r, _src:'static', _idx:i})),
+    ...INSEM_BOOK_DATA.map((r, i) => ({...r, _src:'static', _idx:i}))
+      .filter(r => !(insemBookEdits['static_' + r._idx] || {})._deleted),
     ...insemBookRecords.map((r, i) => ({...r, _src:'dynamic', _idx:i})),
   ].sort((a,b) => a.d.localeCompare(b.d));
 
