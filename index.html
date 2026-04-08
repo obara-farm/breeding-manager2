@@ -6617,7 +6617,10 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
 function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
-    const all = [...INSEM_BOOK_DATA, ...insemBookRecords];
+    const all = [
+      ...INSEM_BOOK_DATA.filter((r, i) => !(insemBookEdits['static_' + i] || {})._deleted),
+      ...insemBookRecords
+    ];
     if (all.some(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date)) return;
   } else {
     // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
