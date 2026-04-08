@@ -6397,23 +6397,33 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   cow.events = cow.events || [];
   const isET = sire.includes('×');
   const eventType = isET ? 'et_done' : 'ai_done';
-  if (cow.events.some(e => e.type === eventType && e.date === date)) {
+
+  // 編集済み日付を取得（既反映チェックに使用）
+  const allRecs0 = [
+    ...INSEM_BOOK_DATA.map((r,i)=>({...r,_src:'static',_idx:i})),
+    ...insemBookRecords.map((r,i)=>({...r,_src:'dynamic',_idx:i})),
+  ];
+  const bookRec0 = allRecs0.find(r => r.t === cowId && r.d === date);
+  const edit0 = bookRec0 ? (insemBookEdits[bookRec0._src + '_' + bookRec0._idx] || {}) : {};
+  const checkDate = edit0.d || date;
+
+  if (cow.events.some(e => e.type === eventType && e.date === checkDate)) {
     // 反映済み→取り消し確認
-    if (!confirm(`${cowId} ${fmtDate(date)} の反映を取り消しますか？\n（cow.events・タスク・在庫履歴を削除します）`)) return;
+    if (!confirm(`${cowId} ${fmtDate(checkDate)} の反映を取り消しますか？\n（cow.events・タスク・在庫履歴を削除します）`)) return;
     // cow.eventsから削除
-    cow.events = cow.events.filter(e => !(e.type === eventType && e.date === date));
-    // タスク削除（日付は移動されている可能性があるのでcowIdとactionのみで判定）
+    cow.events = cow.events.filter(e => !(e.type === eventType && e.date === checkDate));
+    // タスク削除
     tasks = tasks.filter(t => !(
       t.cowId === cowId && !t.done &&
       (t.action.includes('妊娠鑑定') || t.action.includes('再発情確認')) &&
-      (t.memo?.includes(sire) || t.detail?.includes(fmtDate(date)) || t.detail?.includes(date))
+      (t.memo?.includes(sire) || t.detail?.includes(fmtDate(checkDate)) || t.detail?.includes(checkDate))
     ));
     // 在庫履歴を戻す
     if (!isET) {
       const inv = semenInventory.find(s => s.name === sire.trim());
       if (inv && inv.history) {
         const hIdx = inv.history.findIndex(h =>
-          h.date === date && (h.type === 'use' || h.type === 'transfer') &&
+          h.date === checkDate && (h.type === 'use' || h.type === 'transfer') &&
           (!h.cowId || h.cowId === cowId)
         );
         if (hIdx >= 0) {
@@ -6424,14 +6434,14 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     }
     // pendingUseRecords削除
     pendingUseRecords = pendingUseRecords.filter(p =>
-      !(p.date === date && (!p.cowId || p.cowId === cowId))
+      !(p.date === checkDate && (!p.cowId || p.cowId === cowId))
     );
     // ステータスリセット
     const hasActive = (cow.events||[]).some(e => ['ai_done','et_done'].includes(e.type));
     if (!hasActive && ['program','pregnant'].includes(cow.status)) cow.status = 'open';
     save(); renderInsemBook(); renderAll();
     const resultEl = document.getElementById('insembook-sync-result');
-    resultEl.innerHTML = `↩️ ${cowId} ${fmtDate(date)} の反映を取り消しました`;
+    resultEl.innerHTML = `↩️ ${cowId} ${fmtDate(checkDate)} の反映を取り消しました`;
     resultEl.style.display = '';
     setTimeout(() => { resultEl.style.display = 'none'; }, 3000);
     return;
