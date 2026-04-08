@@ -6732,7 +6732,10 @@ function renderInsemBook() {
     // 種付け済みチェック・反映ボタン
     const cowForSync = cows.find(c => c.id === r.t);
     const etType = r.s.includes('×') ? 'et_done' : 'ai_done';
-    const alreadySynced = cowForSync && (cowForSync.events||[]).some(e => e.type === etType && e.date === r.d);
+    const _editKey = r._src + '_' + r._idx;
+    const _editD = (insemBookEdits[_editKey] || {}).d;
+    const _checkD = _editD || r.d;
+    const alreadySynced = cowForSync && (cowForSync.events||[]).some(e => e.type === etType && (e.date === r.d || e.date === _checkD));
     const sireEsc = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const addInv = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
     const showSyncBtn = addInv || r.d <= '2025-11-05';
@@ -6804,7 +6807,7 @@ function renderInsemBook() {
       const dispOp2 = edit2.op !== undefined ? edit2.op : (r.op||'');
       const cowForSync2  = cows.find(c => c.id === r.t);
       const etType2      = r.s.includes('×') ? 'et_done' : 'ai_done';
-      const alreadySynced2 = cowForSync2 && (cowForSync2.events||[]).some(e => e.type === etType2 && e.date === r.d);
+      const alreadySynced2 = cowForSync2 && (cowForSync2.events||[]).some(e => e.type === etType2 && (e.date === r.d || e.date === dispD2));
       const sireEsc2 = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       const addInv2  = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
       const showSyncBtn2 = addInv2 || r.d <= '2025-11-05';
