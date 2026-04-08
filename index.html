@@ -6365,7 +6365,12 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   cow.events = cow.events || [];
   const isET = sire.includes('×');
   const eventType = isET ? 'et_done' : 'ai_done';
-  if (cow.events.some(e => e.type === eventType && e.date === date)) {
+  // 編集済み日付を先に取得（既反映チェックに使用）
+  const _allRecs0 = [...INSEM_BOOK_DATA.map((r,i)=>({...r,_src:'static',_idx:i})), ...insemBookRecords.map((r,i)=>({...r,_src:'dynamic',_idx:i}))];
+  const _rec0 = _allRecs0.find(r => r.t === cowId && r.d === date);
+  const _edit0 = _rec0 ? (insemBookEdits[_rec0._src + '_' + _rec0._idx] || {}) : {};
+  const checkDate = _edit0.d || date;
+  if (cow.events.some(e => e.type === eventType && (e.date === date || e.date === checkDate))) {
     // 反映済み→取り消し確認
     if (!confirm(`${cowId} ${fmtDate(date)} の反映を取り消しますか？\n（cow.events・タスク・在庫履歴を削除します）`)) return;
     // cow.eventsから削除
@@ -6405,37 +6410,45 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     return;
   }
 
-  // 授精簿から術者を取得
+  // 授精簿から術者・編集済み日付を取得
   const allRecs = [
     ...INSEM_BOOK_DATA.map((r,i)=>({...r,_src:'static',_idx:i})),
     ...insemBookRecords.map((r,i)=>({...r,_src:'dynamic',_idx:i})),
   ];
   const bookRec = allRecs.find(r => r.t === cowId && r.d === date);
   let operator = '';
+  let effectiveDate = date;
   if (bookRec) {
     const ekey = bookRec._src + '_' + bookRec._idx;
     const edit = insemBookEdits[ekey] || {};
     operator = edit.op !== undefined ? edit.op : (bookRec.op || '');
+    if (edit.d) effectiveDate = edit.d;
   }
+
+  // 日付が修正されている場合、古い日付のcow.eventsを削除
+  if (effectiveDate !== date) {
+    cow.events = cow.events.filter(e => !(e.type === eventType && e.date === date));
+  }
+
   const isOther = operator !== '';
   const invType = isOther ? 'transfer' : 'use';
 
   const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
-  if (operator) { cow.events.push({ type: eventType, date, memo: memo + ' ／ 術者:' + operator }); }
-  else { cow.events.push({ type: eventType, date, memo }); }
-  if (!isET) cow.aiDate = date;
+  if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator }); }
+  else { cow.events.push({ type: eventType, date: effectiveDate, memo }); }
+  if (!isET) cow.aiDate = effectiveDate;
 
-  // 妊鑑タスク生成（種付けタブと同じ）
+  // 妊鑑タスク生成
   const pregDays = isET ? 35 : 45;
-  const pregCheckDate = addDays(date, pregDays);
-  const reEstrusDate = addDays(date, 21);
+  const pregCheckDate = addDays(effectiveDate, pregDays);
+  const reEstrusDate = addDays(effectiveDate, 21);
   const todayStr = today();
   tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
   cow.status = 'program';
   tasks.push({
     cowId, day: pregDays,
     action: '妊娠鑑定',
-    detail: `${isET?'ET':'AI'}後${pregDays}日 (${isET?'ET':'AI'}日:${fmtDate(date)})`,
+    detail: `${isET?'ET':'AI'}後${pregDays}日 (${isET?'ET':'AI'}日:${fmtDate(effectiveDate)})`,
     color: '#f59e0b', date: pregCheckDate, priority: 'high',
     id: Math.random().toString(36).slice(2), done: false,
     memo: `精液:${sire}`
@@ -6454,11 +6467,11 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     const sireName = sire.trim();
     const inv = semenInventory.find(s => s.name === sireName);
     if (inv) {
-      const alreadyInInv = (inv.history||[]).some(h => h.type===invType && h.date===date && h.cowId===cowId);
+      const alreadyInInv = (inv.history||[]).some(h => h.type===invType && h.date===effectiveDate && h.cowId===cowId);
       if (!alreadyInInv) {
         inv.stock = (inv.stock || 0) - 1;
         inv.history = inv.history || [];
-        inv.history.push({ date, type: invType, count: 1, usage: isOther ? null : 'AI', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : null });
+        inv.history.push({ date: effectiveDate, type: invType, count: 1, usage: isOther ? null : 'AI', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : null });
       }
     }
   }
@@ -6470,7 +6483,7 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   const resultEl = document.getElementById('insembook-sync-result');
   const invLabel = addInventory && !isET ? (isOther ? '（在庫→譲渡）' : '（在庫→使用）') : '';
   const opLabel = operator ? ` 術者:${operator}` : '';
-  resultEl.innerHTML = `✅ ${cowId} ${fmtDate(date)} ${isET?'🧬ET':'💉AI'} ${sire}${opLabel} を反映しました${invLabel}`;
+  resultEl.innerHTML = `✅ ${cowId} ${fmtDate(effectiveDate)} ${isET?'🧬ET':'💉AI'} ${sire}${opLabel} を反映しました${invLabel}`;
   resultEl.style.display = '';
   setTimeout(() => { resultEl.style.display = 'none'; }, 3000);
 }
