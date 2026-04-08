@@ -6418,18 +6418,21 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
       (t.action.includes('妊娠鑑定') || t.action.includes('再発情確認')) &&
       (t.memo?.includes(sire) || t.detail?.includes(fmtDate(checkDate)) || t.detail?.includes(checkDate))
     ));
-    // 在庫履歴を戻す
+    // 在庫履歴を戻す（修正前・修正後の日付両方を対象）
     if (!isET) {
       const inv = semenInventory.find(s => s.name === sire.trim());
       if (inv && inv.history) {
-        const hIdx = inv.history.findIndex(h =>
-          h.date === checkDate && (h.type === 'use' || h.type === 'transfer') &&
-          (!h.cowId || h.cowId === cowId)
-        );
-        if (hIdx >= 0) {
-          inv.stock += inv.history[hIdx].count || 1;
-          inv.history.splice(hIdx, 1);
-        }
+        // checkDate（修正後）とdate（修正前）の両方で検索して削除
+        [checkDate, date].forEach(d => {
+          const hIdx = inv.history.findIndex(h =>
+            h.date === d && (h.type === 'use' || h.type === 'transfer') &&
+            (!h.cowId || h.cowId === cowId)
+          );
+          if (hIdx >= 0) {
+            inv.stock += inv.history[hIdx].count || 1;
+            inv.history.splice(hIdx, 1);
+          }
+        });
       }
     }
     // pendingUseRecords削除
@@ -6513,7 +6516,18 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     const sireName = sire.trim();
     const inv = semenInventory.find(s => s.name === sireName);
     if (inv) {
-      const alreadyInInv = (inv.history||[]).some(h => h.type===invType && h.date===effectiveDate && h.cowId===cowId);
+      // 元の日付（date）の履歴が残っていれば先に削除（日付変更後の再反映対応）
+      if (date !== effectiveDate) {
+        const oldIdx = (inv.history||[]).findIndex(h =>
+          h.date === date && (h.type === 'use' || h.type === 'transfer') &&
+          (!h.cowId || h.cowId === cowId)
+        );
+        if (oldIdx >= 0) {
+          inv.stock += inv.history[oldIdx].count || 1;
+          inv.history.splice(oldIdx, 1);
+        }
+      }
+      const alreadyInInv = (inv.history||[]).some(h => h.type===invType && h.date===effectiveDate && (!h.cowId || h.cowId===cowId));
       if (!alreadyInInv) {
         inv.stock = (inv.stock || 0) - 1;
         inv.history = inv.history || [];
