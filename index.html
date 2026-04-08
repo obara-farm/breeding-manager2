@@ -6434,8 +6434,10 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   const invType = isOther ? 'transfer' : 'use';
 
   const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
-  if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator }); }
-  else { cow.events.push({ type: eventType, date: effectiveDate, memo }); }
+  // 固定データ（static）からの反映はdonorAI:true
+  const isDonorAISync = !isET && bookRec && bookRec._src === 'static';
+  if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator, donorAI: isDonorAISync }); }
+  else { cow.events.push({ type: eventType, date: effectiveDate, memo, donorAI: isDonorAISync }); }
   if (!isET) cow.aiDate = effectiveDate;
 
   // 妊鑑タスク生成
@@ -6774,6 +6776,7 @@ function renderInsemBook() {
     const sid = r._src + r._idx;
     const dispD = edit.d || r.d;
     const dispOp = edit.op !== undefined ? edit.op : (r.op || '');
+    const dispDonorAI = edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false);
     return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
       '<td style="padding:2px 3px;"><input type="date" id="ib-d-' + sid + '" value="' + dispD + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
       '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + '</td>' +
@@ -6786,6 +6789,7 @@ function renderInsemBook() {
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
       '<td style="padding:4px;text-align:center;">' + (et ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
+      '<td style="padding:4px;text-align:center;">' + (dispDonorAI ? '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
     '</tr>';
   }).join('');
@@ -9167,9 +9171,45 @@ function getDonorAIRecordsForCow(cowId, collectDate) {
 
 
 function toggleDonorAIFlag(src, idx) {
-  if (src !== 'dynamic') return;
-  const rec = insemBookRecords[idx];
-  if (!rec) return;
+  let rec, cowId, date;
+  if (src === 'dynamic') {
+    rec = insemBookRecords[idx];
+    if (!rec) return;
+    cowId = rec.t;
+    date = rec.d;
+  } else {
+    // static：insemBookEditsでフラグ管理
+    rec = INSEM_BOOK_DATA[idx];
+    if (!rec) return;
+    cowId = rec.t;
+    const ekey = 'static_' + idx;
+    insemBookEdits[ekey] = insemBookEdits[ekey] || {};
+    const currentFlag = insemBookEdits[ekey].donorAI !== undefined ? insemBookEdits[ekey].donorAI : (rec.donorAI || false);
+    insemBookEdits[ekey].donorAI = !currentFlag;
+    const wasOn = currentFlag;
+    date = insemBookEdits[ekey].d || rec.d;
+    if (wasOn) {
+      const cow = cows.find(c => c.id === cowId);
+      if (cow) {
+        const ev = (cow.events||[]).find(e => e.type === 'ai_done' && e.date === date && e.donorAI);
+        if (ev) {
+          ev.donorAI = false;
+          const pregCheckDate = addDays(date, 45);
+          const todayStr = today();
+          tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && t.action.includes('妊娠鑑定')));
+          tasks.push({ id:Math.random().toString(36).slice(2), cowId, day:45, action:'妊娠鑑定', detail:`AI後45日 (AI日:${fmtDate(date)}) ※ドナーAIフラグOFF→通常AI`, color:'#f59e0b', date:pregCheckDate, priority:'high', done:false });
+          const reEstrusDate = addDays(date, 21);
+          if (reEstrusDate >= todayStr) tasks.push({id:Math.random().toString(36).slice(2),cowId,day:21,action:'再発情確認',detail:`AI後21日目 発情チェック`,color:'#60a5fa',date:reEstrusDate,priority:'mid',done:false});
+          alert(`${cowId}：ドナーAIフラグをOFFにしました。妊娠鑑定タスクを生成しました。`);
+        }
+      }
+    } else {
+      tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= date));
+      alert(`${cowId}：ドナーAIフラグをONにしました。妊娠鑑定タスクを削除しました。`);
+    }
+    save(); renderInsemBook();
+    return;
+  }
   const wasOn = rec.donorAI;
   rec.donorAI = !wasOn;
   // ドナーAIをOFFにした場合：対応するcow.eventsのdonorAIフラグもOFF + 妊鑑タスク生成
