@@ -5245,7 +5245,16 @@ function renderStats() {
       if (result === null) return;
 
       if (rec.isET) {
-        if (result === 'pos') { etPos++; } else { etTotal++; }
+        // etRecordsから新鮮・凍結を判定
+        const etRec = etRecords.find(r => r.cowId === rec.t && r.date === rec.date);
+        const isFrozen = etRec ? etRec.embryoType === 'frozen' : false;
+        if (result === 'pos') {
+          etPos++;
+          if (isFrozen) etFrozenPos++; else etFreshPos++;
+        } else {
+          etTotal++;
+          if (isFrozen) etFrozenTotal++; else etFreshTotal++;
+        }
       } else {
         if (result === 'pos') aiPos++; else aiTotal++;
       }
