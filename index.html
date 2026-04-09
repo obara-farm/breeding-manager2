@@ -2534,24 +2534,6 @@ function loadData() {
   if (pendingUseRecords.length !== before2) {
     _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
   }
-
-  // donorAIRecordsに登録のないai_doneのdonorAI:trueを自動修正
-  // （授精簿反映時に誤ってdonorAI:trueが付いたものを修正）
-  let donorAIFixed = false;
-  cows.forEach(cow => {
-    (cow.events||[]).forEach(ev => {
-      if (ev.type !== 'ai_done' || !ev.donorAI) return;
-      // donorAIRecordsに対応する記録があるか確認
-      const isRealDonor = donorAIRecords.some(d => d.cowId === cow.id && d.date === ev.date);
-      if (!isRealDonor) {
-        ev.donorAI = false;
-        donorAIFixed = true;
-      }
-    });
-  });
-  if (donorAIFixed) {
-    _store.setItem('cows', JSON.stringify(cows));
-  }
 }
 
 function save() {
@@ -6569,10 +6551,12 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   const invType = isOther ? 'transfer' : 'use';
 
   const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
-  // donorAIフラグはドナーAIタブから登録した時のみ付く（授精簿反映時は常にfalse）
-  const donorAIFlag = bookRec ? !!(insemBookEdits[bookRec._src+'_'+bookRec._idx]||{}).donorAI || !!(bookRec.donorAI) : false;
-  if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator, donorAI: false }); }
-  else { cow.events.push({ type: eventType, date: effectiveDate, memo, donorAI: false }); }
+  // donorAIフラグはinsemBookEditsのdonorAI設定を参照
+  const donorAIFlag = bookRec
+    ? !!(insemBookEdits[bookRec._src+'_'+bookRec._idx]||{}).donorAI || !!(bookRec.donorAI)
+    : false;
+  if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator, donorAI: donorAIFlag }); }
+  else { cow.events.push({ type: eventType, date: effectiveDate, memo, donorAI: donorAIFlag }); }
   if (!isET) cow.aiDate = effectiveDate;
 
   // 妊鑑タスク生成
