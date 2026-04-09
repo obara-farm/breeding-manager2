@@ -5147,10 +5147,10 @@ function renderStats() {
       const isET = ev.type === 'et_done';
       const after = evts.slice(i + 1);
 
-      // 次の種付け（ドナーAI除外）までの範囲でpreg結果を探す
+      // 次の種付け（ドナーAI除外）までの範囲でpreg結果を探す（最後の結果を優先）
       const nextInsemIdx = after.findIndex(e => ['ai_done','et_done'].includes(e.type) && !e.donorAI);
       const searchRange = nextInsemIdx >= 0 ? after.slice(0, nextInsemIdx) : after;
-      const pregResult = searchRange.find(e => e.type === 'preg_positive' || e.type === 'preg_negative');
+      const pregResult = [...searchRange].reverse().find(e => e.type === 'preg_positive' || e.type === 'preg_negative');
 
       let result = null;
       if (pregResult) {
@@ -5375,7 +5375,7 @@ function renderStats() {
           const after = evts.slice(i + 1);
           const nextInsemIdx = after.findIndex(e => ['ai_done','et_done'].includes(e.type) && !e.donorAI);
           const searchRange = nextInsemIdx >= 0 ? after.slice(0, nextInsemIdx) : after;
-          const pregResult = searchRange.find(e => e.type === 'preg_positive' || e.type === 'preg_negative');
+          const pregResult = [...searchRange].reverse().find(e => e.type === 'preg_positive' || e.type === 'preg_negative');
 
           let result = null;
           if (pregResult) {
