@@ -14528,6 +14528,11 @@ window.doLogin = function() {
   document.getElementById('login-btn').style.display = 'none';
   loadEl.style.display = 'block';
   auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {
+      // ログイン成功時に認証情報を保存
+      localStorage.setItem('_auth_email', email);
+      localStorage.setItem('_auth_pass', pass);
+    })
     .catch(() => {
       loadEl.style.display = 'none';
       document.getElementById('login-btn').style.display = 'block';
@@ -14548,16 +14553,32 @@ auth.onAuthStateChanged(user => {
     dbRef = db.ref('data/' + user.uid);
     initFirebaseSync();
   } else {
-    currentUser = null;
-    dbRef = null;
-    document.getElementById('login-screen').classList.add('active');
-    document.getElementById('app-root').style.display = 'none';
+    // 保存された認証情報で自動再ログイン
+    const savedEmail = localStorage.getItem('_auth_email');
+    const savedPass  = localStorage.getItem('_auth_pass');
+    if (savedEmail && savedPass) {
+      auth.signInWithEmailAndPassword(savedEmail, savedPass).catch(() => {
+        localStorage.removeItem('_auth_email');
+        localStorage.removeItem('_auth_pass');
+        currentUser = null;
+        dbRef = null;
+        document.getElementById('login-screen').classList.add('active');
+        document.getElementById('app-root').style.display = 'none';
+      });
+    } else {
+      currentUser = null;
+      dbRef = null;
+      document.getElementById('login-screen').classList.add('active');
+      document.getElementById('app-root').style.display = 'none';
+    }
   }
 });
 
 // ===== ログアウト =====
 window.logout = function() {
   if (!confirm('ログアウトしますか？')) return;
+  localStorage.removeItem('_auth_email');
+  localStorage.removeItem('_auth_pass');
   auth.signOut();
 };
 
