@@ -5117,28 +5117,30 @@ function renderStats() {
   let aiTotal=0, aiPos=0, etTotal=0, etPos=0;
   let etFrozenTotal=0, etFrozenPos=0, etFreshTotal=0, etFreshPos=0;
   cows.forEach(c => {
-    (c.events||[]).forEach(ev => {
-      if (ev.type==='preg_positive') {
-        const prev = (c.events||[]).slice(0,(c.events||[]).indexOf(ev)).reverse();
-        const lastAI = prev.find(e=>e.type==='ai_done'||e.type==='cidr_ai_start'||e.type==='estrus');
-        const lastET = prev.find(e=>e.type==='et_done'||e.type==='et_recipient');
-        if (lastET) {
-          etPos++;
-          const rec = etRecords.find(r=>r.id===lastET.etRecordId);
-          if (rec?.embryoType==='frozen') etFrozenPos++;
-          else etFreshPos++;
-        } else if (lastAI) aiPos++;
+    const evts = c.events || [];
+    evts.forEach(ev => {
+      if (ev.type !== 'preg_positive' && ev.type !== 'preg_negative') return;
+      const isPos = ev.type === 'preg_positive';
+      const idx = evts.indexOf(ev);
+      const prev = evts.slice(0, idx).reverse();
+      // ドナーAI除外
+      let lastAI = prev.find(e => (e.type==='ai_done'||e.type==='cidr_ai_start'||e.type==='estrus') && !e.donorAI);
+      const lastET = prev.find(e => e.type==='et_done'||e.type==='et_recipient');
+      // 連注対応：1日前に同じ精液のai_doneがあれば代表をそちらに
+      if (lastAI && lastAI.type === 'ai_done') {
+        const semenName = ((lastAI.memo||'').match(/精液:([^／]+)/) || [])[1]?.trim() || '';
+        const prevDay = addDays(lastAI.date, -1);
+        const prevInsem = prev.find(e =>
+          e.type === 'ai_done' && e.date === prevDay && !e.donorAI &&
+          semenName && (e.memo||'').includes(semenName)
+        );
+        if (prevInsem) lastAI = prevInsem;
       }
-      if (ev.type==='preg_negative') {
-        const prev = (c.events||[]).slice(0,(c.events||[]).indexOf(ev)).reverse();
-        const lastAI = prev.find(e=>e.type==='ai_done'||e.type==='cidr_ai_start'||e.type==='estrus');
-        const lastET = prev.find(e=>e.type==='et_done'||e.type==='et_recipient');
-        if (lastET) {
-          etTotal++;
-          const rec = etRecords.find(r=>r.id===lastET.etRecordId);
-          if (rec?.embryoType==='frozen') etFrozenTotal++;
-          else etFreshTotal++;
-        } else if (lastAI) aiTotal++;
+      if (lastET) {
+        if (isPos) { etPos++; const rec = etRecords.find(r=>r.id===lastET.etRecordId); if (rec?.embryoType==='frozen') etFrozenPos++; else etFreshPos++; }
+        else { etTotal++; const rec = etRecords.find(r=>r.id===lastET.etRecordId); if (rec?.embryoType==='frozen') etFrozenTotal++; else etFreshTotal++; }
+      } else if (lastAI) {
+        if (isPos) aiPos++; else aiTotal++;
       }
     });
   });
@@ -5319,8 +5321,30 @@ function renderStats() {
           if (ev.type !== 'preg_positive' && ev.type !== 'preg_negative') return;
           const isPos = ev.type === 'preg_positive';
           const prev = evts.slice(0, i).reverse();
-          const insem = prev.find(e => ['ai_done','estrus','estrus_ai','et_done'].includes(e.type));
+
+          // 直前の種付けイベントを取得（ドナーAIは除外）
+          let insem = prev.find(e =>
+            ['ai_done','estrus','estrus_ai','et_done'].includes(e.type) &&
+            !e.donorAI
+          );
           if (!insem) return;
+
+          // ②連注対応：直前のai_doneの1日前に同じ精液の別ai_doneがあれば、そちらを代表としてスキップ
+          // →「より古い方」を代表とする（最初の授精日を使う）
+          if (['ai_done','estrus_ai'].includes(insem.type)) {
+            const memo = insem.memo || '';
+            const semenName = (memo.match(/精液:([^／]+)/) || [])[1]?.trim() || '';
+            const insemDate = insem.date;
+            const prevDay = addDays(insemDate, -1);
+            // 1日前に同じ精液のai_doneがあれば、そちらを代表に
+            const prevInsem = prev.find(e =>
+              ['ai_done','estrus_ai'].includes(e.type) &&
+              e.date === prevDay &&
+              !e.donorAI &&
+              semenName && (e.memo||'').includes(semenName)
+            );
+            if (prevInsem) insem = prevInsem;
+          }
 
           const month = parseInt((insem.date||'').slice(5,7));
           if (!month) return;
@@ -5335,13 +5359,12 @@ function renderStats() {
           const semenMatch = memo.match(/精液:([^／]+)/);
           const embryoMatch = memo.match(/胚番号:([^／]+)/);
           if (semenMatch) {
-            const key = semenMatch[1].trim().slice(0,12); // 長すぎる場合は短縮
+            const key = semenMatch[1].trim().slice(0,12);
             if (!semenMap[key]) semenMap[key] = {total:0,pos:0};
             semenMap[key].total++;
             if (isPos) semenMap[key].pos++;
           }
           if (embryoMatch) {
-            // ステージ抽出（例: ET-2025-003-BL → BL）
             const em = embryoMatch[1].trim();
             const stageMatch = em.match(/-(BL|MB|MO|EB|EM|EX|HB|DG|BL8)$/i);
             const stage = stageMatch ? stageMatch[1].toUpperCase() : 'ステージ不明';
