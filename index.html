@@ -9382,12 +9382,10 @@ function toggleDonorAIFlag(src, idx) {
           tasks.push({ id:Math.random().toString(36).slice(2), cowId, day:45, action:'妊娠鑑定', detail:`AI後45日 (AI日:${fmtDate(date)}) ※ドナーAIフラグOFF→通常AI`, color:'#f59e0b', date:pregCheckDate, priority:'high', done:false });
           const reEstrusDate = addDays(date, 21);
           if (reEstrusDate >= todayStr) tasks.push({id:Math.random().toString(36).slice(2),cowId,day:21,action:'再発情確認',detail:`AI後21日目 発情チェック`,color:'#60a5fa',date:reEstrusDate,priority:'mid',done:false});
-          alert(`${cowId}：ドナーAIフラグをOFFにしました。妊娠鑑定タスクを生成しました。`);
         }
       }
     } else {
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= date));
-      alert(`${cowId}：ドナーAIフラグをONにしました。妊娠鑑定タスクを削除しました。`);
     }
     save(); renderInsemBook(); renderAll();
     return;
@@ -9420,13 +9418,13 @@ function toggleDonorAIFlag(src, idx) {
         if (reEstrusDate >= todayStr) {
           tasks.push({id:Math.random().toString(36).slice(2),cowId:rec.t,day:21,action:'再発情確認',detail:`AI後21日目 発情チェック`,color:'#60a5fa',date:reEstrusDate,priority:'mid',done:false});
         }
-        alert(`${rec.t}：ドナーAIフラグをOFFにしました。妊娠鑑定タスクを生成しました。`);
+
       }
     }
   } else {
     // ONにした場合：妊鑑タスクを削除
     tasks = tasks.filter(t => !(t.cowId===rec.t && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= rec.d));
-    alert(`${rec.t}：ドナーAIフラグをONにしました。妊娠鑑定タスクを削除しました。`);
+
   }
   save();
   renderInsemBook();
@@ -14714,6 +14712,28 @@ function initFirebaseSync() {
           const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
           // 自分のエコーでないものだけ上書き
           if (_lastSentSnapshot[k] === rv) return;
+          // insemBookEditsは現在のローカルとマージ（donorAIなど重要なフラグを保護）
+          if (k === 'insemBookEdits') {
+            try {
+              const remoteEdits = JSON.parse(rv);
+              const localEdits = JSON.parse(_store.getItem(k) || '{}');
+              // ローカルの方が新しいキーはローカルを優先
+              const merged = {...remoteEdits};
+              Object.entries(localEdits).forEach(([ek, ev]) => {
+                if (!merged[ek]) {
+                  merged[ek] = ev;
+                } else {
+                  // 各フィールドをマージ（ローカルが設定済みなら優先）
+                  merged[ek] = {...merged[ek], ...ev};
+                }
+              });
+              _store.setItem(k, JSON.stringify(merged));
+              _lastSentSnapshot[k] = JSON.stringify(merged);
+            } catch(e) {
+              _store.setItem(k, rv);
+            }
+            return;
+          }
           _store.setItem(k, rv);
         });
         if (typeof loadData === 'function') { loadData(); renderAll(); }
