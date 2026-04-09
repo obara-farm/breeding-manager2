@@ -1025,7 +1025,10 @@ textarea{resize:vertical;}
 <div class="page" id="page-stats">
   <div class="section-header">
     <div class="section-title">繁殖成績</div>
-    <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="renderStats()">🔄 更新</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <select id="stats-year" onchange="renderStats()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;cursor:pointer;"></select>
+      <button class="btn btn-secondary" style="font-size:11px;padding:5px 10px;" onclick="renderStats()">🔄 更新</button>
+    </div>
   </div>
   <div id="stats-container"></div>
 </div>
@@ -5146,6 +5149,29 @@ function renderStats() {
   const todayStr = today();
   const container = document.getElementById('stats-container');
 
+  // 年度選択を動的生成
+  const yearSel = document.getElementById('stats-year');
+  if (yearSel && !yearSel.dataset.built) {
+    const currentFY = new Date().getFullYear() - 2018;
+    yearSel.innerHTML = '<option value="all">全期間</option>';
+    for (let fy = currentFY; fy >= 7; fy--) {
+      const opt = document.createElement('option');
+      opt.value = 'R' + fy;
+      opt.textContent = 'R' + fy + '（' + (fy + 2018) + '年）';
+      yearSel.appendChild(opt);
+    }
+    yearSel.dataset.built = '1';
+  }
+  const selectedYear = yearSel ? yearSel.value : 'all';
+  // 集計範囲
+  let statsDateFrom = '2025-01-01';
+  let statsDateTo = '9999-12-31';
+  if (selectedYear !== 'all') {
+    const fy = parseInt(selectedYear.replace('R', ''));
+    statsDateFrom = (fy + 2018) + '-01-01';
+    statsDateTo   = (fy + 2018) + '-12-31';
+  }
+
   // 1. ステータス集計
   const st = {open:0,pregnant:0,program:0,fresh:0};
   cows.forEach(c => { if (st[c.status]!==undefined) st[c.status]++; else st.open++; });
@@ -5158,9 +5184,9 @@ function renderStats() {
   // 授精簿の全記録（固定＋動的）を取得
   const allInsemRecs = [
     ...INSEM_BOOK_DATA.map((r,i) => ({...r, _src:'static', _idx:i}))
-      .filter(r => !(insemBookEdits['static_'+r._idx]||{})._deleted && r.d >= '2025-01-01'),
+      .filter(r => !(insemBookEdits['static_'+r._idx]||{})._deleted && r.d >= statsDateFrom && r.d <= statsDateTo),
     ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i}))
-      .filter(r => r.d >= '2025-01-01')
+      .filter(r => r.d >= statsDateFrom && r.d <= statsDateTo)
   ];
 
   // 牛ごとに授精簿記録をまとめて日付順にソート
