@@ -7671,7 +7671,11 @@ function onColDonorChange() {
           ${r.semen?`<span style="color:var(--accent);">${r.semen}</span>`:''}
           ${r.count>1?`<span style="color:var(--muted);">${r.count}本</span>`:''}
         </label>`
-      ).join('');
+      ).join('') +
+      `<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;font-size:11px;margin-top:4px;border-top:1px solid var(--border);">
+        <input type="checkbox" id="col-ai-count-as-total" style="width:14px;height:14px;" onchange="onColAICheckChange()">
+        <span style="color:var(--muted);">授精回数を本数と同じにする（例：2本→2回）</span>
+      </label>`;
     // 直近1件を自動チェック
     const checks = aiList.querySelectorAll('.col-ai-check');
     if (checks.length > 0) {
@@ -8585,6 +8589,10 @@ function saveCollection() {
     aiCount: (()=>{
       const checks = document.querySelectorAll('.col-ai-check:checked');
       if (checks.length > 0) {
+        const countAsTotal = document.getElementById('col-ai-count-as-total')?.checked;
+        if (countAsTotal) {
+          return Array.from(checks).reduce((s,c)=>s+(parseInt(c.dataset.count)||1),0);
+        }
         return checks.length;
       }
       return null;
