@@ -5189,16 +5189,18 @@ function renderStats() {
       .filter(r => r.d >= statsDateFrom && r.d <= statsDateTo)
   ];
 
-  // 牛ごとに授精簿記録をまとめて日付順にソート
+  // 牛ごとに授精簿記録をまとめて日付順にソート（同牛・同日・同種別は1件のみ）
   const recsByCow = {};
   allInsemRecs.forEach(r => {
     const ekey = r._src + '_' + r._idx;
     const edit = insemBookEdits[ekey] || {};
     const date = edit.d || r.d;
     const donorAI = edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false);
-    const isET = r.s.includes('×');
+    const isET = r.insemType === 'et' || r.s.includes('×');
     if (!recsByCow[r.t]) recsByCow[r.t] = [];
-    recsByCow[r.t].push({...r, date, donorAI, isET});
+    // 同牛・同日・同種別（AI/ET）の重複は除外
+    const alreadyExists = recsByCow[r.t].some(x => x.date === date && x.isET === isET);
+    if (!alreadyExists) recsByCow[r.t].push({...r, date, donorAI, isET});
   });
 
   Object.entries(recsByCow).forEach(([cowId, recs]) => {
@@ -6614,30 +6616,36 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
     : false;
   if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator, donorAI: donorAIFlag }); }
   else { cow.events.push({ type: eventType, date: effectiveDate, memo, donorAI: donorAIFlag }); }
-  if (!isET) cow.aiDate = effectiveDate;
+  if (!isET && (!cow.aiDate || effectiveDate > cow.aiDate)) cow.aiDate = effectiveDate;
 
-  // 妊鑑タスク生成
+  // 妊鑑タスク生成（effectiveDateより新しい妊鑑タスクがあれば生成しない）
   const pregDays = isET ? 35 : 45;
   const pregCheckDate = addDays(effectiveDate, pregDays);
   const reEstrusDate = addDays(effectiveDate, 21);
   const todayStr = today();
-  tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
-  cow.status = 'program';
-  tasks.push({
-    cowId, day: pregDays,
-    action: '妊娠鑑定',
-    detail: `${isET?'ET':'AI'}後${pregDays}日 (${isET?'ET':'AI'}日:${fmtDate(effectiveDate)})`,
-    color: '#f59e0b', date: pregCheckDate, priority: 'high',
-    id: Math.random().toString(36).slice(2), done: false,
-    memo: `精液:${sire}`
-  });
-  if (!isET && reEstrusDate >= todayStr) {
+  const existingPregTask = tasks.find(t => t.cowId===cowId && !t.done && t.action.includes('妊娠鑑定'));
+  const existingPregDate = existingPregTask ? existingPregTask.date : null;
+  // 既存の妊鑑タスクがeffectiveDateより新しい授精に基づくものなら上書きしない
+  const shouldUpdateTask = !existingPregDate || pregCheckDate >= existingPregDate;
+  if (shouldUpdateTask) {
+    tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
+    cow.status = 'program';
     tasks.push({
-      cowId, day: 21, action: '再発情確認',
-      detail: 'AI後21日目 発情チェック',
-      color: '#60a5fa', date: reEstrusDate, priority: 'mid',
-      id: Math.random().toString(36).slice(2), done: false
+      cowId, day: pregDays,
+      action: '妊娠鑑定',
+      detail: `${isET?'ET':'AI'}後${pregDays}日 (${isET?'ET':'AI'}日:${fmtDate(effectiveDate)})`,
+      color: '#f59e0b', date: pregCheckDate, priority: 'high',
+      id: Math.random().toString(36).slice(2), done: false,
+      memo: `精液:${sire}`
     });
+    if (!isET && reEstrusDate >= todayStr) {
+      tasks.push({
+        cowId, day: 21, action: '再発情確認',
+        detail: 'AI後21日目 発情チェック',
+        color: '#60a5fa', date: reEstrusDate, priority: 'mid',
+        id: Math.random().toString(36).slice(2), done: false
+      });
+    }
   }
 
   // 術者ありの場合：在庫処理をモーダルで選択
@@ -6713,7 +6721,7 @@ function syncInsemBookToCows() {
 
     const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
     cow.events.push({ type: eventType, date, memo });
-    if (!isET) cow.aiDate = date;
+    if (!isET && (!cow.aiDate || date > cow.aiDate)) cow.aiDate = date;
     added.push(`${cowId} ${fmtDate(date)} ${isET?'🧬ET':'💉AI'} ${sire}`);
   });
 
