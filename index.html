@@ -9207,7 +9207,7 @@ function toggleDonorAIFlag(src, idx) {
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= date));
       alert(`${cowId}：ドナーAIフラグをONにしました。妊娠鑑定タスクを削除しました。`);
     }
-    save(); renderInsemBook();
+    save(); renderInsemBook(); renderAll();
     return;
   }
   const wasOn = rec.donorAI;
@@ -9248,6 +9248,7 @@ function toggleDonorAIFlag(src, idx) {
   }
   save();
   renderInsemBook();
+  renderAll();
 }
 
 
