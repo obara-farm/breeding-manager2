@@ -5174,6 +5174,17 @@ function renderStats() {
         if (result === 'pos') aiPos++; else aiTotal++;
       }
     });
+
+    // ai_doneが未登録でも妊娠中＆分娩予定日＆aiDateがある牛を陽性カウント
+    if (c.status === 'pregnant' && c.dueDate && c.aiDate) {
+      const hasAiDone = evts.some(e => e.type === 'ai_done' && !e.donorAI);
+      if (!hasAiDone) {
+        // ai_done未登録なのに妊娠中 → aiDateを最終授精日として陽性カウント
+        aiPos++;
+        aiTotal++;
+        // 月別・種雄牛別は後段の詳細成績で対応
+      }
+    }
   });
   aiTotal += aiPos; etTotal += etPos;
   etFrozenTotal += etFrozenPos; etFreshTotal += etFreshPos;
@@ -5406,6 +5417,27 @@ function renderStats() {
             if (isPos) stageMap[stage].pos++;
           }
         });
+
+        // ai_done未登録でも妊娠中＆分娩予定日＆aiDateがある牛を陽性カウント
+        if (c.status === 'pregnant' && c.dueDate && c.aiDate) {
+          const hasAiDone = evts.some(e => e.type === 'ai_done' && !e.donorAI);
+          if (!hasAiDone) {
+            const month = parseInt(c.aiDate.slice(5,7));
+            if (month) {
+              const mLabel = monthNames[month - 1];
+              monthMap[mLabel]['ai'].total++;
+              monthMap[mLabel]['ai'].pos++;
+            }
+            // 在庫からsemen名を取得してsemenMapに追加
+            const inv = semenInventory.find(s => s.history && s.history.some(h => h.date === c.aiDate && h.cowId === c.id));
+            const sName = inv ? inv.name.slice(0,12) : null;
+            if (sName) {
+              if (!semenMap[sName]) semenMap[sName] = {total:0,pos:0};
+              semenMap[sName].total++;
+              semenMap[sName].pos++;
+            }
+          }
+        }
       });
 
       const rateBar = (pos, total) => {
