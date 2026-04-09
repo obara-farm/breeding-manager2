@@ -7624,7 +7624,12 @@ function onColDonorChange() {
   const allAIDates = {};
   darList.forEach(r => {
     if (usedAIDates.has(r.date)) return;
-    allAIDates[r.date] = allAIDates[r.date] || { date:r.date, semen:r.semenName, time:r.time, count:r.count };
+    if (allAIDates[r.date]) {
+      // 同日の記録は本数を合算
+      allAIDates[r.date].count = (allAIDates[r.date].count || 1) + (r.count || 1);
+    } else {
+      allAIDates[r.date] = { date:r.date, semen:r.semenName, time:r.time, count:r.count };
+    }
   });
   donorEventsAI.forEach(e => {
     if (usedAIDates.has(e.date)) return;
