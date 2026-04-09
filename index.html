@@ -2553,6 +2553,18 @@ function save() {
   _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
   _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
   _store.setItem('data_version', String(DATA_VERSION));
+  // localStorageに書いた内容を即座にlastSentSnapshotに反映
+  // → Firebaseリスナーが200ms以内に反応しても自分のデータと認識して上書きを防ぐ
+  if (typeof _lastSentSnapshot !== 'undefined') {
+    const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
+      'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
+      'insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList',
+      'pendingUseRecords','data_version'];
+    keys.forEach(k => {
+      const v = _store.getItem(k);
+      if (v !== null) _lastSentSnapshot[k] = v;
+    });
+  }
 }
 
 // 分娩予定日と実際の分娩日から分娩時期を自動判定
@@ -5142,13 +5154,16 @@ function renderStats() {
 
       let result = null;
       if (pregResult) {
-        // 明示的な妊鑑結果あり
         result = pregResult.type === 'preg_positive' ? 'pos' : 'neg';
       } else if (nextInsemIdx >= 0) {
-        // 妊鑑結果なし＆次の種付けあり → 再発情したので陰性扱い
         result = 'neg';
+      } else if (c.status === 'pregnant' && c.dueDate) {
+        // 分娩予定日から逆算してこの授精が該当するか判定（±7日）
+        const expectedDate = addDays(c.dueDate, isET ? -278 : -285);
+        const diff = Math.abs(diffDays(ev.date, expectedDate));
+        if (diff <= 7) result = 'pos';
       }
-      // 妊鑑結果も次の種付けもない → まだ判定中なので集計しない
+      // 上記いずれでもない → まだ判定中なので集計しない
 
       if (result === null) return;
 
@@ -5355,7 +5370,11 @@ function renderStats() {
           if (pregResult) {
             result = pregResult.type === 'preg_positive' ? 'pos' : 'neg';
           } else if (nextInsemIdx >= 0) {
-            result = 'neg'; // 再授精あり→前のAIは陰性扱い
+            result = 'neg';
+          } else if (c.status === 'pregnant' && c.dueDate) {
+            const expectedDate = addDays(c.dueDate, isEt ? -278 : -285);
+            const diff = Math.abs(diffDays(ev.date, expectedDate));
+            if (diff <= 7) result = 'pos';
           }
           if (result === null) return;
 
@@ -14489,6 +14508,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
+
+// 認証をlocalStorageに永続化（強制リロードでもログアウトされない）
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(() => {});
 
 let currentUser = null;
 let dbRef = null;
