@@ -7635,13 +7635,14 @@ function onColDonorChange() {
     if (usedAIDates.has(e.date)) return;
     const sm = (e.memo||'').match(/精液:([^／\s]+)/);
     const semenName = sm ? sm[1] : '';
-    // 在庫履歴から本数を取得
+    // 在庫履歴から本数を取得（cowIdなしのtransferも含める）
     let count = 1;
     if (semenName) {
       const inv = semenInventory.find(s => s.name === semenName);
       if (inv && inv.history) {
         const histEntries = inv.history.filter(h =>
-          h.date === e.date && h.cowId === donorId && (h.type === 'use' || h.type === 'transfer')
+          h.date === e.date && (h.type === 'use' || h.type === 'transfer') &&
+          (h.cowId === donorId || h.cowId === null)
         );
         if (histEntries.length > 0) {
           count = histEntries.reduce((sum, h) => sum + (h.count || 1), 0);
