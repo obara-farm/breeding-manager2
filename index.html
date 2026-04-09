@@ -6559,6 +6559,19 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   let effectiveDate = date;
   if (bookRec) {
     const ekey = bookRec._src + '_' + bookRec._idx;
+    // DOMから術者を直接取得（onchangeが発火していない場合でも拾う）
+    const opInputId = bookRec._src === 'dynamic'
+      ? 'ib-op-dynamic' + bookRec._idx
+      : 'ib-op-' + bookRec._src + bookRec._idx;
+    const opEl = document.getElementById(opInputId);
+    if (opEl) {
+      const domOp = opEl.value.trim();
+      if (domOp) {
+        // DOMに値があればinsemBookEditsに保存
+        insemBookEdits[ekey] = insemBookEdits[ekey] || {};
+        insemBookEdits[ekey].op = domOp;
+      }
+    }
     const edit = insemBookEdits[ekey] || {};
     operator = edit.op !== undefined ? edit.op : (bookRec.op || '');
     if (edit.d) effectiveDate = edit.d;
