@@ -5158,8 +5158,9 @@ function renderStats() {
   // 授精簿の全記録（固定＋動的）を取得
   const allInsemRecs = [
     ...INSEM_BOOK_DATA.map((r,i) => ({...r, _src:'static', _idx:i}))
-      .filter(r => !(insemBookEdits['static_'+r._idx]||{})._deleted),
+      .filter(r => !(insemBookEdits['static_'+r._idx]||{})._deleted && r.d >= '2025-01-01'),
     ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i}))
+      .filter(r => r.d >= '2025-01-01')
   ];
 
   // 牛ごとに授精簿記録をまとめて日付順にソート
