@@ -2537,30 +2537,6 @@ function loadData() {
   if (pendingUseRecords.length !== before2) {
     _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
   }
-
-  // 授精簿の🐄フラグ（insemBookEdits）と cow.events の donorAI を同期
-  // 授精簿でONになっているのにcow.eventsでfalseな場合のみ修正（逆は修正しない）
-  let donorAIFixed = false;
-  const allBookRecs = [
-    ...INSEM_BOOK_DATA.map((r,i) => ({...r, _src:'static', _idx:i})),
-    ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i})),
-  ];
-  cows.forEach(cow => {
-    (cow.events||[]).forEach(ev => {
-      if (ev.type !== 'ai_done') return;
-      const bookRec = allBookRecs.find(r => r.t === cow.id && r.d === ev.date);
-      if (!bookRec) return;
-      const edit = insemBookEdits[bookRec._src+'_'+bookRec._idx] || {};
-      // editにdonorAIが明示的に設定されている場合のみ同期
-      if (edit.donorAI !== undefined && ev.donorAI !== edit.donorAI) {
-        ev.donorAI = edit.donorAI;
-        donorAIFixed = true;
-      }
-    });
-  });
-  if (donorAIFixed) {
-    _store.setItem('cows', JSON.stringify(cows));
-  }
 }
 
 function save() {
@@ -5193,10 +5169,10 @@ function renderStats() {
     const ekey = r._src + '_' + r._idx;
     const edit = insemBookEdits[ekey] || {};
     const date = edit.d || r.d;
-    const donorAI = edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false);
+    // donorAIはinsemBookEditsの設定を優先、なければレコード自体のフラグ
+    const donorAI = edit.donorAI === true || r.donorAI === true;
     const isET = r.insemType === 'et' || r.s.includes('×');
     if (!recsByCow[r.t]) recsByCow[r.t] = [];
-    // 同牛・同日・同種別（AI/ET）の重複は除外
     const alreadyExists = recsByCow[r.t].some(x => x.date === date && x.isET === isET);
     if (!alreadyExists) recsByCow[r.t].push({...r, date, donorAI, isET});
   });
