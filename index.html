@@ -7633,8 +7633,11 @@ function onColDonorChange() {
   });
   donorEventsAI.forEach(e => {
     if (usedAIDates.has(e.date)) return;
-    if (!allAIDates[e.date]) {
-      const sm = (e.memo||'').match(/精液:([^／\s]+)/);
+    const sm = (e.memo||'').match(/精液:([^／\s]+)/);
+    if (allAIDates[e.date]) {
+      // 同日の記録は本数を合算
+      allAIDates[e.date].count = (allAIDates[e.date].count || 1) + 1;
+    } else {
       allAIDates[e.date] = { date:e.date, semen:sm?sm[1]:'', time:e.time||'', count:1 };
     }
   });
