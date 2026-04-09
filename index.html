@@ -2534,6 +2534,32 @@ function loadData() {
   if (pendingUseRecords.length !== before2) {
     _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
   }
+
+  // 授精簿の🐄フラグ（insemBookEdits）と cow.events の donorAI を同期
+  // 🐄がOFFなのにdonorAI:trueになっているai_doneを修正
+  let donorAIFixed = false;
+  const allBookRecs = [
+    ...INSEM_BOOK_DATA.map((r,i) => ({...r, _src:'static', _idx:i})),
+    ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i})),
+  ];
+  cows.forEach(cow => {
+    (cow.events||[]).forEach(ev => {
+      if (ev.type !== 'ai_done' || !ev.donorAI) return;
+      // 対応する授精簿レコードを探す
+      const bookRec = allBookRecs.find(r => r.t === cow.id && r.d === ev.date);
+      if (!bookRec) return;
+      const edit = insemBookEdits[bookRec._src+'_'+bookRec._idx] || {};
+      const flagInBook = edit.donorAI !== undefined ? edit.donorAI : (bookRec.donorAI || false);
+      // 授精簿でOFFになっているのにcow.eventsでtrueなら修正
+      if (!flagInBook) {
+        ev.donorAI = false;
+        donorAIFixed = true;
+      }
+    });
+  });
+  if (donorAIFixed) {
+    _store.setItem('cows', JSON.stringify(cows));
+  }
 }
 
 function save() {
@@ -5175,14 +5201,27 @@ function renderStats() {
       }
     });
 
-    // ai_doneが未登録でも妊娠中＆分娩予定日＆aiDateがある牛を陽性カウント
+    // ai_doneが未登録またはpreg結果と紐付かない妊娠中牛を補完
+    // 妊娠中・分娩予定日あり・aiDateありで、まだ陽性カウントされていない牛
     if (c.status === 'pregnant' && c.dueDate && c.aiDate) {
-      const hasAiDone = evts.some(e => e.type === 'ai_done' && !e.donorAI);
-      if (!hasAiDone) {
-        // ai_done未登録なのに妊娠中 → aiDateを最終授精日として陽性カウント
+      // この牛のaiDateのai_doneが既に上のループで陽性カウントされたか確認
+      const alreadyCounted = evts.some(e =>
+        e.type === 'ai_done' && !e.donorAI && e.date === c.aiDate &&
+        (() => {
+          const i2 = evts.indexOf(e);
+          const after2 = evts.slice(i2 + 1);
+          const nextIdx2 = after2.findIndex(e2 => ['ai_done','et_done'].includes(e2.type) && !e2.donorAI);
+          const range2 = nextIdx2 >= 0 ? after2.slice(0, nextIdx2) : after2;
+          const preg2 = [...range2].reverse().find(e2 => e2.type === 'preg_positive' || e2.type === 'preg_negative');
+          if (preg2) return preg2.type === 'preg_positive';
+          if (nextIdx2 >= 0) return false;
+          const exp2 = addDays(c.dueDate, -285);
+          return Math.abs(diffDays(e.date, exp2)) <= 7;
+        })()
+      );
+      if (!alreadyCounted) {
         aiPos++;
         aiTotal++;
-        // 月別・種雄牛別は後段の詳細成績で対応
       }
     }
   });
@@ -5418,17 +5457,27 @@ function renderStats() {
           }
         });
 
-        // ai_done未登録でも妊娠中＆分娩予定日＆aiDateがある牛を陽性カウント
+        // 妊娠中・分娩予定日あり・aiDateありで陽性カウントされていない牛を補完
         if (c.status === 'pregnant' && c.dueDate && c.aiDate) {
-          const hasAiDone = evts.some(e => e.type === 'ai_done' && !e.donorAI);
-          if (!hasAiDone) {
+          const alreadyCounted = evts.some(e => {
+            if (e.type !== 'ai_done' || e.donorAI || e.date !== c.aiDate) return false;
+            const i2 = evts.indexOf(e);
+            const after2 = evts.slice(i2 + 1);
+            const nextIdx2 = after2.findIndex(e2 => ['ai_done','et_done'].includes(e2.type) && !e2.donorAI);
+            const range2 = nextIdx2 >= 0 ? after2.slice(0, nextIdx2) : after2;
+            const preg2 = [...range2].reverse().find(e2 => e2.type === 'preg_positive' || e2.type === 'preg_negative');
+            if (preg2) return preg2.type === 'preg_positive';
+            if (nextIdx2 >= 0) return false;
+            const exp2 = addDays(c.dueDate, -285);
+            return Math.abs(diffDays(e.date, exp2)) <= 7;
+          });
+          if (!alreadyCounted) {
             const month = parseInt(c.aiDate.slice(5,7));
             if (month) {
               const mLabel = monthNames[month - 1];
               monthMap[mLabel]['ai'].total++;
               monthMap[mLabel]['ai'].pos++;
             }
-            // 在庫からsemen名を取得してsemenMapに追加
             const inv = semenInventory.find(s => s.history && s.history.some(h => h.date === c.aiDate && h.cowId === c.id));
             const sName = inv ? inv.name.slice(0,12) : null;
             if (sName) {
