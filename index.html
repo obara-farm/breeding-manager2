@@ -10128,10 +10128,10 @@ function printSelectedCerts() {
           const ed = insemBookEdits[ek] || {};
           const op = ed.op !== undefined ? ed.op : (found.op || '');
           if (op) return null; // 術者ありは除外（他人が証明書を発行）
-          return { d: ed.d || found.d, n: ed.n || found.n || '', s: found.s, count: ai.count || 1 };
+          return { d: ed.d || found.d, n: ed.n || found.n || '', q: ed.q || found.q || '', s: found.s, count: ai.count || 1 };
         }
         // 授精簿に記録がなければaiDatesの情報だけで作成
-        return { d: ai.date, n: '', s: ai.semen || '', count: ai.count || 1 };
+        return { d: ai.date, n: '', q: '', s: ai.semen || '', count: ai.count || 1 };
       }).filter(Boolean).sort((a,b) => a.d.localeCompare(b.d));
 
       if (donorAIRecs.length === 0) return r;
@@ -10144,8 +10144,8 @@ function printSelectedCerts() {
         d: firstAI.d,
         s: firstAI.s,
         n: firstAI.n,
-        q: '', op: '', m: '',
-        _extraAIDates: donorAIRecs.slice(1).map(ai => ({ d: ai.d, n: ai.n, s: ai.s, count: ai.count })),
+        q: firstAI.q || '', op: '', m: '',
+        _extraAIDates: donorAIRecs.slice(1).map(ai => ({ d: ai.d, n: ai.n, q: ai.q || '', s: ai.s, count: ai.count })),
         _aiCount: firstAI.count || 1,
       };
       return merged;
@@ -10165,7 +10165,7 @@ function printSelectedCerts() {
       r._extraAIDates.forEach(ai => {
         const aiCount = ai.count || 1;
         for (let i = 0; i < aiCount; i++) {
-          expanded.push({ ...r, d: ai.d, n: ai.n, s: ai.s, _aiCount: 1, _extraAIDates: [] });
+          expanded.push({ ...r, d: ai.d, n: ai.n, q: ai.q || '', s: ai.s, _aiCount: 1, _extraAIDates: [] });
         }
       });
     }
