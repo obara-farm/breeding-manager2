@@ -6961,7 +6961,7 @@ function renderInsemBook() {
         '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI && r.op ? '<span style="font-size:10px;color:var(--muted);">—</span>' : '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label>') + '</td>' +
-        '<td style="padding:4px;text-align:center;">' + (et ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
+        '<td style="padding:4px;text-align:center;">' + (et && !r.op ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
       '</tr>';
@@ -6987,7 +6987,7 @@ function renderInsemBook() {
       '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
-      '<td style="padding:4px;text-align:center;">' + (et ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
+      '<td style="padding:4px;text-align:center;">' + (et && !dispOp ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
       '<td style="padding:4px;text-align:center;">' + (dispDonorAI ? '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
     '</tr>';
@@ -7061,7 +7061,7 @@ function renderInsemBook() {
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               syncBtn2 +
               '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--purple);">📄 授精証</span></label>' +
-              (et2 ? '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--info);">🧬 移植証</span></label>' : '') +
+              (et2 && !dispOp2 ? '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--info);">🧬 移植証</span></label>' : '') +
               '<button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑</button>' +
             '</div>' +
           '</div>' +
@@ -10134,7 +10134,7 @@ function printSelectedCerts() {
         return { d: ai.date, n: '', q: '', s: ai.semen || '', count: ai.count || 1 };
       }).filter(Boolean).sort((a,b) => a.d.localeCompare(b.d));
 
-      if (donorAIRecs.length === 0) return r;
+      if (donorAIRecs.length === 0) return null; // 全て術者ありのためこちらで発行不要
 
       // 最初のAI記録をベースに、複数日分を_extraAIDatesに格納
       const firstAI = donorAIRecs[0];
@@ -10152,6 +10152,11 @@ function printSelectedCerts() {
     }
     return r;
   }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
+
+  if (!selected.length) {
+    alert('発行できる授精証明書がありません。\nドナーAIが全て他の術者による授精のため、証明書の発行は不要です。');
+    return;
+  }
 
   // ET記録で複数日AIがある場合は展開して別々の証明書に
   // 同日複数回（count>1）の場合もその枚数分展開
