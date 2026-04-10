@@ -9855,6 +9855,30 @@ function buildEtCertHTML(r, certNo) {
   if(r.s&&r.s.includes('×')){var p=r.s.split('×');donorName=p[0].trim();sireName=p[1].trim();}
   else{sireName=r.s||'';}
 
+  // 胚番号または授精簿の情報からembryo/collection情報を補完
+  var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
+  var lotKey = (r.s||'').replace(/-\d+$/, '');
+  var invByLot = embryoInventory.find(function(e){ return e.lot === lotKey; });
+  var invByNo = null;
+  if(embryoNo) {
+    embryoInventory.forEach(function(inv){
+      if((inv.embryoDetails||[]).some(function(ed){return ed.no===embryoNo;})) invByNo=inv;
+    });
+  }
+  var invRef = invByNo || invByLot;
+
+  // invRefからドナー・種雄牛を補完
+  if(invRef) {
+    if(!sireName && invRef.sire) sireName = invRef.sire;
+    if(!donorName && invRef.dam) donorName = invRef.dam;
+  }
+
+  // memoからドナー名を補完（採卵記録から自動追加されたETの場合）
+  if(!donorName) {
+    var donorM = (r.m||'').match(/ドナー:([^\s\/]+)/);
+    if(donorM) donorName = donorM[1];
+  }
+
   var si=semenInventory.find(function(s){return s.name===sireName;});
   var sireCert  =si?(si.sireCert||''):'';
   var sireRegOrg=si?(si.regOrg||''):'';
@@ -9867,25 +9891,56 @@ function buildEtCertHTML(r, certNo) {
   var donorRegNo =dc?(dc.regNo||''):'';
   var donorBreed =dc?(dc.breed==='褐毛'?'褐毛和種':dc.breed==='黒毛'?'黒毛和種':(dc.breed||'')):'';
 
-  var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
+  var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
   var collectDate='',aiDate='',stage='',rank='',embryoType='凍結';
-  var isOld = r.d < '2026-03-31'; // 2026-03-30以前は手入力
+  var semenCertNoFromCol = '';
+  var isOld = r.d < '2026-03-31';
 
-  if(embryoNo){
+  if(embryoNo2){
     embryoInventory.forEach(function(inv){
       (inv.embryoDetails||[]).forEach(function(ed){
-        if(ed.no===embryoNo){stage=ed.stage||'';rank=ed.rank||'';embryoType=ed.frozen?'凍結':'新鮮';}
+        if(ed.no===embryoNo2){stage=ed.stage||'';rank=ed.rank||'';embryoType=ed.frozen?'凍結':'新鮮';}
       });
     });
   }
+  // ステージ・ランクをinvRefから補完
+  if((!stage||!rank) && invRef) {
+    var ed2 = (invRef.embryoDetails||[]).find(function(ed){ return ed.no === embryoNo2; });
+    if(ed2) { if(!stage) stage=ed2.stage||''; if(!rank) rank=ed2.rank||''; }
+    if(!stage) stage = invRef.stage||'';
+  }
+
   if(!isOld){
     var cr=null;
-    if(embryoNo) cr=collectionRecordsNew.find(function(c){
-      return (c.frozenEmbryos||[]).some(function(e){return e.no===embryoNo;})||
-             (c.freshEmbryos||[]).some(function(e){return e.embryoNo===embryoNo;});
+    if(embryoNo2) cr=collectionRecordsNew.find(function(c){
+      return (c.frozenEmbryos||[]).some(function(e){return e.no===embryoNo2;})||
+             (c.freshEmbryos||[]).some(function(e){return e.embryoNo===embryoNo2;});
     });
+    // ロット番号でも検索
+    if(!cr && lotKey) cr=collectionRecordsNew.find(function(c){return c.lot===lotKey;});
     if(!cr&&dc) cr=collectionRecordsNew.find(function(c){return c.donorId===dc.id;});
-    if(cr){collectDate=fmtDateJP(cr.date);if(cr.aiDate)aiDate=fmtDateJP(cr.aiDate);}
+    if(cr){
+      collectDate=fmtDateJP(cr.date);
+      // aiDatesが複数ある場合は全日付を表示
+      if(cr.aiDates&&cr.aiDates.length>0){
+        aiDate=cr.aiDates.map(function(a){return fmtDateJP(a.date);}).join('、');
+        // 授精簿から精液証明書番号を取得
+        var allBookRecs2=[
+          ...INSEM_BOOK_DATA.map(function(rd,i){return Object.assign({},rd,{_src:'static',_idx:i});})
+            .filter(function(rd){return !(insemBookEdits['static_'+rd._idx]||{})._deleted;}),
+          ...insemBookRecords.map(function(rd,i){return Object.assign({},rd,{_src:'dynamic',_idx:i});})
+        ];
+        var donorId2 = cr.donorId;
+        var certNos = cr.aiDates.map(function(ai){
+          var found=allBookRecs2.find(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
+          if(found){var ek=found._src+'_'+found._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||found.n||'';}
+          return '';
+        }).filter(Boolean);
+        semenCertNoFromCol = certNos.join('、');
+      } else if(cr.aiDate) {
+        aiDate=fmtDateJP(cr.aiDate);
+      }
+    }
   }
 
   var etDateStr=fmtDateJP(r.d);
@@ -9903,6 +9958,8 @@ function buildEtCertHTML(r, certNo) {
   var rankCell = (rank && !isOld)
     ? '<td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td>'
     : '<td colspan="3" style="'+V+'" contenteditable="true">'+rank+'</td>';
+
+  var embryoNo = embryoNo2; // 証明書本体ではembryo2を使用
 
   return (
     '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 0 6mm;box-sizing:border-box;">' +
@@ -10017,7 +10074,7 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜人工授精用<br>精液証明書番号</td>' +
-        '<td colspan="3" style="'+V+'" contenteditable="true"></td>' +
+        '<td colspan="3" style="'+V+'" contenteditable="true">'+semenCertNoFromCol+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'white-space:nowrap;">精液注入年月日</td>' +
