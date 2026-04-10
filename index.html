@@ -14707,7 +14707,23 @@ function initFirebaseSync() {
     const remote = snapshot.val();
     if (remote) {
       Object.keys(remote).forEach(k => {
-        _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+        if (k === 'insemBookEdits') {
+          // insemBookEditsはローカルとマージ（donorAIフラグを保護）
+          try {
+            const remoteEdits = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
+            const localEdits = JSON.parse(_store.getItem(k) || '{}');
+            const merged = {...remoteEdits};
+            Object.entries(localEdits).forEach(([ek, ev]) => {
+              if (!merged[ek]) merged[ek] = ev;
+              else merged[ek] = {...merged[ek], ...ev};
+            });
+            _store.setItem(k, JSON.stringify(merged));
+          } catch(e) {
+            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+          }
+        } else {
+          _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+        }
       });
     }
     setSyncStatus('synced');
