@@ -7313,6 +7313,117 @@ function renderPendingEtList() {
     </div>`).join('');
 }
 
+// ===== 外部採卵記録 =====
+function openExternalCollection() {
+  document.getElementById('ext-col-date').value = today();
+  document.getElementById('ext-col-farmer').value = '';
+  document.getElementById('ext-col-cow').value = '';
+  document.getElementById('ext-col-sire').value = '';
+  document.getElementById('ext-col-recovered').value = '0';
+  document.getElementById('ext-col-degenerate').value = '0';
+  document.getElementById('ext-col-unfertilized').value = '0';
+  document.getElementById('ext-col-frozen').value = '0';
+  document.getElementById('ext-col-fresh').value = '0';
+  document.getElementById('ext-col-memo').value = '';
+  openModal('modal-external-collection');
+}
+
+function saveExternalCollection() {
+  const date = document.getElementById('ext-col-date').value;
+  const farmer = document.getElementById('ext-col-farmer').value.trim();
+  const cowName = document.getElementById('ext-col-cow').value.trim();
+  const sire = document.getElementById('ext-col-sire').value.trim();
+  const recovered = parseInt(document.getElementById('ext-col-recovered').value)||0;
+  const degenerate = parseInt(document.getElementById('ext-col-degenerate').value)||0;
+  const unfertilized = parseInt(document.getElementById('ext-col-unfertilized').value)||0;
+  const frozenCount = parseInt(document.getElementById('ext-col-frozen').value)||0;
+  const freshCount = parseInt(document.getElementById('ext-col-fresh').value)||0;
+  const memo = document.getElementById('ext-col-memo').value.trim();
+
+  if (!date || !farmer || !cowName) {
+    alert('採卵日・農家名・牛名は必須です');
+    return;
+  }
+
+  // ロット番号を採番（通常の採卵と連番）
+  const lot = generateLotNumber(date);
+
+  // 凍結胚の胚番号を採番（通常の採卵と連番）
+  const frozenEmbryos = [];
+  if (frozenCount > 0) {
+    const maxNo = getMaxEmbryoNo();
+    for (let i = 0; i < frozenCount; i++) {
+      const no = String(maxNo + i + 1).padStart(4, '0');
+      const embryoNo = `01L237${getFiscalYearStr()}-${no}`;
+      frozenEmbryos.push({ embryoNo, stage: '', rank: '', cane: '' });
+    }
+  }
+
+  // 新鮮胚
+  const freshEmbryos = [];
+  if (freshCount > 0) {
+    const maxFreshNo = getMaxFreshNo(lot);
+    for (let i = 0; i < freshCount; i++) {
+      freshEmbryos.push({ embryoNo: `${lot}-${i + maxFreshNo + 1}`, stage: '', rank: '' });
+    }
+  }
+
+  // 採卵記録に保存
+  const rec = {
+    id: Math.random().toString(36).slice(2),
+    date, lot, sire,
+    donorId: null,
+    donorName: `${farmer}／${cowName}`,
+    farmer, cowName,
+    external: true,
+    recovered, degenerate, unfertilized,
+    usable: frozenCount + freshCount,
+    frozenEmbryos, freshEmbryos,
+    memo
+  };
+  collectionRecordsNew.push(rec);
+
+  // 凍結胚を譲受として在庫に登録
+  frozenEmbryos.forEach(e => {
+    embryoInventory.push({
+      id: Math.random().toString(36).slice(2),
+      embryoNo: e.embryoNo,
+      donor: cowName,
+      sire,
+      lot,
+      collectionDate: date,
+      embryoType: 'frozen',
+      stage: e.stage,
+      rank: e.rank,
+      cane: e.cane||'',
+      stock: 1,
+      history: [{ type: 'restock', date, count: 1, memo: `外部採卵 譲受（${farmer}）` }]
+    });
+  });
+
+  // 新鮮胚を譲受として在庫に登録
+  freshEmbryos.forEach(e => {
+    embryoInventory.push({
+      id: Math.random().toString(36).slice(2),
+      embryoNo: e.embryoNo,
+      donor: cowName,
+      sire,
+      lot,
+      collectionDate: date,
+      embryoType: 'fresh',
+      stage: e.stage,
+      rank: e.rank,
+      stock: 1,
+      history: [{ type: 'restock', date, count: 1, memo: `外部採卵 譲受（${farmer}）` }]
+    });
+  });
+
+  save();
+  closeModal('modal-external-collection');
+  renderCollectionTab();
+  alert(`外部採卵記録を保存しました。\nロット: ${lot}\n凍結: ${frozenCount}本 / 新鮮: ${freshCount}本`);
+}
+
 function openNewCollection() {
   _savingCollection = false;
   document.getElementById('collection-edit-id').value = '';
@@ -14309,7 +14420,10 @@ try {
 <div class="page" id="page-collection">
   <div class="section-header">
     <div class="section-title">🥚 採卵記録</div>
-    <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="openExternalCollection()" class="btn btn-secondary" style="font-size:12px;padding:7px 14px;">🚗 外部採卵</button>
+      <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
+    </div>
   </div>
 
   <!-- 翌日移植予定リスト -->
@@ -14323,6 +14437,60 @@ try {
   <!-- 採卵記録一覧 -->
   <div id="collection-list"></div>
   <div id="collection-empty" style="text-align:center;color:var(--muted);padding:40px;display:none;">採卵記録がありません</div>
+</div>
+
+<!-- 外部採卵記録モーダル -->
+<div class="modal-overlay" id="modal-external-collection">
+  <div class="modal" style="max-width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <span style="font-size:14px;font-weight:700;color:var(--accent);">🚗 外部採卵記録</span>
+      <button class="modal-close" onclick="closeModal('modal-external-collection')">✕</button>
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">採卵日</label>
+      <input type="date" id="ext-col-date" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">農家名</label>
+      <input type="text" id="ext-col-farmer" placeholder="例：○○農場" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">牛名</label>
+      <input type="text" id="ext-col-cow" placeholder="例：はなこ" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">精液名</label>
+      <input type="text" id="ext-col-sire" placeholder="例：幸泉" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+      <div class="col-form-group">
+        <label style="font-size:11px;color:var(--muted);">回収数</label>
+        <input type="number" id="ext-col-recovered" value="0" min="0" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+      </div>
+      <div class="col-form-group">
+        <label style="font-size:11px;color:var(--muted);">変性</label>
+        <input type="number" id="ext-col-degenerate" value="0" min="0" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+      </div>
+      <div class="col-form-group">
+        <label style="font-size:11px;color:var(--muted);">未受精</label>
+        <input type="number" id="ext-col-unfertilized" value="0" min="0" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+      </div>
+      <div class="col-form-group">
+        <label style="font-size:11px;color:var(--muted);">凍結本数</label>
+        <input type="number" id="ext-col-frozen" value="0" min="0" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+      </div>
+      <div class="col-form-group">
+        <label style="font-size:11px;color:var(--muted);">新鮮本数</label>
+        <input type="number" id="ext-col-fresh" value="0" min="0" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+      </div>
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">メモ</label>
+      <input type="text" id="ext-col-memo" placeholder="メモ（任意）" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div style="font-size:11px;color:var(--warn);margin-bottom:12px;">※ 在庫は譲受（受け取り）として自動登録されます</div>
+    <button onclick="saveExternalCollection()" class="btn btn-primary" style="width:100%;padding:12px;">💾 保存して在庫に反映</button>
+  </div>
 </div>
 
 <!-- 採卵記録入力モーダル -->
