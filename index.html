@@ -7179,7 +7179,9 @@ function renderCollectionTab() {
   empty.style.display='none';
   const sorted = [...collectionRecordsNew].sort((a,b)=>b.date.localeCompare(a.date));
   list.innerHTML = sorted.map(r => {
-    const donorName = cowDisplayName(r.donorId)||r.donorId||r.donorName||'';
+    const donorName = r.isExternal
+      ? `🚗 ${r.externalFarmer||''} ${r.externalCowName||''}`
+      : (cowDisplayName(r.donorId)||r.donorId||r.donorName||'');
     const frozenCount = (r.frozenEmbryos||[]).length;
     const freshCount = (r.freshEmbryos||[]).length;
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">
@@ -7428,6 +7430,11 @@ function openNewCollection() {
   _savingCollection = false;
   document.getElementById('collection-edit-id').value = '';
   document.getElementById('collection-modal-title').textContent = '🌱 採卵記録 — 新規';
+  // 外部採卵モードをリセット
+  const extMode = document.getElementById('col-external-mode');
+  if (extMode) { extMode.checked = false; toggleExternalCollectionMode(); }
+  document.getElementById('col-ext-farmer').value = '';
+  document.getElementById('col-ext-cowname').value = '';
   document.getElementById('col-date').value = today();
   document.getElementById('col-lot').value = '';
   document.getElementById('col-sire').value = '';
@@ -7502,6 +7509,16 @@ function openEditCollection(id) {
   updateEmbryoSubtotal();
   document.getElementById('col-memo').value = r.memo||'';
   setColPG(r.pg !== false);
+  // 外部採卵モード復元
+  const extMode = document.getElementById('col-external-mode');
+  if (extMode) {
+    extMode.checked = !!r.isExternal;
+    toggleExternalCollectionMode();
+    if (r.isExternal) {
+      document.getElementById('col-ext-farmer').value = r.externalFarmer||'';
+      document.getElementById('col-ext-cowname').value = r.externalCowName||'';
+    }
+  }
   // ドナー検索欄復元
   const donorLabel = r.donorId ? `${r.donorId} ${cowDisplayName(r.donorId)||''}`.trim() : '';
   document.getElementById('col-donor').value = r.donorId||'';
@@ -7564,6 +7581,19 @@ function searchCows(q, filterFn) {
 }
 
 // ドナー牛検索
+function toggleExternalCollectionMode() {
+  const isExt = document.getElementById('col-external-mode').checked;
+  document.getElementById('col-external-fields').style.display = isExt ? '' : 'none';
+  document.getElementById('col-donor-field').style.display = isExt ? 'none' : '';
+  document.getElementById('col-ai-date-list').style.display = 'none';
+  if (isExt) {
+    // 外部モード：ドナー選択をクリア
+    document.getElementById('col-donor').value = '';
+    document.getElementById('col-donor-search').value = '';
+    document.getElementById('col-donor-selected').style.display = 'none';
+  }
+}
+
 function onColDonorSearch(q) {
   const list = document.getElementById('col-donor-list');
   if (!q) { list.style.display='none'; return; }
@@ -8611,9 +8641,15 @@ function saveCollection() {
   _savingCollection = true;
   setTimeout(() => { _savingCollection = false; }, 1000);
   const date = document.getElementById('col-date').value;
+  const isExternal = document.getElementById('col-external-mode')?.checked;
   const donorId = document.getElementById('col-donor').value;
   if (!date) { _savingCollection = false; alert('採卵日を入力してください'); return; }
-  if (!donorId) { _savingCollection = false; alert('供卵牛を選択してください'); return; }
+  if (!isExternal && !donorId) { _savingCollection = false; alert('供卵牛を選択してください'); return; }
+  if (isExternal) {
+    const farmer = document.getElementById('col-ext-farmer').value.trim();
+    const cowname = document.getElementById('col-ext-cowname').value.trim();
+    if (!farmer || !cowname) { _savingCollection = false; alert('農家名と牛名を入力してください'); return; }
+  }
 
   const lot = document.getElementById('col-lot').value.trim();
   const sire = document.getElementById('col-sire').value.trim();
@@ -8692,6 +8728,11 @@ function saveCollection() {
   const rec = {
     id: editId || Math.random().toString(36).slice(2),
     date, lot, donorId, sire, operator, aiDate, pg,
+    ...(isExternal ? {
+      isExternal: true,
+      externalFarmer: document.getElementById('col-ext-farmer').value.trim(),
+      externalCowName: document.getElementById('col-ext-cowname').value.trim(),
+    } : {}),
     clRight: parseInt(document.getElementById('col-cl-right').value)||0,
     clLeft: parseInt(document.getElementById('col-cl-left').value)||0,
     recovered: parseInt(document.getElementById('col-recovered').value)||0,
@@ -8849,20 +8890,24 @@ function saveCollection() {
   }
   // 凍結胚を受精卵在庫に追加（同ロット統合）
   if (frozenEmbryos.length > 0) {
-    const donorName = cowDisplayName(donorId)||donorId;
-    const donorBreed = cows.find(c=>c.id===donorId)?.breed||'黒毛';
+    const donorName = isExternal
+      ? `${rec.externalFarmer} ${rec.externalCowName}`
+      : (cowDisplayName(donorId)||donorId);
+    const donorBreed = isExternal ? '褐毛' : (cows.find(c=>c.id===donorId)?.breed||'黒毛');
+    const invType = isExternal ? 'restock' : 'selfcollect';
+    const invMemo = isExternal
+      ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本`
+      : `採卵${lot||date} 凍結${frozenEmbryos.length}本`;
     // 同ロット・同採卵日・同ドナーの在庫を削除（採卵由来のみ）
-    // lotが空の場合は削除しない（別ドナーの在庫を誤って消さないため）
     if (lot) {
       embryoInventory = embryoInventory.filter(e => {
         if (!(e.lot === lot && e.collectionDate === date)) return true;
-        // ドナーが違う場合は削除しない（同日別ドナーの在庫を守る）
         if (e.dam && e.dam !== donorName) return true;
-        const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect');
+        const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect' || h.type === 'restock');
         return !hasSelfCollect;
       });
     }
-    // 新規作成（凍結胚テーブルの入力値のみ）
+    // 新規作成
     const invItem = {
       id: Math.random().toString(36).slice(2),
       sire: sire||'', dam: donorName, lot: lot||date,
@@ -8870,8 +8915,7 @@ function saveCollection() {
       stock: frozenEmbryos.length, alertThreshold: 2, noAlert: false,
       collectionDate: date,
       history: [{
-        date, type:'selfcollect', count: frozenEmbryos.length,
-        memo: `採卵${lot||date} 凍結${frozenEmbryos.length}本`,
+        date, type: invType, count: frozenEmbryos.length, memo: invMemo,
       }],
       embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
     };
@@ -14504,7 +14548,27 @@ try {
 
     <!-- 基本情報 -->
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;">
-      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px;">基本情報</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);">基本情報</div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;">
+          <input type="checkbox" id="col-external-mode" onchange="toggleExternalCollectionMode()" style="width:14px;height:14px;">
+          <span style="color:var(--warn);font-weight:700;">🚗 外部採卵</span>
+        </label>
+      </div>
+      <!-- 外部採卵モード：農家名・牛名 -->
+      <div id="col-external-fields" style="display:none;background:rgba(251,191,36,.08);border:1px solid var(--warn);border-radius:6px;padding:8px;margin-bottom:8px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div class="form-group">
+            <label style="color:var(--warn);">農家名</label>
+            <input type="text" id="col-ext-farmer" placeholder="例：○○農場" style="font-size:13px;">
+          </div>
+          <div class="form-group">
+            <label style="color:var(--warn);">牛名</label>
+            <input type="text" id="col-ext-cowname" placeholder="例：はなこ" style="font-size:13px;">
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--warn);margin-top:4px;">※ 在庫反映時は譲受（受け取り）扱いになります</div>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
         <div class="form-group">
           <label>採卵日</label>
@@ -14519,7 +14583,7 @@ try {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-        <div class="form-group">
+        <div class="form-group" id="col-donor-field">
           <label>供卵牛（ドナー）</label>
           <input type="hidden" id="col-donor" value="">
           <input type="text" id="col-donor-search" placeholder="耳標または牛名で検索..." style="font-size:13px;" oninput="onColDonorSearch(this.value)" autocomplete="off">
