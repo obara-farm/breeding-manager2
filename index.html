@@ -7426,6 +7426,13 @@ function saveExternalCollection() {
   alert(`外部採卵記録を保存しました。\nロット: ${lot}\n凍結: ${frozenCount}本 / 新鮮: ${freshCount}本`);
 }
 
+function openNewCollectionExternal() {
+  openNewCollection();
+  const extMode = document.getElementById('col-external-mode');
+  if (extMode) { extMode.checked = true; toggleExternalCollectionMode(); }
+  document.getElementById('collection-modal-title').textContent = '🚗 外部採卵記録 — 新規';
+}
+
 function openNewCollection() {
   _savingCollection = false;
   document.getElementById('collection-edit-id').value = '';
@@ -14465,7 +14472,7 @@ try {
   <div class="section-header">
     <div class="section-title">🥚 採卵記録</div>
     <div style="display:flex;gap:8px;">
-      <button onclick="openExternalCollection()" class="btn btn-secondary" style="font-size:12px;padding:7px 14px;">🚗 外部採卵</button>
+      <button onclick="openNewCollectionExternal()" class="btn btn-secondary" style="font-size:12px;padding:7px 14px;">🚗 外部採卵</button>
       <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
     </div>
   </div>
