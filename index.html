@@ -6933,8 +6933,9 @@ function renderInsemBook() {
     const _checkD = _editD || r.d;
     const alreadySynced = cowForSync && (cowForSync.events||[]).some(e => e.type === etType && (e.date === r.d || e.date === _checkD));
     const sireEsc = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const addInv = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
-    const showSyncBtn = addInv || r.d <= '2025-11-05';
+    const isETRec = r.s.includes('×') || r.insemType === 'et';
+    const addInv = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !isETRec;
+    const showSyncBtn = addInv || r.d <= '2025-11-05' || isETRec;
     const syncBtn = alreadySynced
       ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc + '\',' + addInv + ')" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓済</button>'
       : showSyncBtn ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc + '\',' + addInv + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">📥' + (addInv ? '💉' : '') + '</button>' : '<span style="font-size:10px;color:var(--muted);">—</span>';
@@ -7004,11 +7005,12 @@ function renderInsemBook() {
       const dispD2  = edit2.d  || r.d;
       const dispOp2 = edit2.op !== undefined ? edit2.op : (r.op||'');
       const cowForSync2  = cows.find(c => c.id === r.t);
-      const etType2      = r.s.includes('×') ? 'et_done' : 'ai_done';
+      const etType2      = (r.s.includes('×') || r.insemType === 'et') ? 'et_done' : 'ai_done';
       const alreadySynced2 = cowForSync2 && (cowForSync2.events||[]).some(e => e.type === etType2 && (e.date === r.d || e.date === dispD2));
       const sireEsc2 = r.s.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const addInv2  = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !r.s.includes('×');
-      const showSyncBtn2 = addInv2 || r.d <= '2025-11-05';
+      const isETRec2 = r.s.includes('×') || r.insemType === 'et';
+      const addInv2  = r.d >= '2025-01-01' && r.d <= '2025-11-05' && !isETRec2;
+      const showSyncBtn2 = addInv2 || r.d <= '2025-11-05' || isETRec2;
       const syncBtn2 = alreadySynced2
         ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc2 + '\',' + addInv2 + ')" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">✓済</button>'
         : showSyncBtn2 ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc2 + '\',' + addInv2 + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📥' + (addInv2 ? '💉' : '') + '</button>' : '<span style="font-size:10px;color:var(--muted);">—</span>';
