@@ -9887,17 +9887,20 @@ function buildEtCertHTML(r, certNo) {
   if(!lotKey && invRef) lotKey = invRef.lot || '';
 
   // 胚証明書番号を生成（右上の「第〇〇号」部分）
-  // 凍結胚：ロット+ケーン-胚番号　新鮮胚：ロット+連番-胚番号
   var embryoCertStr = '';
-  if(embryoNo && lotKey) {
-    var edRef = null;
-    if(invRef) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
-    if(!edRef && invRef) edRef = (invRef.embryoDetails||[])[0] || null;
-    // ケーン番号の末尾アルファベットのみ取り出す（例：25J09B1-A → A）
+  var edRef = null;
+  if(invRef) {
+    if(embryoNo) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
+    if(!edRef) edRef = (invRef.embryoDetails||[])[0] || null;
+  }
+  var embryoNoForCert = embryoNo || (edRef ? edRef.no : '');
+  if(embryoNoForCert && lotKey) {
     var caneStr = edRef ? ((edRef.cane||'').replace(/^.*-([A-Za-z]+)$/, '$1') || '') : '';
-    embryoCertStr = lotKey + (caneStr?caneStr:'') + '-' + embryoNo;
-  } else if(embryoNo) {
-    embryoCertStr = embryoNo;
+    embryoCertStr = lotKey + (caneStr?caneStr:'') + '-' + embryoNoForCert;
+  } else if(embryoNoForCert) {
+    embryoCertStr = embryoNoForCert;
+  } else if(lotKey) {
+    embryoCertStr = lotKey;
   }
 
   var si=semenInventory.find(function(s){return s.name===sireName;});
