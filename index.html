@@ -9852,13 +9852,17 @@ function buildEtCertHTML(r, certNo) {
   var regNo      = cow?(cow.regNo||''):'';
 
   var sireName='',donorName='';
+  // r.sが「ドナー×種雄牛」形式の場合
   if(r.s&&r.s.includes('×')){var p=r.s.split('×');donorName=p[0].trim();sireName=p[1].trim();}
-  else{sireName=r.s||'';}
+  // r.sがロット番号形式（例：25J09B1-1）の場合はembryo/invRefから取得
+  // （×を含まない場合はinvRefから補完するため空のまま）
 
   // 胚番号または授精簿の情報からembryo/collection情報を補完
   var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
-  var lotKey = (r.s||'').replace(/-\d+$/, '');
-  var invByLot = embryoInventory.find(function(e){ return e.lot === lotKey; });
+  // r.sからロット番号を取得（25J09B1-1 → 25J09B1）
+  var isLotFormat = /^\d{2}[A-L]\d{2}B\d/.test(r.s||'');
+  var lotKey = isLotFormat ? (r.s||'').replace(/-\d+$/, '') : '';
+  var invByLot = lotKey ? embryoInventory.find(function(e){ return e.lot === lotKey; }) : null;
   var invByNo = null;
   if(embryoNo) {
     embryoInventory.forEach(function(inv){
@@ -9877,6 +9881,22 @@ function buildEtCertHTML(r, certNo) {
   if(!donorName) {
     var donorM = (r.m||'').match(/ドナー:([^\s\/]+)/);
     if(donorM) donorName = donorM[1];
+  }
+
+  // collectionRecordsからロット番号を取得（invRefがない場合も）
+  if(!lotKey && invRef) lotKey = invRef.lot || '';
+
+  // 胚証明書番号を生成（右上の「第〇〇号」部分）
+  // 凍結胚：ロット+ケーン-胚番号　新鮮胚：ロット+連番-胚番号
+  var embryoCertStr = '';
+  if(embryoNo && lotKey) {
+    // embryoDetailsからケーン番号を取得
+    var edRef = null;
+    if(invRef) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
+    var caneStr = edRef ? (edRef.cane||'') : '';
+    embryoCertStr = lotKey + (caneStr?caneStr:'') + '-' + embryoNo;
+  } else if(embryoNo) {
+    embryoCertStr = embryoNo;
   }
 
   var si=semenInventory.find(function(s){return s.name===sireName;});
@@ -9968,7 +9988,10 @@ function buildEtCertHTML(r, certNo) {
     '<div style="display:flex;align-items:baseline;margin-bottom:3mm;">' +
       '<span style="font-size:10pt;white-space:nowrap;">第　'+certNo+'　号</span>' +
       '<span style="flex:1;text-align:center;font-size:16pt;font-weight:bold;letter-spacing:4px;">体内受精卵移植証明書</span>' +
-      '<span style="font-size:10pt;white-space:nowrap;">第　<span contenteditable="true" style="display:inline-block;min-width:40mm;border-bottom:1px solid #000;">'+embryoNo+'</span>　号　<strong>'+embryoType+'</strong></span>' +
+      '<span style="font-size:10pt;white-space:nowrap;">' +
+        (embryoType==='新鮮' ? embryoCertStr : ('第　<span contenteditable="true" style="display:inline-block;min-width:40mm;border-bottom:1px solid #000;">'+embryoCertStr+'</span>　号')) +
+        '　<strong>'+embryoType+'</strong>' +
+      '</span>' +
     '</div>' +
 
     '<div style="display:flex;">' +
