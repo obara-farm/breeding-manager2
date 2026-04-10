@@ -6927,7 +6927,7 @@ function renderInsemBook() {
     const idx = r._idx;
     // 種付け済みチェック・反映ボタン
     const cowForSync = cows.find(c => c.id === r.t);
-    const etType = r.s.includes('×') ? 'et_done' : 'ai_done';
+    const etType = (r.s.includes('×') || r.insemType === 'et') ? 'et_done' : 'ai_done';
     const _editKey = r._src + '_' + r._idx;
     const _editD = (insemBookEdits[_editKey] || {}).d;
     const _checkD = _editD || r.d;
@@ -6945,7 +6945,15 @@ function renderInsemBook() {
         '<td style="padding:2px 3px;"><input type="date" id="ib-d-dynamic' + idx + '" value="' + r.d + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
         '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + ' <span style="font-size:9px;color:var(--info);">NEW</span></td>' +
         '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
-        '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + typeLabel + ' ' + r.s + (r.donorAI ? ' <span style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">ドナーAI</span>' : '') + '</td>' +
+        '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + (() => {
+          if (!et) return typeLabel + ' ' + r.s + (r.donorAI ? ' <span style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">ドナーAI</span>' : '');
+          const donorM = (r.m||'').match(/ドナー:([^\s]+)/);
+          const inv = embryoInventory.find(e => (e.embryoDetails||[]).some(d => d.no === r.s));
+          const donorStr = donorM ? donorM[1] : '';
+          const sireStr = inv ? inv.sire : '';
+          const label = donorStr && sireStr ? donorStr + ' × ' + sireStr : donorStr || sireStr || '';
+          return typeLabel + ' ' + r.s + (label ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;">（' + label + '）</span>' : '');
+        })() + '</td>' +
         '<td style="padding:2px 4px;"><input id="ib-n-' + idx + '" value="' + (r.n||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-q-' + idx + '" value="' + (r.q||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;"></td>' +
         '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
@@ -7025,7 +7033,15 @@ function renderInsemBook() {
           '<div onclick="toggleInsemCard(\'' + uid + '\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--bg2);">' +
             '<div>' +
               '<div style="font-size:13px;font-weight:700;color:var(--text);">' + fmtDate(dispD2) + '　<span style="color:var(--accent);font-family:\'JetBrains Mono\',monospace;">' + r.t + '</span></div>' +
-              '<div style="font-size:12px;color:' + typeColor2 + ';font-weight:700;margin-top:2px;">' + typeLabel2 + ' ' + r.s + '</div>' +
+              '<div style="font-size:12px;color:' + typeColor2 + ';font-weight:700;margin-top:2px;">' + (() => {
+                if (!et2) return typeLabel2 + ' ' + r.s;
+                const donorM2 = (r.m||'').match(/ドナー:([^\s]+)/);
+                const inv2 = embryoInventory.find(e => (e.embryoDetails||[]).some(d => d.no === r.s));
+                const donorStr2 = donorM2 ? donorM2[1] : '';
+                const sireStr2 = inv2 ? inv2.sire : '';
+                const label2 = donorStr2 && sireStr2 ? donorStr2 + ' × ' + sireStr2 : donorStr2 || sireStr2 || '';
+                return typeLabel2 + ' ' + r.s + (label2 ? '<br><span style="font-size:10px;color:var(--muted);font-weight:400;">（' + label2 + '）</span>' : '');
+              })() + '</div>' +
             '</div>' +
             '<div style="color:var(--muted);font-size:16px;transition:transform .2s;" id="' + uid + '-chev">▼</div>' +
           '</div>' +
