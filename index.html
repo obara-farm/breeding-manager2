@@ -6948,8 +6948,9 @@ function renderInsemBook() {
         '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + (() => {
           if (!et) return typeLabel + ' ' + r.s + (r.donorAI ? ' <span style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;">ドナーAI</span>' : '');
           const donorM = (r.m||'').match(/ドナー:([^\s]+)/);
-          const inv = embryoInventory.find(e => (e.embryoDetails||[]).some(d => d.no === r.s));
-          const donorStr = donorM ? donorM[1] : '';
+          const lotKey = r.s.replace(/-\d+$/, '');
+          const inv = embryoInventory.find(e => e.lot === lotKey || (e.embryoDetails||[]).some(d => d.no === r.s));
+          const donorStr = donorM ? donorM[1] : (inv ? inv.dam : '');
           const sireStr = inv ? inv.sire : '';
           const label = donorStr && sireStr ? donorStr + ' × ' + sireStr : donorStr || sireStr || '';
           return typeLabel + ' ' + r.s + (label ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;">（' + label + '）</span>' : '');
@@ -7036,8 +7037,9 @@ function renderInsemBook() {
               '<div style="font-size:12px;color:' + typeColor2 + ';font-weight:700;margin-top:2px;">' + (() => {
                 if (!et2) return typeLabel2 + ' ' + r.s;
                 const donorM2 = (r.m||'').match(/ドナー:([^\s]+)/);
-                const inv2 = embryoInventory.find(e => (e.embryoDetails||[]).some(d => d.no === r.s));
-                const donorStr2 = donorM2 ? donorM2[1] : '';
+                const lotKey2 = r.s.replace(/-\d+$/, '');
+                const inv2 = embryoInventory.find(e => e.lot === lotKey2 || (e.embryoDetails||[]).some(d => d.no === r.s));
+                const donorStr2 = donorM2 ? donorM2[1] : (inv2 ? inv2.dam : '');
                 const sireStr2 = inv2 ? inv2.sire : '';
                 const label2 = donorStr2 && sireStr2 ? donorStr2 + ' × ' + sireStr2 : donorStr2 || sireStr2 || '';
                 return typeLabel2 + ' ' + r.s + (label2 ? '<br><span style="font-size:10px;color:var(--muted);font-weight:400;">（' + label2 + '）</span>' : '');
