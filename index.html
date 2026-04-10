@@ -2501,6 +2501,7 @@ let pendingUseRecords = JSON.parse(_store.getItem('pendingUseRecords') || '[]');
 let retiredCows = JSON.parse(_store.getItem('retiredCows') || '[]');
 let insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
 let insemBookEdits = JSON.parse(_store.getItem('insemBookEdits') || '{}'); // 固定データの上書き編集
+let staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}'); // ドナーAIフラグ専用
 let collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]'); // 採卵記録
 let donorAIRecords = JSON.parse(_store.getItem('donorAIRecords') || '[]'); // ドナーAI記録
 let pendingEtList = JSON.parse(_store.getItem('pendingEtList') || '[]'); // 翌日移植予定リスト
@@ -2520,6 +2521,7 @@ function loadData() {
   retiredCows     = JSON.parse(_store.getItem('retiredCows') || '[]');
   insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
   insemBookEdits   = JSON.parse(_store.getItem('insemBookEdits') || '{}');
+  staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}');
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
   donorAIRecords    = JSON.parse(_store.getItem('donorAIRecords') || '[]');
   pendingEtList    = JSON.parse(_store.getItem('pendingEtList') || '[]');
@@ -2552,6 +2554,7 @@ function save() {
   _store.setItem('retiredCows', JSON.stringify(retiredCows));
   _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
   _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
+  _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
   _store.setItem('collectionRecordsNew', JSON.stringify(collectionRecordsNew));
   _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
   _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
@@ -2561,7 +2564,7 @@ function save() {
   if (typeof _lastSentSnapshot !== 'undefined') {
     const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
       'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
-      'insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList',
+      'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
       'pendingUseRecords','data_version'];
     keys.forEach(k => {
       const v = _store.getItem(k);
@@ -5170,7 +5173,9 @@ function renderStats() {
     const edit = insemBookEdits[ekey] || {};
     const date = edit.d || r.d;
     // donorAIはinsemBookEditsの設定を優先、なければレコード自体のフラグ
-    const donorAI = edit.donorAI === true || r.donorAI === true;
+    const donorAI = r._src === 'static'
+      ? (staticDonorAIFlags['static_' + r._idx] || false)
+      : (edit.donorAI === true || r.donorAI === true);
     const isET = r.insemType === 'et' || r.s.includes('×');
     if (!recsByCow[r.t]) recsByCow[r.t] = [];
     const alreadyExists = recsByCow[r.t].some(x => x.date === date && x.isET === isET);
@@ -6593,9 +6598,11 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   const invType = isOther ? 'transfer' : 'use';
 
   const memo = isET ? `胚番号:${sire}` : `精液:${sire}`;
-  // donorAIフラグはinsemBookEditsのdonorAI設定を参照
+  // donorAIフラグはstaticDonorAIFlags（static）またはinsemBookEdits（dynamic）から取得
   const donorAIFlag = bookRec
-    ? !!(insemBookEdits[bookRec._src+'_'+bookRec._idx]||{}).donorAI || !!(bookRec.donorAI)
+    ? (bookRec._src === 'static'
+        ? (staticDonorAIFlags['static_' + bookRec._idx] || false)
+        : !!(insemBookEdits[bookRec._src+'_'+bookRec._idx]||{}).donorAI || !!(bookRec.donorAI))
     : false;
   if (operator) { cow.events.push({ type: eventType, date: effectiveDate, memo: memo + ' ／ 術者:' + operator, donorAI: donorAIFlag }); }
   else { cow.events.push({ type: eventType, date: effectiveDate, memo, donorAI: donorAIFlag }); }
@@ -6958,7 +6965,7 @@ function renderInsemBook() {
     const sid = r._src + r._idx;
     const dispD = edit.d || r.d;
     const dispOp = edit.op !== undefined ? edit.op : (r.op || '');
-    const dispDonorAI = edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false);
+    const dispDonorAI = staticDonorAIFlags['static_' + r._idx] || (edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false));
     return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
       '<td style="padding:2px 3px;"><input type="date" id="ib-d-' + sid + '" value="' + dispD + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
       '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + '</td>' +
@@ -9390,16 +9397,16 @@ function toggleDonorAIFlag(src, idx) {
     cowId = rec.t;
     date = rec.d;
   } else {
-    // static：insemBookEditsでフラグ管理
+    // static：staticDonorAIFlagsで独立管理
     rec = INSEM_BOOK_DATA[idx];
     if (!rec) return;
     cowId = rec.t;
-    const ekey = 'static_' + idx;
-    insemBookEdits[ekey] = insemBookEdits[ekey] || {};
-    const currentFlag = insemBookEdits[ekey].donorAI !== undefined ? insemBookEdits[ekey].donorAI : (rec.donorAI || false);
-    insemBookEdits[ekey].donorAI = !currentFlag;
+    const flagKey = 'static_' + idx;
+    const currentFlag = staticDonorAIFlags[flagKey] || false;
+    staticDonorAIFlags[flagKey] = !currentFlag;
     const wasOn = currentFlag;
-    date = insemBookEdits[ekey].d || rec.d;
+    const ekey = 'static_' + idx;
+    date = (insemBookEdits[ekey] || {}).d || rec.d;
     if (wasOn) {
       const cow = cows.find(c => c.id === cowId);
       if (cow) {
@@ -14739,7 +14746,7 @@ function initFirebaseSync() {
       if (!remote) return;
       const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
         'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
-        'etRecords','fatteningRecords','insemBookRecords','insemBookEdits',
+        'etRecords','fatteningRecords','insemBookRecords','insemBookEdits','staticDonorAIFlags',
         'donorAIRecords','pendingEtList','pendingUseRecords','data_version'];
       let anyChanged = false;
       safeKeys.forEach(k => {
@@ -14805,7 +14812,7 @@ function saveToFirebase() {
   syncTimer = setTimeout(() => {
     const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
       'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
-      'insemBookRecords','insemBookEdits','donorAIRecords','pendingEtList',
+      'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
       'pendingUseRecords','data_version'];
     // 変更があったキーのみupdate()で差分送信
     const updates = {};
