@@ -8936,7 +8936,42 @@ function saveCollection() {
       const freshNo = fe.embryoNo || `${lot||date}-${i+1}`;
       // isDitto=true の行は直前の行の追加胚として処理（ET記録は同一受卵牛に追記）
       _processFreshEtNow(rec, fe, freshNo, date, fe.isDitto ? '🌱新鮮胚（2卵目）' : '🌱新鮮胚', '', fe.isDitto);
-    } else if (fe.action === 'freeze_now') {
+    } else if (!fe.recipientId && fe.embryoNo) {
+      // 移植先空欄の新鮮胚
+      const freshNo = fe.embryoNo;
+      const alreadyInInv = embryoInventory.some(inv =>
+        inv.lot === (lot||date) && inv.collectionDate === date && inv.type === 'fresh' &&
+        (inv.history||[]).some(h => h.memo?.includes(freshNo))
+      );
+      if (!alreadyInInv) {
+        if (rec.isExternal) {
+          // 外部採卵：譲受→譲渡（向こうの牛へ移植）
+          const donorName = `${rec.externalFarmer||''} ${rec.externalCowName||''}`;
+          embryoInventory.push({
+            id: Math.random().toString(36).slice(2),
+            sire: sire||'', dam: donorName, lot: lot||date,
+            type: 'fresh', breed: '褐毛', stage: fe.stage||'',
+            stock: 0, alertThreshold: 0, noAlert: false, collectionDate: date,
+            history: [
+              { date, type:'restock', count:1, memo:`外部採卵 譲受 🌱新鮮胚 ${freshNo}` },
+              { date, type:'transfer', count:1, cowId: null, memo:`外部農家牛へ移植（譲渡） ${freshNo}` },
+            ],
+          });
+        } else {
+          // 自農場採卵：生産→譲渡（他農家へ）
+          const donorName = cowDisplayName(donorId)||donorId;
+          embryoInventory.push({
+            id: Math.random().toString(36).slice(2),
+            sire: sire||'', dam: donorName, lot: lot||date,
+            type: 'fresh', breed: cows.find(c=>c.id===donorId)?.breed||'黒毛', stage: fe.stage||'',
+            stock: 0, alertThreshold: 0, noAlert: false, collectionDate: date,
+            history: [
+              { date, type:'selfcollect', count:1, memo:`採卵 🌱新鮮胚 ${freshNo}` },
+              { date, type:'transfer', count:1, cowId: null, memo:`他農家へ譲渡 ${freshNo}` },
+            ],
+          });
+        }
+      }
       // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
       const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
       _processFreshToFreezeWithNo(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, freezeNo, '', date, lot);
@@ -9131,11 +9166,11 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
   if (!alreadyInInv) {
     const invDate = date;
     const hist = [
-      { date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
+      { date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo: rec.isExternal ? `外部採卵 譲受 ${label} ${embryoNo}` : `採卵 ${label} ${embryoNo}` },
       { date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
     ];
     if (embryoNo2) {
-      hist.push({ date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo2}` });
+      hist.push({ date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo: rec.isExternal ? `外部採卵 譲受 ${label} ${embryoNo2}` : `採卵 ${label} ${embryoNo2}` });
       hist.push({ date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo2}（2卵目）` });
     }
     const invItem = {
