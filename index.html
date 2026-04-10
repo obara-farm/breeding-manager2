@@ -10102,10 +10102,76 @@ function printSelectedCerts() {
       const edit = insemBookEdits[ekey] || {};
       r = { ...base, n: edit.n||base.n, q: edit.q||base.q, m: edit.m||base.m, d: edit.d||base.d, op: edit.op||base.op||'' };
     }
+    if (!r) return null;
+
+    // ET記録の場合：ドナー牛へのAI記録を使って証明書を生成
+    const isETRec = r.insemType === 'et' || r.s.includes('×') || (r.m||'').startsWith('胚番号:');
+    if (isETRec) {
+      // 採卵記録からロット番号で該当レコードを特定
+      const lotKey = r.s.replace(/-\d+$/, '');
+      const colRec = collectionRecordsNew.find(cr => cr.lot === lotKey);
+      if (!colRec || !colRec.aiDates || colRec.aiDates.length === 0) return r;
+
+      const donorCow = cows.find(c => c.id === colRec.donorId);
+      if (!donorCow) return r;
+
+      // aiDatesから授精簿のAI記録を取得
+      const allRecs = [
+        ...INSEM_BOOK_DATA.map((rd,i) => ({...rd, _src:'static', _idx:i}))
+          .filter(rd => !(insemBookEdits['static_'+rd._idx]||{})._deleted),
+        ...insemBookRecords.map((rd,i) => ({...rd, _src:'dynamic', _idx:i}))
+      ];
+      const donorAIRecs = colRec.aiDates.map(ai => {
+        const found = allRecs.find(rd => rd.t === donorCow.id && rd.d === ai.date);
+        if (found) {
+          const ek = found._src + '_' + found._idx;
+          const ed = insemBookEdits[ek] || {};
+          const op = ed.op !== undefined ? ed.op : (found.op || '');
+          if (op) return null; // 術者ありは除外（他人が証明書を発行）
+          return { d: ed.d || found.d, n: ed.n || found.n || '', s: found.s, count: ai.count || 1 };
+        }
+        // 授精簿に記録がなければaiDatesの情報だけで作成
+        return { d: ai.date, n: '', s: ai.semen || '', count: ai.count || 1 };
+      }).filter(Boolean).sort((a,b) => a.d.localeCompare(b.d));
+
+      if (donorAIRecs.length === 0) return r;
+
+      // 最初のAI記録をベースに、複数日分を_extraAIDatesに格納
+      const firstAI = donorAIRecs[0];
+      const merged = {
+        t: donorCow.id,
+        c: donorCow.name || '',
+        d: firstAI.d,
+        s: firstAI.s,
+        n: firstAI.n,
+        q: '', op: '', m: '',
+        _extraAIDates: donorAIRecs.slice(1).map(ai => ({ d: ai.d, n: ai.n, s: ai.s, count: ai.count })),
+        _aiCount: firstAI.count || 1,
+      };
+      return merged;
+    }
     return r;
   }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
 
-  openCertPreview(selected);
+  // ET記録で複数日AIがある場合は展開して別々の証明書に
+  // 同日複数回（count>1）の場合もその枚数分展開
+  const expanded = [];
+  selected.forEach(r => {
+    const count = r._aiCount || 1;
+    for (let i = 0; i < count; i++) {
+      expanded.push({ ...r, _aiCount: 1 });
+    }
+    if (r._extraAIDates && r._extraAIDates.length > 0) {
+      r._extraAIDates.forEach(ai => {
+        const aiCount = ai.count || 1;
+        for (let i = 0; i < aiCount; i++) {
+          expanded.push({ ...r, d: ai.d, n: ai.n, s: ai.s, _aiCount: 1, _extraAIDates: [] });
+        }
+      });
+    }
+  });
+
+  openCertPreview(expanded);
 }
 
 function openCertPreview(records) {
