@@ -9890,10 +9890,11 @@ function buildEtCertHTML(r, certNo) {
   // 凍結胚：ロット+ケーン-胚番号　新鮮胚：ロット+連番-胚番号
   var embryoCertStr = '';
   if(embryoNo && lotKey) {
-    // embryoDetailsからケーン番号を取得
     var edRef = null;
     if(invRef) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
-    var caneStr = edRef ? (edRef.cane||'') : '';
+    if(!edRef && invRef) edRef = (invRef.embryoDetails||[])[0] || null;
+    // ケーン番号の末尾アルファベットのみ取り出す（例：25J09B1-A → A）
+    var caneStr = edRef ? ((edRef.cane||'').replace(/^.*-([A-Za-z]+)$/, '$1') || '') : '';
     embryoCertStr = lotKey + (caneStr?caneStr:'') + '-' + embryoNo;
   } else if(embryoNo) {
     embryoCertStr = embryoNo;
@@ -9914,7 +9915,6 @@ function buildEtCertHTML(r, certNo) {
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
   var collectDate='',aiDate='',stage='',rank='',embryoType='凍結';
   var semenCertNoFromCol = '';
-  var isOld = r.d < '2026-03-31';
 
   if(embryoNo2){
     embryoInventory.forEach(function(inv){
@@ -9923,43 +9923,51 @@ function buildEtCertHTML(r, certNo) {
       });
     });
   }
-  // ステージ・ランクをinvRefから補完
-  if((!stage||!rank) && invRef) {
-    var ed2 = (invRef.embryoDetails||[]).find(function(ed){ return ed.no === embryoNo2; });
-    if(ed2) { if(!stage) stage=ed2.stage||''; if(!rank) rank=ed2.rank||''; }
-    if(!stage) stage = invRef.stage||'';
+  // ステージ・ランクをinvRefから補完（lotKeyベースで検索）
+  if(!stage||!rank) {
+    var edTarget = null;
+    if(invRef && embryoNo2) {
+      edTarget = (invRef.embryoDetails||[]).find(function(ed){ return ed.no === embryoNo2; });
+    }
+    if(!edTarget && invRef) {
+      // embryoNo2がなければ最初のembryoDetailを使用
+      edTarget = (invRef.embryoDetails||[])[0] || null;
+    }
+    if(edTarget) {
+      if(!stage) stage=edTarget.stage||'';
+      if(!rank) rank=edTarget.rank||'';
+      embryoType = edTarget.frozen ? '凍結' : '新鮮';
+    } else if(invRef) {
+      embryoType = invRef.type === 'frozen' ? '凍結' : '新鮮';
+    }
   }
 
-  if(!isOld){
-    var cr=null;
-    if(embryoNo2) cr=collectionRecordsNew.find(function(c){
-      return (c.frozenEmbryos||[]).some(function(e){return e.no===embryoNo2;})||
-             (c.freshEmbryos||[]).some(function(e){return e.embryoNo===embryoNo2;});
-    });
-    // ロット番号でも検索
-    if(!cr && lotKey) cr=collectionRecordsNew.find(function(c){return c.lot===lotKey;});
-    if(!cr&&dc) cr=collectionRecordsNew.find(function(c){return c.donorId===dc.id;});
-    if(cr){
-      collectDate=fmtDateJP(cr.date);
-      // aiDatesが複数ある場合は全日付を表示
-      if(cr.aiDates&&cr.aiDates.length>0){
-        aiDate=cr.aiDates.map(function(a){return fmtDateJP(a.date);}).join('、');
-        // 授精簿から精液証明書番号を取得
-        var allBookRecs2=[
-          ...INSEM_BOOK_DATA.map(function(rd,i){return Object.assign({},rd,{_src:'static',_idx:i});})
-            .filter(function(rd){return !(insemBookEdits['static_'+rd._idx]||{})._deleted;}),
-          ...insemBookRecords.map(function(rd,i){return Object.assign({},rd,{_src:'dynamic',_idx:i});})
-        ];
-        var donorId2 = cr.donorId;
-        var certNos = cr.aiDates.map(function(ai){
-          var found=allBookRecs2.find(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
-          if(found){var ek=found._src+'_'+found._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||found.n||'';}
-          return '';
-        }).filter(Boolean);
-        semenCertNoFromCol = certNos.join('、');
-      } else if(cr.aiDate) {
-        aiDate=fmtDateJP(cr.aiDate);
-      }
+  // collectionRecordsから採卵日・授精日・精液証明書番号を取得
+  var cr=null;
+  if(embryoNo2) cr=collectionRecordsNew.find(function(c){
+    return (c.frozenEmbryos||[]).some(function(e){return e.no===embryoNo2;})||
+           (c.freshEmbryos||[]).some(function(e){return e.embryoNo===embryoNo2;});
+  });
+  if(!cr && lotKey) cr=collectionRecordsNew.find(function(c){return c.lot===lotKey;});
+  if(!cr && dc) cr=collectionRecordsNew.find(function(c){return c.donorId===dc.id;});
+  if(cr){
+    collectDate=fmtDateJP(cr.date);
+    if(cr.aiDates&&cr.aiDates.length>0){
+      aiDate=cr.aiDates.map(function(a){return fmtDateJP(a.date);}).join('、');
+      var allBookRecs2=[
+        ...INSEM_BOOK_DATA.map(function(rd,i){return Object.assign({},rd,{_src:'static',_idx:i});})
+          .filter(function(rd){return !(insemBookEdits['static_'+rd._idx]||{})._deleted;}),
+        ...insemBookRecords.map(function(rd,i){return Object.assign({},rd,{_src:'dynamic',_idx:i});})
+      ];
+      var donorId2 = cr.donorId;
+      var certNos = cr.aiDates.map(function(ai){
+        var found=allBookRecs2.find(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
+        if(found){var ek=found._src+'_'+found._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||found.n||'';}
+        return '';
+      }).filter(Boolean);
+      semenCertNoFromCol = certNos.join('、');
+    } else if(cr.aiDate) {
+      aiDate=fmtDateJP(cr.aiDate);
     }
   }
 
@@ -9972,12 +9980,12 @@ function buildEtCertHTML(r, certNo) {
   var H ='10mm';
 
   // ステージ・ランク：在庫データがあれば自動、なければ手入力
-  var stageCell = (stage && !isOld)
+  var stageCell = stage
     ? '<td colspan="3" style="'+V+'font-weight:bold;">'+stage+'</td>'
-    : '<td colspan="3" style="'+V+'" contenteditable="true">'+stage+'</td>';
-  var rankCell = (rank && !isOld)
+    : '<td colspan="3" style="'+V+'" contenteditable="true"></td>';
+  var rankCell = rank
     ? '<td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td>'
-    : '<td colspan="3" style="'+V+'" contenteditable="true">'+rank+'</td>';
+    : '<td colspan="3" style="'+V+'" contenteditable="true"></td>';
 
   var embryoNo = embryoNo2; // 証明書本体ではembryo2を使用
 
@@ -10007,7 +10015,7 @@ function buildEtCertHTML(r, certNo) {
       '<tr style="height:20mm;">' +
         '<td style="'+L+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;">採取した雌畜<br>体内受精卵を</td>' +
         '<td style="'+L+'font-size:8.5pt;">家畜体内受精卵証明書番号<br>又は受精卵採取に関する<br>証明書番号</td>' +
-        '<td style="'+V+'font-size:11pt;font-weight:bold;" contenteditable="true">'+embryoNo+'</td>' +
+        '<td style="'+V+'font-size:11pt;font-weight:bold;" contenteditable="true">'+embryoCertStr+'</td>' +
       '</tr>' +
 
       '<tr style="height:'+H+';">' +
