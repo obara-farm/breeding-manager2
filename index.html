@@ -9104,7 +9104,10 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
   // embryoTypeLabel: '🌱新鮮胚' or '🌱新鮮培養胚'
   // isDitto: true の場合は同受卵牛への2卵目（妊鑑タスクは重複作成しない）
   const label = embryoTypeLabel || '🌱新鮮胚';
-  const donorName = cowDisplayName(rec.donorId)||rec.donorId;
+  const donorName = rec.isExternal
+    ? `${rec.externalFarmer||''} ${rec.externalCowName||''}`
+    : (cowDisplayName(rec.donorId)||rec.donorId);
+  const donorBreed = rec.isExternal ? '褐毛' : (cows.find(c=>c.id===rec.donorId)?.breed||'黒毛');
   const recip = cows.find(c=>c.id===fe.recipientId);
   if (!recip) return;
 
@@ -9128,18 +9131,17 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
   if (!alreadyInInv) {
     const invDate = date;
     const hist = [
-      { date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
+      { date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo}` },
       { date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo}` },
     ];
-    // 2卵目がある場合も入出庫記録
     if (embryoNo2) {
-      hist.push({ date: invDate, type:'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo2}` });
+      hist.push({ date: invDate, type: rec.isExternal ? 'restock' : 'selfcollect', count:1, memo:`採卵 ${label} ${embryoNo2}` });
       hist.push({ date: invDate, type:'use', count:1, cowId: fe.recipientId, memo:`移植 ${embryoNo2}（2卵目）` });
     }
     const invItem = {
       id: Math.random().toString(36).slice(2),
       sire: rec.sire||'', dam: donorName, lot: rec.lot||rec.date,
-      type: 'fresh', breed: cows.find(c=>c.id===rec.donorId)?.breed||'黒毛', stage: fe.stage||'',
+      type: 'fresh', breed: donorBreed, stage: fe.stage||'',
       stock: 0, alertThreshold: 0, noAlert: false,
       collectionDate: rec.date, history: hist,
     };
