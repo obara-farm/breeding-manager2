@@ -15819,16 +15819,16 @@ document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'hidden') {
     // 動的レコードのn/q/m欄を全て保存
     insemBookRecords.forEach((r, idx) => {
-      const nEl = document.getElementById('ib-n-' + idx);
-      const qEl = document.getElementById('ib-q-' + idx);
-      const mEl = document.getElementById('ib-m-' + idx);
-      if (nEl || qEl || mEl) {
-        if (nEl) r.n = nEl.value.trim();
-        if (qEl) r.q = qEl.value.trim();
-        if (mEl) r.m = mEl.value.trim();
-      }
+      const nEl = document.getElementById('ib-n-dynamic' + idx) || document.getElementById('ib-n-' + idx);
+      const qEl = document.getElementById('ib-q-dynamic' + idx) || document.getElementById('ib-q-' + idx);
+      const mEl = document.getElementById('ib-m-dynamic' + idx) || document.getElementById('ib-m-' + idx);
+      const opEl = document.getElementById('ib-op-' + r.d + '-' + r.t);
+      if (nEl) r.n = nEl.value.trim();
+      if (qEl) r.q = qEl.value.trim();
+      if (mEl) r.m = mEl.value.trim();
+      if (opEl) r.op = opEl.value.trim();
     });
-    // 固定データのn/q/m欄も保存
+    // 固定データのn/q/m/op欄も保存
     document.querySelectorAll('[id^="ib-n-static"],[id^="ib-q-static"],[id^="ib-m-static"]').forEach(el => {
       const m = el.id.match(/ib-([nqm])-static(\d+)/);
       if (!m) return;
@@ -15836,6 +15836,14 @@ document.addEventListener('visibilitychange', function() {
       const key = 'static_' + idx;
       if (!insemBookEdits[key]) insemBookEdits[key] = {};
       insemBookEdits[key][field] = el.value.trim();
+    });
+    // 固定データのop欄も保存
+    INSEM_BOOK_DATA.forEach((r, idx) => {
+      const opEl = document.getElementById('ib-op-' + ((insemBookEdits['static_'+idx]?.d)||r.d) + '-' + r.t);
+      if (!opEl) return;
+      const key = 'static_' + idx;
+      if (!insemBookEdits[key]) insemBookEdits[key] = {};
+      insemBookEdits[key].op = opEl.value.trim();
     });
     save();
   }
