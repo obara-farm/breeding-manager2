@@ -7411,6 +7411,7 @@ function openExternalCollection() {
   document.getElementById('ext-col-farmer').value = '';
   document.getElementById('ext-col-cow').value = '';
   document.getElementById('ext-col-sire').value = '';
+  if (document.getElementById('ext-col-breed')) document.getElementById('ext-col-breed').value = '黒毛';
   document.getElementById('ext-col-recovered').value = '0';
   document.getElementById('ext-col-degenerate').value = '0';
   document.getElementById('ext-col-unfertilized').value = '0';
@@ -7431,6 +7432,7 @@ function saveExternalCollection() {
   const frozenCount = parseInt(document.getElementById('ext-col-frozen').value)||0;
   const freshCount = parseInt(document.getElementById('ext-col-fresh').value)||0;
   const memo = document.getElementById('ext-col-memo').value.trim();
+  const breed = document.getElementById('ext-col-breed')?.value || '黒毛';
 
   if (!date || !farmer || !cowName) {
     alert('採卵日・農家名・牛名は必須です');
@@ -7485,6 +7487,7 @@ function saveExternalCollection() {
       lot,
       collectionDate: date,
       embryoType: 'frozen',
+      breed,
       stage: e.stage,
       rank: e.rank,
       cane: e.cane||'',
@@ -7503,6 +7506,7 @@ function saveExternalCollection() {
       lot,
       collectionDate: date,
       embryoType: 'fresh',
+      breed,
       stage: e.stage,
       rank: e.rank,
       stock: 1,
@@ -14842,6 +14846,14 @@ try {
     <div class="col-form-group">
       <label style="font-size:11px;color:var(--muted);">精液名</label>
       <input type="text" id="ext-col-sire" placeholder="例：幸泉" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+    </div>
+    <div class="col-form-group">
+      <label style="font-size:11px;color:var(--muted);">品種</label>
+      <select id="ext-col-breed" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px;border-radius:6px;">
+        <option value="黒毛">黒毛</option>
+        <option value="褐毛">褐毛</option>
+        <option value="">不明</option>
+      </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
       <div class="col-form-group">
