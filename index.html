@@ -10146,10 +10146,12 @@ function buildEtCertHTML(r, certNo) {
       ];
       var donorId2 = cr.donorId;
       var certNos = cr.aiDates.map(function(ai){
-        var found=allBookRecs2.find(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
-        if(found){var ek=found._src+'_'+found._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||found.n||'';}
-        return '';
-      }).filter(Boolean);
+        var count = ai.count || 1;
+        var found = allBookRecs2.filter(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
+        return found.slice(0, count).map(function(f){
+          var ek=f._src+'_'+f._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||f.n||'';
+        });
+      }).reduce(function(a,b){return a.concat(b);},[]).filter(Boolean);
       semenCertNoFromCol = certNos.join('、');
     } else if(cr.aiDate) {
       aiDate=fmtDateJP(cr.aiDate);
