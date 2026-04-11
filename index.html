@@ -15429,6 +15429,33 @@ if (typeof save === 'function') {
 document.getElementById('login-screen').classList.add('active');
 
 }); // window.onload end
+
+// タブを離れる際に授精簿の未保存入力を強制保存
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'hidden') {
+    // 動的レコードのn/q/m欄を全て保存
+    insemBookRecords.forEach((r, idx) => {
+      const nEl = document.getElementById('ib-n-' + idx);
+      const qEl = document.getElementById('ib-q-' + idx);
+      const mEl = document.getElementById('ib-m-' + idx);
+      if (nEl || qEl || mEl) {
+        if (nEl) r.n = nEl.value.trim();
+        if (qEl) r.q = qEl.value.trim();
+        if (mEl) r.m = mEl.value.trim();
+      }
+    });
+    // 固定データのn/q/m欄も保存
+    document.querySelectorAll('[id^="ib-n-static"],[id^="ib-q-static"],[id^="ib-m-static"]').forEach(el => {
+      const m = el.id.match(/ib-([nqm])-static(\d+)/);
+      if (!m) return;
+      const field = m[1], idx = parseInt(m[2]);
+      const key = 'static_' + idx;
+      if (!insemBookEdits[key]) insemBookEdits[key] = {};
+      insemBookEdits[key][field] = el.value.trim();
+    });
+    save();
+  }
+});
 </script>
 
 <!-- ドナーAI記録モーダル -->
