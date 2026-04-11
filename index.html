@@ -2577,6 +2577,27 @@ function loadData() {
     }
   });
   if (calvesFixed) _store.setItem('calves', JSON.stringify(calves));
+
+  // aiDatesのcount>1の場合、授精簿に不足している行を自動追加
+  let insemBookFixed = false;
+  collectionRecordsNew.forEach(cr => {
+    if (!cr.donorId || !cr.aiDates) return;
+    cr.aiDates.forEach(ai => {
+      if (!ai.count || ai.count <= 1) return;
+      // 授精簿に同日同牛の記録が何行あるか確認
+      const existingRows = insemBookRecords.filter(r => r.t === cr.donorId && r.d === ai.date);
+      const needed = ai.count - existingRows.length;
+      if (needed <= 0) return;
+      // 既存の1行目をベースに不足分を追加
+      const base = existingRows[0] || insemBookRecords.find(r => r.t === cr.donorId && r.d === ai.date);
+      if (!base) return;
+      for (let i = 0; i < needed; i++) {
+        insemBookRecords.push({ ...base, n: '', q: '', _new: true });
+        insemBookFixed = true;
+      }
+    });
+  });
+  if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
 }
 
 function save() {
