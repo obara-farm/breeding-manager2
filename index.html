@@ -6984,7 +6984,7 @@ function renderInsemBook() {
           const label = donorStr && sireStr ? donorStr + ' × ' + sireStr : donorStr || sireStr || '';
           return typeLabel + ' ' + r.s + (label ? ' <span style="font-size:10px;color:var(--muted);font-weight:400;">（' + label + '）</span>' : '');
         })() + '</td>' +
-        '<td style="padding:2px 4px;"><input id="ib-n-' + idx + '" value="' + (r.n||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+        '<td style="padding:2px 4px;"><input id="ib-n-' + idx + '" value="' + (r.n||'') + '" oninput="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:2px 4px;">' + (() => {
           if (et) {
             // ET記録：ドナーAIの授精証明書Noを取得して表示
@@ -7004,10 +7004,10 @@ function renderInsemBook() {
             const donorQStr = donorQs.join(' / ');
             return '<span id="ib-etq-' + idx + '" style="font-size:11px;color:var(--purple);padding:3px 5px;">' + (donorQStr||'—') + '</span>';
           }
-          return '<input id="ib-q-' + idx + '" value="' + (r.q||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;">';
+          return '<input id="ib-q-' + idx + '" value="' + (r.q||'') + '" oninput="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;">';
         })() + '</td>' +
-        '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
-        '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (r.op||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+        '<td style="padding:2px 4px;"><input id="ib-m-' + idx + '" value="' + (r.m||'') + '" oninput="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+        '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (r.op||'') + '" oninput="saveInsemBookRecord(\'dynamic\',' + idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
         '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI && r.op ? '<span style="font-size:10px;color:var(--muted);">—</span>' : '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (et && !r.op ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
@@ -7030,10 +7030,10 @@ function renderInsemBook() {
       '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + '</td>' +
       '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
       '<td style="padding:7px 6px;font-size:12px;font-weight:700;color:' + typeColor + ';">' + typeLabel + ' ' + r.s + '</td>' +
-      '<td style="padding:2px 4px;"><input id="ib-n-' + sid + '" value="' + dispN.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
-      '<td style="padding:2px 4px;"><input id="ib-q-' + sid + '" value="' + dispQ.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;"></td>' +
-      '<td style="padding:2px 4px;"><input id="ib-m-' + sid + '" value="' + dispM.replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
-      '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+      '<td style="padding:2px 4px;"><input id="ib-n-' + sid + '" value="' + dispN.replace(/"/g,"&quot;") + '" oninput="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+      '<td style="padding:2px 4px;"><input id="ib-q-' + sid + '" value="' + dispQ.replace(/"/g,"&quot;") + '" oninput="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;"></td>' +
+      '<td style="padding:2px 4px;"><input id="ib-m-' + sid + '" value="' + dispM.replace(/"/g,"&quot;") + '" oninput="saveInsemBookRecord(\'static\',' + r._idx + ')" style="width:80px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
+      '<td style="padding:2px 4px;"><input id="ib-op-' + r.d + '-' + r.t + '" value="' + (dispOp||'').replace(/"/g,"&quot;") + '" oninput="saveInsemBookRecord(\'static\',' + r._idx + ')" placeholder="術者" style="width:70px;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:3px 5px;border-radius:4px;"></td>' +
       '<td style="padding:4px;text-align:center;">' + syncBtn + '</td>' +
       '<td style="padding:4px;text-align:center;"><label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--purple);">📄</span></label></td>' +
       '<td style="padding:4px;text-align:center;">' + (et && !dispOp ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
@@ -15313,6 +15313,29 @@ function initFirebaseSync() {
         safeKeys.forEach(k => {
           if (!(k in remote)) return;
           const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+          // insemBookRecordsは常にマージ（n/q/m欄を保護）
+          if (k === 'insemBookRecords') {
+            try {
+              const remoteRecs = JSON.parse(rv);
+              const localRecs = JSON.parse(_store.getItem(k) || '[]');
+              const merged = remoteRecs.map((rr, i) => {
+                const lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+                if (!lr) return rr;
+                return {
+                  ...rr,
+                  n: (lr.n !== undefined && lr.n !== '') ? lr.n : rr.n,
+                  q: (lr.q !== undefined && lr.q !== '') ? lr.q : rr.q,
+                  m: lr.m !== undefined ? lr.m : rr.m,
+                  op: (lr.op !== undefined && lr.op !== '') ? lr.op : rr.op,
+                };
+              });
+              _store.setItem(k, JSON.stringify(merged));
+              _lastSentSnapshot[k] = JSON.stringify(merged);
+            } catch(e) {
+              _store.setItem(k, rv);
+            }
+            return;
+          }
           // 自分のエコーでないものだけ上書き
           if (_lastSentSnapshot[k] === rv) return;
           // insemBookEditsは現在のローカルとマージ（donorAIなど重要なフラグを保護）
@@ -15324,30 +15347,6 @@ function initFirebaseSync() {
               Object.entries(localEdits).forEach(([ek, ev]) => {
                 if (!merged[ek]) merged[ek] = ev;
                 else merged[ek] = {...merged[ek], ...ev};
-              });
-              _store.setItem(k, JSON.stringify(merged));
-              _lastSentSnapshot[k] = JSON.stringify(merged);
-            } catch(e) {
-              _store.setItem(k, rv);
-            }
-            return;
-          }
-          // insemBookRecordsはローカルで編集済みのn/q/m欄を保護
-          if (k === 'insemBookRecords') {
-            try {
-              const remoteRecs = JSON.parse(rv);
-              const localRecs = JSON.parse(_store.getItem(k) || '[]');
-              // ローカルのレコードでn/q/mが更新されているものを保護
-              const merged = remoteRecs.map((rr, i) => {
-                const lr = localRecs[i];
-                if (!lr) return rr;
-                // ローカルの方が新しいn/q/mを優先（空でない場合）
-                return {
-                  ...rr,
-                  n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
-                  q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
-                  m: lr.m !== undefined ? lr.m : rr.m,
-                };
               });
               _store.setItem(k, JSON.stringify(merged));
               _lastSentSnapshot[k] = JSON.stringify(merged);
