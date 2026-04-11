@@ -10797,8 +10797,10 @@ function renderPreCalvingAlerts() {
     );
     let insemLabel = '';
     if (lastAiEt) {
-      const typeStr = ['et_done','estrus_et'].includes(lastAiEt.type) ? '🧬 ET' : '💉 AI';
       const memo = lastAiEt.memo || '';
+      const sireFromMemo = memo.replace(/^胚番号:/,'').split('／')[0].trim();
+      const isEtLabel = ['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sireFromMemo);
+      const typeStr = isEtLabel ? '🧬 ET' : '💉 AI';
       const sireStr = memo.match(/胚番号:([^／\n]+)/)?.[1]?.trim() ||
                       memo.match(/精液:([^／\n]+)/)?.[1]?.trim() || '';
       insemLabel = `${typeStr} ${fmtDate(lastAiEt.date)}${sireStr ? ' — ' + sireStr : ''}`;
