@@ -6484,6 +6484,7 @@ function switchTab(name) {
   if (name !== 'insembook' && window._calfCertHighlights) {
     window._calfCertHighlights = null;
     window._calfCertYear = null;
+    window._calfCertInsemDates = null;
     const searchEl = document.getElementById('insembook-search');
     if (searchEl && searchEl.value) { searchEl.value = ''; renderInsemBook(); }
   }
@@ -6975,6 +6976,10 @@ function renderInsemBook() {
         r.n.toLowerCase().includes(qp)
       )
     );
+    // 子牛証明書モードの場合は授精日でも絞り込み
+    if (window._calfCertInsemDates && window._calfCertInsemDates.length) {
+      data = data.filter(r => window._calfCertInsemDates.includes(r.d));
+    }
   }
   document.getElementById('insembook-count').textContent = data.length + '件';
   const isET = r => {
@@ -11946,6 +11951,8 @@ function goToInsemBookForCalves() {
       const uniqueDamIds = [...new Set(targets.map(t=>t.damId))];
       searchEl.value = uniqueDamIds.join('|');
     }
+    // 授精日でもフィルタリングするためwindowに保存
+    window._calfCertInsemDates = targets.map(t=>t.insemDate).filter(Boolean);
     renderInsemBook();
   }, 300);
 }
