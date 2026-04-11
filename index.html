@@ -12118,6 +12118,16 @@ function openEditCalfModal(id) {
       }
     }
     donorInput2.value = donorVal;
+    // ドナー牛の父をmaternalSireに補完
+    if (isEtCalf2 && donorVal) {
+      const donorCow2 = cows.find(c => c.name === donorVal || c.id === donorVal);
+      if (donorCow2) {
+        const msEl = document.getElementById('calf-maternal-sire');
+        if (msEl && !msEl.value) msEl.value = donorCow2.sire || '';
+        const mgsEl = document.getElementById('calf-maternal-grand-sire');
+        if (mgsEl && !mgsEl.value) mgsEl.value = donorCow2.maternalSire || '';
+      }
+    }
   }
   onCalfInsemTypeChange();
   // 繁殖候補保留中で個体識別番号未入力の場合はヒントを表示
