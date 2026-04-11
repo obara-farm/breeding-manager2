@@ -15259,6 +15259,25 @@ function initFirebaseSync() {
           } catch(e) {
             _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
           }
+        } else if (k === 'insemBookRecords') {
+          // insemBookRecordsはローカルで編集済みのn/q/m欄を保護
+          try {
+            const remoteRecs = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
+            const localRecs = JSON.parse(_store.getItem(k) || '[]');
+            const merged = remoteRecs.map((rr, i) => {
+              const lr = localRecs[i];
+              if (!lr) return rr;
+              return {
+                ...rr,
+                n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
+                q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
+                m: lr.m !== undefined ? lr.m : rr.m,
+              };
+            });
+            _store.setItem(k, JSON.stringify(merged));
+          } catch(e) {
+            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+          }
         } else {
           _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         }
@@ -15301,15 +15320,34 @@ function initFirebaseSync() {
             try {
               const remoteEdits = JSON.parse(rv);
               const localEdits = JSON.parse(_store.getItem(k) || '{}');
-              // ローカルの方が新しいキーはローカルを優先
               const merged = {...remoteEdits};
               Object.entries(localEdits).forEach(([ek, ev]) => {
-                if (!merged[ek]) {
-                  merged[ek] = ev;
-                } else {
-                  // 各フィールドをマージ（ローカルが設定済みなら優先）
-                  merged[ek] = {...merged[ek], ...ev};
-                }
+                if (!merged[ek]) merged[ek] = ev;
+                else merged[ek] = {...merged[ek], ...ev};
+              });
+              _store.setItem(k, JSON.stringify(merged));
+              _lastSentSnapshot[k] = JSON.stringify(merged);
+            } catch(e) {
+              _store.setItem(k, rv);
+            }
+            return;
+          }
+          // insemBookRecordsはローカルで編集済みのn/q/m欄を保護
+          if (k === 'insemBookRecords') {
+            try {
+              const remoteRecs = JSON.parse(rv);
+              const localRecs = JSON.parse(_store.getItem(k) || '[]');
+              // ローカルのレコードでn/q/mが更新されているものを保護
+              const merged = remoteRecs.map((rr, i) => {
+                const lr = localRecs[i];
+                if (!lr) return rr;
+                // ローカルの方が新しいn/q/mを優先（空でない場合）
+                return {
+                  ...rr,
+                  n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
+                  q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
+                  m: lr.m !== undefined ? lr.m : rr.m,
+                };
               });
               _store.setItem(k, JSON.stringify(merged));
               _lastSentSnapshot[k] = JSON.stringify(merged);
