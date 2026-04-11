@@ -11335,7 +11335,7 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
     if (isET) {
       document.getElementById('cr-insem-type').value = 'et';
       // 胚番号:ドナー×種雄牛 の形式を解析
-      const embryoRaw = memo.match(/胚番号:([^／\n]+)/)?.[1]?.trim() || '';
+      const embryoRaw = memo.match(/胚番号:([^／\n]+)/)?.[1]?.trim() || memoSire;
       if (embryoRaw.includes('×')) {
         const [dam, sire] = embryoRaw.split('×').map(s => s.trim());
         document.getElementById('cr-sire').value = sire || '';
