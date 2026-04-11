@@ -15634,20 +15634,25 @@ function initFirebaseSync() {
             _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
           }
         } else if (k === 'insemBookRecords') {
-          // insemBookRecordsはローカルで編集済みのn/q/m欄を保護
+          // insemBookRecordsはローカルで編集済みのn/q/m/op欄を保護
           try {
             const remoteRecs = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
             const localRecs = JSON.parse(_store.getItem(k) || '[]');
             const merged = remoteRecs.map((rr, i) => {
-              const lr = localRecs[i];
+              let lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+              if (!lr) lr = localRecs[i];
               if (!lr) return rr;
               return {
                 ...rr,
                 n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
                 q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
                 m: lr.m !== undefined ? lr.m : rr.m,
+                op: lr.op !== undefined && lr.op !== '' ? lr.op : rr.op,
               };
             });
+            if (localRecs.length > remoteRecs.length) {
+              localRecs.slice(remoteRecs.length).forEach(lr => merged.push(lr));
+            }
             _store.setItem(k, JSON.stringify(merged));
           } catch(e) {
             _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
@@ -15693,7 +15698,9 @@ function initFirebaseSync() {
               const remoteRecs = JSON.parse(rv);
               const localRecs = JSON.parse(_store.getItem(k) || '[]');
               const merged = remoteRecs.map((rr, i) => {
-                const lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+                // まずd/t/sで照合、見つからなければインデックスで照合
+                let lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+                if (!lr) lr = localRecs[i];
                 if (!lr) return rr;
                 return {
                   ...rr,
@@ -15703,6 +15710,10 @@ function initFirebaseSync() {
                   op: (lr.op !== undefined && lr.op !== '') ? lr.op : rr.op,
                 };
               });
+              // ローカルにあってリモートにない行も保持
+              if (localRecs.length > remoteRecs.length) {
+                localRecs.slice(remoteRecs.length).forEach(lr => merged.push(lr));
+              }
               _store.setItem(k, JSON.stringify(merged));
               _lastSentSnapshot[k] = JSON.stringify(merged);
             } catch(e) {
