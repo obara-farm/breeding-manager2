@@ -11622,19 +11622,19 @@ function saveCalvingRecord() {
   // 死産判定（メモに「死産」が含まれる場合）
   const isStillbirthRecord = memo.includes('死産');
 
-  // ET時の胚番号を取得
+  // ET時の胚番号を取得（cr-sireが胚番号形式なら最優先）
   let embryoNo = '';
   if (insemType === 'et') {
-    const embryoSelId2 = document.getElementById('cr-embryo-select').value;
-    if (embryoSelId2) {
-      const eInv = embryoInventory.find(x=>x.id===embryoSelId2);
-      // 新鮮胚ならfreshEmbryos、凍結ならembryoDetailsから取得
-      // 産仔記録時点では特定の胚番号は不明なのでlot番号を記録
-      if (eInv) embryoNo = eInv.lot || '';
-    }
-    // cr-sireが胚番号形式ならそのまま使用
     const crSire = document.getElementById('cr-sire').value.trim();
-    if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(crSire)) embryoNo = crSire;
+    if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(crSire)) {
+      embryoNo = crSire;
+    } else {
+      const embryoSelId2 = document.getElementById('cr-embryo-select').value;
+      if (embryoSelId2) {
+        const eInv = embryoInventory.find(x=>x.id===embryoSelId2);
+        if (eInv) embryoNo = eInv.lot || '';
+      }
+    }
   }
 
   // 子牛1頭目を登録
