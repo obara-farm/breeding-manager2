@@ -6955,9 +6955,9 @@ function saveInsemBookRecord(src, idx) {
     const rec = insemBookRecords[idx];
     if (!rec) return;
     if (dEl) rec.d = dEl.value || rec.d;
-    rec.n = (document.getElementById('ib-n-' + src + idx)?.value || '').trim();
-    rec.q = (document.getElementById('ib-q-' + src + idx)?.value || '').trim();
-    rec.m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
+    rec.n = (document.getElementById('ib-n-' + idx)?.value || '').trim();
+    rec.q = (document.getElementById('ib-q-' + idx)?.value || '').trim();
+    rec.m = (document.getElementById('ib-m-' + idx)?.value || '').trim();
     rec.op = (document.getElementById('ib-op-' + rec.d + '-' + rec.t)?.value || '').trim();
   } else {
     const key = src + '_' + idx;
