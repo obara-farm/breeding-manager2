@@ -9859,9 +9859,10 @@ function buildEtCertHTML(r, certNo) {
 
   // 胚番号または授精簿の情報からembryo/collection情報を補完
   var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
-  // r.sからロット番号を取得（25J09B1-1 → 25J09B1）
+  // r.sからロット番号と連番を取得（25J09B1-1 → lot=25J09B1, seq=1）
   var isLotFormat = /^\d{2}[A-L]\d{2}B\d/.test(r.s||'');
   var lotKey = isLotFormat ? (r.s||'').replace(/-\d+$/, '') : '';
+  var lotSeq = isLotFormat ? (parseInt((r.s||'').match(/-(\d+)$/)?.[1]||'1')-1) : 0; // 0-indexed
   var invByLot = lotKey ? embryoInventory.find(function(e){ return e.lot === lotKey; }) : null;
   var invByNo = null;
   if(embryoNo) {
@@ -9891,7 +9892,8 @@ function buildEtCertHTML(r, certNo) {
   var edRef = null;
   if(invRef) {
     if(embryoNo) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
-    if(!edRef) edRef = (invRef.embryoDetails||[])[0] || null;
+    // embryoNoがなければlotSeq（連番-1）のインデックスで取得
+    if(!edRef) edRef = (invRef.embryoDetails||[])[lotSeq] || (invRef.embryoDetails||[])[0] || null;
   }
   var embryoNoForCert = embryoNo || (edRef ? edRef.no : '');
   if(embryoNoForCert && lotKey) {
@@ -9933,7 +9935,8 @@ function buildEtCertHTML(r, certNo) {
       edTarget = (invRef.embryoDetails||[]).find(function(ed){ return ed.no === embryoNo2; });
     }
     if(!edTarget && invRef) {
-      edTarget = (invRef.embryoDetails||[])[0] || null;
+      // lotSeqで正しい胚を取得
+      edTarget = (invRef.embryoDetails||[])[lotSeq] || (invRef.embryoDetails||[])[0] || null;
     }
     if(edTarget) {
       if(!stage) stage=edTarget.stage||'';
@@ -9943,8 +9946,8 @@ function buildEtCertHTML(r, certNo) {
       embryoType = invRef.type === 'frozen' ? '凍結' : '新鮮';
     }
   }
-  // invRefが確定している場合はembryoTypeを上書き
-  if(invRef && !embryoNo2) {
+  // invRefが確定している場合はembryoTypeを上書き（edTargetがない場合）
+  if(invRef && !embryoNo2 && stage === '') {
     embryoType = invRef.type === 'frozen' ? '凍結' : '新鮮';
   }
 
