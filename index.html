@@ -9901,8 +9901,9 @@ function buildEtCertHTML(r, certNo) {
   var cowName    = cow?(cow.name||''):'';
   var nationalId = cow&&cow.nationalId ? formatNationalId(cow.nationalId) : '';
   var dob        = cow&&cow.dob?fmtDateJP(cow.dob):'';
-  var cowBreed   = cow?(cow.breed==='褐毛'?'褐毛和種':cow.breed==='黒毛'?'黒毛和種':(cow.breed||'')):'';
-  var cowColor   = cow?(cow.color||''):'';
+  var cowBreed   = cow?(cow.breed==='褐毛'?'褐毛和種':cow.breed==='黒毛'?'黒毛和種':cow.breed==='F1'?'肉×乳':(cow.breed||'')):'';
+  // 名前がF1の場合も肉×乳
+  if(cowName==='F1' && !cowBreed) cowBreed='肉×乳';  var cowColor   = cow?(cow.color||''):'';
   var regOrg     = cow?(cow.regOrg||''):'';
   var regNo      = cow?(cow.regNo||''):'';
 
