@@ -2543,6 +2543,40 @@ function loadData() {
   if (pendingUseRecords.length !== before2) {
     _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
   }
+
+  // ET産仔のembryoNoが不完全（ロット番号のみ）な場合、授精記録から補完
+  let calvesFixed = false;
+  calves.forEach(calf => {
+    if (calf.insemType !== 'et' && !calf.donor) return;
+    // embryoNoがロット番号のみ（ハイフン+数字なし）の場合補完
+    const embryoNo = calf.embryoNo || '';
+    if (embryoNo && !/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoNo)) return;
+    if (!embryoNo || /^\d{2}[A-L]\d{2}B\d+$/.test(embryoNo)) {
+      // 授精簿からdamIdと授精日で胚番号を特定
+      const damId = calf.damId;
+      const insemDate = calf.insemDate;
+      if (!damId || !insemDate) return;
+      const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
+      const rec = allRecs.find(r => r.t === damId && r.d === insemDate &&
+        /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((r.s||'')));
+      if (rec && rec.s) {
+        calf.embryoNo = rec.s;
+        calvesFixed = true;
+      } else {
+        // cow.eventsからET記録を探す
+        const cow = cows.find(c => c.id === damId);
+        const etEv = (cow?.events||[]).find(e =>
+          e.date === insemDate && ['ai_done','et_done'].includes(e.type) &&
+          /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((e.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split(' ')[0].trim())
+        );
+        if (etEv) {
+          calf.embryoNo = (etEv.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split(' ')[0].trim();
+          calvesFixed = true;
+        }
+      }
+    }
+  });
+  if (calvesFixed) _store.setItem('calves', JSON.stringify(calves));
 }
 
 function save() {
