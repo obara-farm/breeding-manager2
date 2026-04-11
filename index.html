@@ -6872,6 +6872,7 @@ function saveInsemBookRecord(src, idx) {
     insemBookEdits[key].op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
   }
   save();
+  renderInsemBook();
 }
 
 function renderInsemBook() {
