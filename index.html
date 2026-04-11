@@ -6872,7 +6872,35 @@ function saveInsemBookRecord(src, idx) {
     insemBookEdits[key].op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
   }
   save();
-  renderInsemBook();
+  // ET行のNo欄を更新（全再描画せず該当セルだけ更新）
+  updateEtQCells();
+}
+
+function updateEtQCells() {
+  // 動的ET行のNo欄を再計算して更新
+  const allRecsQ = [
+    ...INSEM_BOOK_DATA.map((rd,i) => ({...rd,_src:'static',_idx:i})).filter(rd=>!(insemBookEdits['static_'+rd._idx]||{})._deleted),
+    ...insemBookRecords.map((rd,i) => ({...rd,_src:'dynamic',_idx:i}))
+  ];
+  insemBookRecords.forEach((r, idx) => {
+    const isET = r.insemType === 'et' || r.s.includes('×');
+    if (!isET) return;
+    const el = document.getElementById('ib-etq-' + idx);
+    if (!el) return;
+    const lotKeyQ = (r.s||'').replace(/-\d+$/, '');
+    const colRecQ = lotKeyQ ? collectionRecordsNew.find(c=>c.lot===lotKeyQ) : null;
+    const donorIdQ = colRecQ?.donorId;
+    const donorQs = (colRecQ?.aiDates||[]).map(ai => {
+      const found = allRecsQ.find(rd=>rd.t===donorIdQ&&rd.d===ai.date);
+      if (!found) return '';
+      const ekQ = found._src+'_'+found._idx;
+      const edQ = insemBookEdits[ekQ]||{};
+      const opQ = edQ.op!==undefined ? edQ.op : (found.op||'');
+      if (opQ) return '';
+      return edQ.q||found.q||'';
+    }).filter(Boolean);
+    el.textContent = donorQs.join(' / ') || '—';
+  });
 }
 
 function renderInsemBook() {
@@ -6974,7 +7002,7 @@ function renderInsemBook() {
               return edQ.q||found.q||'';
             }).filter(Boolean);
             const donorQStr = donorQs.join(' / ');
-            return '<span style="font-size:11px;color:var(--purple);padding:3px 5px;">' + (donorQStr||'—') + '</span>';
+            return '<span id="ib-etq-' + idx + '" style="font-size:11px;color:var(--purple);padding:3px 5px;">' + (donorQStr||'—') + '</span>';
           }
           return '<input id="ib-q-' + idx + '" value="' + (r.q||'') + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="width:50px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;text-align:right;">';
         })() + '</td>' +
