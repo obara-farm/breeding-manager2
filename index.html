@@ -12096,11 +12096,29 @@ function openEditCalfModal(id) {
   document.getElementById('calf-id').value = calf.earTagId || '';
   setNatId('calf-national-id', calf.nationalId || '');
   document.getElementById('calf-memo').value = calf.memo || '';
-  document.getElementById('calf-insem-type').value = calf.insemType || 'ai';
+  // ETの自動判定（insemTypeがetか、sireがロット番号形式か、donorがある場合）
+  const isEtCalf2 = calf.insemType === 'et' || calf.donor ||
+    /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(calf.sire||'');
+  document.getElementById('calf-insem-type').value = isEtCalf2 ? 'et' : (calf.insemType || 'ai');
   document.getElementById('calf-insem-date').value = calf.insemDate || '';
   // ET用ドナー欄をセット
   const donorInput2 = document.getElementById('calf-donor-name');
-  if (donorInput2) donorInput2.value = calf.donor || '';
+  if (donorInput2) {
+    // donorがなければembryo inventoryから補完
+    let donorVal = calf.donor || '';
+    if (!donorVal && isEtCalf2) {
+      const lotKey2 = (calf.sire||'').replace(/-\d+$/, '');
+      const inv2 = embryoInventory.find(e => e.lot === lotKey2 || e.sire === calf.sire);
+      if (inv2) {
+        donorVal = inv2.dam || '';
+        // sireも補完
+        if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(calf.sire||'') && inv2.sire) {
+          document.getElementById('calf-sire').value = inv2.sire;
+        }
+      }
+    }
+    donorInput2.value = donorVal;
+  }
   onCalfInsemTypeChange();
   // 繁殖候補保留中で個体識別番号未入力の場合はヒントを表示
   const hint = document.getElementById('calf-id-hint');
