@@ -13209,7 +13209,18 @@ function renderReport() {
         const pills = [];
         if (v.in)       pills.push(`<span style="background:rgba(74,222,128,.15);color:var(--accent);padding:1px 7px;border-radius:10px;font-weight:700;">+${v.in} 譲受</span>`);
         if (v.use)      pills.push(`<span style="background:rgba(239,68,68,.15);color:var(--danger);padding:1px 7px;border-radius:10px;font-weight:700;">-${v.use} 使用</span>`);
-        if (v.transfer) pills.push(`<span style="background:rgba(245,158,11,.15);color:var(--warn);padding:1px 7px;border-radius:10px;font-weight:700;">-${v.transfer} 譲渡</span>`);
+        if (v.transfer) {
+          // 譲渡の牛情報を授精簿から取得
+          const transferEntries = monthEntries.filter(h=>h.type==='transfer'&&!h.cowId);
+          const allBookRecs2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
+          const transferCows = [];
+          transferEntries.forEach(h => {
+            const matched2 = allBookRecs2.filter(r=>r.d===h.date&&r.s===n);
+            matched2.forEach(r=>{ if(!transferCows.includes(r.t)) transferCows.push(r.t); });
+          });
+          const transferCowStr = transferCows.length > 0 ? ' ' + transferCows.map(id=>`${id} ${cowDisplayName(id)||''}`).join('・') : '';
+          pills.push(`<span style="background:rgba(245,158,11,.15);color:var(--warn);padding:1px 7px;border-radius:10px;font-weight:700;">-${v.transfer} 譲渡${transferCowStr}</span>`);
+        }
         if (v.discard)  pills.push(`<span style="background:rgba(107,114,128,.15);color:var(--muted);padding:1px 7px;border-radius:10px;">-${v.discard} 廃棄</span>`);
         return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="showBkdDetail('x',\`${detailHtml.replace(/`/g,"'")}\`,'${n}','${selectedYear}/${parseInt(m)}月')">
           <div style="font-size:12px;font-weight:700;color:var(--text);width:28px;flex-shrink:0;">${parseInt(m)}月</div>
