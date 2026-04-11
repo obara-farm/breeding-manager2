@@ -11306,7 +11306,9 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
   );
   if (lastInsem) {
     const memo = lastInsem.memo || '';
-    const isET = lastInsem.type === 'et_done' || lastInsem.type === 'estrus_et';
+    const memoSire = (memo.replace(/^精液:/,'').replace(/^胚番号:/,'')).split('／')[0].trim();
+    const isET = lastInsem.type === 'et_done' || lastInsem.type === 'estrus_et'
+      || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(memoSire);
 
     if (isET) {
       document.getElementById('cr-insem-type').value = 'et';
@@ -11323,12 +11325,27 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
         );
         if (embryoMatch) document.getElementById('cr-embryo-select').value = embryoMatch.id;
       } else if (embryoRaw) {
-        document.getElementById('cr-sire').value = embryoRaw;
-        document.getElementById('cr-donor').value = '';
-        const embryoMatch = embryoInventory.find(e => embryoRaw.includes(e.sire));
-        if (embryoMatch) {
-          document.getElementById('cr-embryo-select').value = embryoMatch.id;
-          if (embryoMatch.dam) document.getElementById('cr-donor').value = embryoMatch.dam;
+        // ロット番号形式（例：25E19B2-3）の場合はinventoryから取得
+        const isLotFmt = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoRaw);
+        if (isLotFmt) {
+          const lotKey = embryoRaw.replace(/-\d+$/, '');
+          const invByLot = embryoInventory.find(e => e.lot === lotKey);
+          if (invByLot) {
+            document.getElementById('cr-sire').value = invByLot.sire || '';
+            document.getElementById('cr-donor').value = invByLot.dam || '';
+            document.getElementById('cr-embryo-select').value = invByLot.id;
+          } else {
+            document.getElementById('cr-sire').value = embryoRaw;
+            document.getElementById('cr-donor').value = '';
+          }
+        } else {
+          document.getElementById('cr-sire').value = embryoRaw;
+          document.getElementById('cr-donor').value = '';
+          const embryoMatch = embryoInventory.find(e => embryoRaw.includes(e.sire));
+          if (embryoMatch) {
+            document.getElementById('cr-embryo-select').value = embryoMatch.id;
+            if (embryoMatch.dam) document.getElementById('cr-donor').value = embryoMatch.dam;
+          }
         }
       }
     } else {
@@ -11737,17 +11754,33 @@ function renderCalves() {
       );
       const isFreemartin = calf.sex === '雌' && hasMaleTwin;
       const canKeep = calf.sex === '雌' && !isFreemartin;
-      const isEtCalf = calf.insemType === 'et';
+      const isEtCalf = calf.insemType === 'et'
+        || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((calf.sire||''));
       const etBadge = isEtCalf
         ? `<span style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:4px;">🧬 ET産仔</span>`
         : '';
 
-      // 系統表示：父 × 母（母の父＝母牛の父） × 母の母の父（母牛の母の父）
+      // 系統表示：ETの場合はドナー牛基準、AIの場合は種雄牛基準
       const damCow = cows.find(c=>c.id===calf.damId);
       const maternalSire = calf.maternalSire || damCow?.sire || '';
       const maternalGrandSire = calf.maternalGrandSire || damCow?.maternalSire || '';
-      // 表示：父 × 母の父 × 母の母の父（ラベルなし、母名省略）
-      const pedigreeStr = [calf.sire, maternalSire, maternalGrandSire].filter(Boolean).join(' × ');
+      let pedigreeStr;
+      if (isEtCalf) {
+        // ET：ドナー牛（種雄牛産） × 受卵牛の父
+        const donorStr = calf.donor || '';
+        const sireStr = calf.sire && !/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(calf.sire) ? calf.sire : '';
+        // embryoInventoryからドナー・種雄牛を補完
+        let donorFinal = donorStr, sireFinal = sireStr;
+        if (!donorFinal || !sireFinal) {
+          const lotKey = (calf.sire||'').replace(/-\d+$/, '');
+          const inv = embryoInventory.find(e => e.lot === lotKey || e.sire === calf.sire || e.dam === calf.donor);
+          if (inv) { if(!donorFinal) donorFinal = inv.dam||''; if(!sireFinal) sireFinal = inv.sire||''; }
+        }
+        const etParent = donorFinal && sireFinal ? `${donorFinal}（${sireFinal}産）` : donorFinal || sireFinal || '';
+        pedigreeStr = [etParent, maternalSire, maternalGrandSire].filter(Boolean).join(' × ');
+      } else {
+        pedigreeStr = [calf.sire, maternalSire, maternalGrandSire].filter(Boolean).join(' × ');
+      }
       const pedigreeHtml = pedigreeStr
         ? `<div style="font-size:11px;color:var(--text);font-weight:500;">${pedigreeStr}</div>`
         : '';
