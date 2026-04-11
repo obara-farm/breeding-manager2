@@ -11762,6 +11762,25 @@ function saveCalvingRecord() {
   )));
 
   save();
+  // ET産仔の胚番号を自動補完（保存直後に実行）
+  let calvesFixed2 = false;
+  calves.forEach(calf => {
+    if (calf.insemType !== 'et' && !calf.donor) return;
+    const en = calf.embryoNo || '';
+    if (en && /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(en)) return;
+    const damId = calf.damId; const insemDate = calf.insemDate;
+    if (!damId || !insemDate) return;
+    const allRecs2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
+    const rec2 = allRecs2.find(r => r.t === damId && r.d === insemDate && /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((r.s||'')));
+    if (rec2) { calf.embryoNo = rec2.s; calvesFixed2 = true; return; }
+    const cow2 = cows.find(c => c.id === damId);
+    const etEv2 = (cow2?.events||[]).find(e =>
+      e.date === insemDate && ['ai_done','et_done'].includes(e.type) &&
+      /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((e.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split(' ')[0].trim())
+    );
+    if (etEv2) { calf.embryoNo = (etEv2.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split(' ')[0].trim(); calvesFixed2 = true; }
+  });
+  if (calvesFixed2) save();
   closeModal('modal-calving-record');
   renderAll();
   switchTab('calves');
