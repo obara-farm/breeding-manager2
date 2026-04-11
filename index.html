@@ -7536,6 +7536,7 @@ function openNewCollection() {
   if (extMode) { extMode.checked = false; toggleExternalCollectionMode(); }
   document.getElementById('col-ext-farmer').value = '';
   document.getElementById('col-ext-cowname').value = '';
+  if (document.getElementById('col-ext-breed')) document.getElementById('col-ext-breed').value = '黒毛';
   document.getElementById('col-date').value = today();
   document.getElementById('col-lot').value = '';
   document.getElementById('col-sire').value = '';
@@ -7618,6 +7619,7 @@ function openEditCollection(id) {
     if (r.isExternal) {
       document.getElementById('col-ext-farmer').value = r.externalFarmer||'';
       document.getElementById('col-ext-cowname').value = r.externalCowName||'';
+      if (document.getElementById('col-ext-breed')) document.getElementById('col-ext-breed').value = r.externalBreed||'黒毛';
     }
   }
   // ドナー検索欄復元
@@ -8833,6 +8835,7 @@ function saveCollection() {
       isExternal: true,
       externalFarmer: document.getElementById('col-ext-farmer').value.trim(),
       externalCowName: document.getElementById('col-ext-cowname').value.trim(),
+      externalBreed: document.getElementById('col-ext-breed')?.value || '黒毛',
     } : {}),
     clRight: parseInt(document.getElementById('col-cl-right').value)||0,
     clLeft: parseInt(document.getElementById('col-cl-left').value)||0,
@@ -9236,7 +9239,7 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
   const donorName = rec.isExternal
     ? `${rec.externalFarmer||''} ${rec.externalCowName||''}`
     : (cowDisplayName(rec.donorId)||rec.donorId);
-  const donorBreed = rec.isExternal ? '褐毛' : (cows.find(c=>c.id===rec.donorId)?.breed||'黒毛');
+  const donorBreed = rec.isExternal ? (rec.externalBreed||'黒毛') : (cows.find(c=>c.id===rec.donorId)?.breed||'黒毛');
   const recip = cows.find(c=>c.id===fe.recipientId);
   if (!recip) return;
 
@@ -14806,7 +14809,6 @@ try {
   <div class="section-header">
     <div class="section-title">🥚 採卵記録</div>
     <div style="display:flex;gap:8px;">
-      <button onclick="openNewCollectionExternal()" class="btn btn-secondary" style="font-size:12px;padding:7px 14px;">🚗 外部採卵</button>
       <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
     </div>
   </div>
@@ -14915,6 +14917,14 @@ try {
             <label style="color:var(--warn);">牛名</label>
             <input type="text" id="col-ext-cowname" placeholder="例：はなこ" style="font-size:13px;">
           </div>
+        </div>
+        <div class="form-group" style="margin-top:8px;">
+          <label style="color:var(--warn);font-size:11px;">品種</label>
+          <select id="col-ext-breed" style="width:100%;background:var(--bg);border:1px solid var(--warn);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;">
+            <option value="黒毛">黒毛</option>
+            <option value="褐毛">褐毛</option>
+            <option value="">不明</option>
+          </select>
         </div>
         <div style="font-size:10px;color:var(--warn);margin-top:4px;">※ 在庫反映時は譲受（受け取り）扱いになります</div>
       </div>
