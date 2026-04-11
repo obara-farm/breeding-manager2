@@ -6914,6 +6914,18 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
     .join('／').trim();
   insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  // count>1の場合は追加分も登録
+  if (count && count > 1) {
+    for (let i = 1; i < count; i++) {
+      let certQ2 = '';
+      if (date > '2025-11-05' && !op) {
+        const allQ2 = [...INSEM_BOOK_DATA, ...insemBookRecords].map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587);
+        const maxQ2 = allQ2.length > 0 ? Math.max(...allQ2) : 586;
+        certQ2 = String(maxQ2 + 1);
+      }
+      insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ2, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+    }
+  }
 }
 
 function saveInsemBookRecord(src, idx) {
