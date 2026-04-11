@@ -6502,6 +6502,9 @@ function execInsemWithOperator(action) {
       }
     }
   }
+  // insemBookRecordsの対応レコードのop欄を更新
+  const recIdx = insemBookRecords.findIndex(r => r.d === p.date && r.t === p.cowId);
+  if (recIdx >= 0) insemBookRecords[recIdx].op = p.operator;
   save(); renderInsemBook(); renderAll();
   const resultEl = document.getElementById('insembook-sync-result');
   if (resultEl) {
@@ -9894,6 +9897,7 @@ function openEtCertPreview(records) {
 function buildEtCertHTML(r, certNo) {
   var cow = cows.find(function(c){ return c.id===r.t; });
   var cowName    = cow?(cow.name||''):'';
+  var nationalId = cow&&cow.nationalId ? formatNationalId(cow.nationalId) : '';
   var dob        = cow&&cow.dob?fmtDateJP(cow.dob):'';
   var cowBreed   = cow?(cow.breed==='褐毛'?'褐毛和種':cow.breed==='黒毛'?'黒毛和種':(cow.breed||'')):'';
   var cowColor   = cow?(cow.color||''):'';
@@ -10101,7 +10105,7 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'white-space:nowrap;">名前（受卵牛）</td>' +
-        '<td style="'+V+'font-size:11pt;font-weight:bold;">'+cowName+'</td>' +
+        '<td style="'+V+'font-size:11pt;font-weight:bold;">'+cowName+(nationalId ? '　'+nationalId : '')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
