@@ -11818,34 +11818,42 @@ function renderCalves() {
         ? 'background:linear-gradient(135deg,#1a0a2a,#0f0520);border:2px solid var(--purple);'
         : 'border:1px solid var(--border);';
 
-      return `<div style="background:var(--card);${cardBg}border-radius:12px;padding:14px;margin-bottom:10px;" onclick="openEditCalfModal('${calf.id}')">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+      return `<div style="background:var(--card);${cardBg}border-radius:12px;margin-bottom:10px;overflow:hidden;">
+        <!-- サマリー行（常時表示） -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;" onclick="event.stopPropagation();toggleCalfCard('${calf.id}')">
           <div style="flex:1;min-width:0;">
-            <div style="font-size:15px;font-weight:900;color:var(--text);">
-              ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);">${calf.earTagId}</span> ` : ''}
-              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);font-weight:400;margin-right:4px;">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
-              <span style="color:var(--muted);font-size:13px;">母: </span><strong>${calf.damId}${damName?' '+damName:''}</strong>${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);margin-left:8px;font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : (pedigreeStr ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:400;">${pedigreeStr}</span>` : '')}
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:700;">${calf.earTagId}</span>` : ''}
+              ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
+              <span style="font-size:12px;color:var(--muted);">母: <strong style="color:var(--text);">${calf.damId}${damName?' '+damName:''}</strong></span>
+              ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
+              ${statusBadge}${etBadge}
+              ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
-            ${(statusBadge||etBadge) ? `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;">${statusBadge}${etBadge}</div>` : ''}
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-              生年月日: ${calf.dob ? fmtDate(calf.dob) : '—'}
-              ${ageDays !== null ? ` (生後<strong style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'}">${ageDays}日</strong>)` : ''}
+              ${calf.dob ? fmtDate(calf.dob) : '—'}${ageDays !== null ? ` (生後<strong style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'}">${ageDays}日</strong>)` : ''}
+              ${isOverdue ? ' <span style="color:var(--warn);font-weight:700;">⚠️ 移動検討</span>' : ''}
             </div>
-            ${calf.insemDate ? `<div style="font-size:11px;color:var(--muted);margin-top:1px;">${calf.insemType==='et'?'🧬 ET':'💉 AI'}年月日: <strong style="color:var(--text);">${fmtDate(calf.insemDate)}</strong></div>` : ''}
           </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:8px;">
-            ${calf.sex ? `<div style="font-size:20px;">${calf.sex==='雄'?'♂':'♀'}</div>` : ''}
-            ${calf.breed ? `<span style="background:${bc.bg};border:1px solid ${bc.border};color:${bc.color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">${calf.breed}</span>` : ''}
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">
+            ${calf.sex ? `<span style="font-size:18px;">${calf.sex==='雄'?'♂':'♀'}</span>` : ''}
+            ${calf.breed ? `<span style="background:${bc.bg};border:1px solid ${bc.border};color:${bc.color};font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;">${calf.breed}</span>` : ''}
+            <span id="calf-chev-${calf.id}" style="color:var(--muted);font-size:14px;transition:transform .2s;">▼</span>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-          ${isEtCalf && calf.embryoNo ? `<div style="margin-bottom:2px;font-size:11px;">胚番号: <strong style="color:var(--purple);font-family:'JetBrains Mono',monospace;">${calf.embryoNo}</strong></div>` : ''}
-          ${calf.weight ? `<div>生まれた時の大きさ: <strong style="color:var(--text);">${calf.weight}</strong></div>` : ''}
-        </div>
-        ${isOverdue ? `<div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:8px;">⚠️ 生後4ヶ月超 — 移動を検討してください</div>` : ''}
-        ${isEtFemale && calf.status === 'active' && !isFreemartin ? `<div style="font-size:11px;color:var(--purple);margin-bottom:8px;">🧬 ET産仔の雌牛です — 繁殖候補の保留を検討してください</div>` : ''}
-        ${isFreemartin ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">⚠️ 異性双子（フリーマーチン）のため繁殖候補には登録できません</div>` : ''}
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <!-- 詳細（展開時表示） -->
+        <div id="calf-detail-${calf.id}" style="display:none;padding:0 14px 14px 14px;border-top:1px solid var(--border);">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:8px;margin-top:8px;">
+            ${!isEtCalf && pedigreeStr ? `<div>系統: <strong style="color:var(--text);">${pedigreeStr}</strong></div>` : ''}
+            ${calf.insemDate ? `<div>${isEtCalf?'🧬 ET':'💉 AI'}年月日: <strong style="color:var(--text);">${fmtDate(calf.insemDate)}</strong></div>` : ''}
+            ${calf.weight ? `<div>生まれた時の大きさ: <strong style="color:var(--text);">${calf.weight}</strong></div>` : ''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <button onclick="event.stopPropagation();openEditCalfModal('${calf.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">✏ 編集</button>
+          </div>
+          ${isEtFemale && calf.status === 'active' && !isFreemartin ? `<div style="font-size:11px;color:var(--purple);margin-bottom:8px;">🧬 ET産仔の雌牛です — 繁殖候補の保留を検討してください</div>` : ''}
+          ${isFreemartin ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">⚠️ 異性双子（フリーマーチン）のため繁殖候補には登録できません</div>` : ''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
           ${calf.status === 'active' && canKeep ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="keep" style="background:#0a2a0a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">🌟 繁殖候補として保留</button>
           ` : ''}
@@ -11872,8 +11880,18 @@ function renderCalves() {
             <button class="calf-undo-death-btn" data-calfid="${calf.id}" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">↩ 死亡記録を取り消す</button>
           `}
         </div>
+        </div>
       </div>`;
     }).join('');
+}
+
+function toggleCalfCard(id) {
+  const detail = document.getElementById('calf-detail-' + id);
+  const chev = document.getElementById('calf-chev-' + id);
+  if (!detail) return;
+  const isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : '';
+  if (chev) chev.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 
 function recordCalfDeath(id) {
