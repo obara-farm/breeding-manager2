@@ -2548,9 +2548,9 @@ function loadData() {
   let calvesFixed = false;
   calves.forEach(calf => {
     if (calf.insemType !== 'et' && !calf.donor) return;
-    // embryoNoがロット番号のみ（ハイフン+数字なし）の場合補完
+    // embryoNoが既に完全形（ハイフン+数字あり）なら修正不要
     const embryoNo = calf.embryoNo || '';
-    if (embryoNo && !/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoNo)) return;
+    if (embryoNo && /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoNo)) return;
     if (!embryoNo || /^\d{2}[A-L]\d{2}B\d+$/.test(embryoNo)) {
       // 授精簿からdamIdと授精日で胚番号を特定
       const damId = calf.damId;
