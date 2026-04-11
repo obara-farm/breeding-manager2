@@ -6480,6 +6480,13 @@ function switchTab(name) {
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
+  // 授精簿以外に切り替えたらハイライト・検索フィルターをクリア
+  if (name !== 'insembook' && window._calfCertHighlights) {
+    window._calfCertHighlights = null;
+    window._calfCertYear = null;
+    const searchEl = document.getElementById('insembook-search');
+    if (searchEl && searchEl.value) { searchEl.value = ''; renderInsemBook(); }
+  }
   if (name==='stats') renderStats();
   if (name==='history') renderHistory();
   if (name==='semen') renderSemen();
@@ -7143,6 +7150,8 @@ function renderInsemBook() {
       );
     }).join('');
   }
+  // 子牛証明書ハイライトを再適用
+  if (window._calfCertHighlights) setTimeout(applyCalfCertHighlights, 50);
 }
 
 function toggleInsemCard(uid) {
@@ -11902,38 +11911,58 @@ function goToInsemBookForCalves() {
   const checked = Array.from(document.querySelectorAll('.calf-cert-check:checked'));
   if (!checked.length) { alert('証明書を発行する子牛にチェックを入れてください'); return; }
 
-  // チェックされた子牛の母牛IDと誕生日から授精日を特定
   const targets = checked.map(c => {
-    const calfId = c.dataset.calfid;
-    const calf = calves.find(x=>x.id===calfId);
-    return calf ? { damId: calf.damId, insemDate: calf.insemDate, dob: calf.dob } : null;
+    const calf = calves.find(x=>x.id===c.dataset.calfid);
+    return calf ? { damId: calf.damId, insemDate: calf.insemDate } : null;
   }).filter(Boolean);
 
-  // 授精簿タブに移動
-  switchTab('insembook');
+  if (!targets.length || !targets[0].insemDate) { alert('授精日が登録されていません'); return; }
 
-  // 少し待ってからハイライト
+  // 授精日から年度を特定
+  const firstDate = targets[0].insemDate;
+  const d = new Date(firstDate);
+  const fy = d.getMonth() >= 3 ? d.getFullYear() - 2018 : d.getFullYear() - 2019;
+  const yearStr = 'R' + fy;
+
+  // ハイライト対象を記録
+  window._calfCertHighlights = targets.map(t => ({ damId: t.damId, date: t.insemDate }));
+  window._calfCertYear = yearStr;
+
+  // 授精簿タブに移動して年度セット・検索欄に母牛IDをセット
+  switchTab('insembook');
   setTimeout(() => {
-    targets.forEach(t => {
-      if (!t.insemDate) return;
-      // 授精簿の該当行を探してハイライト
-      const allRows = document.querySelectorAll('#insembook-tbody tr');
-      allRows.forEach(row => {
-        const dateInput = row.querySelector('input[type="date"]');
-        const rowDate = dateInput ? dateInput.value : '';
-        // 母牛IDがrow内に含まれるか確認
-        if (rowDate === t.insemDate && row.textContent.includes(t.damId)) {
-          row.style.outline = '3px solid var(--purple)';
-          row.style.background = 'rgba(139,92,246,0.15)';
-          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => {
-            row.style.outline = '';
-            row.style.background = '';
-          }, 5000);
-        }
-      });
-    });
-  }, 500);
+    const yearSel = document.getElementById('insembook-year');
+    if (yearSel) {
+      yearSel.value = yearStr;
+      yearSel.dataset.userChanged = '1';
+    }
+    // 検索欄に母牛IDをセット（複数の場合は最初の1頭）
+    const searchEl = document.getElementById('insembook-search');
+    if (searchEl) {
+      searchEl.value = targets[0].damId;
+    }
+    renderInsemBook();
+  }, 300);
+}
+
+function applyCalfCertHighlights() {
+  if (!window._calfCertHighlights) return;
+  const rows = document.querySelectorAll('#insembook-tbody tr');
+  let firstHighlighted = null;
+  rows.forEach(row => {
+    row.style.outline = '';
+    row.style.background = '';
+    const dateInput = row.querySelector('input[type="date"]');
+    const rowDate = dateInput ? dateInput.value : '';
+    const rowText = row.textContent;
+    const match = window._calfCertHighlights.some(t => t.date === rowDate && rowText.includes(t.damId));
+    if (match) {
+      row.style.outline = '3px solid var(--purple)';
+      row.style.background = 'rgba(139,92,246,0.18)';
+      if (!firstHighlighted) firstHighlighted = row;
+    }
+  });
+  if (firstHighlighted) firstHighlighted.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function recordCalfDeath(id) {
