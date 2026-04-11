@@ -2166,6 +2166,7 @@ textarea{resize:vertical;}
       <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;">🧬 使用した受精卵</div>
       <div class="form-group" style="margin-bottom:6px;">
         <label style="font-size:11px;">在庫から選択</label>
+        <input type="text" id="qr-embryo-search" placeholder="🔍 例: R6-0042（ストロー番号で検索）" style="width:100%;background:var(--bg3);border:1px solid var(--purple);color:var(--text);font-size:12px;padding:6px 8px;border-radius:6px;margin-bottom:6px;" oninput="filterQrEmbryoSelect(this.value)">
         <select id="qr-embryo-select" style="font-size:13px;width:100%;" onchange="onQrEmbryoSelectChange()">
           <option value="">選択しない</option>
         </select>
@@ -4498,7 +4499,10 @@ function addEventForCow(cowId, defaultEvent) {
       embryoPanel.style.display = '';
       const sel = document.getElementById('qr-embryo-select');
       sel.innerHTML = '<option value="">選択しない</option>' +
-        embryoInventory.map(e => `<option value="${e.id}">${e.dam?e.dam+'×':''}${e.sire}${e.lot?' ('+e.lot+')':''} ${e.type==='frozen'?'凍結':'新鮮'} — 残${e.stock}本</option>`).join('');
+        embryoInventory.map(e => {
+          const nos = (e.embryoDetails||[]).map(d=>d.no||'').filter(Boolean).join(',');
+          return `<option value="${e.id}" data-nos="${nos}">${e.dam?e.dam+'×':''}${e.sire}${e.lot?' ('+e.lot+')':''} ${e.type==='frozen'?'凍結':'新鮮'} — 残${e.stock}本</option>`;
+        }).join('');
       document.getElementById('qr-embryo-name-input').value = '';
       document.getElementById('qr-embryo-dam-input').value = '';
       document.getElementById('qr-embryo-info').style.display = 'none';
@@ -12576,6 +12580,22 @@ function onQrEmbryoNameInput() {
   if (document.getElementById('qr-embryo-name-input').value.trim())
     document.getElementById('qr-embryo-select').value = '';
 }
+function filterQrEmbryoSelect(q) {
+  const sel = document.getElementById('qr-embryo-select');
+  if (!sel) return;
+  const qLower = q.trim().toLowerCase();
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) { opt.style.display = ''; return; } // 「選択しない」は常に表示
+    if (!qLower) { opt.style.display = ''; return; }
+    const text = opt.textContent.toLowerCase();
+    const nos = (opt.dataset.nos || '').toLowerCase();
+    // R6-0042 → r6-0042 / 0042 のどちらでもマッチ
+    const match = text.includes(qLower) || nos.includes(qLower) ||
+      nos.split(',').some(no => no.endsWith(qLower.replace(/^r\d+-/, '-').replace(/^0+/,'')));
+    opt.style.display = match ? '' : 'none';
+  });
+}
+
 function onQrEmbryoSelectChange() {
   const selId = document.getElementById('qr-embryo-select').value;
   const infoEl = document.getElementById('qr-embryo-info');
