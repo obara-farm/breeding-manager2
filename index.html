@@ -6863,16 +6863,18 @@ function saveInsemBookRecord(src, idx) {
     rec.n = (document.getElementById('ib-n-' + src + idx)?.value || '').trim();
     rec.q = (document.getElementById('ib-q-' + src + idx)?.value || '').trim();
     rec.m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
-    rec.op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
+    rec.op = (document.getElementById('ib-op-' + rec.d + '-' + rec.t)?.value || '').trim();
   } else {
-    // 固定データの上書き
     const key = src + '_' + idx;
     if (!insemBookEdits[key]) insemBookEdits[key] = {};
+    const baseRec = INSEM_BOOK_DATA[idx];
+    const recD = (insemBookEdits[key].d || (baseRec && baseRec.d) || '');
+    const recT = (baseRec && baseRec.t) || '';
     if (dEl && dEl.value) insemBookEdits[key].d = dEl.value;
     insemBookEdits[key].n = (document.getElementById('ib-n-' + src + idx)?.value || '').trim();
     insemBookEdits[key].q = (document.getElementById('ib-q-' + src + idx)?.value || '').trim();
     insemBookEdits[key].m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
-    insemBookEdits[key].op = (document.getElementById('ib-op-' + src + idx)?.value || '').trim();
+    insemBookEdits[key].op = (document.getElementById('ib-op-' + recD + '-' + recT)?.value || '').trim();
   }
   save();
   // ET行のNo欄を更新（全再描画せず該当セルだけ更新）
@@ -10105,7 +10107,7 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'white-space:nowrap;">名前（受卵牛）</td>' +
-        '<td style="'+V+'font-size:11pt;font-weight:bold;">'+cowName+(nationalId ? '　'+nationalId : '')+'</td>' +
+        '<td style="'+V+'font-size:11pt;font-weight:bold;">'+(cowName && cowName !== 'F1' ? cowName+(nationalId?'　'+nationalId:'') : (nationalId||cowName))+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'font-size:8.5pt;">家畜登録機関名<br>及び登録番号</td>' +
