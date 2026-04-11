@@ -11321,11 +11321,20 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
   embryoSel.innerHTML = '<option value="">選択しない</option>' +
     embryoInventory.map(e=>`<option value="${e.id}">${e.dam?e.dam+'×':''}${e.sire}${e.breed?' ('+e.breed+')':''}${e.type==='frozen'?' 凍結':' 新鮮'} — 残${e.stock}本</option>`).join('');
 
-  // 直近の受精記録から受精卵・精液情報を自動補完
+  // 直近の受精記録から受精卵・精液情報を自動補完（ET記録を優先）
   const cowEvents = cow?.events || [];
-  const lastInsem = [...cowEvents].reverse().find(e =>
+  // ET記録があればそれを優先、なければ最新のAI/ET
+  const etEvents = [...cowEvents].reverse().filter(e =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
   );
+  // ロット番号形式のmemoを持つものをETとして優先
+  const isLotMemo = e => {
+    const m = e.memo||'';
+    const s = m.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim();
+    return /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(s) || m.includes('胚番号:');
+  };
+  const etFirst = etEvents.find(e => e.type==='et_done' || isLotMemo(e));
+  const lastInsem = etFirst || etEvents[0];
   if (lastInsem) {
     const memo = lastInsem.memo || '';
     const memoSire = (memo.replace(/^精液:/,'').replace(/^胚番号:/,'')).split('／')[0].trim();
@@ -11652,10 +11661,27 @@ function saveCalvingRecord() {
     const sizeNum2 = size2 === 'large' ? 4 : size2 === 'small' ? 2 : size2 === 'unknown' ? null : (parseInt(size2)||3);
     const sizeScore2 = sizeNum2;
     const sizeLabel3b = size2 === 'unknown' ? '不明' : String(sizeNum2);
+    // ET双子の場合、同日の2件目のET記録から胚番号を取得
+    let embryoNo2 = '';
+    if (insemType === 'et' && insemDate) {
+      const etEvents2 = (cow?.events||[]).filter(e =>
+        e.date === insemDate && ['ai_done','et_done'].includes(e.type) &&
+        (e.memo||'').match(/胚番号:|精液:\d{2}[A-L]/)
+      );
+      // 1件目と異なる胚番号を持つ2件目を取得
+      const second = etEvents2.find(e => {
+        const m = (e.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim();
+        return m !== embryoNo && /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(m);
+      });
+      if (second) {
+        embryoNo2 = second.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].split(' ')[0].trim();
+      }
+    }
     calves.push({
       id: Math.random().toString(36).slice(2),
       damId: cowId, dob: calvingDate,
       sire, donor, maternalSire, maternalGrandSire,
+      embryoNo: embryoNo2 || embryoNo,
       sex: sexLabel(sex2),
       breed: coatToBreed(coat2),
       weight: sizeLabel3b, memo: isStillbirthRecord ? '死産（双子）' : '双子',
