@@ -13194,7 +13194,15 @@ function renderReport() {
         const detailHtml = monthEntries.map(h => {
           const typeLabel = {restock:'🤝 譲受', use: isEmbryo?'🧬 使用':'💉 使用', transfer:'📤 譲渡', discard:'🗑 廃棄'}[h.type]||h.type;
           const sign = h.type==='restock' ? '+' : '-';
-          const cowStr = h.cowId ? ` ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
+          let cowStr = h.cowId ? ` ${h.cowId} ${cowDisplayName(h.cowId)||''}` : '';
+          // 譲渡レコードでcowIdがない場合、授精簿から日付と精液名で牛を特定
+          if (!cowStr && h.type === 'transfer' && h.date) {
+            const allBookRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
+            const matched = allBookRecs.filter(r => r.d === h.date && r.s === n);
+            if (matched.length > 0) {
+              cowStr = ' ' + matched.map(r => `${r.t} ${cowDisplayName(r.t)||''}`).join('・');
+            }
+          }
           const memoStr = h.memo ? ` ${h.memo}` : '';
           return `${fmtDate(h.date)} ${typeLabel} ${sign}${h.count}本${cowStr}${memoStr}`;
         }).join('\n');
