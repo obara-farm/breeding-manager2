@@ -11359,22 +11359,24 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
         if (embryoMatch) document.getElementById('cr-embryo-select').value = embryoMatch.id;
       } else if (embryoRaw) {
         // ロット番号形式（例：25E19B2-3）の場合はinventoryから取得
-        const isLotFmt = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoRaw);
+        // embryoRawにスペース以降のメモが含まれる場合は先頭部分のみ使用
+        const embryoRawLot = embryoRaw.split(' ')[0].trim();
+        const isLotFmt = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(embryoRawLot);
         if (isLotFmt) {
-          const lotKey = embryoRaw.replace(/-\d+$/, '');
+          const lotKey = embryoRawLot.replace(/-\d+$/, '');
           const invByLot = embryoInventory.find(e => e.lot === lotKey);
           if (invByLot) {
             document.getElementById('cr-sire').value = invByLot.sire || '';
             document.getElementById('cr-donor').value = invByLot.dam || '';
             document.getElementById('cr-embryo-select').value = invByLot.id;
           } else {
-            document.getElementById('cr-sire').value = embryoRaw;
+            document.getElementById('cr-sire').value = embryoRawLot;
             document.getElementById('cr-donor').value = '';
           }
         } else {
-          document.getElementById('cr-sire').value = embryoRaw;
+          document.getElementById('cr-sire').value = embryoRawLot;
           document.getElementById('cr-donor').value = '';
-          const embryoMatch = embryoInventory.find(e => embryoRaw.includes(e.sire));
+          const embryoMatch = embryoInventory.find(e => embryoRawLot.includes(e.sire));
           if (embryoMatch) {
             document.getElementById('cr-embryo-select').value = embryoMatch.id;
             if (embryoMatch.dam) document.getElementById('cr-donor').value = embryoMatch.dam;
