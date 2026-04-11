@@ -3589,7 +3589,7 @@ function renderPregList() {
     const lastAiEt = [...(cow?.events||[])].reverse().find(e=>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
-    const isEt = lastAiEt && ['et_done','estrus_et'].includes(lastAiEt.type);
+    const isEt = lastAiEt && (['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((lastAiEt.memo||'').replace(/^胚番号:/,'').split('／')[0].trim()));
     const insemDate = lastAiEt ? (isEt ? addDays(lastAiEt.date,-7) : lastAiEt.date) : null;
     const daysSince = insemDate ? diffDays(todayStr, insemDate) : 0;
     const daysToPreg = diffDays(t.date, todayStr);
@@ -3997,7 +3997,7 @@ function renderCowList() {
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
     // 最終受精・移植情報
     const lastInsemLabel = lastAiEt ? (() => {
-      const isEt = ['et_done','estrus_et'].includes(lastAiEt.type);
+      const isEt = ['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((lastAiEt.memo||'').replace(/^胚番号:/,'').split('／')[0].trim());
       const typeStr = isEt ? 'ET' : 'AI';
       const sireStr = lastAiEt.memo ? lastAiEt.memo.replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
       // ET：移植日-7日が受精日、AI：授精日がそのまま受精日
@@ -4108,7 +4108,7 @@ function renderCowList() {
     const insemCount = insemEvents.length;
     const insemHistoryLabel = showInsemHistory && insemCount > 0 ? (() => {
       const rows = insemEvents.map((e, i) => {
-        const typeStr = ['et_done','estrus_et'].includes(e.type) ? '🧬ET' : '💉AI';
+        const typeStr = (['et_done','estrus_et'].includes(e.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((e.memo||'').replace(/^胚番号:/,'').split('／')[0].trim())) ? '🧬ET' : '💉AI';
         const sireStr = e.memo ? e.memo.replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
         const eIdx = (cow.events||[]).indexOf(e);
         return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);">
@@ -10918,7 +10918,7 @@ function executeReset(goToRegister) {
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
   );
   if (lastAiEt && reason === 'estrus') {
-    const isEt = ['et_done','estrus_et'].includes(lastAiEt.type);
+    const isEt = ['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((lastAiEt.memo||'').replace(/^胚番号:/,'').split('／')[0].trim());
     const pregDate2 = addDays(lastAiEt.date, 45);
     const todayStr2 = today();
     const taskDate = pregDate2 >= todayStr2 ? pregDate2 : todayStr2;
