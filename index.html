@@ -12384,11 +12384,7 @@ function renderEmbryo() {
     const items = groups[key];
     // グループ全体の合計在庫
     const totalStock = items.reduce((s,e) => s+e.stock, 0);
-    const anyLow = items.some(e => {
-      if (e.noAlert) return false;
-      if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
-      return e.stock <= (e.alertThreshold||2);
-    });
+    const anyLow = false; // 胚在庫アラート無効
     const sample = items[0];
     const damName = sample.dam || '';
     const sireName = sample.sire || '';
@@ -12429,11 +12425,7 @@ function renderEmbryo() {
     const lotCards = lotOrder.map((lotKey, lIdx) => {
       const lotItems = lotMap[lotKey];
       const lotStock = lotItems.reduce((s,e)=>s+e.stock, 0);
-      const isLow = lotItems.some(e=>{
-        if (e.noAlert) return false;
-        if (e.type==='fresh' && e.stock===0 && (e.history||[]).some(h=>h.type==='use')) return false;
-        return e.stock<=(e.alertThreshold||2);
-      });
+      const isLow = false; // 胚在庫アラート無効
       const collDate = lotItems[0].collectionDate || '';
       // 全アイテムの胚詳細を統合
       const allDetails = [];
