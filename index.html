@@ -12350,16 +12350,9 @@ function renderEmbryo() {
   // stockは各操作で直接管理するためsyncは呼ばない
   // embryoInventory.forEach(syncStockFromHistory);
 
-  const lowItems = embryoInventory.filter(e => {
-    if (e.noAlert) return false;
-    if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
-    return e.stock <= (e.alertThreshold || 2);
-  });
+  // 胚在庫アラートは不要のため非表示
   const alertEl = document.getElementById('embryo-low-alert');
-  if (lowItems.length) {
-    alertEl.style.display = '';
-    alertEl.innerHTML = `🚨 <strong>在庫僅少：</strong> ${lowItems.map(e=>`${e.dam?e.dam+"×":""}${e.sire}（残${e.stock}本）`).join('、')}`;
-  } else { alertEl.style.display = 'none'; }
+  if (alertEl) alertEl.style.display = 'none';
 
   const container = document.getElementById('embryo-list-container');
   const empty = document.getElementById('embryo-empty');
