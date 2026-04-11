@@ -6521,7 +6521,7 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) { alert(`耳標 ${cowId} の個体が見つかりません`); return; }
   cow.events = cow.events || [];
-  const isET = sire.includes('×');
+  const isET = sire.includes('×') || (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire));
   const eventType = isET ? 'et_done' : 'ai_done';
   // 編集済み日付を先に取得（既反映チェックに使用）
   const _allRecs0 = [...INSEM_BOOK_DATA.map((r,i)=>({...r,_src:'static',_idx:i})), ...insemBookRecords.map((r,i)=>({...r,_src:'dynamic',_idx:i}))];
@@ -6531,8 +6531,11 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
   if (cow.events.some(e => e.type === eventType && (e.date === date || e.date === checkDate))) {
     // 反映済み→取り消し確認
     if (!confirm(`${cowId} ${fmtDate(checkDate)} の反映を取り消しますか？\n（cow.events・タスク・在庫履歴を削除します）`)) return;
-    // cow.eventsから削除
-    cow.events = cow.events.filter(e => !(e.type === eventType && (e.date === date || e.date === checkDate)));
+    // cow.eventsから削除（同日のai_doneも合わせて削除）
+    cow.events = cow.events.filter(e => !(
+      (e.type === eventType || (isET && e.type === 'ai_done')) &&
+      (e.date === date || e.date === checkDate)
+    ));
     // タスク削除
     tasks = tasks.filter(t => !(
       t.cowId === cowId && !t.done &&
