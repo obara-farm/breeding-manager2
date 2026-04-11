@@ -9887,23 +9887,14 @@ function buildEtCertHTML(r, certNo) {
   // collectionRecordsからロット番号を取得（invRefがない場合も）
   if(!lotKey && invRef) lotKey = invRef.lot || '';
 
-  // 胚証明書番号を生成（右上の「第〇〇号」部分）
-  var embryoCertStr = '';
+  // edRefをlotSeqで取得（胚証明書番号・ステージ・ランク取得に使用）
   var edRef = null;
   if(invRef) {
     if(embryoNo) edRef = (invRef.embryoDetails||[]).find(function(ed){return ed.no===embryoNo;});
-    // embryoNoがなければlotSeq（連番-1）のインデックスで取得
     if(!edRef) edRef = (invRef.embryoDetails||[])[lotSeq] || (invRef.embryoDetails||[])[0] || null;
   }
   var embryoNoForCert = embryoNo || (edRef ? edRef.no : '');
-  if(embryoNoForCert && lotKey) {
-    var caneStr = edRef ? ((edRef.cane||'').replace(/^.*-([A-Za-z]+)$/, '$1') || '') : '';
-    embryoCertStr = lotKey + (caneStr?caneStr:'') + '-' + embryoNoForCert;
-  } else if(embryoNoForCert) {
-    embryoCertStr = embryoNoForCert;
-  } else if(lotKey) {
-    embryoCertStr = lotKey;
-  }
+  var embryoCertStr = ''; // embryoType確定後に生成
 
   var si=semenInventory.find(function(s){return s.name===sireName;});
   var sireCert  =si?(si.sireCert||''):'';
@@ -9982,6 +9973,20 @@ function buildEtCertHTML(r, certNo) {
 
   var etDateStr=fmtDateJP(r.d);
 
+  // 胚証明書番号を生成（embryoType確定後）
+  var caneStr = edRef ? ((edRef.cane||'').replace(/^.*-([A-Za-z]+)$/, '$1') || '') : '';
+  if(lotKey) {
+    if(embryoType === '凍結') {
+      // 凍結胚：ロット+ケーン-胚番号（例：25J09B1A-01L237R7-0029）
+      embryoCertStr = lotKey + (caneStr?caneStr:'') + (embryoNoForCert ? '-'+embryoNoForCert : '');
+    } else {
+      // 新鮮胚：免許番号-ロット-連番（例：01L237-25J09B1-1）
+      embryoCertStr = '01L237-' + lotKey + '-' + (lotSeq + 1);
+    }
+  } else if(embryoNoForCert) {
+    embryoCertStr = embryoNoForCert;
+  }
+
   var bd='border:1px solid #000;';
   var V =bd+'vertical-align:middle;padding:3px 6px;font-size:10pt;';
   var Vc=bd+'vertical-align:middle;text-align:center;padding:3px 4px;font-size:9.5pt;';
@@ -10006,7 +10011,7 @@ function buildEtCertHTML(r, certNo) {
       '<span style="font-size:10pt;white-space:nowrap;">第　'+certNo+'　号</span>' +
       '<span style="flex:1;text-align:center;font-size:16pt;font-weight:bold;letter-spacing:4px;">体内受精卵移植証明書</span>' +
       '<span style="font-size:10pt;white-space:nowrap;">' +
-        (embryoType==='新鮮' ? embryoCertStr : ('第　<span contenteditable="true" style="display:inline-block;min-width:40mm;border-bottom:1px solid #000;">'+embryoCertStr+'</span>　号')) +
+        embryoCertStr +
         '　<strong>'+embryoType+'</strong>' +
       '</span>' +
     '</div>' +
