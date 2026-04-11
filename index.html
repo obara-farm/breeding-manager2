@@ -9862,8 +9862,14 @@ function buildEtCertHTML(r, certNo) {
   // r.sからロット番号と連番を取得（25J09B1-1 → lot=25J09B1, seq=1）
   var isLotFormat = /^\d{2}[A-L]\d{2}B\d/.test(r.s||'');
   var lotKey = isLotFormat ? (r.s||'').replace(/-\d+$/, '') : '';
-  var lotSeq = isLotFormat ? (parseInt((r.s||'').match(/-(\d+)$/)?.[1]||'1')-1) : 0; // 0-indexed
-  var invByLot = lotKey ? embryoInventory.find(function(e){ return e.lot === lotKey; }) : null;
+  var lotSeq = isLotFormat ? (parseInt((r.s||'').match(/-(\d+)$/)?.[1]||'1')-1) : 0;
+  // 新鮮胚：r.sが「ロット-連番」形式（例：25J09B1-1）→ 末尾が1-2桁の数字のみ
+  // 凍結胚：r.sが「ロット+ケーン-胚番号」形式（例：25J09B1A-01L237R7-0029）→ケーンあり
+  var isFreshEmbryo = isLotFormat && /^\d{2}[A-L]\d{2}B\d+-\d{1,2}$/.test(r.s||'');
+  var invByLot = lotKey ? (
+    embryoInventory.find(function(e){ return e.lot === lotKey && e.type === (isFreshEmbryo?'fresh':'frozen'); }) ||
+    embryoInventory.find(function(e){ return e.lot === lotKey; })
+  ) : null;
   var invByNo = null;
   if(embryoNo) {
     embryoInventory.forEach(function(inv){
@@ -9909,7 +9915,8 @@ function buildEtCertHTML(r, certNo) {
   var donorBreed =dc?(dc.breed==='褐毛'?'褐毛和種':dc.breed==='黒毛'?'黒毛和種':(dc.breed||'')):'';
 
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
-  var collectDate='',aiDate='',stage='',rank='',embryoType='凍結';
+  var collectDate='',aiDate='',stage='',rank='';
+  var embryoType = isFreshEmbryo ? '新鮮' : '凍結';
   var semenCertNoFromCol = '';
 
   if(embryoNo2){
