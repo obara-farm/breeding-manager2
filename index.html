@@ -9926,6 +9926,16 @@ function buildEtCertHTML(r, certNo) {
       });
     });
   }
+  // 新鮮胚の場合はcollectionRecordsのfreshEmbryosからステージ・ランクを取得
+  if(isFreshEmbryo && (!stage||!rank)) {
+    var crForStage = lotKey ? collectionRecordsNew.find(function(c){return c.lot===lotKey;}) : null;
+    if(crForStage) {
+      var feMatch = (crForStage.freshEmbryos||[]).find(function(fe){
+        return fe.embryoNo === r.s || fe.embryoNo === (lotKey+'-'+(lotSeq+1));
+      });
+      if(feMatch) { if(!stage) stage=feMatch.stage||''; if(!rank) rank=feMatch.rank||''; }
+    }
+  }
   // ステージ・ランク・embryoTypeをinvRefから補完
   if(!stage||!rank) {
     var edTarget = null;
