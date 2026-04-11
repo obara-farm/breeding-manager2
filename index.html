@@ -6965,11 +6965,15 @@ function renderInsemBook() {
 
   let data = combined.filter(r => r.y === year);
   if (q) {
+    // `|`区切りで複数キーワードのOR検索に対応
+    const qParts = q.split('|').map(s=>s.trim()).filter(Boolean);
     data = data.filter(r =>
-      r.t.toLowerCase().includes(q) ||
-      r.c.toLowerCase().includes(q) ||
-      r.s.toLowerCase().includes(q) ||
-      r.n.toLowerCase().includes(q)
+      qParts.some(qp =>
+        r.t.toLowerCase().includes(qp) ||
+        r.c.toLowerCase().includes(qp) ||
+        r.s.toLowerCase().includes(qp) ||
+        r.n.toLowerCase().includes(qp)
+      )
     );
   }
   document.getElementById('insembook-count').textContent = data.length + '件';
@@ -11936,10 +11940,11 @@ function goToInsemBookForCalves() {
       yearSel.value = yearStr;
       yearSel.dataset.userChanged = '1';
     }
-    // 検索欄に母牛IDをセット（複数の場合は最初の1頭）
+    // 検索欄に母牛IDを|区切りでセット
     const searchEl = document.getElementById('insembook-search');
     if (searchEl) {
-      searchEl.value = targets[0].damId;
+      const uniqueDamIds = [...new Set(targets.map(t=>t.damId))];
+      searchEl.value = uniqueDamIds.join('|');
     }
     renderInsemBook();
   }, 300);
