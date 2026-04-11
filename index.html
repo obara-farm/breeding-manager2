@@ -11594,11 +11594,27 @@ function saveCalvingRecord() {
   // 死産判定（メモに「死産」が含まれる場合）
   const isStillbirthRecord = memo.includes('死産');
 
+  // ET時の胚番号を取得
+  let embryoNo = '';
+  if (insemType === 'et') {
+    const embryoSelId2 = document.getElementById('cr-embryo-select').value;
+    if (embryoSelId2) {
+      const eInv = embryoInventory.find(x=>x.id===embryoSelId2);
+      // 新鮮胚ならfreshEmbryos、凍結ならembryoDetailsから取得
+      // 産仔記録時点では特定の胚番号は不明なのでlot番号を記録
+      if (eInv) embryoNo = eInv.lot || '';
+    }
+    // cr-sireが胚番号形式ならそのまま使用
+    const crSire = document.getElementById('cr-sire').value.trim();
+    if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(crSire)) embryoNo = crSire;
+  }
+
   // 子牛1頭目を登録
   calves.push({
     id: Math.random().toString(36).slice(2),
     damId: cowId, dob: calvingDate,
     sire, donor, maternalSire, maternalGrandSire,
+    embryoNo,
     sex: sexLabel(sex),
     breed: coatToBreed(coat),
     weight: sizeLabel3, memo,
@@ -11823,16 +11839,7 @@ function renderCalves() {
           </div>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
-          ${isEtCalf ? (() => {
-            // 胚番号を採卵記録から取得
-            const donorCowForEmbryo = calf.donor ? cows.find(c=>c.name===calf.donor||c.id===calf.donor) : null;
-            const crForEmbryo = donorCowForEmbryo ? collectionRecordsNew.find(cr=>cr.donorId===donorCowForEmbryo.id&&cr.sire===calf.sire) : null;
-            const embryoNos = crForEmbryo ? [
-              ...(crForEmbryo.frozenEmbryos||[]).map(e=>e.no||e.embryoNo),
-              ...(crForEmbryo.freshEmbryos||[]).map(e=>e.embryoNo)
-            ].filter(Boolean).join('、') : '';
-            return embryoNos ? `<div style="margin-bottom:2px;font-size:11px;">胚番号: <strong style="color:var(--purple);font-family:'JetBrains Mono',monospace;">${embryoNos}</strong></div>` : '';
-          })() : ''}
+          ${isEtCalf && calf.embryoNo ? `<div style="margin-bottom:2px;font-size:11px;">胚番号: <strong style="color:var(--purple);font-family:'JetBrains Mono',monospace;">${calf.embryoNo}</strong></div>` : ''}
           ${calf.weight ? `<div>生まれた時の大きさ: <strong style="color:var(--text);">${calf.weight}</strong></div>` : ''}
         </div>
         ${isOverdue ? `<div style="font-size:11px;font-weight:700;color:var(--warn);margin-bottom:8px;">⚠️ 生後4ヶ月超 — 移動を検討してください</div>` : ''}
