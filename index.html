@@ -3278,7 +3278,12 @@ function renderGrouped(taskList) {
           t.action === '発情確認 ＋ GnRH ＋ 授精' ||
           t.action.includes('発情確認（翌日）')
         );
-        const memoHtml = t.memo ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${t.memo}</span>` : '';
+        const _memoDisp = (() => {
+          if (!t.memo) return '';
+          const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
+          return isLotMemo ? t.memo.replace(/^精液:/,'ET:') : t.memo;
+        })();
+        const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
           <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
@@ -3432,7 +3437,12 @@ function taskWrapHtml(t, isOverdue) {
   const overdueDays = isOverdue ? diffDays(today(), t.date) : 0;
   const name = cowDisplayName(t.cowId);
   const timeTag = t.timeOfDay ? `<span style="background:${t.timeOfDay==='朝'?'#1a3a1a':'#0a0a2a'};color:${t.timeOfDay==='朝'?'#4ade80':'#a78bfa'};font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">${t.timeOfDay}</span>` : '';
-  const memoHtml = t.memo ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${t.memo}</span>` : '';
+  const _memoDisp = (() => {
+    if (!t.memo) return '';
+    const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
+    return isLotMemo ? t.memo.replace(/^精液:/,'ET:') : t.memo;
+  })();
+  const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
   const hasPregBtn = t.action.includes('妊娠鑑定');
   const hasColBtn = t.action.includes('採卵') || t.action.includes('受精卵回収');
   const hasRecipBtn = (t.action.includes('受卵牛') && t.action.includes('CIDR')) || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)';
@@ -3484,7 +3494,10 @@ function taskWrapHtml(t, isOverdue) {
                 ${isOverdue?`<span class="badge badge-overdue" style="font-size:9px;">${overdueDays}日超過</span>`:''}
               </div>
               <div style="font-size:12px;color:var(--text);font-weight:600;margin-top:1px;">${t.action}${memoHtml}</div>
-              ${t.detail?`<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}</div>`:''}
+              ${t.detail?`<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(() => {
+                const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((t.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
+                return isLotMemo ? t.detail.replace(/^AI後/,'ET後').replace(/\(AI日:/,'(ET日:') : t.detail;
+              })()}</div>`:''}
             </div>
             <button onclick="event.stopPropagation();openDeleteTask('${t.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:14px;cursor:pointer;padding:4px 10px;flex-shrink:0;border-radius:6px;line-height:1;">✕</button>
           </div>
