@@ -792,17 +792,20 @@ textarea{resize:vertical;}
       <div style="padding:10px 14px 0;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;">🐄 血統</div>
       <div class="lf-row" style="flex-direction:column;align-items:stretch;gap:4px;padding-top:6px;padding-bottom:10px;">
         <!-- ラベル行：父 / 母（母の父） / ラベルなし -->
-        <div style="display:grid;grid-template-columns:1fr 14px 1fr 10px 1fr 10px 14px 1fr;font-size:10px;color:var(--muted);font-weight:700;text-align:center;">
-          <span>父</span><span></span><span>母</span><span></span><span>母の父</span><span></span><span></span><span></span>
+        <div id="calf-pedigree-labels" style="display:grid;grid-template-columns:1fr 14px 1fr 10px 1fr 10px 14px 1fr;font-size:10px;color:var(--muted);font-weight:700;text-align:center;">
+          <span>父</span><span></span><span id="calf-dam-label">母</span><span></span><span id="calf-maternal-sire-label">母の父</span><span></span><span></span><span></span>
         </div>
         <!-- 入力行：□ × □（□） × □ -->
         <div style="display:grid;grid-template-columns:1fr 14px 1fr 10px 1fr 10px 14px 1fr;align-items:center;gap:0;">
           <input type="text" id="calf-sire" placeholder="弦球" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 4px;color:var(--text);font-size:12px;text-align:center;outline:none;width:100%;">
           <span style="color:var(--muted);font-weight:700;text-align:center;font-size:13px;">×</span>
           <div style="position:relative;width:100%;">
+            <!-- AI用：生みの親（受卵牛）-->
             <input type="text" id="calf-dam-name" placeholder="みなと" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 4px;color:var(--text);font-size:12px;font-weight:700;text-align:center;outline:none;width:100%;" oninput="onCalfDamInput(this.value)" autocomplete="off">
             <input type="hidden" id="calf-dam-id-hidden">
             <div id="calf-dam-ac" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg2);border:1px solid var(--accent2);border-radius:8px;z-index:300;max-height:160px;overflow-y:auto;"></div>
+            <!-- ET用：ドナー牛名 -->
+            <input type="text" id="calf-donor-name" placeholder="ドナー牛名" style="display:none;background:var(--bg2);border:1px solid var(--purple);border-radius:7px;padding:7px 4px;color:var(--purple);font-size:12px;font-weight:700;text-align:center;outline:none;width:100%;">
           </div>
           <span style="color:var(--muted);text-align:center;font-size:13px;font-weight:700;">（</span>
           <input type="text" id="calf-maternal-sire" placeholder="春山都" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 4px;color:var(--text);font-size:12px;text-align:center;outline:none;width:100%;">
@@ -826,7 +829,7 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">授精種別</span>
         <div class="lf-val">
-          <select id="calf-insem-type" style="font-size:13px;">
+          <select id="calf-insem-type" onchange="onCalfInsemTypeChange()" style="font-size:13px;">
             <option value="ai">💉 AI</option>
             <option value="et">🧬 ET</option>
           </select>
@@ -12095,6 +12098,10 @@ function openEditCalfModal(id) {
   document.getElementById('calf-memo').value = calf.memo || '';
   document.getElementById('calf-insem-type').value = calf.insemType || 'ai';
   document.getElementById('calf-insem-date').value = calf.insemDate || '';
+  // ET用ドナー欄をセット
+  const donorInput2 = document.getElementById('calf-donor-name');
+  if (donorInput2) donorInput2.value = calf.donor || '';
+  onCalfInsemTypeChange();
   // 繁殖候補保留中で個体識別番号未入力の場合はヒントを表示
   const hint = document.getElementById('calf-id-hint');
   if (hint) hint.style.display = (calf.status === 'kept' && !calf.nationalId) ? '' : 'none';
@@ -12104,12 +12111,26 @@ function openEditCalfModal(id) {
   }
 }
 
+function onCalfInsemTypeChange() {
+  const isEt = document.getElementById('calf-insem-type')?.value === 'et';
+  const damLabel = document.getElementById('calf-dam-label');
+  const maternalSireLabel = document.getElementById('calf-maternal-sire-label');
+  const damInput = document.getElementById('calf-dam-name');
+  const donorInput = document.getElementById('calf-donor-name');
+  if (damLabel) damLabel.textContent = isEt ? '母（ドナー）' : '母';
+  if (maternalSireLabel) maternalSireLabel.textContent = isEt ? 'ドナーの父' : '母の父';
+  if (damInput) damInput.style.display = isEt ? 'none' : '';
+  if (donorInput) donorInput.style.display = isEt ? '' : 'none';
+}
+
 function saveCalf() {
   const id = document.getElementById('calf-edit-id').value;
+  const isEtSave = document.getElementById('calf-insem-type').value === 'et';
   const data = {
     damId: document.getElementById('calf-dam-id-hidden').value || document.getElementById('calf-dam-name').value.trim(),
     dob: document.getElementById('calf-dob').value,
     sire: document.getElementById('calf-sire').value.trim(),
+    donor: isEtSave ? document.getElementById('calf-donor-name').value.trim() : '',
     maternalSire: document.getElementById('calf-maternal-sire').value.trim(),
     maternalGrandSire: document.getElementById('calf-maternal-grand-sire').value.trim(),
     sex: document.getElementById('calf-sex').value,
