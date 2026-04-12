@@ -7300,8 +7300,7 @@ function recordPregFromInsemBook(cowId, date, result) {
     const btn = document.getElementById('insembook-preg-btn');
     if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
   }
-  const taskContainer = document.getElementById('task-list');
-  if (taskContainer) renderGrouped(tasks);
+  renderAll();
   renderStats();
 }
 
