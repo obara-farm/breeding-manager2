@@ -7311,7 +7311,10 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
     })();
     const allRecs2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
     const rec2 = allRecs2.find(r => r.t === cowId && r.d === effectiveAiDate);
-    cell.innerHTML = getPregCellHtml(cowId, effectiveAiDate, rec2?.donorAI || false);
+    const newHtml = getPregCellHtml(cowId, effectiveAiDate, rec2?.donorAI || false);
+    console.log('setting innerHTML, effectiveAiDate:', effectiveAiDate, 'result:', result, 'newHtml includes陽性:', newHtml.includes('14532d'));
+    cell.innerHTML = newHtml;
+    console.log('cell.innerHTML after set:', cell.innerHTML.slice(0,80));
   }
   renderAll();
   renderStats();
