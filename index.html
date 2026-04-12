@@ -12658,7 +12658,7 @@ function onQrEmbryoSelectChange() {
       if (details && details.length && e.type === 'frozen') {
         // 使用済み胚番号を取得（history.cowIdがある = 使用済み）
         const usedNos = (e.history||[])
-          .filter(h => h.type==='use' && h.memo)
+          .filter(h => (h.type==='use'||h.type==='transfer') && h.memo)
           .map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; })
           .filter(Boolean);
         const available = details.filter(d => d.no && !usedNos.includes(d.no));
@@ -12822,7 +12822,7 @@ function renderEmbryo() {
       const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
       const detailId = `embryo-lot-detail-${gIdx}-${lIdx}`;
       const totalUsed = lotItems.reduce((s,e)=>{
-        return s + (e.history||[]).filter(h=>h.type==='use').reduce((a,b)=>a+b.count,0);
+        return s + (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer').reduce((a,b)=>a+b.count,0);
       },0);
       // 代表アイテムID（操作用）
       const mainId = lotItems[0].id;
