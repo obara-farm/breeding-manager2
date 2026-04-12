@@ -7296,9 +7296,12 @@ function recordPregFromInsemBook(cowId, date, result) {
     tasks.push({ id: Math.random().toString(36).slice(2), cowId, date: addDays(dueDate, -10), action: '🏠 産室移動', detail: `分娩予定日（${fmtDate(dueDate)}）の10日前`, color: '#a78bfa', priority: 'high', done: false, timeOfDay: '' });
   } else {
     cow.status = 'open';
-    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定')));
+    cow.dueDate = null;
+    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action === '🏠 産室移動' || t.action === '分娩予定')));
   }
   save();
+  renderAll();
+  renderStats();
   const pregVisible = document.getElementById('insembook-preg-th')?.style.display !== 'none';
   renderInsemBook();
   if (pregVisible) {
@@ -7307,8 +7310,6 @@ function recordPregFromInsemBook(cowId, date, result) {
     const btn = document.getElementById('insembook-preg-btn');
     if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
   }
-  renderAll();
-  renderStats();
 }
 
 function toggleInsemBookPreg() {
