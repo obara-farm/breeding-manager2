@@ -2807,11 +2807,23 @@ function initApp() {
 
 // ET/AI記録があり妊鑑結果未記録でタスクもない牛に妊鑑タスクを補完
 function repairMissingPregTasks() {
+  // 分娩記録がある牛の未完了妊鑑タスクを削除
+  const before = tasks.length;
+  tasks = tasks.filter(t => {
+    if (!t.action.includes('妊娠鑑定') || t.done) return true;
+    const cow = cows.find(c => c.id === t.cowId);
+    if (!cow) return true;
+    if (cow.calvingDate) return false; // 分娩済みなら削除
+    if (cow.status === 'pregnant' || cow.status === 'fresh') return false;
+    return true;
+  });
   const todayStr = today();
   const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
   let added = 0;
   cows.forEach(cow => {
     if (cow.status === 'pregnant' || cow.status === 'fresh') return;
+    // 分娩記録がある牛はスキップ
+    if (cow.calvingDate) return;
     // 最後のAI/ET記録（donorAI除外）
     const lastRec = allRecs
       .filter(r => r.t === cow.id && !r.donorAI)
