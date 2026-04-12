@@ -7241,9 +7241,10 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const pregEvs = events.filter(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
     e.date >= date &&
+    e.date <= addDays(date, 280) &&
     (!nextDate || e.date < nextDate)
   );
-  const pregEv = pregEvs.length ? pregEvs[pregEvs.length - 1] : null;
+  const pregEv = pregEvs.length ? pregEvs[0] : null;
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
     const pregDate = pregEv.date;
