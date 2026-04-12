@@ -5859,7 +5859,33 @@ function renderStats() {
 
     <!-- 移植胚分析（凍結vs新鮮・ステージ別） -->
     ${(() => {
-      const decided = etRecords.filter(r => r.pregResult === 'positive' || r.pregResult === 'negative');
+      // cow.eventsからET記録と妊鑑結果を組み合わせて集計
+      const decidedFromEvents = [];
+      cows.forEach(cow => {
+        const events = cow.events || [];
+        // ET記録を取得
+        const etDone = events.filter(e => e.type === 'et_done');
+        etDone.forEach(et => {
+          // 同日または直後のpreg_positive/negativeを探す
+          const pregEv = events.find(e =>
+            (e.type === 'preg_positive' || e.type === 'preg_negative') &&
+            e.date >= et.date
+          );
+          if (!pregEv) return;
+          const pregResult = pregEv.type === 'preg_positive' ? 'positive' : 'negative';
+          // memoから凍結/新鮮・ステージを判定
+          const memo = et.memo || '';
+          const isFrozen = memo.includes('凍結') || memo.includes('frozen');
+          const isFresh = memo.includes('新鮮') || memo.includes('fresh') || memo.includes('🌱');
+          const embryoType = isFrozen ? 'frozen' : isFresh ? 'fresh' : 'unknown';
+          const stageM = memo.match(/\b(CM|EB|BL|EX|MO)\b/);
+          const stage = stageM ? stageM[1] : '不明';
+          decidedFromEvents.push({ pregResult, embryoType, stage });
+        });
+      });
+      // etRecordsも追加（古いデータとの互換性）
+      const decidedOld = etRecords.filter(r => r.pregResult === 'positive' || r.pregResult === 'negative');
+      const decided = [...decidedFromEvents, ...decidedOld];
       if (!decided.length) return `
         <div class="stats-card">
           <div class="stats-title">🧬 移植胚分析</div>
@@ -7085,14 +7111,14 @@ function updateEtQCells() {
     const lotKeyQ = (r.s||'').replace(/-\d+$/, '');
     const colRecQ = lotKeyQ ? collectionRecordsNew.find(c=>c.lot===lotKeyQ) : null;
     const donorIdQ = colRecQ?.donorId;
-    const donorQs = (colRecQ?.aiDates||[]).map(ai => {
-      const found = allRecsQ.find(rd=>rd.t===donorIdQ&&rd.d===ai.date);
-      if (!found) return '';
-      const ekQ = found._src+'_'+found._idx;
-      const edQ = insemBookEdits[ekQ]||{};
-      const opQ = edQ.op!==undefined ? edQ.op : (found.op||'');
-      if (opQ) return '';
-      return edQ.q||found.q||'';
+    const donorQs = (colRecQ?.aiDates||[]).flatMap(ai => {
+      const count = ai.count || 1;
+      const found = allRecsQ.filter(rd=>rd.t===donorIdQ&&rd.d===ai.date);
+      return found.slice(0, count).map(f => {
+        const ekQ = f._src+'_'+f._idx;
+        const edQ = insemBookEdits[ekQ]||{};
+        return edQ.q||f.q||'';
+      });
     }).filter(Boolean);
     el.textContent = donorQs.join(' / ') || '—';
   });
