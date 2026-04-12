@@ -4912,7 +4912,10 @@ function submitQuickReg() {
       if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
       e.stock = (e.stock||0) - embryoCount;
       e.history = e.history||[];
-      e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? null : 'ET', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : (free||null) });
+      const histMemo = embryoNoSelForParts
+        ? `胚番号:${embryoNoSelForParts}${operator ? ' 術者:'+operator : ''}${free?' '+free:''}`
+        : (operator ? '術者:'+operator : (free||null));
+      e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? null : 'ET', cowId: isOther ? null : cowId, memo: histMemo });
     }
   } else if (embryoNameInput || embryoDamInput) {
     const embryoLabel = (embryoDamInput ? embryoDamInput+'×' : '') + (embryoNameInput || '');
