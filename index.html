@@ -13467,6 +13467,21 @@ function renderReport() {
                     cowDisplay = matchedBR.map(r => `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${r.t}</span> ${cowDisplayName(r.t)||''}</span>`).join(' ');
                   }
                 }
+                // 胚在庫の譲渡行：胚番号をmemoから取得して表示
+                let embryoNoDisplay = '';
+                if (isEmbryo && h.type === 'transfer') {
+                  // memoから胚番号を抽出（「移植 01L237R7-0029」や「外部採卵 譲受 ロット 胚番号」形式）
+                  const embryoNoMatch = (h.memo||'').match(/移植\s*([\w\-]+)|胚番号:([\w\-]+)/);
+                  const embryoNoFromMemo = embryoNoMatch ? (embryoNoMatch[1]||embryoNoMatch[2]||'') : '';
+                  // cowIdから授精簿のET記録を探して胚番号を取得
+                  if (!embryoNoFromMemo && h.cowId) {
+                    const allBR2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
+                    const etRec = allBR2.find(r => r.t === h.cowId && r.d === h.date);
+                    if (etRec) embryoNoDisplay = `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--purple);background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${etRec.s}</span>`;
+                  } else if (embryoNoFromMemo) {
+                    embryoNoDisplay = `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--purple);background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${embryoNoFromMemo}</span>`;
+                  }
+                }
                 const invItem = inventory.find(x=>x.id===h.itemId);
                 const hIdx = invItem ? (invItem.history||[]).findIndex(x=>x===h || (x.date===h.date&&x.type===h.type&&x.count===h.count&&x.cowId===h.cowId)) : -1;
                 const rowBgDet = hi % 2 === 0 ? 'var(--bg3)' : 'var(--bg2)';
@@ -13483,6 +13498,7 @@ function renderReport() {
                     <span style="color:var(--muted);font-size:11px;">本</span>
                   </div>
                   ${cowDisplay}
+                  ${embryoNoDisplay}
                   <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:60px;">
                   ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
