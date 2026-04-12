@@ -2661,6 +2661,11 @@ function fmtDate(d) {
   const [y,m,dy] = d.split('-');
   return `${y}/${m}/${dy}`;
 }
+function fmtDateShort(d) {
+  if (!d) return '';
+  const [,m,dy] = d.split('-');
+  return `${parseInt(m)}/${parseInt(dy)}`;
+}
 function fmtDateFull(d) {
   if (!d) return '';
   const dt = new Date(d+'T00:00:00');
@@ -7349,15 +7354,16 @@ function buildUsedNos(lotItems) {
   const usedArr = lotItems.reduce((acc,e)=>{
     (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h=>{
       const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
-      if(m) { acc.push({no:m[1], type:h.type}); return; }
+      if(m) { acc.push({no:m[1], type:h.type, date:h.date}); return; }
       const matches = [...((h.memo||'').matchAll(/[（(](R\d+-\d+)[）)]/g))];
-      matches.forEach(rn => acc.push({no:'01L237'+rn[1], type:h.type}));
+      matches.forEach(rn => acc.push({no:'01L237'+rn[1], type:h.type, date:h.date}));
     });
     return acc;
   },[]);
   const nos = usedArr.map(x=>x.no);
   nos._types = {};
-  usedArr.forEach(x=>{ nos._types[x.no] = x.type; });
+  nos._dates = {};
+  usedArr.forEach(x=>{ nos._types[x.no] = x.type; nos._dates[x.no] = x.date; });
   return nos;
 }
 
@@ -7372,7 +7378,7 @@ function renderEmbryoDetails(details, usedNos) {
     // どのタイプで使われたか判定（後で渡せる場合はそちらを使う）
     return `<tr style="background:${isUsed?'rgba(0,0,0,0.3)':i%2===0?'var(--bg2)':'var(--bg3)'};opacity:${isUsed?'0.5':'1'};">
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);text-align:center;">${i+1}</td>
-    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:${isUsed?'var(--muted)':'var(--info)'};">${d.no||'—'}${isUsed?`<span style="font-size:9px;color:var(--danger);margin-left:4px;">${(usedNos._types&&usedNos._types[d.no])==='discard'?'廃棄':(usedNos._types&&usedNos._types[d.no])==='transfer'?'譲渡':'使用済'}</span>`:''}</td>
+    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:${isUsed?'var(--muted)':'var(--info)'};">${d.no||'—'}${isUsed?`<span style="font-size:9px;color:var(--danger);margin-left:4px;">${(usedNos._dates&&usedNos._dates[d.no])?fmtDateShort(usedNos._dates[d.no])+' ':''} ${(usedNos._types&&usedNos._types[d.no])==='discard'?'廃棄':(usedNos._types&&usedNos._types[d.no])==='transfer'?'譲渡':'使用済'}</span>`:''}</td>
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--text);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
@@ -12851,7 +12857,15 @@ function renderEmbryo() {
               let detail = null;
               (EMBRYO_SHEET2_DATA||[]).forEach(lot => {
                 const found = (lot.embryos||[]).find(em => em.no === no);
-                if (found) detail = {...found, _invId: e.id};
+                if (found) {
+                  // collect_dateを変換（R5年06月20日 → 2023-06-20）
+                  let cd = '';
+                  if (lot.collect_date) {
+                    const dcm = lot.collect_date.match(/R(\d+)年(\d+)月(\d+)日/);
+                    if (dcm) cd = `${2018+parseInt(dcm[1])}-${dcm[2].padStart(2,'0')}-${dcm[3].padStart(2,'0')}`;
+                  }
+                  detail = {...found, collectedDate: cd||collDate, _invId: e.id};
+                }
               });
               allDetails.push(detail || {no, frozen: h.type!=='discard', _invId: e.id});
               existingNos.add(no);
