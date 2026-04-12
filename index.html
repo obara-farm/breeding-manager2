@@ -7200,7 +7200,9 @@ function recordPregFromInsemBook(cowId, date, result) {
   }
   save();
   renderInsemBook();
-  renderTasks();
+  // タスクリストを再描画
+  const taskContainer = document.getElementById('task-list');
+  if (taskContainer) renderGrouped(tasks);
   renderStats();
 }
 
