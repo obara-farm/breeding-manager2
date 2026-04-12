@@ -7345,20 +7345,24 @@ function getSheet2DetailsForLot(lot) {
 }
 
 // 受精卵カードに詳細内訳を表示
-function renderEmbryoDetails(details) {
+function renderEmbryoDetails(details, usedNos) {
   if (!details || !details.length) return '';
+  usedNos = usedNos || [];
   const frozen = details.filter(d => d.frozen);
   const fresh = details.filter(d => d.fresh);
   const stageBadge = s => ({CM:'CM',EB:'EB',BL:'BL',EX:'EX',MO:'MO'}[s]||s||'—');
-  const rows = details.map((d, i) => `<tr style="background:${i%2===0?'var(--bg2)':'var(--bg3)'};">
+  const rows = details.map((d, i) => {
+    const isUsed = d.no && usedNos.includes(d.no);
+    return `<tr style="background:${isUsed?'rgba(0,0,0,0.3)':i%2===0?'var(--bg2)':'var(--bg3)'};opacity:${isUsed?'0.5':'1'};">
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);text-align:center;">${i+1}</td>
-    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--info);">${d.no||'—'}</td>
+    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:${isUsed?'var(--muted)':'var(--info)'};">${d.no||'—'}${isUsed?'<span style="font-size:9px;color:var(--danger);margin-left:4px;">使用済</span>':''}</td>
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--text);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--muted);">${d.collectedDate?fmtDate(d.collectedDate):'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;">${d.cultured?`<span style="background:transparent;border:1.5px solid var(--purple);color:var(--purple);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;">[培養]</span>`:''}</td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
   return `<div style="margin-top:8px;overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-size:11px;">
       <thead><tr style="background:var(--bg3);">
@@ -12846,7 +12850,13 @@ function renderEmbryo() {
         </div>
         <div id="${detailId}" style="display:none;margin-top:8px;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
-          ${allDetails.length ? renderEmbryoDetails(allDetails) : ''}
+          ${allDetails.length ? renderEmbryoDetails(allDetails, lotItems.reduce((acc,e)=>{
+            (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer').forEach(h=>{
+              const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
+              if(m) acc.push(m[1]);
+            });
+            return acc;
+          },[])) : ''}
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
             ${(()=>{
               const colRec = collectionRecordsNew.find(r => r.lot === (lotKey.startsWith('__noLot__') ? null : lotKey) && r.date === collDate);
