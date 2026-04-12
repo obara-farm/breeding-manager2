@@ -3187,7 +3187,7 @@ function registerEvent() {
       cow.etDate = implDate;
       cow.events.push({type:'et_done', date:implDate, memo});
       // 授精簿に自動追記
-      addInsemBookRecord(cowId, implDate, memo, 'et');
+      addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, operator);
       // 過去日付の記録はstatus/dueDate/tasksを変更しない
       if (isPastRecord) {
         schedule = [];
@@ -4869,14 +4869,13 @@ function submitQuickReg() {
   const isOther = operator !== ''; // 自分以外かどうか
   const invType = isOther ? 'transfer' : 'use'; // 自分以外は譲渡
 
-  // メモ組み立て
+  // メモ組み立て（術者はop欄に入るのでpartsには含めない）
   const parts = [];
   const semen = document.getElementById('qr-semen').value.trim();
   const embryo = document.getElementById('qr-embryo').value.trim();
   const free = document.getElementById('qr-memo').value.trim();
   if (semen) parts.push('精液:'+semen);
   if (embryo) parts.push('胚番号:'+embryo);
-  if (operator) parts.push('術者:'+operator);
   if (free) parts.push(free);
 
   // 精液在庫から減算または譲渡（AI系）
@@ -4915,6 +4914,11 @@ function submitQuickReg() {
         ? embryoNoSelForParts
         : (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
       if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
+      // ケーン番号をm欄用に追加
+      if (embryoNoSelForParts) {
+        const edForCane = (e.embryoDetails||[]).find(d=>d.no===embryoNoSelForParts);
+        if (edForCane?.cane) parts.push('ケーン:'+edForCane.cane);
+      }
       e.stock = (e.stock||0) - embryoCount;
       e.history = e.history||[];
       const histMemo = embryoNoSelForParts
@@ -6924,7 +6928,7 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
 }
 
 // 授精簿に新規記録を追加
-function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count) {
+function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorArg) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
     const all = [
@@ -6951,9 +6955,9 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count) {
     sire = m ? m[1].trim() : (memo.match(/種雄牛:([^\/\s]+)/)?.[1]?.trim() || '');
   }
   const year = 'R' + (new Date(date).getFullYear() - 2018);
-  // memoから術者を抽出
+  // memoから術者を抽出（operatorArgが直接渡された場合はそちらを優先）
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
-  const op = opMatch ? opMatch[1].trim() : '';
+  const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
   // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
   let certQ = '';
   if (date > '2025-11-05' && !op) {
