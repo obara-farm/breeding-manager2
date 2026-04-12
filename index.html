@@ -13364,7 +13364,7 @@ function saveEmbryoRestock() {
       count = manual;
       inv.stock = Math.max(0, (inv.stock||0) - count);
     } else {
-      // invIdごとにグループ化して削除（後ろから削除して添字ズレを防ぐ）
+      // invIdごとにグループ化して処理
       const byInv = {};
       Array.from(checks).forEach(c => {
         const iid = c.dataset.invId;
@@ -13374,11 +13374,21 @@ function saveEmbryoRestock() {
       Object.entries(byInv).forEach(([iid, idxs]) => {
         const target = embryoInventory.find(e=>e.id===iid);
         if (!target) return;
-        idxs.sort((a,b)=>b-a).forEach(idx => {
-          if (target.embryoDetails?.[idx] !== undefined) target.embryoDetails.splice(idx,1);
-        });
+        // 胚番号をmemoに記録（削除せず使用済みとして管理）
+        const nos = idxs.map(idx => target.embryoDetails?.[idx]?.no).filter(Boolean);
+        const noMemo = nos.length ? nos.map(n=>`胚番号:${n}`).join(' ') : '';
+        const fullMemo = [noMemo, memo].filter(Boolean).join(' ');
+        target.history = target.history||[];
+        target.history.push({ date, type, count: idxs.length, memo: fullMemo });
         target.stock = Math.max(0, (target.stock||0) - idxs.length);
       });
+      // invにもhistoryを記録（既に上でbyInvごとに記録済みなので重複を避ける）
+      if (!byInv[inv.id]) {
+        inv.history = inv.history||[];
+        inv.history.push({ date, type, count, memo });
+      }
+      save(); closeModal('modal-embryo-restock'); renderEmbryo();
+      return;
     }
     inv.history = inv.history||[];
     inv.history.push({ date, type, count, memo });
