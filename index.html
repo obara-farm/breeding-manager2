@@ -3179,8 +3179,13 @@ function registerEvent() {
       const pregCheckDate = addDays(implDate, 45);
       const todayStr = today();
       const isPastRecord = implDate < todayStr;
-      // 同日同牛のet_done重複チェック
-      if ((cow.events||[]).some(e=>e.type==='et_done' && e.date===implDate)) {
+      // 同日同牛のet_done重複チェック（同じ胚番号のみ重複とみなす）
+      const newEmbryoNo = (memo||'').match(/胚番号:([\w\-]+)/)?.[1]||'';
+      if (newEmbryoNo && (cow.events||[]).some(e => {
+        if (e.type !== 'et_done' || e.date !== implDate) return false;
+        const existNo = (e.memo||'').match(/胚番号:([\w\-]+)/)?.[1]||'';
+        return existNo === newEmbryoNo;
+      })) {
         alert(`${cowId}：${fmtDate(implDate)}のET記録はすでに登録されています。`);
         return;
       }
