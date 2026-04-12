@@ -7230,11 +7230,12 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
   const cowRecs = allRecs.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d));
   const nextDate = cowRecs.length ? cowRecs[0].d : null;
-  const pregEv = events.find(e =>
+  const pregEvs = events.filter(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
     e.date >= date &&
     (!nextDate || e.date < nextDate)
   );
+  const pregEv = pregEvs.length ? pregEvs[pregEvs.length - 1] : null;
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
     return `<span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span><span style="font-size:9px;color:var(--muted);display:block;">${fmtDateShort(pregEv.date)}</span>`;
