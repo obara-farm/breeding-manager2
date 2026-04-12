@@ -7408,6 +7408,15 @@ function renderInsemBook() {
     }
   }
   document.getElementById('insembook-count').textContent = data.length + '件';
+  const seenPregKey = new Set(); // 同牛・3日以内の妊鑑セルは最初の行のみ表示
+  const getPregKey = (cowId, date) => {
+    // 既にseenPregKeyに同牛の±3日以内のキーがあればそのキーを返す
+    for (const k of seenPregKey) {
+      const [kid, kd] = k.split('__');
+      if (kid === cowId && Math.abs(diffDays(date, kd)) <= 3) return k;
+    }
+    return null;
+  };
   const isET = r => {
     if (r.insemType === 'et') return true;
     if (r.insemType === 'ai') return false;
@@ -7480,7 +7489,7 @@ function renderInsemBook() {
         '<td style="padding:4px;text-align:center;">' + (et && !r.op ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
-        '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, r.donorAI||false) + '</td>' +
+        '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + (() => { const existing=getPregKey(r.t,r.d); if(existing){return '—';} seenPregKey.add(r.t+'__'+r.d); return getPregCellHtml(r.t, r.d, r.donorAI||false); })() + '</td>' +
       '</tr>';
     }
     // 固定データ：insemBookEditsに上書き値があればそれを使用、編集可能
@@ -7507,7 +7516,7 @@ function renderInsemBook() {
       '<td style="padding:4px;text-align:center;">' + (et && !dispOp ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
       '<td style="padding:4px;text-align:center;">' + (dispDonorAI ? '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
-      '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, dispDonorAI||false) + '</td>' +
+      '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + (() => { const existing=getPregKey(r.t,r.d); if(existing){return '—';} seenPregKey.add(r.t+'__'+r.d); return getPregCellHtml(r.t, r.d, dispDonorAI||false); })() + '</td>' +
     '</tr>';
   }).join('');
 
