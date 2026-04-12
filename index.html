@@ -7144,8 +7144,18 @@ function saveInsemBookRecord(src, idx) {
   updateEtQCells();
 }
 
-function getPregCellHtml(cowId, date) {
+function getPregCellHtml(cowId, date, isDonorAI) {
   const cow = cows.find(c => c.id === cowId);
+  if (!cow) return '<span style="font-size:10px;color:var(--muted);">—</span>';
+  // ドナーAIでPG投与済みの場合は妊鑑不要
+  if (isDonorAI) {
+    const colRec = collectionRecordsNew.find(cr =>
+      cr.donorId === cowId && (cr.aiDates||[]).some(ai => ai.date === date)
+    );
+    if (colRec && colRec.pg !== false) {
+      return '<span style="font-size:10px;color:var(--muted);">PG済</span>';
+    }
+  }
   if (!cow) return '<span style="font-size:10px;color:var(--muted);">—</span>';
   const events = (cow.events||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
   // この授精日以降の次の授精日を取得
@@ -7350,7 +7360,7 @@ function renderInsemBook() {
         '<td style="padding:4px;text-align:center;">' + (et && !r.op ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
-        '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d) + '</td>' +
+        '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, r.donorAI||false) + '</td>' +
       '</tr>';
     }
     // 固定データ：insemBookEditsに上書き値があればそれを使用、編集可能
@@ -7377,7 +7387,7 @@ function renderInsemBook() {
       '<td style="padding:4px;text-align:center;">' + (et && !dispOp ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
       '<td style="padding:4px;text-align:center;">' + (dispDonorAI ? '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
-      '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d) + '</td>' +
+      '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, dispDonorAI||false) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -9213,6 +9223,7 @@ function saveCollection() {
     })(),
     memo: document.getElementById('col-memo').value.trim(),
     frozenEmbryos, freshEmbryos, cultureEmbryos,
+    pg,
   };
 
   if (editId) {
