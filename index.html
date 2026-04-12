@@ -3671,7 +3671,7 @@ function renderPregList() {
 
   const pregWaiting = pregTasks.map(t => {
     const cow = cows.find(c=>c.id===t.cowId);
-    const lastAiEt = [...(cow?.events||[])].reverse().find(e=>
+    const lastAiEt = [...(cow?.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
     const isEt = lastAiEt && (['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((lastAiEt.memo||'').replace(/^胚番号:/,'').replace(/^精液:/,'').split('／')[0].trim()));
@@ -3744,7 +3744,7 @@ function renderPregList() {
         const daysLabel = daysLeft<0?`超過${Math.abs(daysLeft)}日`:daysLeft===0?'今日':`あと${daysLeft}日`;
         const daysColor = daysLeft<0?'var(--danger)':daysLeft<=10?'var(--warn)':'var(--muted)';
         const twin = cow.twin ? ' 👯' : '';
-        const lastAiEt2 = [...(cow.events||[])].reverse().find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+        const lastAiEt2 = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
         const memo2 = lastAiEt2?.memo||'';
         const sireStr2 = memo2.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo2.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
         const isEt2 = lastAiEt2&&['et_done','estrus_et'].includes(lastAiEt2.type);
@@ -3798,8 +3798,8 @@ function recordPreg(cowId, taskId, result) {
     cow.status = 'pregnant';
     if (isTwin) cow.twin = true;
     // 分娩予定日を計算
-    const lastEt = [...cow.events].reverse().find(e=>e.type==='et_done');
-    const lastAi = [...cow.events].reverse().find(e=>['ai_done','estrus_ai','estrus'].includes(e.type));
+    const lastEt = [...cow.events].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
+    const lastAi = [...cow.events].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','estrus_ai','estrus'].includes(e.type));
     let dueDate;
     if (lastEt && (!lastAi || lastEt.date > lastAi.date)) {
       dueDate = addDays(lastEt.date, 278);
@@ -4066,14 +4066,14 @@ function renderCowList() {
     // ai_done・estrus が発情日。et_done はETを実施した日（発情日ではない）ので使わない
     // cow.estrusResetDate が設定されていればそれより古いイベントは無視
     const resetDate = cow.estrusResetDate || null;
-    const lastEstrusEvent = [...(cow.events||[])].reverse().find(e =>
+    const lastEstrusEvent = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
       ['ai_done','estrus'].includes(e.type) && (!resetDate || e.date > resetDate)
     );
     const nextEstrus = lastEstrusEvent ? addDays(lastEstrusEvent.date, 21) : null;
     const nextEstrusLabel = nextEstrus && nextEstrus > today() ? `<div>次回発情予測: <strong style="color:var(--warn)">${fmtDate(nextEstrus)}</strong> <span style="font-size:10px;color:var(--muted)">(発情日+21日)</span></div>` : '';
 
     // 妊鑑待ち判定：AI/ET実施済みで妊鑑未実施・妊娠確定前
-    const lastAiEt = [...(cow.events||[])].reverse().find(e =>
+    const lastAiEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
     const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
@@ -4092,7 +4092,7 @@ function renderCowList() {
       return `<div style="font-size:11px;color:var(--info);margin-top:1px;">最終${typeStr}: ${fmtDate(lastAiEt.date)}${sireStr?' ('+sireStr+')':''}${daysLabel}</div>`;
     })() : '';
     const todayStr2 = today();
-    const lastInsem = [...(cow.events||[])].reverse().find(e =>
+    const lastInsem = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
       ['ai_done','estrus','estrus_ai','estrus_et','et_done','et_recipient','cidr_ai_start'].includes(e.type)
     );
     const hasPendingPreg = tasks.some(t => t.cowId===cow.id && !t.done && t.action.includes('妊娠鑑定'));
@@ -6237,8 +6237,8 @@ function saveInsemEdit() {
       });
       // 妊娠中なら分娩予定日も再計算
       if (cow.status === 'pregnant' || cow.dueDate) {
-        const lastEt = [...cow.events].reverse().find(e=>e.type==='et_done');
-        const lastAi = [...cow.events].reverse().find(e=>['ai_done','estrus_ai','estrus'].includes(e.type));
+        const lastEt = [...cow.events].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
+        const lastAi = [...cow.events].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','estrus_ai','estrus'].includes(e.type));
         let newDue;
         if (lastEt && (!lastAi || lastEt.date > lastAi.date)) newDue = addDays(lastEt.date, 278);
         else if (lastAi) newDue = addDays(lastAi.date, 285);
@@ -6317,8 +6317,8 @@ function saveInsemEdit() {
 
     // 妊娠中なら分娩予定日も再計算
     if (cow.status === 'pregnant' || cow.dueDate) {
-      const lastEt = [...(cow.events||[])].reverse().find(e=>e.type==='et_done');
-      const lastAi = [...(cow.events||[])].reverse().find(e=>['ai_done','estrus','estrus_ai'].includes(e.type));
+      const lastEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
+      const lastAi = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','estrus','estrus_ai'].includes(e.type));
       let newDue;
       if (lastEt && (!lastAi || lastEt.date > lastAi.date)) newDue = addDays(lastEt.date, 278);
       else if (lastAi) newDue = addDays(lastAi.date, 285);
@@ -10687,7 +10687,7 @@ function validateDate(dateStr, cowId, eventType) {
   // 妊鑑日が授精日より前チェック
   if ((eventType === 'preg_positive' || eventType === 'preg_negative') && cowId) {
     const cow = cows.find(c=>c.id===cowId);
-    const lastInsem = [...(cow?.events||[])].reverse().find(e=>
+    const lastInsem = [...(cow?.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
     if (lastInsem && dateStr < lastInsem.date) {
@@ -10919,7 +10919,7 @@ function renderPreCalvingAlerts() {
   }).map(cow => {
     const moveDone = tasks.some(t => t.cowId===cow.id && t.action==='🏠 産室移動' && t.done);
     // 最終受精・移植情報
-    const lastAiEt = [...(cow.events||[])].reverse().find(e =>
+    const lastAiEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
     let insemLabel = '';
@@ -11043,7 +11043,7 @@ function executeReset(goToRegister) {
   cow.events.push({ type: reason, date, memo });
 
   // 直前のAI/ETイベントがあり、再発情リセットの場合のみ妊鑑タスクを再生成
-  const lastAiEt = [...(cow.events||[])].reverse().find(e =>
+  const lastAiEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
   );
   if (lastAiEt && reason === 'estrus') {
