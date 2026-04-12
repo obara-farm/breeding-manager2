@@ -7238,7 +7238,15 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const pregEv = pregEvs.length ? pregEvs[pregEvs.length - 1] : null;
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
-    return `<span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span><span style="font-size:9px;color:var(--muted);display:block;">${fmtDateShort(pregEv.date)}</span>`;
+    const pregDate = pregEv.date;
+    return `<div style="text-align:center;">
+      <span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span>
+      <span style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">${fmtDateShort(pregEv.date)}</span>
+      <div style="display:flex;gap:2px;justify-content:center;">
+        <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive')" style="background:${isPos?'rgba(74,222,128,.2)':'var(--bg)'};border:1px solid var(--accent);color:var(--accent);font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;cursor:pointer;">✓</button>
+        <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative')" style="background:${!isPos?'rgba(239,68,68,.2)':'var(--bg)'};border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;cursor:pointer;">✗</button>
+      </div>
+    </div>`;
   }
   // 分娩済みなら表示しない
   if (cow.calvingDate && cow.calvingDate >= date) {
@@ -7263,10 +7271,22 @@ function recordPregFromInsemBook(cowId, date, result) {
   cow.events.push({ type: eventType, date, memo: '' });
   if (result === 'positive') {
     cow.status = 'pregnant';
-    const dueDate = addDays(date, 278);
+    // 最後のET/AI日から分娩予定日を計算
+    const lastEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
+    const lastAi = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='ai_done'&&!e.donorAI);
+    let dueDate;
+    if (lastEt && (!lastAi || lastEt.date >= lastAi.date)) {
+      dueDate = addDays(lastEt.date, 278);
+    } else if (lastAi) {
+      dueDate = addDays(lastAi.date, 285);
+    } else {
+      dueDate = addDays(date, 278);
+    }
     cow.dueDate = dueDate;
     tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
+    tasks = tasks.filter(t => !(t.cowId === cowId && t.action === '🏠 産室移動'));
     tasks.push({ cowId, action: '分娩予定', detail: `分娩予定日: ${fmtDate(dueDate)}`, color: '#a855f7', date: dueDate, priority: 'high', id: Math.random().toString(36).slice(2), done: false });
+    tasks.push({ id: Math.random().toString(36).slice(2), cowId, date: addDays(dueDate, -10), action: '🏠 産室移動', detail: `分娩予定日（${fmtDate(dueDate)}）の10日前`, color: '#a78bfa', priority: 'high', done: false, timeOfDay: '' });
   } else {
     cow.status = 'open';
     tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定')));
