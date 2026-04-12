@@ -7345,6 +7345,22 @@ function getSheet2DetailsForLot(lot) {
 }
 
 // 受精卵カードに詳細内訳を表示
+function buildUsedNos(lotItems) {
+  const usedArr = lotItems.reduce((acc,e)=>{
+    (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h=>{
+      const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
+      if(m) { acc.push({no:m[1], type:h.type}); return; }
+      const matches = [...((h.memo||'').matchAll(/[（(](R\d+-\d+)[）)]/g))];
+      matches.forEach(rn => acc.push({no:'01L237'+rn[1], type:h.type}));
+    });
+    return acc;
+  },[]);
+  const nos = usedArr.map(x=>x.no);
+  nos._types = {};
+  usedArr.forEach(x=>{ nos._types[x.no] = x.type; });
+  return nos;
+}
+
 function renderEmbryoDetails(details, usedNos) {
   if (!details || !details.length) return '';
   usedNos = usedNos || [];
@@ -12871,25 +12887,7 @@ function renderEmbryo() {
         </div>
         <div id="${detailId}" style="display:none;margin-top:8px;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
-          ${allDetails.length ? renderEmbryoDetails(allDetails, (()=>{
-            const usedArr = lotItems.reduce((acc,e)=>{
-              (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h=>{
-                const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
-                if(m) { acc.push({no:m[1], type:h.type}); return; }
-                // memoに「R6-0038」「R7-0038」形式が含まれる場合も特定
-                const rn = (h.memo||'').match(/[（(](R\d+-\d+)[）)]/);
-                if(rn) {
-                  // R6-0038 → 01L237R6-0038 形式に変換
-                  acc.push({no:'01L237'+rn[1], type:h.type});
-                }
-              });
-              return acc;
-            },[]);
-            const nos = usedArr.map(x=>x.no);
-            nos._types = {};
-            usedArr.forEach(x=>{ nos._types[x.no] = x.type; });
-            return nos;
-          })())) : ''}
+          ${allDetails.length ? renderEmbryoDetails(allDetails, buildUsedNos(lotItems)) : ''}
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
             ${(()=>{
               const colRec = collectionRecordsNew.find(r => r.lot === (lotKey.startsWith('__noLot__') ? null : lotKey) && r.date === collDate);
