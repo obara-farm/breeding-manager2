@@ -7158,6 +7158,87 @@ function saveInsemBookRecord(src, idx) {
 }
 
 
+function getPregCellHtml(cowId, date, isDonorAI) {
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow) return '<span style="font-size:10px;color:var(--muted);">—</span>';
+  // ドナーAIでPG投与済みの場合は妊鑑不要
+  if (isDonorAI) {
+    const colRec = collectionRecordsNew.find(cr =>
+      cr.donorId === cowId && (cr.aiDates||[]).some(ai => ai.date === date)
+    );
+    if (colRec && colRec.pg !== false) {
+      return '<span style="font-size:10px;color:var(--muted);">PG済</span>';
+    }
+  }
+  const events = (cow.events||[]).slice().sort((a,b) => a.date.localeCompare(b.date));
+  const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
+  const cowRecs = allRecs.filter(r => r.t === cowId && r.d > date).sort((a,b) => a.d.localeCompare(b.d));
+  const nextDate = cowRecs.length ? cowRecs[0].d : null;
+  const pregEv = events.find(e =>
+    (e.type === 'preg_positive' || e.type === 'preg_negative') &&
+    e.date >= date &&
+    (!nextDate || e.date < nextDate)
+  );
+  if (pregEv) {
+    const isPos = pregEv.type === 'preg_positive';
+    return `<span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span><span style="font-size:9px;color:var(--muted);display:block;">${fmtDateShort(pregEv.date)}</span>`;
+  }
+  // 分娩済みなら表示しない
+  if (cow.calvingDate && cow.calvingDate >= date) {
+    return '<span style="font-size:10px;color:var(--muted);">分娩済</span>';
+  }
+  const pregDate = addDays(date, 45);
+  return `<div style="display:flex;gap:3px;justify-content:center;">
+    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive')" style="background:var(--bg);border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✓</button>
+    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative')" style="background:var(--bg);border:1px solid var(--danger);color:var(--danger);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✗</button>
+  </div>`;
+}
+
+function recordPregFromInsemBook(cowId, date, result) {
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow) return;
+  const eventType = result === 'positive' ? 'preg_positive' : 'preg_negative';
+  cow.events = cow.events || [];
+  // 同日の既存妊鑑結果を削除して上書き
+  cow.events = cow.events.filter(e =>
+    !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
+  );
+  cow.events.push({ type: eventType, date, memo: '' });
+  if (result === 'positive') {
+    cow.status = 'pregnant';
+    const dueDate = addDays(date, 278);
+    cow.dueDate = dueDate;
+    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
+    tasks.push({ cowId, action: '分娩予定', detail: `分娩予定日: ${fmtDate(dueDate)}`, color: '#a855f7', date: dueDate, priority: 'high', id: Math.random().toString(36).slice(2), done: false });
+  } else {
+    cow.status = 'open';
+    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定')));
+  }
+  save();
+  const pregVisible = document.getElementById('insembook-preg-th')?.style.display !== 'none';
+  renderInsemBook();
+  if (pregVisible) {
+    document.getElementById('insembook-preg-th').style.display = '';
+    document.querySelectorAll('.insembook-preg-col').forEach(c => c.style.display = '');
+    const btn = document.getElementById('insembook-preg-btn');
+    if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
+  }
+  const taskContainer = document.getElementById('task-list');
+  if (taskContainer) renderGrouped(tasks);
+  renderStats();
+}
+
+function toggleInsemBookPreg() {
+  const th = document.getElementById('insembook-preg-th');
+  const cells = document.querySelectorAll('.insembook-preg-col');
+  const btn = document.getElementById('insembook-preg-btn');
+  const isHidden = th.style.display === 'none';
+  th.style.display = isHidden ? '' : 'none';
+  cells.forEach(c => c.style.display = isHidden ? '' : 'none');
+  btn.style.borderColor = isHidden ? 'var(--accent)' : 'var(--border)';
+  btn.style.color = isHidden ? 'var(--accent)' : 'var(--muted)';
+}
+
 function updateEtQCells() {
   // 動的ET行のNo欄を再計算して更新
   const allRecsQ = [
@@ -7303,6 +7384,7 @@ function renderInsemBook() {
         '<td style="padding:4px;text-align:center;">' + (et && !r.op ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + idx + '" data-src="dynamic" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
         '<td style="padding:4px;text-align:center;">' + (r.donorAI ? '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF→通常AIに変更">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'dynamic\',' + idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
         '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'dynamic\',' + idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
+        '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, r.donorAI||false) + '</td>' +
       '</tr>';
     }
     // 固定データ：insemBookEditsに上書き値があればそれを使用、編集可能
@@ -7329,6 +7411,7 @@ function renderInsemBook() {
       '<td style="padding:4px;text-align:center;">' + (et && !dispOp ? '<label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;"><input type="checkbox" class="et-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:14px;height:14px;cursor:pointer;"><span style="font-size:11px;color:var(--info);">🧬</span></label>' : '<span style="color:var(--muted);font-size:10px;">—</span>') + '</td>' +
       '<td style="padding:4px;text-align:center;">' + (dispDonorAI ? '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:#2a0a0a;border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグOFF">🐄→OFF</button>' : '<button onclick="toggleDonorAIFlag(\'static\',' + r._idx + ')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:9px;padding:2px 5px;border-radius:4px;cursor:pointer;" title="ドナーAIフラグON">🐄</button>') + '</td>' +
       '<td style="padding:4px;text-align:center;"><button onclick="deleteInsemRecord(\'' + r._src + '\',' + r._idx + ')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;">🗑</button></td>' +
+      '<td class="insembook-preg-col" style="display:none;padding:4px;text-align:center;">' + getPregCellHtml(r.t, r.d, dispDonorAI||false) + '</td>' +
     '</tr>';
   }).join('');
 
@@ -15394,6 +15477,7 @@ try {
     </select>
     <input type="text" id="insembook-search" placeholder="🔍 耳標・牛名・種雄牛で検索..." oninput="renderInsemBook()" style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 12px;border-radius:8px;outline:none;">
     <button onclick="syncInsemBookToCows()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📥 種付け記録に反映</button>
+    <button onclick="toggleInsemBookPreg()" id="insembook-preg-btn" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🔬 妊鑑</button>
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
   </div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
@@ -15413,6 +15497,7 @@ try {
           <th style="padding:8px 6px;text-align:center;color:var(--purple);">授精証</th>
           <th style="padding:8px 6px;text-align:center;color:var(--info);">移植証</th>
           <th style="padding:8px 6px;text-align:center;color:var(--danger);">削除</th>
+          <th id="insembook-preg-th" style="display:none;padding:8px 6px;text-align:center;color:var(--accent);">🔬 妊鑑</th>
         </tr>
       </thead>
       <tbody id="insembook-tbody"></tbody>
