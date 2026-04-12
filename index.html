@@ -4929,14 +4929,23 @@ function submitQuickReg() {
       if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
       // ケーン番号をm欄用に追加
       if (embryoNoSelForParts) {
-        const edForCane = (e.embryoDetails||[]).find(d=>d.no===embryoNoSelForParts);
+        let edForCane = (e.embryoDetails||[]).find(d=>d.no===embryoNoSelForParts);
+        if (!edForCane) {
+          // EMBRYO_SHEET2_DATAから検索
+          (EMBRYO_SHEET2_DATA||[]).forEach(lot=>{
+            const found = (lot.embryos||[]).find(em=>em.no===embryoNoSelForParts);
+            if (found) edForCane = found;
+          });
+        }
         if (edForCane?.cane) parts.push('ケーン:'+edForCane.cane);
       }
       e.stock = (e.stock||0) - embryoCount;
       e.history = e.history||[];
-      const histMemo = embryoNoSelForParts
-        ? `胚番号:${embryoNoSelForParts}${operator ? ' 術者:'+operator : ''}${free?' '+free:''}`
-        : (operator ? '術者:'+operator : (free||null));
+      // histMemoはpartsから胚番号・ケーン・術者を取得して構築
+      const histEmbryo = parts.find(p=>p.startsWith('胚番号:'));
+      const histCane = parts.find(p=>p.startsWith('ケーン:'));
+      const histParts = [histEmbryo, histCane, operator?'術者:'+operator:null, free||null].filter(Boolean);
+      const histMemo = histParts.length ? histParts.join(' ') : null;
       e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? null : 'ET', cowId: isOther ? null : cowId, memo: histMemo });
     }
   } else if (embryoNameInput || embryoDamInput) {
@@ -5001,7 +5010,12 @@ function submitQuickReg() {
 
   clearDraft('reg-form');
   registerEvent(); // 先に登録処理を実行
-  closeModal('modal-quick-reg'); // 登録完了後にモーダルを閉じる
+  // 登録後に胚番号セレクトをリセット（次回の誤選択防止）
+  const noSelAfter = document.getElementById('qr-embryo-no-select');
+  if (noSelAfter) { noSelAfter.value = ''; }
+  const embryoSelAfter = document.getElementById('qr-embryo-select');
+  if (embryoSelAfter) { embryoSelAfter.value = ''; }
+  closeModal('modal-quick-reg');
 }
 function openEditCow(cowId) {
   const cow = cows.find(c=>c.id===cowId);
