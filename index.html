@@ -7241,10 +7241,17 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const pregEvs = events.filter(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
     e.date >= date &&
-    e.date <= addDays(date, 280) &&
-    (!nextDate || e.date < nextDate)
+    e.date <= addDays(date, 280)
   );
   const pregEv = pregEvs.length ? pregEvs[0] : null;
+  // 明示的な妊鑑結果がなく、次のAI記録がある場合は自動陰性表示
+  if (!pregEv && nextDate) {
+    const pregDate = addDays(date, 45);
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:#7f1d1d;border:1px solid #ef4444;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
+    </div>`;
+  }
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
     const pregDate = pregEv.date;
@@ -7302,7 +7309,6 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
   save();
   // ボタンが属するセルを直接更新
   const cell = triggerEl?.closest('.insembook-preg-col');
-  console.log('triggerEl:', triggerEl?.tagName, 'cell:', cell?.tagName, cell?.className);
   if (cell) {
     const effectiveAiDate = aiDate || (() => {
       const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
@@ -7312,9 +7318,7 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
     const allRecs2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
     const rec2 = allRecs2.find(r => r.t === cowId && r.d === effectiveAiDate);
     const newHtml = getPregCellHtml(cowId, effectiveAiDate, rec2?.donorAI || false);
-    console.log('setting innerHTML, effectiveAiDate:', effectiveAiDate, 'result:', result, 'newHtml includes陽性:', newHtml.includes('14532d'));
     cell.innerHTML = newHtml;
-    console.log('cell.innerHTML after set:', cell.innerHTML.slice(0,80));
   }
   renderAll();
   renderStats();
