@@ -5363,9 +5363,35 @@ function renderStats() {
       if (result === null) return;
 
       if (rec.isET) {
-        // etRecordsから新鮮・凍結を判定
-        const etRec = etRecords.find(r => r.cowId === rec.t && r.date === rec.date);
-        const isFrozen = etRec ? etRec.embryoType === 'frozen' : false;
+        // cow.eventsのET記録のmemoから新鮮・凍結を判定
+        const etEv = cow ? (cow.events||[]).find(e => e.type === 'et_done' && e.date === rec.date) : null;
+        const etMemo = etEv?.memo || '';
+        let isFrozen = false;
+        if (etMemo.includes('🌱') || etMemo.includes('新鮮')) {
+          isFrozen = false;
+        } else if (etMemo.includes('❄') || etMemo.includes('凍結')) {
+          isFrozen = true;
+        } else {
+          const noM = etMemo.match(/胚番号:([\w\-]+)/);
+          if (noM) {
+            const lotKey = noM[1].replace(/-\d+$/, '');
+            const inv = embryoInventory.find(e => e.lot === lotKey || (e.embryoDetails||[]).some(d=>d.no===noM[1]));
+            if (inv) isFrozen = inv.type === 'frozen';
+            else {
+              (EMBRYO_SHEET2_DATA||[]).forEach(lot => {
+                const found = (lot.embryos||[]).find(e=>e.no===noM[1]);
+                if (found) isFrozen = found.frozen;
+              });
+            }
+          } else if (etMemo.includes('×')) {
+            const crossM = (etMemo.match(/胚番号:([^／\s]+)/)||[])[1]||'';
+            if (crossM.includes('×')) {
+              const [dam, sire] = crossM.split('×').map(s=>s.trim());
+              const inv2 = embryoInventory.find(e => e.dam === dam && e.sire === sire);
+              if (inv2) isFrozen = inv2.type === 'frozen';
+            }
+          }
+        }
         if (result === 'pos') {
           etPos++;
           if (isFrozen) etFrozenPos++; else etFreshPos++;
