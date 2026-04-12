@@ -6225,6 +6225,18 @@ function openDeleteTask(taskId) {
 // 今日タブの妊鑑タスクから直接+/-記録
 function recordPregFromTask(cowId, taskId, result) {
   recordPreg(cowId, taskId, result);
+  // 授精簿が開いていれば妊鑑列も更新
+  const insembookPage = document.getElementById('page-insembook');
+  if (insembookPage && insembookPage.classList.contains('active')) {
+    const pregVisible = document.getElementById('insembook-preg-th')?.style.display !== 'none';
+    renderInsemBook();
+    if (pregVisible) {
+      document.getElementById('insembook-preg-th').style.display = '';
+      document.querySelectorAll('.insembook-preg-col').forEach(c => c.style.display = '');
+      const btn = document.getElementById('insembook-preg-btn');
+      if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
+    }
+  }
 }
 
 // ===== AI/ET実施記録 編集 =====
