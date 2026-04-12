@@ -7239,13 +7239,11 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
     const pregDate = pregEv.date;
-    return `<div style="text-align:center;">
-      <span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span>
-      <span style="font-size:9px;color:var(--muted);display:block;margin-bottom:2px;">${fmtDateShort(pregEv.date)}</span>
-      <div style="display:flex;gap:2px;justify-content:center;">
-        <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive')" style="background:${isPos?'rgba(74,222,128,.2)':'var(--bg)'};border:1px solid var(--accent);color:var(--accent);font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;cursor:pointer;">✓</button>
-        <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative')" style="background:${!isPos?'rgba(239,68,68,.2)':'var(--bg)'};border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;cursor:pointer;">✗</button>
-      </div>
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;flex-wrap:nowrap;">
+      <span style="font-size:11px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓':'✗'}</span>
+      <span style="font-size:9px;color:var(--muted);">${fmtDateShort(pregEv.date)}</span>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive')" style="background:${isPos?'rgba(74,222,128,.2)':'var(--bg)'};border:1px solid var(--accent);color:var(--accent);font-size:9px;font-weight:700;padding:1px 3px;border-radius:3px;cursor:pointer;line-height:1;">✓</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative')" style="background:${!isPos?'rgba(239,68,68,.2)':'var(--bg)'};border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:1px 3px;border-radius:3px;cursor:pointer;line-height:1;">✗</button>
     </div>`;
   }
   // 分娩済みなら表示しない
