@@ -4530,6 +4530,13 @@ function addEventForCow(cowId, defaultEvent) {
       document.getElementById('qr-embryo-dam-input').value = '';
       document.getElementById('qr-embryo-info').style.display = 'none';
       document.getElementById('qr-embryo-manual-group').style.display = '';
+      // 胚番号セレクトをリセット
+      const noSel2 = document.getElementById('qr-embryo-no-select');
+      if (noSel2) { noSel2.value = ''; noSel2.innerHTML = '<option value="">胚番号を選択</option>'; }
+      const noGroup2 = document.getElementById('qr-embryo-no-group');
+      if (noGroup2) noGroup2.style.display = 'none';
+      const searchEl2 = document.getElementById('qr-embryo-search');
+      if (searchEl2) searchEl2.value = '';
     }
     // pendingボタンをアクティブに
     ['qr-pos-btn','qr-neg-btn','qr-pend-btn'].forEach(id => {
