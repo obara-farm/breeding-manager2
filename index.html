@@ -7157,9 +7157,41 @@ function getPregCellHtml(cowId, date) {
     e.date >= date &&
     (!nextDate || e.date < nextDate)
   );
-  if (!pregEv) return '<span style="font-size:10px;color:var(--muted);">—</span>';
-  const isPos = pregEv.type === 'preg_positive';
-  return `<span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span><span style="font-size:9px;color:var(--muted);display:block;">${fmtDateShort(pregEv.date)}</span>`;
+  if (pregEv) {
+    const isPos = pregEv.type === 'preg_positive';
+    return `<span style="font-size:12px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓陽性':'✗陰性'}</span><span style="font-size:9px;color:var(--muted);display:block;">${fmtDateShort(pregEv.date)}</span>`;
+  }
+  // 未記録：ボタンで入力可能
+  const pregDate = addDays(date, 45);
+  return `<div style="display:flex;gap:3px;justify-content:center;">
+    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive')" style="background:var(--bg);border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✓</button>
+    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative')" style="background:var(--bg);border:1px solid var(--danger);color:var(--danger);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✗</button>
+  </div>`;
+}
+
+function recordPregFromInsemBook(cowId, date, result) {
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow) return;
+  const eventType = result === 'positive' ? 'preg_positive' : 'preg_negative';
+  // 既に同日同タイプがあればスキップ
+  if ((cow.events||[]).some(e => e.type === eventType && e.date === date)) return;
+  cow.events = cow.events || [];
+  cow.events.push({ type: eventType, date, memo: '' });
+  // タスク・ステータス更新
+  if (result === 'positive') {
+    cow.status = 'pregnant';
+    const dueDate = addDays(date, 278);
+    cow.dueDate = dueDate;
+    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
+    tasks.push({ cowId, action: '分娩予定', detail: `分娩予定日: ${fmtDate(dueDate)}`, color: '#a855f7', date: dueDate, priority: 'high', id: Math.random().toString(36).slice(2), done: false });
+  } else {
+    cow.status = 'open';
+    tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定')));
+  }
+  save();
+  renderInsemBook();
+  renderTasks();
+  renderStats();
 }
 
 function toggleInsemBookPreg() {
