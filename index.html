@@ -3186,8 +3186,9 @@ function registerEvent() {
       }
       cow.etDate = implDate;
       cow.events.push({type:'et_done', date:implDate, memo});
-      // 授精簿に自動追記
-      addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, operator);
+      // 授精簿に自動追記（memoから術者を取得してop欄に渡す）
+      const etOperator = (memo||'').match(/術者:([^／\s]+)/)?.[1]?.trim() || '';
+      addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, etOperator);
       // 過去日付の記録はstatus/dueDate/tasksを変更しない
       if (isPastRecord) {
         schedule = [];
