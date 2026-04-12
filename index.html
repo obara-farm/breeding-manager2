@@ -6907,7 +6907,7 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
 }
 
 // 授精簿に新規記録を追加
-function addInsemBookRecord(cowId, date, memo, type, isDonorAI) {
+function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
     const all = [
