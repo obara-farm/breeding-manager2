@@ -3128,10 +3128,16 @@ function registerEvent() {
         alert(`${cowId}：${fmtDate(implDate)}のAI記録はすでに登録されています。`);
         return;
       }
+      const isPastRecordAI = implDate < todayStr;
       cow.aiDate = implDate;
       cow.events.push({type:'ai_done', date:implDate, memo, donorAI: isDonorAI || false});
       // 授精簿に自動追記
       addInsemBookRecord(cowId, implDate, memo, 'ai', isDonorAI);
+      // 過去日付の記録はstatus/dueDate/tasksを変更しない
+      if (isPastRecordAI) {
+        schedule = [];
+        break;
+      }
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
       if (isDonorAI) {
         // ドナーAI：妊鑑タスク生成しない・採卵プログラム継続
@@ -3167,6 +3173,7 @@ function registerEvent() {
       const pregResult = pregResultRaw || 'pending';
       const pregCheckDate = addDays(implDate, 45);
       const todayStr = today();
+      const isPastRecord = implDate < todayStr;
       // 同日同牛のet_done重複チェック
       if ((cow.events||[]).some(e=>e.type==='et_done' && e.date===implDate)) {
         alert(`${cowId}：${fmtDate(implDate)}のET記録はすでに登録されています。`);
@@ -3176,6 +3183,11 @@ function registerEvent() {
       cow.events.push({type:'et_done', date:implDate, memo});
       // 授精簿に自動追記
       addInsemBookRecord(cowId, implDate, memo, 'et');
+      // 過去日付の記録はstatus/dueDate/tasksを変更しない
+      if (isPastRecord) {
+        schedule = [];
+        break;
+      }
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
       if (pregResult === 'positive') {
         cow.status = 'pregnant';
