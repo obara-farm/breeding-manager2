@@ -3142,8 +3142,15 @@ function registerEvent() {
       cow.events.push({type:'ai_done', date:implDate, memo, donorAI: isDonorAI || false});
       // 授精簿に自動追記
       addInsemBookRecord(cowId, implDate, memo, 'ai', isDonorAI);
-      // 過去日付の記録はstatus/dueDate/tasksを変更しない
+      // 過去日付の記録はstatus/dueDate/tasksを変更しない（ただし妊鑑タスクは補完）
       if (isPastRecordAI) {
+        if (!isDonorAI) {
+          const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
+          const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
+          if (!hasPreg && !hasTask && !cow.calvingDate) {
+            tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false});
+          }
+        }
         schedule = [];
         break;
       }
@@ -3198,8 +3205,13 @@ function registerEvent() {
       // 授精簿に自動追記（memoから術者を取得してop欄に渡す）
       const etOperator = (memo||'').match(/術者:([^／\s]+)/)?.[1]?.trim() || '';
       addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, etOperator);
-      // 過去日付の記録はstatus/dueDate/tasksを変更しない
+      // 過去日付の記録はstatus/dueDate/tasksを変更しない（ただし妊鑑タスクは補完）
       if (isPastRecord) {
+        const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
+        const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
+        if (!hasPreg && !hasTask && !cow.calvingDate) {
+          tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`ET後45日 (ET日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false});
+        }
         schedule = [];
         break;
       }
