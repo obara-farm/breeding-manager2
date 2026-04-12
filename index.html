@@ -4905,7 +4905,10 @@ function submitQuickReg() {
   if (embryoSelId) {
     const e = embryoInventory.find(x=>x.id===embryoSelId);
     if (e) {
-      const embryoLabel = (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
+      const embryoNoSelForParts = document.getElementById('qr-embryo-no-select')?.value?.replace('_fix','');
+      const embryoLabel = embryoNoSelForParts
+        ? embryoNoSelForParts
+        : (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
       if (!parts.some(p=>p.startsWith('胚番号:'))) parts.push('胚番号:'+embryoLabel);
       e.stock = (e.stock||0) - embryoCount;
       e.history = e.history||[];
@@ -4938,7 +4941,13 @@ function submitQuickReg() {
     let embryoMemoVal = embryo;
     if (embryoSelId) {
       const e = embryoInventory.find(x=>x.id===embryoSelId);
-      if (e) embryoMemoVal = (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
+      const embryoNoSel = document.getElementById('qr-embryo-no-select')?.value?.replace('_fix','');
+      if (e) {
+        // 胚番号セレクトで個別番号が選ばれていればそれを使用、なければロット表記
+        embryoMemoVal = embryoNoSel
+          ? embryoNoSel
+          : (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
+      }
     } else if (embryoNameInput || embryoDamInput) {
       embryoMemoVal = (embryoDamInput ? embryoDamInput+'×' : '') + (embryoNameInput || '');
     }
