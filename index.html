@@ -7248,11 +7248,9 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   if (pregEv) {
     const isPos = pregEv.type === 'preg_positive';
     const pregDate = pregEv.date;
-    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;flex-wrap:nowrap;">
-      <span style="font-size:11px;font-weight:700;color:${isPos?'var(--accent)':'var(--danger)'};">${isPos?'✓':'✗'}</span>
-      <span style="font-size:9px;color:var(--muted);">${fmtDateShort(pregEv.date)}</span>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this)" data-cowid="${cowId}" data-date="${pregDate}" style="background:${isPos?'rgba(74,222,128,.2)':'var(--bg)'};border:1px solid var(--accent);color:var(--accent);font-size:9px;font-weight:700;padding:1px 3px;border-radius:3px;cursor:pointer;line-height:1;">✓</button>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this)" data-cowid="${cowId}" data-date="${pregDate}" style="background:${!isPos?'rgba(239,68,68,.2)':'var(--bg)'};border:1px solid var(--danger);color:var(--danger);font-size:9px;font-weight:700;padding:1px 3px;border-radius:3px;cursor:pointer;line-height:1;">✗</button>
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${!isPos?'#7f1d1d':'var(--bg3)'};border:1px solid ${!isPos?'#ef4444':'var(--border)'};color:${!isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
     </div>`;
   }
   // 分娩済みなら表示しない
@@ -7260,13 +7258,16 @@ function getPregCellHtml(cowId, date, isDonorAI) {
     return '<span style="font-size:10px;color:var(--muted);">分娩済</span>';
   }
   const pregDate = addDays(date, 45);
-  return `<div style="display:flex;gap:3px;justify-content:center;">
-    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this)" data-cowid="${cowId}" data-date="${pregDate}" style="background:var(--bg);border:1px solid var(--accent);color:var(--accent);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✓</button>
-    <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this)" data-cowid="${cowId}" data-date="${pregDate}" style="background:var(--bg);border:1px solid var(--danger);color:var(--danger);font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px;cursor:pointer;">✗</button>
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
+    <span style="font-size:9px;color:var(--muted);">妊鑑予定 ${fmtDateShort(pregDate)}</span>
+    <div style="display:flex;gap:3px;">
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
+    </div>
   </div>`;
 }
 
-function recordPregFromInsemBook(cowId, date, result, triggerEl) {
+function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) return;
   const eventType = result === 'positive' ? 'preg_positive' : 'preg_negative';
@@ -7299,14 +7300,17 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl) {
     tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action === '🏠 産室移動' || t.action === '分娩予定')));
   }
   save();
-  // ボタンが属するセルを直接更新（全再描画不要）
+  // ボタンが属するセルを直接更新
   const cell = triggerEl?.closest('.insembook-preg-col');
   if (cell) {
-    // insemBookレコードからAI/ET日を取得
-    const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
-    const rec = allRecs.find(r => r.t === cowId && addDays(r.d, 45) === date);
-    const aiDate = rec ? rec.d : date;
-    cell.innerHTML = getPregCellHtml(cowId, aiDate, rec?.donorAI || false);
+    const effectiveAiDate = aiDate || (() => {
+      const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
+      const rec = allRecs.find(r => r.t === cowId && addDays(r.d, 45) === date);
+      return rec ? rec.d : date;
+    })();
+    const allRecs2 = [...INSEM_BOOK_DATA, ...insemBookRecords];
+    const rec2 = allRecs2.find(r => r.t === cowId && r.d === effectiveAiDate);
+    cell.innerHTML = getPregCellHtml(cowId, effectiveAiDate, rec2?.donorAI || false);
   }
   renderAll();
   renderStats();
