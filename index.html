@@ -10052,6 +10052,8 @@ function buildEtCertHTML(r, certNo) {
 
   // 胚番号または授精簿の情報からembryo/collection情報を補完
   var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
+  // r.sが胚番号形式（01L237R7-0003など）の場合もembryoNoとして扱う
+  if(!embryoNo && r.s && /^01L237/.test(r.s)) embryoNo = r.s;
   // r.sからロット番号と連番を取得（25J09B1-1 → lot=25J09B1, seq=1）
   var isLotFormat = /^\d{2}[A-L]\d{2}B\d/.test(r.s||'');
   var lotKey = isLotFormat ? (r.s||'').replace(/-\d+$/, '') : '';
@@ -10068,6 +10070,22 @@ function buildEtCertHTML(r, certNo) {
     embryoInventory.forEach(function(inv){
       if((inv.embryoDetails||[]).some(function(ed){return ed.no===embryoNo;})) invByNo=inv;
     });
+    // EMBRYO_SHEET2_DATAからも検索（invByNoが見つからない場合）
+    if(!invByNo) {
+      var sheet2Match = null;
+      (EMBRYO_SHEET2_DATA||[]).forEach(function(lot){
+        if((lot.embryos||[]).some(function(e){return e.no===embryoNo;})) sheet2Match=lot;
+      });
+      if(sheet2Match) {
+        // sheet2からdonor/sireを補完
+        if(!donorName) donorName = (sheet2Match.name||'').split('×')[0].trim();
+        if(!sireName) {
+          var s2sire = (sheet2Match.name||'').split('×')[1];
+          if(s2sire) sireName = s2sire.replace(/\d+\/\d+$/, '').trim();
+        }
+        if(!lotKey) lotKey = sheet2Match.lot||'';
+      }
+    }
   }
   var invRef = invByNo || invByLot;
 
