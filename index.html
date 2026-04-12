@@ -7199,7 +7199,15 @@ function recordPregFromInsemBook(cowId, date, result) {
     tasks = tasks.filter(t => !(t.cowId === cowId && !t.done && t.action.includes('妊娠鑑定')));
   }
   save();
+  // 妊鑑列の表示状態を保持
+  const pregVisible = document.getElementById('insembook-preg-th')?.style.display !== 'none';
   renderInsemBook();
+  if (pregVisible) {
+    document.getElementById('insembook-preg-th').style.display = '';
+    document.querySelectorAll('.insembook-preg-col').forEach(c => c.style.display = '');
+    const btn = document.getElementById('insembook-preg-btn');
+    if (btn) { btn.style.borderColor = 'var(--accent)'; btn.style.color = 'var(--accent)'; }
+  }
   // タスクリストを再描画
   const taskContainer = document.getElementById('task-list');
   if (taskContainer) renderGrouped(tasks);
