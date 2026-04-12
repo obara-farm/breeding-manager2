@@ -5875,9 +5875,29 @@ function renderStats() {
           const pregResult = pregEv.type === 'preg_positive' ? 'positive' : 'negative';
           // memoから凍結/新鮮・ステージを判定
           const memo = et.memo || '';
-          const isFrozen = memo.includes('凍結') || memo.includes('frozen');
-          const isFresh = memo.includes('新鮮') || memo.includes('fresh') || memo.includes('🌱');
-          const embryoType = isFrozen ? 'frozen' : isFresh ? 'fresh' : 'unknown';
+          // まず🌱/❄️マークで判定
+          let embryoType = 'unknown';
+          if (memo.includes('🌱') || memo.includes('新鮮')) embryoType = 'fresh';
+          else if (memo.includes('❄') || memo.includes('凍結')) embryoType = 'frozen';
+          else {
+            // 胚番号からembryoInventoryで判定
+            const noM = memo.match(/胚番号:([\w\-]+)/);
+            if (noM) {
+              const lotKey = noM[1].replace(/-\d+$/, '');
+              const inv = embryoInventory.find(e =>
+                e.lot === lotKey ||
+                (e.embryoDetails||[]).some(d=>d.no===noM[1])
+              );
+              if (inv) embryoType = inv.type === 'frozen' ? 'frozen' : 'fresh';
+              // EMBRYO_SHEET2_DATAからも検索
+              if (embryoType === 'unknown') {
+                (EMBRYO_SHEET2_DATA||[]).forEach(lot => {
+                  const found = (lot.embryos||[]).find(e=>e.no===noM[1]);
+                  if (found) embryoType = found.frozen ? 'frozen' : 'fresh';
+                });
+              }
+            }
+          }
           const stageM = memo.match(/\b(CM|EB|BL|EX|MO)\b/);
           const stage = stageM ? stageM[1] : '不明';
           decidedFromEvents.push({ pregResult, embryoType, stage });
