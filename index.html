@@ -7047,22 +7047,25 @@ function saveInsemBookRecord(src, idx) {
     const sireKey = recForInv.s || '';
     const dateKey = recForInv.d || '';
     const isET = recForInv.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sireKey) || /^01L237/.test(sireKey);
-    // 在庫から該当レコードを探してtypeを更新
     const invArr = isET ? embryoInventory : semenInventory;
+    let updated = false;
     invArr.forEach(item => {
       (item.history||[]).forEach(h => {
         if (h.date !== dateKey) return;
         if (isET) {
+          // 胚番号またはlotで照合
           const hEmbryo = (h.memo||'').match(/胚番号:([\w\-]+)/)?.[1]||'';
+          const lotKey = sireKey.replace(/-\d+$/, '');
           if (hEmbryo && hEmbryo !== sireKey) return;
+          if (!hEmbryo && item.lot !== lotKey) return;
         } else {
           if (item.name !== sireKey) return;
         }
-        if (newOp && h.type === 'use') h.type = 'transfer';
-        if (!newOp && h.type === 'transfer') h.type = 'use';
+        if (newOp && (h.type === 'use')) { h.type = 'transfer'; updated = true; }
+        if (!newOp && h.type === 'transfer') { h.type = 'use'; updated = true; }
       });
     });
-    save();
+    if (updated) save();
   }
   // ET行のNo欄を更新（全再描画せず該当セルだけ更新）
   updateEtQCells();
