@@ -7302,6 +7302,7 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
   save();
   // ボタンが属するセルを直接更新
   const cell = triggerEl?.closest('.insembook-preg-col');
+  console.log('triggerEl:', triggerEl?.tagName, 'cell:', cell?.tagName, cell?.className);
   if (cell) {
     const effectiveAiDate = aiDate || (() => {
       const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
