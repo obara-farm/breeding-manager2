@@ -3154,7 +3154,8 @@ function registerEvent() {
             cow.status = 'open';
             cow.events.push({type:'preg_negative', date:todayStr, memo:''});
           } else {
-            // pending：妊鑑タスクを補完
+            // pending：妊鑑タスクを補完、statusをprogramに
+            cow.status = 'program';
             const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
             const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
             if (!hasPreg && !hasTask && !cow.calvingDate) {
@@ -3227,6 +3228,7 @@ function registerEvent() {
           cow.status = 'open';
           cow.events.push({type:'preg_negative', date:todayStr, memo:''});
         } else {
+          cow.status = 'program';
           const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
           const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
           if (!hasPreg && !hasTask && !cow.calvingDate) {
@@ -4971,6 +4973,10 @@ function submitQuickReg() {
     const e = embryoInventory.find(x=>x.id===embryoSelId);
     if (e) {
       const embryoNoSelForParts = document.getElementById('qr-embryo-no-select')?.value?.replace('_fix','');
+      // 凍結胚でembryoDetailsがある場合、胚番号未選択なら確認
+      if (e.type === 'frozen' && (e.embryoDetails||[]).length > 0 && !embryoNoSelForParts) {
+        if (!confirm('胚番号が選択されていません。ロット番号のみで登録しますか？')) return;
+      }
       const embryoLabel = embryoNoSelForParts
         ? embryoNoSelForParts
         : (e.dam ? e.dam+'×' : '') + e.sire + (e.lot?'('+e.lot+')':'');
@@ -5411,7 +5417,7 @@ function renderStats() {
         // cow.eventsのET記録のmemoから新鮮・凍結を判定
         const etEv = cow ? (cow.events||[]).find(e => e.type === 'et_done' && e.date === rec.date) : null;
         const etMemo = etEv?.memo || '';
-        let isFrozen = false;
+        let isFrozen = true; // 判定できない場合は凍結扱い
         if (etMemo.includes('🌱') || etMemo.includes('新鮮')) {
           isFrozen = false;
         } else if (etMemo.includes('❄') || etMemo.includes('凍結')) {
@@ -5972,7 +5978,9 @@ function renderStats() {
           }
           const stageM = memo.match(/\b(CM|EB|BL|EX|MO)\b/);
           const stage = stageM ? stageM[1] : '不明';
-          decidedFromEvents.push({ pregResult, embryoType, stage });
+          // unknownは凍結扱い
+          const finalType = embryoType === 'unknown' ? 'frozen' : embryoType;
+          decidedFromEvents.push({ pregResult, embryoType: finalType, stage });
         });
       });
       // etRecordsも追加（古いデータとの互換性）
