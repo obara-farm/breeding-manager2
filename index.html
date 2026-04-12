@@ -2801,7 +2801,45 @@ function initApp() {
   loadData();
   migrateDates();
   renderAll();
+  repairMissingPregTasks();
   initSwipe();
+}
+
+// ET/AI記録があり妊鑑結果未記録でタスクもない牛に妊鑑タスクを補完
+function repairMissingPregTasks() {
+  const todayStr = today();
+  const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
+  let added = 0;
+  cows.forEach(cow => {
+    if (cow.status === 'pregnant' || cow.status === 'fresh') return;
+    // 最後のAI/ET記録（donorAI除外）
+    const lastRec = allRecs
+      .filter(r => r.t === cow.id && !r.donorAI)
+      .sort((a,b) => b.d.localeCompare(a.d))[0];
+    if (!lastRec) return;
+    const pregCheckDate = addDays(lastRec.d, 45);
+    // 妊鑑結果があるかチェック
+    const hasPreg = (cow.events||[]).some(e =>
+      (e.type === 'preg_positive' || e.type === 'preg_negative') && e.date >= lastRec.d
+    );
+    if (hasPreg) return;
+    // 妊鑑タスクがあるかチェック
+    const hasTask = tasks.some(t => t.cowId === cow.id && !t.done && t.action.includes('妊娠鑑定'));
+    if (hasTask) return;
+    // タスクを追加
+    tasks.push({
+      id: Math.random().toString(36).slice(2),
+      cowId: cow.id,
+      date: pregCheckDate,
+      action: '妊娠鑑定',
+      detail: `${lastRec.insemType==='et'?'ET':'AI'}後45日 (${lastRec.insemType==='et'?'ET':'AI'}日:${fmtDate(lastRec.d)})`,
+      color: '#f59e0b',
+      priority: pregCheckDate < todayStr ? 'high' : 'mid',
+      done: false
+    });
+    added++;
+  });
+  if (added > 0) save();
 }
 
 // localStorageに保存済みのUTCずれ日付を修正するパッチ
@@ -7183,9 +7221,11 @@ function recordPregFromInsemBook(cowId, date, result) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) return;
   const eventType = result === 'positive' ? 'preg_positive' : 'preg_negative';
-  // 既に同日同タイプがあればスキップ
-  if ((cow.events||[]).some(e => e.type === eventType && e.date === date)) return;
   cow.events = cow.events || [];
+  // 同日の既存妊鑑結果を削除して上書き
+  cow.events = cow.events.filter(e =>
+    !(( e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
+  );
   cow.events.push({ type: eventType, date, memo: '' });
   // タスク・ステータス更新
   if (result === 'positive') {
