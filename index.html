@@ -7353,9 +7353,10 @@ function renderEmbryoDetails(details, usedNos) {
   const stageBadge = s => ({CM:'CM',EB:'EB',BL:'BL',EX:'EX',MO:'MO'}[s]||s||'—');
   const rows = details.map((d, i) => {
     const isUsed = d.no && usedNos.includes(d.no);
+    // どのタイプで使われたか判定（後で渡せる場合はそちらを使う）
     return `<tr style="background:${isUsed?'rgba(0,0,0,0.3)':i%2===0?'var(--bg2)':'var(--bg3)'};opacity:${isUsed?'0.5':'1'};">
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);text-align:center;">${i+1}</td>
-    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:${isUsed?'var(--muted)':'var(--info)'};">${d.no||'—'}${isUsed?'<span style="font-size:9px;color:var(--danger);margin-left:4px;">使用済</span>':''}</td>
+    <td style="padding:3px 5px;font-size:10px;font-family:'JetBrains Mono',monospace;color:${isUsed?'var(--muted)':'var(--info)'};">${d.no||'—'}${isUsed?`<span style="font-size:9px;color:var(--danger);margin-left:4px;">${(usedNos._types&&usedNos._types[d.no])==='discard'?'廃棄':(usedNos._types&&usedNos._types[d.no])==='transfer'?'譲渡':'使用済'}</span>`:''}</td>
     <td style="padding:3px 5px;font-size:10px;color:var(--muted);">${d.cane||'—'}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;color:var(--text);">${stageBadge(d.stage)}</td>
     <td style="padding:3px 5px;font-size:10px;text-align:center;font-weight:700;color:${d.rank==='A'?'var(--accent)':d.rank==='B'?'var(--warn)':'var(--muted)'};">${d.rank||'—'}</td>
@@ -12662,7 +12663,7 @@ function onQrEmbryoSelectChange() {
       if (details && details.length && e.type === 'frozen') {
         // 使用済み胚番号を取得（history.cowIdがある = 使用済み）
         const usedNos = (e.history||[])
-          .filter(h => (h.type==='use'||h.type==='transfer') && h.memo)
+          .filter(h => (h.type==='use'||h.type==='transfer'||h.type==='discard') && h.memo)
           .map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; })
           .filter(Boolean);
         const available = details.filter(d => d.no && !usedNos.includes(d.no));
@@ -12822,11 +12823,31 @@ function renderEmbryo() {
         const det = e.embryoDetails || getSheet2DetailsForLot(e.lot);
         if (det) det.forEach(d => allDetails.push({...d, _invId: e.id}));
       });
+      // 廃棄・使用・譲渡memoから胚番号を抽出してallDetailsに追加（未登録のもの）
+      const existingNos = new Set(allDetails.map(d=>d.no).filter(Boolean));
+      lotItems.forEach(e => {
+        (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h => {
+          const matches = [...((h.memo||'').matchAll(/[（(](R\d+-(\d+))[）)]|胚番号:([\w\-]+)/g))];
+          matches.forEach(m => {
+            const no = m[3] || ('01L237' + m[1]);
+            if (no && !existingNos.has(no)) {
+              // EMBRYO_SHEET2_DATAから詳細を取得
+              let detail = null;
+              (EMBRYO_SHEET2_DATA||[]).forEach(lot => {
+                const found = (lot.embryos||[]).find(em => em.no === no);
+                if (found) detail = {...found, _invId: e.id};
+              });
+              allDetails.push(detail || {no, frozen: h.type!=='discard', _invId: e.id});
+              existingNos.add(no);
+            }
+          });
+        });
+      });
       const frozenCnt = allDetails.filter(d=>d.frozen).length;
       const lotBadge = frozenCnt ? `❄️${frozenCnt}本` : `${lotStock}本`;
       const detailId = `embryo-lot-detail-${gIdx}-${lIdx}`;
       const totalUsed = lotItems.reduce((s,e)=>{
-        return s + (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer').reduce((a,b)=>a+b.count,0);
+        return s + (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').reduce((a,b)=>a+b.count,0);
       },0);
       // 代表アイテムID（操作用）
       const mainId = lotItems[0].id;
@@ -12850,13 +12871,25 @@ function renderEmbryo() {
         </div>
         <div id="${detailId}" style="display:none;margin-top:8px;">
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">累計使用: ${totalUsed}本</div>
-          ${allDetails.length ? renderEmbryoDetails(allDetails, lotItems.reduce((acc,e)=>{
-            (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer').forEach(h=>{
-              const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
-              if(m) acc.push(m[1]);
-            });
-            return acc;
-          },[])) : ''}
+          ${allDetails.length ? renderEmbryoDetails(allDetails, (()=>{
+            const usedArr = lotItems.reduce((acc,e)=>{
+              (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h=>{
+                const m = (h.memo||'').match(/胚番号:([\w\-]+)/);
+                if(m) { acc.push({no:m[1], type:h.type}); return; }
+                // memoに「R6-0038」「R7-0038」形式が含まれる場合も特定
+                const rn = (h.memo||'').match(/[（(](R\d+-\d+)[）)]/);
+                if(rn) {
+                  // R6-0038 → 01L237R6-0038 形式に変換
+                  acc.push({no:'01L237'+rn[1], type:h.type});
+                }
+              });
+              return acc;
+            },[]);
+            const nos = usedArr.map(x=>x.no);
+            nos._types = {};
+            usedArr.forEach(x=>{ nos._types[x.no] = x.type; });
+            return nos;
+          })())) : ''}
           <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
             ${(()=>{
               const colRec = collectionRecordsNew.find(r => r.lot === (lotKey.startsWith('__noLot__') ? null : lotKey) && r.date === collDate);
