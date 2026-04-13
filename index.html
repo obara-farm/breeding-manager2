@@ -7216,8 +7216,12 @@ function saveInsemBookRecord(src, idx) {
     insemBookEdits[key].m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
     insemBookEdits[key].op = (document.getElementById('ib-op-' + recD + '-' + recT)?.value || '').trim();
   }
-  save();
-  // op欄変更時に対応する在庫履歴のtypeを更新（use↔transfer）
+  // op欄・d欄変更時のみ在庫処理を実行（m欄やn欄のみの変更では在庫不要）
+  const triggerField = arguments[2] || 'unknown';
+  if (triggerField === 'm' || triggerField === 'n' || triggerField === 'q') {
+    save();
+    return;
+  }
   const recForInv = src === 'dynamic' ? insemBookRecords[idx] : (() => {
     const base = INSEM_BOOK_DATA[idx];
     const edit = insemBookEdits[src+'_'+idx]||{};
