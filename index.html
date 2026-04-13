@@ -4141,8 +4141,11 @@ function renderCowList() {
     const lastAiEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e =>
       ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
     );
-    const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
-      tasks.some(t => t.cowId===cow.id && !t.done && t.action.includes('妊娠鑑定'));
+    const hasPregResult = lastAiEt && (cow.events||[]).some(e =>
+      (e.type==='preg_positive'||e.type==='preg_negative') &&
+      (e.insemDate===lastAiEt.date || (!e.insemDate && e.date >= lastAiEt.date))
+    );
+    const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt && !hasPregResult;
     const displayStatus = isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
     // 最終受精・移植情報
@@ -7310,11 +7313,29 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
     !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
   );
   cow.events.push({ type: eventType, date, memo: '', insemDate: aiDate || date });
-  // 対応する妊鑑タスクのpregResultを更新
-  tasks.filter(t => t.cowId === cowId && t.action.includes('妊娠鑑定') && !t.done).forEach(t => {
-    t.pregResult = result;
-    t.pregResultDate = date;
-  });
+  // 対応する妊鑑タスクのpregResultを更新、なければ完了済みとして追加
+  const existingPregTask = tasks.find(t => t.cowId === cowId && t.action.includes('妊娠鑑定') && !t.done);
+  if (existingPregTask) {
+    existingPregTask.pregResult = result;
+    existingPregTask.pregResultDate = date;
+    existingPregTask.done = true;
+    existingPregTask.doneAt = new Date().toISOString();
+  } else {
+    // タスクがない場合は完了済みタスクを追加
+    tasks.push({
+      id: Math.random().toString(36).slice(2),
+      cowId,
+      action: '妊娠鑑定',
+      detail: result === 'positive' ? '✓ 陽性' : '✗ 陰性',
+      color: result === 'positive' ? '#4ade80' : '#ef4444',
+      date: date,
+      priority: 'high',
+      done: true,
+      doneAt: new Date().toISOString(),
+      pregResult: result,
+      pregResultDate: date
+    });
+  }
   if (result === 'positive') {
     cow.status = 'pregnant';
     const lastEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
