@@ -3159,7 +3159,7 @@ function registerEvent() {
             const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
             const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
             if (!hasPreg && !hasTask && !cow.calvingDate) {
-              tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false});
+              tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false,insemDate:implDate});
             }
           }
         }
@@ -3232,7 +3232,7 @@ function registerEvent() {
           const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
           const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
           if (!hasPreg && !hasTask && !cow.calvingDate) {
-            tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`ET後45日 (ET日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false});
+            tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`ET後45日 (ET日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false,insemDate:implDate});
           }
         }
         schedule = [];
@@ -3842,15 +3842,11 @@ function recordPreg(cowId, taskId, result) {
   });
 
   // ── 新しい結果を適用 ──
-  // 最後のAI/ETイベントの日付をinsemDateとして使用
   const task = tasks.find(t=>t.id===taskId);
-  const lastAiEtForInsem = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>
-    ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
-  );
-  // タスクのdetailからも授精日を試みる
+  // タスクのinsemDate→detailからの抽出→最後のAI/ETの順で授精日を特定
   const insemDateMatch = (task?.detail||'').match(/[AETIai]+日[:：]\s*(\d{4}[\/\-]\d{2}[\/\-]\d{2})/);
   const insemDateFromDetail = insemDateMatch ? insemDateMatch[1].replace(/\//g,'-') : null;
-  const insemDateFromTask = insemDateFromDetail || (lastAiEtForInsem ? lastAiEtForInsem.date : null);
+  const insemDateFromTask = task?.insemDate || insemDateFromDetail || null;
   cow.events.push({ type: isPositive?'preg_positive':'preg_negative', date: pregDate, memo: isTwin?'双子':'', insemDate: insemDateFromTask });
   // 授精簿レコードのpregResultを直接更新
   if (insemDateFromTask) {
@@ -7290,14 +7286,17 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const allRecsForNext = [...INSEM_BOOK_DATA, ...insemBookRecords];
   const nextDate = allRecsForNext.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d))[0]?.d || null;
 
-  // 分娩済みなら最優先で表示（日付付き）
-  if (cow.calvingDate && cow.calvingDate >= date) {
-    const calvRec = insemBookRecords.find(r => r.t === cowId && r.d === date);
-    if (calvRec && !calvRec.pregResult) calvRec.pregResult = 'positive';
-    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-      <span style="font-size:11px;font-weight:700;color:var(--accent);">✓</span>
-      <span style="font-size:9px;color:var(--muted);">分娩済 ${fmtDateShort(cow.calvingDate)}</span>
-    </div>`;
+  // 分娩済みなら最優先で表示（授精日から270〜300日以内の分娩のみ対象）
+  if (cow.calvingDate) {
+    const daysToBirth = diffDays(cow.calvingDate, date);
+    if (daysToBirth >= 240 && daysToBirth <= 310) {
+      const calvRec = insemBookRecords.find(r => r.t === cowId && r.d === date);
+      if (calvRec && !calvRec.pregResult) calvRec.pregResult = 'positive';
+      return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+        <span style="font-size:11px;font-weight:700;color:var(--accent);">✓</span>
+        <span style="font-size:9px;color:var(--muted);">分娩済 ${fmtDateShort(cow.calvingDate)}</span>
+      </div>`;
+    }
   }
   // 結果あり→ボタンで表示
   if (hasResult) {
