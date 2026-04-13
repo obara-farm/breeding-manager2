@@ -5771,7 +5771,7 @@ function renderStats() {
                       ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span>` : '<span style="color:var(--border);">—</span>'}
                     </td>` : ''}
                   </tr>`;
-                }).join('')}
+                }).join('')})()
               </tbody>
             </table>
           </div>`;
@@ -13893,8 +13893,19 @@ function renderReport() {
       // この月の全履歴を日付順でまとめる
       const ym = `${selectedYear}-${m}`;
       const monthEntries = [];
+      const allBRForExpand = [...INSEM_BOOK_DATA, ...insemBookRecords];
       inventory.forEach(item => {
         (item.history||[]).filter(h=>(h.date||'').startsWith(ym)).forEach(h => {
+          // cowIdなしのtransfer/useは授精簿から1頭ずつ展開
+          if (!h.cowId && (h.type === 'transfer' || h.type === 'use') && h.date) {
+            const matched = allBRForExpand.filter(r => r.d === h.date && r.s === nameOf(item));
+            if (matched.length > 1) {
+              matched.forEach(r => {
+                monthEntries.push({ ...h, itemName: nameOf(item), itemId: item.id, cowId: r.t, _expanded: true });
+              });
+              return;
+            }
+          }
           monthEntries.push({ ...h, itemName: nameOf(item), itemId: item.id });
         });
       });
@@ -13915,14 +13926,22 @@ function renderReport() {
           <td colspan="7" style="padding:0;border:1px solid var(--info);">
             <div style="background:var(--bg2);padding:8px;">
               <div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:6px;">${parseInt(m)}月の明細 （${monthEntries.length}件）</div>
-              ${monthEntries.map((h,hi) => {
+              ${(() => { const usedBRKeys = new Set(); return monthEntries.map((h,hi) => {
                 const cowName = h.cowId ? (cowDisplayName(h.cowId)||h.cowId) : '';
                 const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
-                // cowIdがない譲渡レコードは授精簿から牛を特定
+                // cowIdがない譲渡レコードは授精簿から牛を特定（使用済み行はスキップ）
                 let cowDisplay = cowName ? `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${h.cowId}</span> ${cowName}</span>` : '';
                 if (!cowDisplay && h.type === 'transfer' && h.date) {
                   const allBR = [...INSEM_BOOK_DATA, ...insemBookRecords];
-                  const matchedBR = allBR.filter(r => r.d === h.date && r.s === h.itemName);
+                  const candidates = allBR.filter(r => r.d === h.date && r.s === h.itemName);
+                  const matchedBR = [];
+                  for (const r of candidates) {
+                    const key = r.d + '__' + r.t + '__' + (r._src||'') + '__' + (r._idx||'');
+                    if (usedBRKeys.has(key)) continue;
+                    matchedBR.push(r);
+                    usedBRKeys.add(key);
+                    if (matchedBR.length >= (h.count||1)) break;
+                  }
                   if (matchedBR.length > 0) {
                     cowDisplay = matchedBR.map(r => `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${r.t}</span> ${cowDisplayName(r.t)||''}</span>`).join(' ');
                   }
@@ -13960,7 +13979,7 @@ function renderReport() {
                   <input type="text" value="${op}" placeholder="術者" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'operator',this.value,this)" style="background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:10px;padding:2px 4px;border-radius:4px;width:60px;">
                   ${h.memo&&!h.memo.includes('術者:')?`<span style="color:var(--muted);font-size:10px;">${h.memo}</span>`:''}
                 </div>`;
-              }).join('')}
+              }).join('')})()}
             </div>
           </td>
         </tr>` : '';
