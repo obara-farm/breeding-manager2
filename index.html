@@ -4968,10 +4968,10 @@ function submitQuickReg() {
     }
   }
 
-  // 受精卵在庫から減算または譲渡（ET系）
-  const embryoSelId = document.getElementById('qr-embryo-select')?.value;
-  const embryoNameInput = document.getElementById('qr-embryo-name-input')?.value.trim();
-  const embryoDamInput = document.getElementById('qr-embryo-dam-input')?.value.trim();
+  // 受精卵在庫から減算または譲渡（ET系のみ）
+  const embryoSelId = (event === 'et_done') ? document.getElementById('qr-embryo-select')?.value : '';
+  const embryoNameInput = (event === 'et_done') ? document.getElementById('qr-embryo-name-input')?.value.trim() : '';
+  const embryoDamInput = (event === 'et_done') ? document.getElementById('qr-embryo-dam-input')?.value.trim() : '';
   const embryoCount = parseInt(document.getElementById('qr-embryo-count')?.value)||1;
   if (embryoSelId) {
     const e = embryoInventory.find(x=>x.id===embryoSelId);
