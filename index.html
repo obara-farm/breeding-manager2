@@ -5450,10 +5450,15 @@ function renderStats() {
       const lastPreg = [...pregSearch].reverse()[0];
 
       let result = null;
-      if (lastPreg) {
+      // 授精簿レコードのpregResultを優先
+      if (rec.pregResult === 'positive') result = 'pos';
+      else if (rec.pregResult === 'negative') result = 'neg';
+      else if (lastPreg) {
         result = lastPreg.type === 'preg_positive' ? 'pos' : 'neg';
       } else if (nextInsem) {
         result = 'neg'; // 再授精あり→前の授精は陰性
+      } else if (cow && cow.calvingDate && cow.calvingDate >= rec.date) {
+        result = 'pos'; // 分娩済み→陽性
       } else if (cow && cow.status === 'pregnant' && cow.dueDate) {
         // 妊娠中→分娩予定日から逆算して±7日以内なら陽性
         const days = rec.isET ? 278 : 285;
@@ -7292,9 +7297,15 @@ function getPregCellHtml(cowId, date, isDonorAI) {
       <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
     </div>`;
   }
-  // 分娩済みなら表示しない
+  // 分娩済みなら陽性として表示（日付付き）
   if (cow.calvingDate && cow.calvingDate >= date) {
-    return '<span style="font-size:10px;color:var(--muted);">分娩済</span>';
+    // 授精簿レコードのpregResultにも陽性を設定
+    const calvRec = insemBookRecords.find(r => r.t === cowId && r.d === date);
+    if (calvRec && !calvRec.pregResult) calvRec.pregResult = 'positive';
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+      <span style="font-size:11px;font-weight:700;color:var(--accent);">✓</span>
+      <span style="font-size:9px;color:var(--muted);">分娩済 ${fmtDateShort(cow.calvingDate)}</span>
+    </div>`;
   }
   // 次のAI記録がある→自動陰性ボタン
   if (nextDate) {
