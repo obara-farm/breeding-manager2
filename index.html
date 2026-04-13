@@ -3842,7 +3842,11 @@ function recordPreg(cowId, taskId, result) {
   });
 
   // ── 新しい結果を適用 ──
-  cow.events.push({ type: isPositive?'preg_positive':'preg_negative', date: pregDate, memo: isTwin?'双子':'' });
+  // タスクのdetailから授精日を取得してinsemDateとして保存
+  const task = tasks.find(t=>t.id===taskId);
+  const insemDateMatch = (task?.detail||'').match(/[AIET]+日[:：]\s*(\d{4}\/\d{2}\/\d{2})/);
+  const insemDateFromTask = insemDateMatch ? insemDateMatch[1].replace(/\//g,'-') : (task ? addDays(task.date, -45) : null);
+  cow.events.push({ type: isPositive?'preg_positive':'preg_negative', date: pregDate, memo: isTwin?'双子':'', insemDate: insemDateFromTask });
 
   if (isPositive) {
     cow.status = 'pregnant';
@@ -7251,21 +7255,20 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
   const cowRecs = allRecs.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d));
   const nextDate = cowRecs.length ? cowRecs[0].d : null;
-  const pregDate45 = addDays(date, 45);
   const pregEvs = events.filter(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
-    e.date >= date &&
-    e.date <= addDays(date, 280) &&
-    (!nextDate || e.date < nextDate)
+    (e.insemDate === date || (!e.insemDate && e.date >= date && e.date <= addDays(date, 280) && (!nextDate || e.date < nextDate)))
   );
-  // nextDateより前に妊鑑結果がない場合、nextDate以降も含めて妊鑑予定日±90日で探す
+  // insemDateなしのフォールバック：妊鑑予定日±90日で最も近いものを使う
   const pregEv = pregEvs.length ? pregEvs[0] : (() => {
+    const pregDate45 = addDays(date, 45);
     const wider = events.filter(e =>
       (e.type === 'preg_positive' || e.type === 'preg_negative') &&
+      !e.insemDate &&
       e.date >= date &&
       Math.abs(diffDays(e.date, pregDate45)) <= 90
     );
-    return wider.sort((a,b) => Math.abs(diffDays(a.date, pregDate45)) - Math.abs(diffDays(b.date, pregDate45)))[0] || null;
+    return wider.sort((a,b) => Math.abs(diffDays(a.date, addDays(date,45))) - Math.abs(diffDays(b.date, addDays(date,45))))[0] || null;
   })();
   // 明示的な妊鑑結果がなく、次のAI記録がある場合は自動陰性表示
   if (!pregEv && nextDate) {
@@ -7306,7 +7309,7 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
   cow.events = cow.events.filter(e =>
     !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
   );
-  cow.events.push({ type: eventType, date, memo: '' });
+  cow.events.push({ type: eventType, date, memo: '', insemDate: aiDate || date });
   // 対応する妊鑑タスクのpregResultを更新
   tasks.filter(t => t.cowId === cowId && t.action.includes('妊娠鑑定') && !t.done).forEach(t => {
     t.pregResult = result;
@@ -10317,11 +10320,25 @@ function deleteInsemRecord(src, idx) {
       // 2. cow.eventsから該当AI/ETイベントを削除
       var cow = cows.find(function(c) { return c.id === cowId; });
       if (cow && cow.events) {
+        // 授精記録に対応する妊鑑結果を特定して削除
+        var pregToDelete = (cow.events||[]).find(function(e) {
+          return (e.type==='preg_positive'||e.type==='preg_negative') &&
+            (e.insemDate === date || (!e.insemDate && e.date >= date && e.date <= addDays(date, 280)));
+        });
         cow.events = cow.events.filter(function(ev) {
           if (ev.date !== date) return true;
           var evType = isET ? 'et_done' : 'ai_done';
           return ev.type !== evType;
         });
+        // 妊鑑結果も削除
+        if (pregToDelete) {
+          cow.events = cow.events.filter(function(e) { return e !== pregToDelete; });
+          // 分娩予定・産室移動タスクも削除
+          tasks = tasks.filter(function(t) {
+            return !(t.cowId === cowId && !t.done && (t.action === '分娩予定' || t.action === '🏠 産室移動'));
+          });
+          cow.dueDate = null;
+        }
         // ステータスをopenに戻す（次のイベントがなければ）
         var hasActiveEvent = (cow.events||[]).some(function(ev) {
           return ['ai_done','et_done','cidr_ai_start','et_recipient','donor_et_start'].includes(ev.type) && ev.date >= date;
