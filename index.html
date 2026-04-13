@@ -13918,19 +13918,11 @@ function renderReport() {
               ${monthEntries.map((h,hi) => {
                 const cowName = h.cowId ? (cowDisplayName(h.cowId)||h.cowId) : '';
                 const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
-                // cowIdがない譲渡レコードは授精簿・memoから牛を特定
+                // cowIdがない譲渡レコードは授精簿から牛を特定
                 let cowDisplay = cowName ? `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${h.cowId}</span> ${cowName}</span>` : '';
-                if (!cowDisplay && (h.type === 'transfer' || h.type === 'use') && h.date) {
+                if (!cowDisplay && h.type === 'transfer' && h.date) {
                   const allBR = [...INSEM_BOOK_DATA, ...insemBookRecords];
-                  // 授精簿から日付・種雄牛名・術者・胚番号で照合
-                  const embryoNoInMemo = [...((h.memo||'').matchAll(/胚番号:([\w\-]+)/g))].map(m=>m[1]);
-                  const matchedBR = allBR.filter(r => {
-                    if (r.d !== h.date) return false;
-                    if (r.s === h.itemName) return true;
-                    if (embryoNoInMemo.length && embryoNoInMemo.some(no => r.s === no || r.m?.includes(no))) return true;
-                    if (op && r.op === op && Math.abs(diffDays(r.d, h.date)) <= 1) return true;
-                    return false;
-                  });
+                  const matchedBR = allBR.filter(r => r.d === h.date && r.s === h.itemName);
                   if (matchedBR.length > 0) {
                     cowDisplay = matchedBR.map(r => `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${r.t}</span> ${cowDisplayName(r.t)||''}</span>`).join(' ');
                   }
