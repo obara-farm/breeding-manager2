@@ -4951,7 +4951,7 @@ function submitQuickReg() {
       if (!parts.some(p=>p.startsWith('精液:'))) parts.push('精液:'+s.name);
       s.stock = (s.stock||0) - semenCount;
       s.history = s.history||[];
-      s.history.push({ date, type: invType, count:semenCount, usage: isOther ? null : 'AI', cowId: isOther ? null : cowId, memo: operator ? '術者:'+operator : (free||null) });
+      s.history.push({ date, type: invType, count:semenCount, usage: isOther ? 'AI委託' : 'AI', cowId: cowId, memo: operator ? '術者:'+operator : (free||null) });
     }
   } else if (semenNameInput) {
     if (!parts.some(p=>p.startsWith('精液:'))) parts.push('精液:'+semenNameInput);
@@ -5000,7 +5000,7 @@ function submitQuickReg() {
       const histCane = parts.find(p=>p.startsWith('ケーン:'));
       const histParts = [histEmbryo, histCane, operator?'術者:'+operator:null, free||null].filter(Boolean);
       const histMemo = histParts.length ? histParts.join(' ') : null;
-      e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? null : 'ET', cowId: isOther ? null : cowId, memo: histMemo });
+      e.history.push({ date, type: invType, count:embryoCount, usage: isOther ? 'ET委託' : 'ET', cowId: cowId, memo: histMemo });
     }
   } else if (embryoNameInput || embryoDamInput) {
     const embryoLabel = (embryoDamInput ? embryoDamInput+'×' : '') + (embryoNameInput || '');
@@ -10329,7 +10329,7 @@ function deleteInsemRecord(src, idx) {
         semenInventory.forEach(function(inv) {
           if (!inv.history) return;
           inv.history = inv.history.filter(function(h) {
-            var isThis = h.type === 'use' && h.date === date && h.cowId === cowId;
+            var isThis = (h.type === 'use' || h.type === 'transfer') && h.date === date && (h.cowId === cowId || (inv.name === sire.trim()));
             if (isThis) inv.stock = (inv.stock||0) + (h.count||1);
             return !isThis;
           });
@@ -10343,7 +10343,7 @@ function deleteInsemRecord(src, idx) {
         embryoInventory.forEach(function(inv) {
           if (!inv.history) return;
           inv.history = inv.history.filter(function(h) {
-            var isThis = h.type === 'use' && h.date === date && h.cowId === cowId;
+            var isThis = (h.type === 'use' || h.type === 'transfer') && h.date === date && (h.cowId === cowId || (h.memo||'').includes(cowId));
             if (isThis) inv.stock = (inv.stock||0) + (h.count||1);
             return !isThis;
           });
@@ -13900,7 +13900,11 @@ function renderReport() {
       });
       monthEntries.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
-      const tLabel = t => ({restock:'🤝譲受',carryover:'📦繰越',selfcollect:'🥚採卵',use:isEmbryo?'🧬使用':'💉使用',transfer:'📤譲渡',discard:'🗑廃棄'}[t]||t);
+      const tLabel = (t, h) => {
+        if (t === 'transfer' && h?.usage === 'AI委託') return '💉📤AI委託';
+        if (t === 'transfer' && h?.usage === 'ET委託') return '🧬📤ET委託';
+        return {restock:'🤝譲受',carryover:'📦繰越',selfcollect:'🥚採卵',use:isEmbryo?'🧬使用':'💉使用',transfer:'📤譲渡',discard:'🗑廃棄'}[t]||t;
+      };
       const tColor = t => t==='use'?'var(--danger)':t==='transfer'?'var(--warn)':t==='discard'?'var(--muted)':'var(--accent)';
       const typeOptions = isEmbryo
         ? ['restock','carryover','selfcollect','use','transfer','discard']
@@ -13914,11 +13918,19 @@ function renderReport() {
               ${monthEntries.map((h,hi) => {
                 const cowName = h.cowId ? (cowDisplayName(h.cowId)||h.cowId) : '';
                 const op = h.memo?.match(/術者:([^／\s]+)/)?.[1] || '';
-                // cowIdがない譲渡レコードは授精簿から牛を特定
+                // cowIdがない譲渡レコードは授精簿・memoから牛を特定
                 let cowDisplay = cowName ? `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${h.cowId}</span> ${cowName}</span>` : '';
-                if (!cowDisplay && h.type === 'transfer' && h.date) {
+                if (!cowDisplay && (h.type === 'transfer' || h.type === 'use') && h.date) {
                   const allBR = [...INSEM_BOOK_DATA, ...insemBookRecords];
-                  const matchedBR = allBR.filter(r => r.d === h.date && r.s === h.itemName);
+                  // 授精簿から日付・種雄牛名・術者・胚番号で照合
+                  const embryoNoInMemo = [...((h.memo||'').matchAll(/胚番号:([\w\-]+)/g))].map(m=>m[1]);
+                  const matchedBR = allBR.filter(r => {
+                    if (r.d !== h.date) return false;
+                    if (r.s === h.itemName) return true;
+                    if (embryoNoInMemo.length && embryoNoInMemo.some(no => r.s === no || r.m?.includes(no))) return true;
+                    if (op && r.op === op && Math.abs(diffDays(r.d, h.date)) <= 1) return true;
+                    return false;
+                  });
                   if (matchedBR.length > 0) {
                     cowDisplay = matchedBR.map(r => `<span style="background:var(--bg);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:1px 5px;border-radius:4px;"><span style="color:var(--accent);font-family:'JetBrains Mono',monospace;">${r.t}</span> ${cowDisplayName(r.t)||''}</span>`).join(' ');
                   }
@@ -13941,7 +13953,7 @@ function renderReport() {
                 const rowBgDet = hi % 2 === 0 ? 'var(--bg3)' : 'var(--bg2)';
                 const leftColor = tColor(h.type);
                 const typeBtns = typeOptions.map(t =>
-                  `<button onclick="updateMonthDetEntry('${h.itemId}',${hIdx},'type','${t}',this)" style="padding:2px 6px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap;border:1px solid ${t===h.type?tColor(t):'var(--border)'};background:${t===h.type?'rgba(0,0,0,0.3)':'var(--bg)'};color:${t===h.type?tColor(t):'var(--muted)'};">${tLabel(t)}</button>`
+                  `<button onclick="updateMonthDetEntry('${h.itemId}',${hIdx},'type','${t}',this)" style="padding:2px 6px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;white-space:nowrap;border:1px solid ${t===h.type?tColor(t):'var(--border)'};background:${t===h.type?'rgba(0,0,0,0.3)':'var(--bg)'};color:${t===h.type?tColor(t):'var(--muted)'};">${t===h.type?tLabel(t,h):tLabel(t)}</button>`
                 ).join('');
                 return `<div style="display:flex;align-items:center;gap:5px;padding:7px 8px;background:${rowBgDet};border-left:3px solid ${leftColor};border-bottom:2px solid var(--bg);flex-wrap:wrap;margin-bottom:1px;">
                   <input type="date" value="${h.date}" onchange="updateMonthDetEntry('${h.itemId}',${hIdx},'date',this.value,this)" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;width:120px;">
