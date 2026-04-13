@@ -7251,12 +7251,22 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
   const cowRecs = allRecs.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d));
   const nextDate = cowRecs.length ? cowRecs[0].d : null;
+  const pregDate45 = addDays(date, 45);
   const pregEvs = events.filter(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
     e.date >= date &&
-    e.date <= addDays(date, 280)
+    e.date <= addDays(date, 280) &&
+    (!nextDate || e.date < nextDate)
   );
-  const pregEv = pregEvs.length ? pregEvs[0] : null;
+  // nextDateより前に妊鑑結果がない場合、nextDate以降も含めて妊鑑予定日±90日で探す
+  const pregEv = pregEvs.length ? pregEvs[0] : (() => {
+    const wider = events.filter(e =>
+      (e.type === 'preg_positive' || e.type === 'preg_negative') &&
+      e.date >= date &&
+      Math.abs(diffDays(e.date, pregDate45)) <= 90
+    );
+    return wider.sort((a,b) => Math.abs(diffDays(a.date, pregDate45)) - Math.abs(diffDays(b.date, pregDate45)))[0] || null;
+  })();
   // 明示的な妊鑑結果がなく、次のAI記録がある場合は自動陰性表示
   if (!pregEv && nextDate) {
     const pregDate = addDays(date, 45);
@@ -7297,6 +7307,11 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
     !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
   );
   cow.events.push({ type: eventType, date, memo: '' });
+  // 対応する妊鑑タスクのpregResultを更新
+  tasks.filter(t => t.cowId === cowId && t.action.includes('妊娠鑑定') && !t.done).forEach(t => {
+    t.pregResult = result;
+    t.pregResultDate = date;
+  });
   if (result === 'positive') {
     cow.status = 'pregnant';
     const lastEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
