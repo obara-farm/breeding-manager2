@@ -7227,14 +7227,17 @@ function saveInsemBookRecord(src, idx) {
     const newOp = recForInv.op || '';
     const sireKey = recForInv.s || '';
     const dateKey = recForInv.d || '';
-    const isET = recForInv.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sireKey) || /^01L237/.test(sireKey);
+    const cowId = recForInv.t || '';
+    const isET = recForInv.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sireKey) || /^01L237/.test(sireKey) || (sireKey.includes('×'));
+    const invType = newOp ? 'transfer' : 'use';
     const invArr = isET ? embryoInventory : semenInventory;
     let updated = false;
+    let hasHistory = false;
+
     invArr.forEach(item => {
       (item.history||[]).forEach(h => {
         if (h.date !== dateKey) return;
         if (isET) {
-          // 胚番号またはlotで照合
           const hEmbryo = (h.memo||'').match(/胚番号:([\w\-]+)/)?.[1]||'';
           const lotKey = sireKey.replace(/-\d+$/, '');
           if (hEmbryo && hEmbryo !== sireKey) return;
@@ -7242,10 +7245,36 @@ function saveInsemBookRecord(src, idx) {
         } else {
           if (item.name !== sireKey) return;
         }
-        if (newOp && (h.type === 'use')) { h.type = 'transfer'; updated = true; }
+        if (h.cowId === cowId || !h.cowId) hasHistory = true;
+        if (newOp && h.type === 'use') { h.type = 'transfer'; updated = true; }
         if (!newOp && h.type === 'transfer') { h.type = 'use'; updated = true; }
       });
     });
+
+    // 在庫履歴がない場合は新規追加
+    if (!hasHistory && sireKey && dateKey && cowId) {
+      if (isET) {
+        const lotKey = sireKey.replace(/-\d+$/, '');
+        const inv = embryoInventory.find(e => e.lot === lotKey || (e.embryoDetails||[]).some(d => d.no === sireKey));
+        if (inv) {
+          const memo = `胚番号:${sireKey}${newOp?' 術者:'+newOp:''}`;
+          inv.history = inv.history||[];
+          inv.history.push({date:dateKey, type:invType, count:1, cowId, memo});
+          inv.stock = Math.max(0, (inv.stock||0) - 1);
+          updated = true;
+        }
+      } else {
+        const inv = semenInventory.find(s => s.name === sireKey);
+        if (inv) {
+          const memo = newOp ? '術者:'+newOp : null;
+          inv.history = inv.history||[];
+          inv.history.push({date:dateKey, type:invType, count:1, cowId, memo});
+          inv.stock = Math.max(0, (inv.stock||0) - 1);
+          updated = true;
+        }
+      }
+    }
+
     if (updated) save();
   }
   // ET行のNo欄を更新（全再描画せず該当セルだけ更新）
@@ -9560,9 +9589,11 @@ function saveCollection() {
       : (cowDisplayName(donorId)||donorId);
     const donorBreed = isExternal ? '褐毛' : (cows.find(c=>c.id===donorId)?.breed||'黒毛');
     const invType = isExternal ? 'restock' : 'selfcollect';
+    const freshCount = (freshEmbryos||[]).filter(fe => fe.embryoNo || fe.recipientId).length;
+    const totalCount = frozenEmbryos.length + freshCount;
     const invMemo = isExternal
-      ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本`
-      : `採卵${lot||date} 凍結${frozenEmbryos.length}本`;
+      ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本${freshCount?` 新鮮${freshCount}本`:''}`
+      : `採卵${lot||date} 凍結${frozenEmbryos.length}本${freshCount?` 新鮮${freshCount}本`:''}`;
     // 同ロット・同採卵日・同ドナーの在庫を削除（採卵由来のみ）
     if (lot) {
       embryoInventory = embryoInventory.filter(e => {
@@ -9577,10 +9608,10 @@ function saveCollection() {
       id: Math.random().toString(36).slice(2),
       sire: sire||'', dam: donorName, lot: lot||date,
       type: 'frozen', breed: donorBreed, stage: frozenEmbryos[0]?.stage||'',
-      stock: frozenEmbryos.length, alertThreshold: 2, noAlert: false,
+      stock: totalCount, alertThreshold: 2, noAlert: false,
       collectionDate: date,
       history: [{
-        date, type: invType, count: frozenEmbryos.length, memo: invMemo,
+        date, type: invType, count: totalCount, memo: invMemo,
       }],
       embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
     };
