@@ -3141,7 +3141,7 @@ function registerEvent() {
       cow.aiDate = implDate;
       cow.events.push({type:'ai_done', date:implDate, memo, donorAI: isDonorAI || false});
       // 授精簿に自動追記
-      addInsemBookRecord(cowId, implDate, memo, 'ai', isDonorAI);
+      addInsemBookRecord(cowId, implDate, memo, 'ai', isDonorAI, undefined, undefined, pregResult === 'pending' ? null : pregResult);
       // 過去日付の記録はstatus/dueDate/tasksを変更しない（ただし妊鑑タスク補完とpregResultは処理）
       if (isPastRecordAI) {
         if (!isDonorAI) {
@@ -3216,7 +3216,7 @@ function registerEvent() {
       cow.events.push({type:'et_done', date:implDate, memo});
       // 授精簿に自動追記（memoから術者を取得してop欄に渡す）
       const etOperator = (memo||'').match(/術者:([^／\s]+)/)?.[1]?.trim() || '';
-      addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, etOperator);
+      addInsemBookRecord(cowId, implDate, memo, 'et', false, undefined, etOperator, pregResult === 'pending' ? null : pregResult);
       // 過去日付の記録はstatus/dueDate/tasksを変更しない（ただし妊鑑タスク補完とpregResultは処理）
       if (isPastRecord) {
         if (pregResult === 'positive') {
@@ -3842,11 +3842,21 @@ function recordPreg(cowId, taskId, result) {
   });
 
   // ── 新しい結果を適用 ──
-  // タスクのdetailから授精日を取得してinsemDateとして保存
+  // 最後のAI/ETイベントの日付をinsemDateとして使用
   const task = tasks.find(t=>t.id===taskId);
-  const insemDateMatch = (task?.detail||'').match(/[AIET]+日[:：]\s*(\d{4}\/\d{2}\/\d{2})/);
-  const insemDateFromTask = insemDateMatch ? insemDateMatch[1].replace(/\//g,'-') : (task ? addDays(task.date, -45) : null);
+  const lastAiEtForInsem = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>
+    ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
+  );
+  // タスクのdetailからも授精日を試みる
+  const insemDateMatch = (task?.detail||'').match(/[AETIai]+日[:：]\s*(\d{4}[\/\-]\d{2}[\/\-]\d{2})/);
+  const insemDateFromDetail = insemDateMatch ? insemDateMatch[1].replace(/\//g,'-') : null;
+  const insemDateFromTask = insemDateFromDetail || (lastAiEtForInsem ? lastAiEtForInsem.date : null);
   cow.events.push({ type: isPositive?'preg_positive':'preg_negative', date: pregDate, memo: isTwin?'双子':'', insemDate: insemDateFromTask });
+  // 授精簿レコードのpregResultを直接更新
+  if (insemDateFromTask) {
+    const targetRec = insemBookRecords.find(r => r.t === cowId && r.d === insemDateFromTask);
+    if (targetRec) targetRec.pregResult = isPositive ? 'positive' : 'negative';
+  }
 
   if (isPositive) {
     cow.status = 'pregnant';
@@ -7124,7 +7134,7 @@ function updateMonthDetEntry(itemId, hIdx, field, value, el) {
 }
 
 // 授精簿に新規記録を追加
-function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorArg) {
+function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorArg, pregResult) {
   // 同日同牛の重複チェック（ET記録はINSEM_BOOK_DATAとは別扱い）
   if (type === 'ai') {
     const all = [
@@ -7168,7 +7178,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
     .map(p => p.startsWith('ケーン:') ? p.replace('ケーン:', '') : p)
     .join('／').trim();
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type, pregResult: pregResult||null });
   // count>1の場合は追加分も登録
   if (count && count > 1) {
     for (let i = 1; i < count; i++) {
@@ -7254,51 +7264,53 @@ function getPregCellHtml(cowId, date, isDonorAI) {
       return '<span style="font-size:10px;color:var(--muted);">PG済</span>';
     }
   }
-  const events = (cow.events||[]).slice().sort((a,b) => a.date.localeCompare(b.date));
+  // まずinsemBookRecordsのpregResultを直接参照
   const allRecs = [...INSEM_BOOK_DATA, ...insemBookRecords];
-  const cowRecs = allRecs.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d));
-  const nextDate = cowRecs.length ? cowRecs[0].d : null;
-  const pregEvs = events.filter(e =>
+  const bookRec = allRecs.find(r => r.t === cowId && r.d === date);
+  const bookPregResult = bookRec?.pregResult || null;
+
+  // cow.eventsからinsemDate一致で妊鑑結果を取得
+  const events = (cow.events||[]).slice().sort((a,b) => a.date.localeCompare(b.date));
+  const pregEvFromEvents = events.find(e =>
     (e.type === 'preg_positive' || e.type === 'preg_negative') &&
-    (e.insemDate === date || (!e.insemDate && e.date >= date && e.date <= addDays(date, 280) && (!nextDate || e.date < nextDate)))
+    e.insemDate === date
   );
-  // insemDateなしのフォールバック：妊鑑予定日±90日で最も近いものを使う
-  const pregEv = pregEvs.length ? pregEvs[0] : (() => {
-    const pregDate45 = addDays(date, 45);
-    const wider = events.filter(e =>
-      (e.type === 'preg_positive' || e.type === 'preg_negative') &&
-      !e.insemDate &&
-      e.date >= date &&
-      Math.abs(diffDays(e.date, pregDate45)) <= 90
-    );
-    return wider.sort((a,b) => Math.abs(diffDays(a.date, addDays(date,45))) - Math.abs(diffDays(b.date, addDays(date,45))))[0] || null;
-  })();
-  // 明示的な妊鑑結果がなく、次のAI記録がある場合は自動陰性表示
-  if (!pregEv && nextDate) {
-    const pregDate = addDays(date, 45);
-    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:#7f1d1d;border:1px solid #ef4444;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
-    </div>`;
-  }
-  if (pregEv) {
-    const isPos = pregEv.type === 'preg_positive';
-    const pregDate = pregEv.date;
+
+  // 優先順位：insemBookRecord > cow.events
+  const isPos = bookPregResult === 'positive' || pregEvFromEvents?.type === 'preg_positive';
+  const isNeg = bookPregResult === 'negative' || pregEvFromEvents?.type === 'preg_negative';
+  const pregDate = pregEvFromEvents?.date || addDays(date, 45);
+  const hasResult = isPos || isNeg;
+  // 次のAI記録を確認（自動陰性表示用）
+  const allRecsForNext = [...INSEM_BOOK_DATA, ...insemBookRecords];
+  const nextDate = allRecsForNext.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d))[0]?.d || null;
+
+  // 結果あり→ボタンで表示
+  if (hasResult) {
     return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
       <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${!isPos?'#7f1d1d':'var(--bg3)'};border:1px solid ${!isPos?'#ef4444':'var(--border)'};color:${!isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
     </div>`;
   }
   // 分娩済みなら表示しない
   if (cow.calvingDate && cow.calvingDate >= date) {
     return '<span style="font-size:10px;color:var(--muted);">分娩済</span>';
   }
-  const pregDate = addDays(date, 45);
+  // 次のAI記録がある→自動陰性ボタン
+  if (nextDate) {
+    const pd = addDays(date, 45);
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+      <button onclick="recordPregFromInsemBook('${cowId}','${pd}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pd}','negative',this,'${date}')" style="background:#7f1d1d;border:1px solid #ef4444;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
+    </div>`;
+  }
+  // 未記録→妊鑑予定日表示
+  const pd2 = addDays(date, 45);
   return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
-    <span style="font-size:9px;color:var(--muted);">妊鑑予定 ${fmtDateShort(pregDate)}</span>
+    <span style="font-size:9px;color:var(--muted);">妊鑑予定 ${fmtDateShort(pd2)}</span>
     <div style="display:flex;gap:3px;">
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pd2}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pd2}','negative',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
     </div>
   </div>`;
 }
@@ -7313,6 +7325,10 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
     !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
   );
   cow.events.push({ type: eventType, date, memo: '', insemDate: aiDate || date });
+  // 授精簿レコードのpregResultを直接更新
+  const allRecsForUpdate = [...INSEM_BOOK_DATA, ...insemBookRecords];
+  const targetRec = insemBookRecords.find(r => r.t === cowId && r.d === (aiDate || date));
+  if (targetRec) targetRec.pregResult = result;
   // 対応する妊鑑タスクのpregResultを更新、なければ完了済みとして追加
   const existingPregTask = tasks.find(t => t.cowId === cowId && t.action.includes('妊娠鑑定') && !t.done);
   if (existingPregTask) {
