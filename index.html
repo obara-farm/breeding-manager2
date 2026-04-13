@@ -7290,21 +7290,20 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const allRecsForNext = [...INSEM_BOOK_DATA, ...insemBookRecords];
   const nextDate = allRecsForNext.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d))[0]?.d || null;
 
-  // 結果あり→ボタンで表示
-  if (hasResult) {
-    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
-      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
-    </div>`;
-  }
-  // 分娩済みなら陽性として表示（日付付き）
+  // 分娩済みなら最優先で表示（日付付き）
   if (cow.calvingDate && cow.calvingDate >= date) {
-    // 授精簿レコードのpregResultにも陽性を設定
     const calvRec = insemBookRecords.find(r => r.t === cowId && r.d === date);
     if (calvRec && !calvRec.pregResult) calvRec.pregResult = 'positive';
     return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
       <span style="font-size:11px;font-weight:700;color:var(--accent);">✓</span>
       <span style="font-size:9px;color:var(--muted);">分娩済 ${fmtDateShort(cow.calvingDate)}</span>
+    </div>`;
+  }
+  // 結果あり→ボタンで表示
+  if (hasResult) {
+    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✓陽性</button>
+      <button onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">✗陰性</button>
     </div>`;
   }
   // 次のAI記録がある→自動陰性ボタン
