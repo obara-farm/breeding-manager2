@@ -7159,6 +7159,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // memoから精液名・術者・胚番号を除いた備考部分のみ抽出
   const memoClean = (memo||'').split('／')
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
+    .map(p => p.startsWith('ケーン:') ? p.replace('ケーン:', '') : p)
     .join('／').trim();
   insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
   // count>1の場合は追加分も登録
