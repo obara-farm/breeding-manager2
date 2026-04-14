@@ -10786,12 +10786,23 @@ function printSelectedEggCerts() {
 
   var container = document.getElementById('egg-cert-print-container');
   container.innerHTML = pages.map(function(page){
-    return '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:0;padding:4mm;box-sizing:border-box;background:#fff;">' +
+    return '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
-      page.map(function(x){
-        return '<div style="width:101mm;height:144mm;overflow:hidden;box-sizing:border-box;">'+buildEggCertHTML(x.colRec, x.embryo)+'</div>';
-      }).join('') +
+      '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
+        '<tr>' +
+          page.slice(0,2).map(function(x){
+            return '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertHTML(x.colRec, x.embryo)+'</td>';
+          }).join('')+
+          (page.length<2?'<td style="width:105mm;height:148.5mm;"></td>':'')+
+        '</tr>' +
+        '<tr>' +
+          page.slice(2,4).map(function(x){
+            return '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertHTML(x.colRec, x.embryo)+'</td>';
+          }).join('')+
+          (page.length<4?'<td style="width:105mm;height:148.5mm;"></td>'.repeat(4-page.length):'')+
+        '</tr>' +
+      '</table>' +
     '</div>';
   }).join('');
 
