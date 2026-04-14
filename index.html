@@ -11048,7 +11048,7 @@ function buildCertHTML(r, idx, certNo) {
   // 縦書き列:8mm, ラベル列:38mm, 値列:残り
   // 上部テーブルも同じ右端に揃える
   var W_VERT  = '8mm';   // 縦書き「精液を注入した雌畜」
-  var W_LABEL = '38mm';  // 項目ラベル列
+  var W_LABEL = '46mm';  // 項目ラベル列
   // 上部テーブル: 種畜+家畜人工授精用+精液証明書番号+名前+種雄牛名
   // 右端(値列)が上下で揃うよう、上部の列幅を合計でW_VERT+W_LABELに揃える
   var W_SHIKU  = '10mm'; // 種畜
@@ -11109,23 +11109,23 @@ function buildCertHTML(r, idx, certNo) {
               '<td style="' + cellBase + 'font-size:10pt;font-weight:bold;">' + cowName + '&#12288;(' + r.t + ')</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:9pt;">個&#12288;体&#12288;識&#12288;別&#12288;番&#12288;号</td>' +
+              '<td style="' + cellC + 'font-size:9pt;white-space:nowrap;">個&#12288;体&#12288;識&#12288;別&#12288;番&#12288;号</td>' +
               '<td style="' + cellBase + 'font-family:\'Courier New\',monospace;font-size:9pt;">' + nationalId + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:8.5pt;line-height:1.5;">家&#12288;畜&#12288;登&#12288;録&#12288;機&#12288;関&#12288;名<br>及&#12288;び&#12288;登&#12288;録&#12288;番&#12288;号</td>' +
+              '<td style="' + cellC + 'font-size:8.5pt;line-height:1.5;white-space:nowrap;">家&#12288;畜&#12288;登&#12288;録&#12288;機&#12288;関&#12288;名<br>及&#12288;び&#12288;登&#12288;録&#12288;番&#12288;号</td>' +
               '<td style="' + cellBase + 'font-size:9pt;">' + regOrg + '<br>' + regNo + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:9pt;">種&#12288;類&#12288;及&#12288;び&#12288;品&#12288;種</td>' +
+              '<td style="' + cellC + 'font-size:9pt;white-space:nowrap;">種&#12288;類&#12288;及&#12288;び&#12288;品&#12288;種</td>' +
               '<td style="' + cellBase + 'font-size:9pt;">' + breed + '</td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:9pt;">毛&#12288;色&#12288;及&#12288;び&#12288;特&#12288;徴</td>' +
+              '<td style="' + cellC + 'font-size:9pt;white-space:nowrap;">毛&#12288;色&#12288;及&#12288;び&#12288;特&#12288;徴</td>' +
               '<td style="' + cellBase + 'height:8mm;"></td>' +
             '</tr>' +
             '<tr>' +
-              '<td style="' + cellC + 'font-size:9pt;">生&#12288;年&#12288;月&#12288;日</td>' +
+              '<td style="' + cellC + 'font-size:9pt;white-space:nowrap;">生&#12288;年&#12288;月&#12288;日</td>' +
               '<td style="' + cellBase + 'font-size:9pt;">' + dob + '</td>' +
             '</tr>' +
             '<tr>' +
@@ -11142,7 +11142,7 @@ function buildCertHTML(r, idx, certNo) {
               '<col>' +
             '</colgroup>' +
             '<tr>' +
-              '<td colspan="2" style="' + cellC + 'font-size:9pt;">精&#12288;液&#12288;注&#12288;入&#12288;年&#12288;月&#12288;日</td>' +
+              '<td colspan="2" style="' + cellC + 'font-size:9pt;white-space:nowrap;">精&#12288;液&#12288;注&#12288;入&#12288;年&#12288;月&#12288;日</td>' +
               '<td style="' + cellBase + 'font-size:10pt;font-weight:bold;">' + aiDateStr + '</td>' +
             '</tr>' +
           '</table>' +
