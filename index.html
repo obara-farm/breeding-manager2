@@ -16284,8 +16284,15 @@ function initFirebaseSync() {
             const remoteRecs = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
             const localRecs = JSON.parse(_store.getItem(k) || '[]');
             const merged = remoteRecs.map((rr, i) => {
-              let lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
-              if (!lr) lr = localRecs[i];
+              // インデックス優先で照合、_seqがあれば_seqも使用
+              let lr = localRecs[i];
+              if (!lr || lr.d !== rr.d || lr.t !== rr.t) {
+                if (rr._seq) {
+                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && l._seq === rr._seq);
+                } else {
+                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && !l._seq);
+                }
+              }
               if (!lr) return rr;
               return {
                 ...rr,
