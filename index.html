@@ -315,6 +315,8 @@ textarea{resize:vertical;}
   body.printing-egg-cert #modal-egg-cert-print { display: block !important; }
   body.printing-egg-cert #modal-cert-preview { display: none !important; }
   body.printing-egg-cert #app-root > *:not(#modal-egg-cert-print) { display: none !important; }
+  .egg-cert-page div[style*="border-top:0.5px dashed"],
+  .egg-cert-page div[style*="border-left:0.5px dashed"] { display: block !important; }
 }
 /* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
 @media (max-width: 430px) {
@@ -10586,7 +10588,7 @@ function buildEggCertHTML(colRec, embryo) {
   var sireRegOrg = si?(si.regOrg||''):'';
   var sireRegNo = si?(si.regNo||''):'';
   var sireBreed = si?(si.breed==='黒毛'?'黒毛和種':si.breed==='褐毛'?'褐毛和種':(si.breed||'')):'';
-  var sireGrade = si?(si.grade||''):'';
+  var sireGrade = (embryo && embryo._grade) ? embryo._grade : (si?(si.grade||''):'');
   var collectDate = colRec.date||colRec.collectionDate||'';
   var collectDateJP = fmtDateJP(collectDate);
   var aiDates = (colRec.aiDates||[]);
@@ -10616,7 +10618,7 @@ function buildEggCertHTML(colRec, embryo) {
   var L=bd+'vertical-align:middle;text-align:center;padding:2px 2px;font-size:7pt;';
   var H='7mm';
 
-  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:2mm;box-sizing:border-box;height:100%;overflow:hidden;">' +
+  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:2mm 3mm;box-sizing:border-box;overflow:hidden;max-height:144mm;">' +
     '<div style="display:flex;align-items:flex-start;margin-bottom:1mm;">' +
       '<div style="flex:1;">' +
         (isFrozen ? '<div style="font-size:7pt;">ケーン番号　'+cane+'</div>' : '') +
@@ -10629,10 +10631,10 @@ function buildEggCertHTML(colRec, embryo) {
       '</div>' +
     '</div>' +
     '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-      '<colgroup><col style="width:6mm"><col style="width:18mm"><col><col style="width:7mm"><col style="width:18mm"></colgroup>' +
+      '<colgroup><col style="width:6mm"><col style="width:22mm"><col><col style="width:7mm"><col style="width:18mm"></colgroup>' +
       '<tr style="height:'+H+';"><td rowspan="4" style="border:0.5px solid #000;vertical-align:middle;text-align:center;padding:2px 1px;font-size:7pt;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:2px;">交配した種畜</td>' +
         '<td style="'+Vc+'">種畜証明書番号</td><td style="'+V+'">'+sireCert+'</td>' +
-        '<td style="'+Vc+'font-size:6.5pt;">等　級</td><td style="'+V+'font-size:7pt;">'+sireGrade+'</td></tr>' +
+        '<td style="'+Vc+'font-size:6.5pt;">等　級</td><td style="'+V+'font-size:7pt;" contenteditable="true">'+sireGrade+'</td></tr>' +
       '<tr style="height:'+H+';"><td style="'+Vc+'">名　前</td><td colspan="3" style="'+V+'font-size:9pt;font-weight:bold;">'+sire+'</td></tr>' +
       '<tr style="height:'+H+';"><td style="'+Vc+'">家畜登録機関名及び登録番号</td><td colspan="3" style="'+V+'">'+sireRegOrg+(sireRegNo?'　'+sireRegNo:'')+'</td></tr>' +
       '<tr style="height:'+H+';"><td style="'+Vc+'">品　種</td><td colspan="3" style="'+V+'">肉用牛 ・ '+sireBreed+'</td></tr>' +
@@ -10736,15 +10738,16 @@ function updateEggCartBadge() {
 function openEggCartPreview() {
   if(!eggCertCart.length){alert('カートが空です。採卵記録から胚を追加してください');return;}
   var listEl = document.getElementById('egg-cert-list');
-  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">印刷する胚（全'+eggCertCart.length+'枚）</div>' +
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">印刷する胚（全'+eggCertCart.length+'枚）— 等級を入力してから印刷してください</div>' +
     eggCertCart.map(function(c,i){
-      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);">' +
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap;">' +
         '<button onclick="removeFromEggCart('+i+')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;">✕</button>' +
         '<span style="font-size:10px;color:var(--muted);">'+c.lot+'</span>' +
         '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+c.embryoNo+'</span>' +
         '<span style="font-size:11px;color:var(--muted);">'+c.cane+'</span>' +
         '<span style="font-size:11px;color:var(--text);">'+c.stage+'</span>' +
         '<span style="font-size:11px;font-weight:700;color:'+(c.rank==='A'?'var(--accent)':c.rank==='B'?'var(--warn)':'var(--muted)')+';">'+c.rank+'</span>' +
+        '<input type="text" data-cart-idx="'+i+'" placeholder="等級（例: 特級/1級）" value="'+(c.grade||'')+'" oninput="eggCertCart['+i+'].grade=this.value" style="flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 6px;border-radius:4px;">' +
       '</div>';
     }).join('');
   updateEggCertSelectCount();
@@ -10772,6 +10775,8 @@ function printSelectedEggCerts() {
     var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
     var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh',frozen:false});});
     var embryo = frozen.concat(fresh)[c.embryoIdx];
+    // カートの等級をembryo側に上書き
+    if(embryo && c.grade) embryo = Object.assign({}, embryo, {_grade: c.grade});
     return {colRec:colRec, embryo:embryo};
   }).filter(function(x){return x&&x.colRec&&x.embryo;});
 
@@ -10781,7 +10786,9 @@ function printSelectedEggCerts() {
 
   var container = document.getElementById('egg-cert-print-container');
   container.innerHTML = pages.map(function(page){
-    return '<div class="egg-cert-page" style="width:210mm;height:297mm;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2mm;padding:5mm;box-sizing:border-box;background:#fff;">' +
+    return '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:0;padding:4mm;box-sizing:border-box;background:#fff;">' +
+      '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
+      '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       page.map(function(x){return buildEggCertHTML(x.colRec, x.embryo);}).join('') +
     '</div>';
   }).join('');
