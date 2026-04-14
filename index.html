@@ -10756,11 +10756,13 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
 
       '<tr style="height:'+H+';">' +
-        '<td rowspan="7" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:3px;">体内受精卵を移植した雌畜</td>' +
+        '<td style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:2px;">採取した雌畜<br>体内受精卵を</td>' +
         '<td style="'+Vc+'white-space:nowrap;">名前（ドナー）</td>' +
         '<td style="'+V+'font-weight:bold;">'+donorName+'</td>' +
       '</tr>' +
+
       '<tr style="height:'+H+';">' +
+        '<td rowspan="6" style="'+Vc+'writing-mode:vertical-rl;font-size:9pt;letter-spacing:3px;">体内受精卵を移植した雌畜</td>' +
         '<td style="'+Vc+'white-space:nowrap;">名前（受卵牛）</td>' +
         '<td style="'+V+'font-size:11pt;font-weight:bold;">'+(cowName && cowName !== 'F1' ? cowName+(nationalId?'　'+nationalId:'') : (nationalId||cowName))+'</td>' +
       '</tr>' +
