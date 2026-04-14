@@ -16343,9 +16343,12 @@ function initFirebaseSync() {
               const remoteRecs = JSON.parse(rv);
               const localRecs = JSON.parse(_store.getItem(k) || '[]');
               const merged = remoteRecs.map((rr, i) => {
-                // まずd/t/sで照合、見つからなければインデックスで照合
-                let lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
-                if (!lr) lr = localRecs[i];
+                // インデックスで照合（同牛同日同種雄牛の複数件に対応）
+                let lr = localRecs[i];
+                // インデックスが一致しない場合のみd/t/sで照合
+                if (!lr || (lr.d !== rr.d || lr.t !== rr.t)) {
+                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+                }
                 if (!lr) return rr;
                 return {
                   ...rr,
