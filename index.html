@@ -10598,11 +10598,11 @@ function buildEggCertHTML(colRec, embryo) {
     var d = new Date(ai.date);
     return d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
   }).filter(Boolean).join('、');
-  var embryoNo = embryo ? (embryo.no||'') : '';
-  var cane = embryo ? (embryo.cane||'') : '';
+  var isFrozen = embryo ? (embryo._type!=='fresh') : true;
+  var embryoNo = embryo ? (embryo.no||embryo.embryoNo||'') : '';
+  var cane = isFrozen ? (embryo ? (embryo.cane||embryo.caneNo||'') : '') : '';
   var stage = embryo ? (embryo.stage||'') : '';
   var rank = embryo ? (embryo.rank||'') : '';
-  var isFrozen = embryo ? (embryo.frozen!==false) : true;
   var typeLabel = isFrozen ? '凍　結' : '新　鮮';
 
   var bd='border:0.5px solid #000;';
@@ -10614,7 +10614,7 @@ function buildEggCertHTML(colRec, embryo) {
   return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:3mm;box-sizing:border-box;height:100%;overflow:hidden;">' +
     '<div style="display:flex;align-items:flex-start;margin-bottom:1.5mm;">' +
       '<div style="flex:1;">' +
-        '<div style="font-size:7pt;">ケーン番号　'+cane+'</div>' +
+        (isFrozen ? '<div style="font-size:7pt;">ケーン番号　'+cane+'</div>' : '') +
         '<div style="font-size:8pt;font-weight:bold;margin-top:0.5mm;">第 '+embryoNo+' 号</div>' +
         '<div style="font-size:6pt;color:#555;">（番号又は記号）</div>' +
       '</div>' +
