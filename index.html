@@ -8295,7 +8295,7 @@ function openEditCollection(id) {
   setTimeout(() => syncEmbryoGrades(), 50);
   // 凍結胚がある場合は卵証明書ボタンを表示
   const btnArea = document.getElementById('collection-egg-cert-btn-area');
-  if(btnArea) btnArea.style.display = (r.frozenEmbryos||[]).length > 0 ? '' : 'none';
+  if(btnArea) btnArea.style.display = ((r.frozenEmbryos||[]).length > 0 || (r.freshEmbryos||[]).length > 0) ? '' : 'none';
   openModal('modal-collection');
 }
 
@@ -10647,17 +10647,21 @@ function printEggCertsFromModal() {
   var colRecId = document.getElementById('collection-edit-id').value;
   var colRec = collectionRecordsNew.find(function(r){return r.id===colRecId;});
   if(!colRec) return;
-  var frozen = colRec.frozenEmbryos||[];
-  if(!frozen.length){alert('凍結胚の記録がありません');return;}
+  var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
+  var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh', frozen:false});});
+  var allEmbryos = frozen.concat(fresh);
+  if(!allEmbryos.length){alert('胚の記録がありません');return;}
 
   var listEl = document.getElementById('egg-cert-list');
   listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">チェックしてカートに追加してください</div>' +
-    frozen.map(function(e,i){
+    allEmbryos.map(function(e,i){
       var inCart = eggCertCart.some(function(c){return c.colRecId===colRecId&&c.embryoIdx===i;});
+      var typeLabel = e._type==='fresh' ? '<span style="font-size:9px;color:var(--accent);background:rgba(74,222,128,.15);padding:1px 4px;border-radius:3px;">🌱新鮮</span>' : '<span style="font-size:9px;color:var(--info);background:rgba(59,130,246,.15);padding:1px 4px;border-radius:3px;">❄️凍結</span>';
       return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;background:'+(inCart?'rgba(74,222,128,.08)':'')+';">' +
         '<input type="checkbox" class="egg-cert-check" data-idx="'+i+'" data-colid="'+colRecId+'" '+(inCart?'checked':'')+' onchange="updateEggCart(this)" style="width:16px;height:16px;">' +
-        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+(e.no||'—')+'</span>' +
-        '<span style="font-size:11px;color:var(--muted);">'+(e.cane||'')+'</span>' +
+        typeLabel +
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+(e.no||e.embryoNo||'—')+'</span>' +
+        '<span style="font-size:11px;color:var(--muted);">'+(e.cane||e.caneNo||'')+'</span>' +
         '<span style="font-size:11px;color:var(--text);">'+(e.stage||'—')+'</span>' +
         '<span style="font-size:11px;font-weight:700;color:'+(e.rank==='A'?'var(--accent)':e.rank==='B'?'var(--warn)':'var(--muted)')+';">'+(e.rank||'—')+'</span>' +
         (inCart?'<span style="font-size:10px;color:var(--accent);">🛒 カート済</span>':'') +
@@ -10672,22 +10676,25 @@ function updateEggCart(checkbox) {
   var idx = parseInt(checkbox.dataset.idx);
   var colRec = collectionRecordsNew.find(function(r){return r.id===colRecId;});
   if(!colRec) return;
-  var embryo = (colRec.frozenEmbryos||[])[idx];
+  var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
+  var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh',frozen:false});});
+  var allEmbryos = frozen.concat(fresh);
+  var embryo = allEmbryos[idx];
   if(!embryo) return;
 
   if(checkbox.checked) {
-    // カートに追加（重複チェック）
     var exists = eggCertCart.some(function(c){return c.colRecId===colRecId&&c.embryoIdx===idx;});
     if(!exists) {
       eggCertCart.push({
         colRecId: colRecId, embryoIdx: idx,
-        embryoNo: embryo.no||'', cane: embryo.cane||'',
+        embryoNo: embryo.no||embryo.embryoNo||'',
+        cane: embryo.cane||embryo.caneNo||'',
         stage: embryo.stage||'', rank: embryo.rank||'',
-        lot: colRec.lot||''
+        lot: colRec.lot||'',
+        isFrozen: embryo._type!=='fresh'
       });
     }
   } else {
-    // カートから削除
     eggCertCart = eggCertCart.filter(function(c){return !(c.colRecId===colRecId&&c.embryoIdx===idx);});
   }
   updateEggCertSelectCount();
