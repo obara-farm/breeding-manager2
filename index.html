@@ -10731,7 +10731,7 @@ function buildEtCertHTML(r, certNo) {
   var embryoNo = embryoNo2; // 証明書本体ではembryo2を使用
 
   return (
-    '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 0 6mm;box-sizing:border-box;page-break-inside:avoid;">' +
+    '<div style="width:297mm;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 0 6mm;box-sizing:border-box;">' +
 
     // ヘッダ：左上の第●号は不要、右上に「第 胚証明書番号 号」を表示
     '<div style="display:flex;align-items:baseline;margin-bottom:3mm;">' +
@@ -10889,13 +10889,13 @@ function buildEtCertHTML(r, certNo) {
     '</div>' +
 
     // 受精卵産子状況
-    '<table style="width:60%;border-collapse:collapse;margin-top:1mm;font-size:9pt;">' +
-      '<tr><td colspan="3" style="'+Vc+'font-size:9.5pt;">受精卵産子状況</td></tr>' +
-      '<tr style="height:6mm;"><td rowspan="5" style="'+Vc+'">産仔</td><td style="'+Vc+'">耳標番号</td><td style="'+V+'"></td></tr>' +
-      '<tr style="height:6mm;"><td style="'+Vc+'">生年月日</td><td style="'+V+'"></td></tr>' +
-      '<tr style="height:6mm;"><td style="'+Vc+'">体重/性別</td><td style="'+V+'"></td></tr>' +
-      '<tr style="height:6mm;"><td style="'+Vc+'">子牛登録番号</td><td style="'+V+'"></td></tr>' +
-      '<tr style="height:6mm;"><td style="'+Vc+'">移動の有無</td><td style="'+V+'">平成　年　月　日　　導入者</td></tr>' +
+    '<table style="width:60%;border-collapse:collapse;margin-top:2mm;font-size:9.5pt;">' +
+      '<tr><td colspan="3" style="'+Vc+'font-size:10pt;">受精卵産子状況</td></tr>' +
+      '<tr style="height:8mm;"><td rowspan="5" style="'+Vc+'">産仔</td><td style="'+Vc+'">耳標番号</td><td style="'+V+'"></td></tr>' +
+      '<tr style="height:8mm;"><td style="'+Vc+'">生年月日</td><td style="'+V+'"></td></tr>' +
+      '<tr style="height:8mm;"><td style="'+Vc+'">体重/性別</td><td style="'+V+'"></td></tr>' +
+      '<tr style="height:8mm;"><td style="'+Vc+'">子牛登録番号</td><td style="'+V+'"></td></tr>' +
+      '<tr style="height:8mm;"><td style="'+Vc+'">移動の有無</td><td style="'+V+'">平成　年　月　日　　導入者</td></tr>' +
     '</table>' +
 
     '</div>'
@@ -11061,7 +11061,7 @@ function buildCertHTML(r, idx, certNo) {
 
   return (
     // A4横全体ラッパー
-    '<div style="width:100%;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 5mm 6mm;box-sizing:border-box;page-break-inside:avoid;">' +
+    '<div style="width:100%;font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:5mm 6mm 5mm 6mm;box-sizing:border-box;">' +
 
       // 1行目：左上に授精証明書番号（A4全幅内の左端）
       '<div style="font-size:9pt;margin-bottom:1mm;">' + insemCertNoStr + '</div>' +
