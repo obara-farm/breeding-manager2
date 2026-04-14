@@ -11048,7 +11048,7 @@ function buildCertHTML(r, idx, certNo) {
   // 縦書き列:8mm, ラベル列:38mm, 値列:残り
   // 上部テーブルも同じ右端に揃える
   var W_VERT  = '8mm';   // 縦書き「精液を注入した雌畜」
-  var W_LABEL = '46mm';  // 項目ラベル列
+  var W_LABEL = '52mm';  // 項目ラベル列
   // 上部テーブル: 種畜+家畜人工授精用+精液証明書番号+名前+種雄牛名
   // 右端(値列)が上下で揃うよう、上部の列幅を合計でW_VERT+W_LABELに揃える
   var W_SHIKU  = '10mm'; // 種畜
@@ -11110,7 +11110,7 @@ function buildCertHTML(r, idx, certNo) {
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:10.6pt;white-space:nowrap;">個&#12288;体&#12288;識&#12288;別&#12288;番&#12288;号</td>' +
-              '<td style="' + cellBase + 'font-family:\'Courier New\',monospace;font-size:10.1pt;">' + nationalId + '</td>' +
+              '<td style="' + cellBase + 'font-family:\'Courier New\',monospace;font-size:12pt;font-weight:bold;height:15mm;">' + nationalId + '</td>' +
             '</tr>' +
             '<tr>' +
               '<td style="' + cellC + 'font-size:10.6pt;line-height:1.5;white-space:nowrap;">家&#12288;畜&#12288;登&#12288;録&#12288;機&#12288;関&#12288;名<br>及&#12288;び&#12288;登&#12288;録&#12288;番&#12288;号</td>' +
