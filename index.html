@@ -10640,6 +10640,9 @@ function buildEggCertHTML(colRec, embryo) {
     '</table></div>';
 }
 
+// 🛒 卵証明書カート
+var eggCertCart = []; // [{colRecId, embryoIdx, embryoNo, cane, stage, rank, lot}]
+
 function printEggCertsFromModal() {
   var colRecId = document.getElementById('collection-edit-id').value;
   var colRec = collectionRecordsNew.find(function(r){return r.id===colRecId;});
@@ -10648,44 +10651,110 @@ function printEggCertsFromModal() {
   if(!frozen.length){alert('凍結胚の記録がありません');return;}
 
   var listEl = document.getElementById('egg-cert-list');
-  listEl.innerHTML = frozen.map(function(e,i){
-    return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;">' +
-      '<input type="checkbox" class="egg-cert-check" data-idx="'+i+'" data-colid="'+colRecId+'" checked style="width:16px;height:16px;">' +
-      '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+(e.no||'—')+'</span>' +
-      '<span style="font-size:11px;color:var(--muted);">'+(e.cane||'')+'</span>' +
-      '<span style="font-size:11px;color:var(--text);">'+(e.stage||'—')+'</span>' +
-      '<span style="font-size:11px;font-weight:700;color:'+(e.rank==='A'?'var(--accent)':e.rank==='B'?'var(--warn)':'var(--muted)')+';">'+(e.rank||'—')+'</span>' +
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">チェックしてカートに追加してください</div>' +
+    frozen.map(function(e,i){
+      var inCart = eggCertCart.some(function(c){return c.colRecId===colRecId&&c.embryoIdx===i;});
+      return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;background:'+(inCart?'rgba(74,222,128,.08)':'')+';">' +
+        '<input type="checkbox" class="egg-cert-check" data-idx="'+i+'" data-colid="'+colRecId+'" '+(inCart?'checked':'')+' onchange="updateEggCart(this)" style="width:16px;height:16px;">' +
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+(e.no||'—')+'</span>' +
+        '<span style="font-size:11px;color:var(--muted);">'+(e.cane||'')+'</span>' +
+        '<span style="font-size:11px;color:var(--text);">'+(e.stage||'—')+'</span>' +
+        '<span style="font-size:11px;font-weight:700;color:'+(e.rank==='A'?'var(--accent)':e.rank==='B'?'var(--warn)':'var(--muted)')+';">'+(e.rank||'—')+'</span>' +
+        (inCart?'<span style="font-size:10px;color:var(--accent);">🛒 カート済</span>':'') +
       '</label>';
-  }).join('');
+    }).join('');
   updateEggCertSelectCount();
   openModal('modal-egg-cert-preview');
 }
 
+function updateEggCart(checkbox) {
+  var colRecId = checkbox.dataset.colid;
+  var idx = parseInt(checkbox.dataset.idx);
+  var colRec = collectionRecordsNew.find(function(r){return r.id===colRecId;});
+  if(!colRec) return;
+  var embryo = (colRec.frozenEmbryos||[])[idx];
+  if(!embryo) return;
+
+  if(checkbox.checked) {
+    // カートに追加（重複チェック）
+    var exists = eggCertCart.some(function(c){return c.colRecId===colRecId&&c.embryoIdx===idx;});
+    if(!exists) {
+      eggCertCart.push({
+        colRecId: colRecId, embryoIdx: idx,
+        embryoNo: embryo.no||'', cane: embryo.cane||'',
+        stage: embryo.stage||'', rank: embryo.rank||'',
+        lot: colRec.lot||''
+      });
+    }
+  } else {
+    // カートから削除
+    eggCertCart = eggCertCart.filter(function(c){return !(c.colRecId===colRecId&&c.embryoIdx===idx);});
+  }
+  updateEggCertSelectCount();
+  updateEggCartBadge();
+}
+
 function updateEggCertSelectCount() {
-  var checks = document.querySelectorAll('.egg-cert-check:checked');
   var el = document.getElementById('egg-cert-select-count');
-  if(el) el.textContent = checks.length+'枚選択中';
+  if(el) el.textContent = '🛒 カート: '+eggCertCart.length+'枚';
 }
 
 function toggleAllEggCheck() {
   var checks = document.querySelectorAll('.egg-cert-check');
   var allChecked = Array.from(checks).every(function(c){return c.checked;});
-  checks.forEach(function(c){c.checked=!allChecked;});
+  checks.forEach(function(c){
+    c.checked = !allChecked;
+    updateEggCart(c);
+  });
+}
+
+function updateEggCartBadge() {
+  var badge = document.getElementById('egg-cart-badge');
+  if(!badge) return;
+  badge.textContent = eggCertCart.length;
+  badge.style.display = eggCertCart.length > 0 ? '' : 'none';
+}
+
+function openEggCartPreview() {
+  if(!eggCertCart.length){alert('カートが空です。採卵記録から胚を追加してください');return;}
+  var listEl = document.getElementById('egg-cert-list');
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">印刷する胚（全'+eggCertCart.length+'枚）</div>' +
+    eggCertCart.map(function(c,i){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);">' +
+        '<button onclick="removeFromEggCart('+i+')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;padding:1px 6px;border-radius:4px;cursor:pointer;">✕</button>' +
+        '<span style="font-size:10px;color:var(--muted);">'+c.lot+'</span>' +
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);">'+c.embryoNo+'</span>' +
+        '<span style="font-size:11px;color:var(--muted);">'+c.cane+'</span>' +
+        '<span style="font-size:11px;color:var(--text);">'+c.stage+'</span>' +
+        '<span style="font-size:11px;font-weight:700;color:'+(c.rank==='A'?'var(--accent)':c.rank==='B'?'var(--warn)':'var(--muted)')+';">'+c.rank+'</span>' +
+      '</div>';
+    }).join('');
   updateEggCertSelectCount();
+  openModal('modal-egg-cert-preview');
+}
+
+function removeFromEggCart(idx) {
+  eggCertCart.splice(idx, 1);
+  updateEggCartBadge();
+  openEggCartPreview();
+}
+
+function clearEggCart() {
+  eggCertCart = [];
+  updateEggCartBadge();
+  closeModal('modal-egg-cert-preview');
 }
 
 function printSelectedEggCerts() {
-  var checks = document.querySelectorAll('.egg-cert-check:checked');
-  if(!checks.length){alert('印刷する胚を選択してください');return;}
+  if(!eggCertCart.length){alert('カートが空です');return;}
 
-  var selected = Array.from(checks).map(function(c){
-    var colRec = collectionRecordsNew.find(function(r){return r.id===c.dataset.colid;});
-    var idx = parseInt(c.dataset.idx);
-    var embryo = colRec ? (colRec.frozenEmbryos||[])[idx] : null;
+  var selected = eggCertCart.map(function(c){
+    var colRec = collectionRecordsNew.find(function(r){return r.id===c.colRecId;});
+    var embryo = colRec ? (colRec.frozenEmbryos||[])[c.embryoIdx] : null;
     return {colRec:colRec, embryo:embryo};
   }).filter(function(x){return x.colRec&&x.embryo;});
 
-  // A4縦に4枚ずつ並べる
+  // A4縦に4枚ずつ
   var pages = [];
   for(var i=0;i<selected.length;i+=4) pages.push(selected.slice(i,i+4));
 
@@ -15954,6 +16023,10 @@ try {
   <div class="section-header">
     <div class="section-title">🥚 採卵記録</div>
     <div style="display:flex;gap:8px;">
+      <button onclick="openEggCartPreview()" style="position:relative;background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;padding:7px 14px;border-radius:8px;cursor:pointer;">
+        🛒 印刷カート
+        <span id="egg-cart-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;">0</span>
+      </button>
       <button onclick="openNewCollection()" class="btn btn-primary" style="font-size:12px;padding:7px 14px;">＋ 新規採卵記録</button>
     </div>
   </div>
@@ -16320,12 +16393,12 @@ try {
 <div class="modal-overlay" id="modal-egg-cert-preview">
   <div class="modal" style="max-width:min(98vw,700px);width:98vw;">
     <div class="modal-title">
-      <span>📋 卵証明書プレビュー</span>
+      <span>🛒 卵証明書カート</span>
       <button class="modal-close" onclick="closeModal('modal-egg-cert-preview')">✕</button>
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-      <button onclick="toggleAllEggCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;">全選択/解除</button>
-      <button onclick="printSelectedEggCerts()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">🖨 印刷</button>
+      <button onclick="printSelectedEggCerts()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">🖨 まとめて印刷</button>
+      <button onclick="clearEggCart()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑 カートを空にする</button>
       <span id="egg-cert-select-count" style="font-size:12px;color:var(--muted);"></span>
     </div>
     <div id="egg-cert-list" style="max-height:60vh;overflow-y:auto;"></div>
