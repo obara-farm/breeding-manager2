@@ -10763,9 +10763,12 @@ function printSelectedEggCerts() {
 
   var selected = eggCertCart.map(function(c){
     var colRec = collectionRecordsNew.find(function(r){return r.id===c.colRecId;});
-    var embryo = colRec ? (colRec.frozenEmbryos||[])[c.embryoIdx] : null;
+    if(!colRec) return null;
+    var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
+    var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh',frozen:false});});
+    var embryo = frozen.concat(fresh)[c.embryoIdx];
     return {colRec:colRec, embryo:embryo};
-  }).filter(function(x){return x.colRec&&x.embryo;});
+  }).filter(function(x){return x&&x.colRec&&x.embryo;});
 
   // A4縦に4枚ずつ
   var pages = [];
