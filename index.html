@@ -3168,8 +3168,11 @@ function registerEvent() {
             // pending：妊鑑タスクを補完、statusをprogramに
             cow.status = 'program';
             const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
-            const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
+            // 同じAI日に対応する妊鑑タスクがあるかチェック
+            const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')&&(!t.insemDate||t.insemDate===implDate));
             if (!hasPreg && !hasTask && !cow.calvingDate) {
+              // 既存の古い妊鑑タスクを削除して新しい日付で追加
+              tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')));
               tasks.push({cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false,insemDate:implDate});
             }
           }
@@ -7877,12 +7880,14 @@ function renderCollectionTab() {
   empty.style.display='none';
   var sorted = [...collectionRecordsNew].sort((a,b)=>b.date.localeCompare(a.date));
 
-  // 年度フィルタ
+  // 年度フィルタ（ロット番号先頭2桁で判断 例：26C31B1 → R8）
   if(yearFilter) {
     var fy = parseInt(yearFilter.replace('R',''));
-    var fyStart = (fy+2018-1)+'-11-01';
-    var fyEnd = (fy+2018)+'-10-31';
-    sorted = sorted.filter(function(r){ return r.date>=fyStart&&r.date<=fyEnd; });
+    var lotYear = String(fy + 2018 - 2000).padStart(2,'0'); // R8→26
+    sorted = sorted.filter(function(r){
+      var lot = r.lot||'';
+      return lot.slice(0,2) === lotYear;
+    });
   }
 
   // 胚番号検索フィルタ
