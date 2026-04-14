@@ -16347,7 +16347,12 @@ function initFirebaseSync() {
                 let lr = localRecs[i];
                 // インデックスが一致しない場合のみd/t/sで照合
                 if (!lr || (lr.d !== rr.d || lr.t !== rr.t)) {
-                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s);
+                  // _seqがあれば_seqも含めて照合
+                  if (rr._seq) {
+                    lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && l._seq === rr._seq);
+                  } else {
+                    lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && !l._seq);
+                  }
                 }
                 if (!lr) return rr;
                 return {
