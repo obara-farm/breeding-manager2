@@ -10614,10 +10614,10 @@ function buildEggCertHTML(colRec, embryo) {
   var V=bd+'vertical-align:middle;padding:2px 4px;font-size:8pt;';
   var Vc=bd+'vertical-align:middle;text-align:center;padding:2px 3px;font-size:7.5pt;';
   var L=bd+'vertical-align:middle;text-align:center;padding:2px 2px;font-size:7pt;';
-  var H='9mm';
+  var H='7mm';
 
-  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:3mm;box-sizing:border-box;height:100%;overflow:hidden;">' +
-    '<div style="display:flex;align-items:flex-start;margin-bottom:1.5mm;">' +
+  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:2mm;box-sizing:border-box;height:100%;overflow:hidden;">' +
+    '<div style="display:flex;align-items:flex-start;margin-bottom:1mm;">' +
       '<div style="flex:1;">' +
         (isFrozen ? '<div style="font-size:7pt;">ケーン番号　'+cane+'</div>' : '') +
         '<div style="font-size:8pt;font-weight:bold;margin-top:0.5mm;">第 '+displayNo+' 号</div>' +
@@ -10629,7 +10629,7 @@ function buildEggCertHTML(colRec, embryo) {
       '</div>' +
     '</div>' +
     '<table style="width:100%;border-collapse:collapse;table-layout:fixed;">' +
-      '<colgroup><col style="width:6mm"><col style="width:21mm"><col><col style="width:7mm"><col style="width:11mm"></colgroup>' +
+      '<colgroup><col style="width:6mm"><col style="width:18mm"><col><col style="width:7mm"><col style="width:18mm"></colgroup>' +
       '<tr style="height:'+H+';"><td rowspan="4" style="border:0.5px solid #000;vertical-align:middle;text-align:center;padding:2px 1px;font-size:7pt;writing-mode:vertical-rl;text-orientation:upright;letter-spacing:2px;">交配した種畜</td>' +
         '<td style="'+Vc+'">種畜証明書番号</td><td style="'+V+'">'+sireCert+'</td>' +
         '<td style="'+Vc+'font-size:6.5pt;">等　級</td><td style="'+V+'font-size:7pt;">'+sireGrade+'</td></tr>' +
@@ -10644,8 +10644,8 @@ function buildEggCertHTML(colRec, embryo) {
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">家畜人工授精用精液証明書番号</td><td colspan="3" style="'+V+'">'+semenCertNos+'</td></tr>' +
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">種付け又は精液注入年月日</td><td colspan="3" style="'+V+'font-weight:bold;">'+aiDateStrs+'</td></tr>' +
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">体内受精卵採取年月日</td><td colspan="3" style="'+V+'font-size:9pt;font-weight:bold;">'+collectDateJP+'</td></tr>' +
-      '<tr style="height:9mm;"><td colspan="2" style="'+Vc+'">雌畜の飼養者の氏名又は名称及び住所</td><td colspan="3" style="'+V+'font-size:7.5pt;line-height:1.5;">北海道中川郡池田町字千代田697<br>小原　秀樹</td></tr>' +
-      '<tr style="height:14mm;"><td colspan="2" style="'+Vc+'">獣医師の登録番号、住所及び氏名</td><td colspan="3" style="'+V+'font-size:7pt;line-height:1.5;">〒083-0042　北海道中川郡池田町字千代田697<br>小原家畜診療所　獣（免許番号: 01L237）<br>小原　千佳　　印</td></tr>' +
+      '<tr style="height:8mm;"><td colspan="2" style="'+Vc+'">雌畜の飼養者の氏名又は名称及び住所</td><td colspan="3" style="'+V+'font-size:7.5pt;line-height:1.5;">北海道中川郡池田町字千代田697<br>小原　秀樹</td></tr>' +
+      '<tr style="height:11mm;"><td colspan="2" style="'+Vc+'">獣医師の登録番号、住所及び氏名</td><td colspan="3" style="'+V+'font-size:7pt;line-height:1.5;">〒083-0042　北海道中川郡池田町字千代田697<br>小原家畜診療所　獣（免許番号: 01L237）<br>小原　千佳　　印</td></tr>' +
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">ステージ</td><td colspan="3" style="'+V+'font-weight:bold;">'+stage+'</td></tr>' +
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">ランク</td><td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td></tr>' +
     '</table></div>';
