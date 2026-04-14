@@ -10586,7 +10586,13 @@ function buildEggCertHTML(colRec, embryo) {
   var collectDate = colRec.date||colRec.collectionDate||'';
   var collectDateJP = fmtDateJP(collectDate);
   var aiDates = (colRec.aiDates||[]);
-  var semenCertNos = aiDates.map(function(ai){return ai.semenCertNo||ai.certNo||'';}).filter(Boolean).join('、');
+  var semenCertNos = aiDates.map(function(ai){
+    // aiDatesのsemenCertNoを優先、なければ授精簿のn欄から取得
+    if(ai.semenCertNo||ai.certNo) return ai.semenCertNo||ai.certNo;
+    var allRecs = [].concat(INSEM_BOOK_DATA, insemBookRecords);
+    var rec = allRecs.find(function(r){return r.d===ai.date&&r.t===colRec.donorId&&r.donorAI;});
+    return rec ? (rec.n||'') : '';
+  }).filter(Boolean).join('、');
   var aiDateStrs = aiDates.map(function(ai){
     if(!ai.date) return '';
     var d = new Date(ai.date);
