@@ -4163,7 +4163,7 @@ function renderCowList() {
     );
     const hasPregResult = lastAiEt && (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') &&
-      (e.insemDate===lastAiEt.date || (!e.insemDate && e.date >= lastAiEt.date))
+      (e.insemDate ? e.insemDate===lastAiEt.date : e.date === lastAiEt.date || (e.date > lastAiEt.date && diffDays(e.date, lastAiEt.date) <= 60))
     );
     const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt && !hasPregResult;
     const displayStatus = isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
