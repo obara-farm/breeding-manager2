@@ -3165,8 +3165,8 @@ function registerEvent() {
             cow.status = 'open';
             cow.events.push({type:'preg_negative', date:todayStr, memo:''});
           } else {
-            // pending：妊鑑タスクを補完、statusをprogramに
-            cow.status = 'program';
+            // pending：妊鑑タスクを補完
+            if(cow.status !== 'program') cow.status = 'open';
             const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
             // 同じAI日に対応する妊鑑タスクがあるかチェック
             const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定')&&(!t.insemDate||t.insemDate===implDate));
@@ -3199,7 +3199,7 @@ function registerEvent() {
         cow.events.push({type:'preg_negative', date:todayStr, memo:''});
         schedule = [{cowId,day:0,action:'空胎確認（AI後）',detail:'再プログラム開始を検討',color:'#ef4444',date:todayStr,priority:'high',id:Math.random().toString(36).slice(2),done:false}];
       } else {
-        cow.status = 'program';
+        if(cow.status !== 'program') cow.status = 'open';
         const pregTask = {cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false};
         schedule = [pregTask];
         const reEstrusDate = addDays(implDate, 21);
@@ -3242,7 +3242,7 @@ function registerEvent() {
           cow.status = 'open';
           cow.events.push({type:'preg_negative', date:todayStr, memo:''});
         } else {
-          cow.status = 'program';
+          if(cow.status !== 'program') cow.status = 'open';
           const hasPreg = (cow.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>=implDate);
           const hasTask = tasks.some(t=>t.cowId===cowId&&!t.done&&t.action.includes('妊娠鑑定'));
           if (!hasPreg && !hasTask && !cow.calvingDate) {
@@ -3267,8 +3267,8 @@ function registerEvent() {
         cow.events.push({type:'preg_negative', date:todayStr, memo:''});
         schedule = [{cowId,day:0,action:'空胎確認（ET後）',detail:'再プログラム開始を検討',color:'#ef4444',date:todayStr,priority:'high',id:Math.random().toString(36).slice(2),done:false}];
       } else {
-        // pending（妊鑑未実施）：妊鑑待ちステータスに
-        cow.status = 'program';
+        // pending（妊鑑未実施）：statusはopenのまま（表示はisPregWaitingで妊鑑待ちになる）
+        if(cow.status !== 'program') cow.status = 'open';
         schedule = [{cowId,day:45,action:'妊娠鑑定',detail:`ET後45日 (ET日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false}];
       }
       break;
