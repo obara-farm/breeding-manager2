@@ -4099,10 +4099,11 @@ function renderCowList() {
   const search = document.getElementById('cow-search').value.trim();
   const sortKey = document.getElementById('cow-sort')?.value || 'default';
   let filtered = search ? cows.filter(c => {
+    if (c.status === 'retired') return false;
     const m = getMasterCow(c.id);
     const name = m ? m.name : (c.name||'');
     return c.id.toLowerCase().includes(search.toLowerCase()) || name.includes(search);
-  }) : [...cows];
+  }) : cows.filter(c => c.status !== 'retired');
 
   // 品種サマリーボタンを生成
   const breedCount = {};
