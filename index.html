@@ -4163,9 +4163,18 @@ function renderCowList() {
     );
     const hasPregResult = lastAiEt && (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') &&
-      (e.insemDate ? e.insemDate===lastAiEt.date : e.date === lastAiEt.date || (e.date > lastAiEt.date && diffDays(e.date, lastAiEt.date) <= 60))
+      e.date > lastAiEt.date
     );
-    const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt && !hasPregResult;
+    // 陰性後に新たなAI/ETがあるか確認
+    const lastNegAfterAi = lastAiEt && [...(cow.events||[])].filter(e =>
+      e.type==='preg_negative' && e.date > lastAiEt.date
+    ).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const hasNewAiAfterNeg = lastNegAfterAi && (cow.events||[]).some(e =>
+      ['ai_done','et_done'].includes(e.type) && !e.donorAI && e.date > lastNegAfterAi.date
+    );
+    // 妊鑑待ち：AI済みで妊鑑結果なし、または陰性後に再AIあり
+    const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
+      (!hasPregResult || hasNewAiAfterNeg);
     const displayStatus = isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
     // 最終受精・移植情報
