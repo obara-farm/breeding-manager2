@@ -668,7 +668,8 @@ textarea{resize:vertical;}
       <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="openModal('modal-new-cow')">＋ 新規導入</button>
     </div>
   </div>
-  <div id="cow-breed-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+  <div id="cow-breed-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;"></div>
+  <div id="cow-status-summary" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
   <div style="display:flex;gap:8px;margin-bottom:12px;">
     <input type="text" id="cow-search" placeholder="🔍 耳標番号・名前で検索..." style="flex:1;min-width:0;width:auto;margin-bottom:0;" oninput="renderCowList()">
     <select id="cow-sort" onchange="renderCowList()" style="font-size:12px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;flex-shrink:0;width:auto;">
@@ -4018,15 +4019,23 @@ function onTwinCheckChange(cowId, baseDueDate) {
 // ===== COW LIST =====
 // 品種フィルター
 let cowBreedFilter = 'all';
+let cowStatusFilter = 'all';
 
 function setCowBreedFilter(breed) {
   cowBreedFilter = breed;
   renderCowList();
 }
 
+function setCowStatusFilter(status) {
+  cowStatusFilter = status;
+  renderCowList();
+}
+
 document.addEventListener('click', function(e) {
   const btn = e.target.closest('.breed-filter-btn');
   if (btn) { setCowBreedFilter(btn.dataset.breed); return; }
+  const sBtn = e.target.closest('.status-filter-btn');
+  if (sBtn) { setCowStatusFilter(sBtn.dataset.status); return; }
   const hBtn = e.target.closest('.history-edit-btn');
   if (hBtn) { openHistoryEdit(hBtn.dataset.kind, hBtn.dataset.id, parseInt(hBtn.dataset.idx)); return; }
   const htBtn = e.target.closest('.hist-type-btn');
@@ -4117,6 +4126,52 @@ function renderCowList() {
   // 品種フィルター適用
   if (cowBreedFilter !== 'all') {
     filtered = filtered.filter(c => (c.breed || '未設定') === cowBreedFilter);
+  }
+
+  // ステータスフィルターUI生成
+  const statusSummaryEl = document.getElementById('cow-status-summary');
+  if (statusSummaryEl) {
+    const statusCount = {};
+    let pregWaitingCount = 0;
+    cows.forEach(c => {
+      // isPregWaitingの判定（簡易版）
+      const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
+        .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+      const hasNegAfter = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_negative')&&e.date>lastAiEt.date);
+      const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+      const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
+      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
+      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg);
+      if(isPregWaiting) pregWaitingCount++;
+      else statusCount[c.status||'open'] = (statusCount[c.status||'open']||0)+1;
+    });
+    const statusDef = [
+      {key:'all', label:'全て', icon:'', count: cows.length},
+      {key:'preg_waiting', label:'妊鑑待ち', icon:'🔬', count: pregWaitingCount},
+      {key:'pregnant', label:'妊娠中', icon:'🤰', count: statusCount['pregnant']||0},
+      {key:'open', label:'空胎', icon:'⭕', count: statusCount['open']||0},
+      {key:'program', label:'プログラム中', icon:'📋', count: statusCount['program']||0},
+      {key:'fresh', label:'新鮮分娩', icon:'🍼', count: statusCount['fresh']||0},
+    ].filter(s => s.key==='all' || s.count > 0);
+    statusSummaryEl.innerHTML = statusDef.map(s => {
+      const active = cowStatusFilter === s.key;
+      return `<button class="status-filter-btn" data-status="${s.key}" style="background:${active?'var(--info)':'var(--bg3)'};color:${active?'#fff':'var(--muted)'};border:${active?'none':'1px solid var(--border)'};font-size:12px;font-weight:700;padding:5px 12px;border-radius:20px;cursor:pointer;">${s.icon} ${s.label} ${s.key!=='all'?s.count+'頭':''}</button>`;
+    }).join('');
+  }
+
+  // ステータスフィルター適用
+  if (cowStatusFilter !== 'all') {
+    filtered = filtered.filter(c => {
+      const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
+        .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+      const hasNegAfter = lastAiEt && (c.events||[]).some(e=>e.type==='preg_negative'&&e.date>lastAiEt.date);
+      const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+      const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
+      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
+      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg);
+      if (cowStatusFilter === 'preg_waiting') return isPregWaiting;
+      return !isPregWaiting && c.status === cowStatusFilter;
+    });
   }
 
   // ソート
