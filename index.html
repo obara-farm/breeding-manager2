@@ -10765,11 +10765,13 @@ function buildEggCertHTML(colRec, embryo) {
   var collectDateJP = fmtDateJP(collectDate);
   var aiDates = (colRec.aiDates||[]);
   var semenCertNos = aiDates.map(function(ai){
-    // aiDatesのsemenCertNoを優先、なければ授精簿のn欄から取得
-    if(ai.semenCertNo||ai.certNo) return ai.semenCertNo||ai.certNo;
+    // 授精簿のn欄を常に優先（最新の入力値を反映）
     var allRecs = [].concat(INSEM_BOOK_DATA, insemBookRecords);
     var rec = allRecs.find(function(r){return r.d===ai.date&&r.t===colRec.donorId&&r.donorAI;});
-    return rec ? (rec.n||'') : '';
+    if(rec && rec.n) return rec.n;
+    // 授精簿にない場合はaiDatesのsemenCertNoにフォールバック
+    if(ai.semenCertNo||ai.certNo) return ai.semenCertNo||ai.certNo;
+    return '';
   }).filter(Boolean).join('、');
   var aiDateStrs = aiDates.map(function(ai){
     if(!ai.date) return '';
@@ -11011,15 +11013,15 @@ function printSelectedEggCerts() {
 
     // 裏面ページ（短辺とじ：上下反転）
     // 表: 左上=0,右上=1,左下=2,右下=3 → 裏: 左上=2の裏,右上=3の裏,左下=0の裏,右下=1の裏
-    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;">' +
+    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;transform:rotate(180deg);transform-origin:center center;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
         '<tr style="height:148.5mm;">' +
-          (page[2]?backCell:empty) + (page[3]?backCell:empty) +
+          (page[0]?backCell:empty) + (page[1]?backCell:empty) +
         '</tr>' +
         '<tr style="height:148.5mm;">' +
-          (page[0]?backCell:empty) + (page[1]?backCell:empty) +
+          (page[2]?backCell:empty) + (page[3]?backCell:empty) +
         '</tr>' +
       '</table></div>';
 
