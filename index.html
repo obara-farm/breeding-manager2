@@ -8040,7 +8040,35 @@ function renderCollectionTab() {
     });
   }
 
-  if(!sorted.length){ list.innerHTML='<div style="text-align:center;color:var(--muted);padding:30px;">該当する採卵記録が見つかりません</div>'; return; }
+  if(!sorted.length && !yearFilter){ list.innerHTML='<div style="text-align:center;color:var(--muted);padding:30px;">該当する採卵記録が見つかりません</div>'; return; }
+
+  // R6フィルター時：carryover在庫（collectionDate空）を種別不明として追加表示
+  var carryoverHTML = '';
+  if(yearFilter === 'R6') {
+    var carryovers = embryoInventory.filter(function(inv){
+      return (inv.history||[]).some(function(h){return h.type==='carryover';}) && !inv.collectionDate;
+    });
+    if(carryovers.length) {
+      carryoverHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">📦 R6年度繰り越し在庫（種別不明）</div>' +
+        carryovers.map(function(inv){
+          var carryH = (inv.history||[]).find(function(h){return h.type==='carryover';});
+          var stock = inv.stock||0;
+          var used = (inv.history||[]).filter(function(h){return ['transfer','use','discard'].includes(h.type);}).reduce(function(s,h){return s+h.count;},0);
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">' +
+            '<div>' +
+              '<span style="font-size:12px;font-weight:700;color:var(--text);">'+(inv.dam||inv.name||inv.id)+'</span>' +
+              '<span style="font-size:11px;color:var(--muted);margin-left:8px;">繰り越し '+carryH.count+'本</span>' +
+              (carryH.memo?'<span style="font-size:10px;color:var(--muted);margin-left:4px;">'+carryH.memo+'</span>':'') +
+            '</div>' +
+            '<span style="font-size:12px;font-weight:700;color:'+(stock>0?'var(--accent)':'var(--muted)')+';">残'+stock+'本</span>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+    }
+  }
+
+  if(!sorted.length){ list.innerHTML = carryoverHTML || '<div style="text-align:center;color:var(--muted);padding:30px;">該当する採卵記録が見つかりません</div>'; return; }
   list.innerHTML = sorted.map(r => {
     const donorName = r.isExternal
       ? `🚗 ${r.externalFarmer||''} ${r.externalCowName||''}`
@@ -8086,7 +8114,7 @@ function renderCollectionTab() {
         }
       </div>` : ''}
     </div>`;
-  }).join('');
+  }).join('') + carryoverHTML;
   // バッジ更新
   const badge = document.getElementById('collection-pending-badge');
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
