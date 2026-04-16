@@ -3465,6 +3465,10 @@ function renderGrouped(taskList) {
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
             </div>` : ''}
+            ${t.action==='分娩予定' && !t.done ? `
+            <div style="margin-top:6px;">
+              <button ontouchend="event.preventDefault();event.stopPropagation();openCalvingRecord('${t.cowId}')" onclick="openCalvingRecord('${t.cowId}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🍼 分娩日を記録</button>
+            </div>` : ''}
           </div>
           <button onclick="event.stopPropagation();openDeleteTask('${t.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;cursor:pointer;padding:3px 8px;flex-shrink:0;border-radius:5px;margin-top:1px;">✕</button>
         </div>`;
