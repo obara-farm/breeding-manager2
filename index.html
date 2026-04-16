@@ -16891,7 +16891,19 @@ function initFirebaseSync() {
           }
           _store.setItem(k, rv);
         });
-        if (typeof loadData === 'function') { loadData(); renderAll(); }
+        if (typeof loadData === 'function') {
+          loadData();
+          // retiredCowsに含まれるIDをcowsから除外
+          const retiredIds = retiredCows.map(c=>c.id);
+          if (retiredIds.length) {
+            const before = cows.length;
+            cows = cows.filter(c=>!retiredIds.includes(c.id));
+            if (cows.length !== before) {
+              localStorage.setItem('cows', JSON.stringify(cows));
+            }
+          }
+          renderAll();
+        }
         setSyncStatus('synced');
       }
     });
