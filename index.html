@@ -3407,7 +3407,7 @@ function renderGrouped(taskList) {
         const isChecked = t.done || !!t.pregResult;
         const hasPregBtn = t.action.includes('妊娠鑑定');
         const hasRecipBtn = !t.done && (
-          (t.action.includes('受卵牛') && t.action.includes('CIDR')) ||
+          (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) ||
           t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'
         );
         const isDonorAITask = !t.done && (
@@ -3444,15 +3444,15 @@ function renderGrouped(taskList) {
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openEditCollectionFromTask('${t.collectionId}','${t.id}')" onclick="openEditCollectionFromTask('${t.collectionId}','${t.id}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🌱 採卵記録を開いて入力</button>
             </div>` : ''}
+            ${t.etRecipients && t.etRecipients.length ? `
+            <div style="margin-top:6px;font-size:11px;color:var(--info);">
+              🐄 受卵牛: ${t.etRecipients.map(id => {
+                const rc = cows.find(c=>c.id===id);
+                return '<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">'+id+(rc&&rc.name?' '+rc.name:'')+'</span>';
+              }).join('')}
+            </div>` : ''}
             ${hasRecipBtn ? `
             <div style="margin-top:6px;">
-              ${t.etRecipients && t.etRecipients.length ? `
-              <div style="margin-bottom:5px;font-size:11px;color:var(--info);">
-                🐄 受卵牛: ${t.etRecipients.map(id => {
-                  const rc = cows.find(c=>c.id===id);
-                  return '<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">'+id+(rc&&rc.name?' '+rc.name:'')+'</span>';
-                }).join('')}
-              </div>` : ''}
               <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
             </div>` : ''}
           </div>
@@ -3589,7 +3589,7 @@ function taskWrapHtml(t, isOverdue) {
   const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
   const hasPregBtn = t.action.includes('妊娠鑑定');
   const hasColBtn = t.action.includes('採卵') || t.action.includes('受精卵回収');
-  const hasRecipBtn = (t.action.includes('受卵牛') && t.action.includes('CIDR')) || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)';
+  const hasRecipBtn = (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)';
   // ドナーAIタスク（発情確認系3種）
   const isDonorAITask = !t.done && (
     t.action.includes('発情確認（前日）') ||
@@ -3659,15 +3659,15 @@ function taskWrapHtml(t, isOverdue) {
           <div style="margin-top:8px;padding-left:2px;">
             <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
           </div>` : ''}
+          ${t.etRecipients && t.etRecipients.length ? `
+          <div style="margin-top:8px;padding-left:2px;font-size:11px;color:var(--info);">
+            🐄 受卵牛: ${t.etRecipients.map(id => {
+              const rc = cows.find(c=>c.id===id);
+              return `<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">${id}${rc&&rc.name?' '+rc.name:''}</span>`;
+            }).join('')}
+          </div>` : ''}
           ${hasRecipBtn ? `
           <div style="margin-top:8px;padding-left:2px;">
-            ${t.etRecipients && t.etRecipients.length ? `
-            <div style="margin-bottom:6px;font-size:11px;color:var(--info);">
-              🐄 受卵牛: ${t.etRecipients.map(id => {
-                const rc = cows.find(c=>c.id===id);
-                return `<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">${id}${rc&&rc.name?' '+rc.name:''}</span>`;
-              }).join('')}
-            </div>` : ''}
             <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
           </div>` : ''}
         </div>
