@@ -4874,6 +4874,15 @@ function saveRecipients() {
     });
   });
 
+  // ドナーの関連タスクにetRecipientsを記録
+  const donorTasks = tasks.filter(t => t.cowId === donorId && !t.done);
+  donorTasks.forEach(t => {
+    if (!t.etRecipients) t.etRecipients = [];
+    recipientIds.forEach(rid => {
+      if (!t.etRecipients.includes(rid)) t.etRecipients.push(rid);
+    });
+  });
+
   save();
   closeModal('modal-recipient');
   renderAll();
