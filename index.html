@@ -3454,7 +3454,7 @@ function renderGrouped(taskList) {
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openEditCollectionFromTask('${t.collectionId}','${t.id}')" onclick="openEditCollectionFromTask('${t.collectionId}','${t.id}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🌱 採卵記録を開いて入力</button>
             </div>` : ''}
-            ${t.etRecipients && t.etRecipients.length ? `
+            ${t.etRecipients && t.etRecipients.length && (t.action.includes('CIDR') || t.action.includes('採卵') || t.action.includes('受精卵回収') || t.action.includes('PG投与')) ? `
             <div style="margin-top:6px;font-size:11px;color:var(--info);">
               🐄 受卵牛: ${t.etRecipients.map(id => {
                 const rc = cows.find(c=>c.id===id);
@@ -3681,7 +3681,7 @@ function taskWrapHtml(t, isOverdue) {
           <div style="margin-top:8px;padding-left:2px;">
             <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
           </div>` : ''}
-          ${t.etRecipients && t.etRecipients.length ? `
+          ${t.etRecipients && t.etRecipients.length && (t.action.includes('CIDR') || t.action.includes('採卵') || t.action.includes('受精卵回収') || t.action.includes('PG投与')) ? `
           <div style="margin-top:8px;padding-left:2px;font-size:11px;color:var(--info);">
             🐄 受卵牛: ${t.etRecipients.map(id => {
               const rc = cows.find(c=>c.id===id);
@@ -4932,14 +4932,15 @@ function saveRecipients() {
     });
   });
 
-  // ドナーの関連タスクにetRecipientsを記録
-  const donorTasks = tasks.filter(t => t.cowId === donorId && !t.done);
-  donorTasks.forEach(t => {
-    if (!t.etRecipients) t.etRecipients = [];
+  // ドナーのCIDR挿入タスクのみにetRecipientsを記録
+  const cidrTask = tasks.find(t => t.cowId === donorId && !t.done && t.date === cidrDate &&
+    (t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与') || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'));
+  if (cidrTask) {
+    if (!cidrTask.etRecipients) cidrTask.etRecipients = [];
     recipientIds.forEach(rid => {
-      if (!t.etRecipients.includes(rid)) t.etRecipients.push(rid);
+      if (!cidrTask.etRecipients.includes(rid)) cidrTask.etRecipients.push(rid);
     });
-  });
+  }
 
   save();
   closeModal('modal-recipient');
