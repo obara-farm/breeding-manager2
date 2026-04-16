@@ -4156,7 +4156,8 @@ function renderCowList() {
     if (c.status === 'retired') return false;
     const m = getMasterCow(c.id);
     const name = m ? m.name : (c.name||'');
-    return c.id.toLowerCase().includes(search.toLowerCase()) || name.includes(search);
+    const nationalId = (m ? m.nationalId : c.nationalId) || '';
+    return c.id.toLowerCase().includes(search.toLowerCase()) || name.includes(search) || nationalId.includes(search);
   }) : cows.filter(c => c.status !== 'retired');
 
   // 品種サマリーボタンを生成
@@ -4423,7 +4424,7 @@ function renderCowList() {
       <div class="cow-header">
         <div>
           <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
-          ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)</div>`:''}
+          ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
         <div style="font-size:12px;text-align:right;">
           <span class="cow-status-dot ${displayDot}"></span>${displayStatus}
