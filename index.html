@@ -3894,6 +3894,13 @@ function recordPreg(cowId, taskId, result) {
       detail: isTwin ? `👯 双子：分娩予定日（${fmtDate(dueDate)}）の20日前` : `分娩予定日（${fmtDate(dueDate)}）の10日前`,
       color: isTwin?'#c084fc':'#a78bfa', priority:'high', done:false, timeOfDay:'',
     });
+    // 分娩予定タスクを生成
+    tasks = tasks.filter(t=>!(t.cowId===cowId&&!t.done&&t.action==='分娩予定'));
+    tasks.push({
+      id: Math.random().toString(36).slice(2), cowId, date: dueDate,
+      action: '分娩予定', detail: '分娩予定日',
+      color: '#a78bfa', priority: 'high', done: false,
+    });
   } else {
     cow.status = 'open';
     cow.dueDate = null;
@@ -4381,7 +4388,7 @@ function renderCowList() {
         <div>処置予定: <strong>${cowTasks.length}件</strong></div>
         <div>直近: <strong>${cowTasks.length?fmtDate(cowTasks.sort((a,b)=>a.date.localeCompare(b.date))[0].date):'なし'}</strong></div>
         ${cow.calvingDate?`<div>分娩日: <strong>${fmtDate(cow.calvingDate)}</strong></div>`:''}
-        ${cow.dueDate?`<div>分娩予定: <strong style="color:var(--purple)">${fmtDate(cow.dueDate)}</strong></div>`:''}
+        ${cow.dueDate && cow.status==='pregnant'?`<div>分娩予定: <strong style="color:var(--purple)">${fmtDate(cow.dueDate)}</strong></div>`:''}
         ${openDays!==null&&cow.status==='open'&&!isPregWaiting?`<div>空胎日数: <strong style="color:${openDays>90?'var(--danger)':openDays>60?'var(--warn)':'var(--text)'}">${openDays}日</strong></div>`:''}
         ${nextEstrusLabel}
       </div>
