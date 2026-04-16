@@ -2058,6 +2058,7 @@ textarea{resize:vertical;}
       <button class="modal-close" onclick="closeModal('modal-recipient')">✕</button>
     </div>
     <input type="hidden" id="recipient-donor-id">
+    <input type="hidden" id="recipient-protocol">
     <input type="hidden" id="recipient-cidr-date">
 
     <div id="recipient-donor-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;line-height:1.7;"></div>
@@ -2779,6 +2780,15 @@ const PROTOCOLS = {
     {day:13, action:'ドナー 人工授精（2回目）', detail:'翌日授精（午前中）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
     // D19(9/18): 採卵 ＋ 受卵牛 胚移植
     {day:19, action:'★ 受精卵回収（採卵）＋【受卵牛】胚移植', detail:'採卵実施 ★胚数・凍結/新鮮をメモに記入 ／ 受卵牛：胚移植実施', color:'#ef4444', priority:'high', timeOfDay:''},
+  ],
+  // 高橋式受卵牛専用：D0=CIDR挿入、D19=胚移植（採卵日と同日）
+  et_cidr_takahashi: s => [
+    {day:0,  action:'CIDR挿入', detail:'レシピエント同期プログラム開始【高橋式】', color:'#a78bfa', priority:'high'},
+    {day:9,  action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α投与', color:'#f59e0b', priority:'high'},
+    {day:11, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（1回目）', color:'#4ade80', priority:'mid'},
+    {day:12, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断）', color:'#4ade80', priority:'high'},
+    {day:18, action:'ゲストロン投与', detail:'ゲストロン1500IU 筋注', color:'#60a5fa', priority:'high'},
+    {day:19, action:'胚移植（ET）', detail:'移植実施 ★胚番号・ドナー情報をメモに記入 → チェックすると妊鑑予定が自動追加されます', color:'#4ade80', priority:'high'},
   ],
   calving: s => [
     {day:14, action:'産後検診', detail:'子宮復古・悪露確認、子宮炎チェック', color:'#a78bfa', priority:'high'},
@@ -3589,6 +3599,7 @@ function taskWrapHtml(t, isOverdue) {
   const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
   const hasPregBtn = t.action.includes('妊娠鑑定');
   const hasColBtn = t.action.includes('採卵') || t.action.includes('受精卵回収');
+  const hasCalvBtn = t.action === '分娩予定' && !t.done;
   const hasRecipBtn = (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)';
   // ドナーAIタスク（発情確認系3種）
   const isDonorAITask = !t.done && (
@@ -3613,7 +3624,7 @@ function taskWrapHtml(t, isOverdue) {
       <button class="recip-btn" data-cowid="${t.cowId}" data-date="${t.date}" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;width:100%;">🐄 受卵牛を登録</button>
     </div>` : '';
 
-  const hasBtnRow = hasPregBtn || (hasColBtn && !t.done) || hasRecipBtn || isDonorAITask;
+  const hasBtnRow = hasPregBtn || (hasColBtn && !t.done) || hasRecipBtn || isDonorAITask || hasCalvBtn;
 
   // 妊鑑タスクはpregResultでチェック・背景色を制御
   const isChecked = t.done || !!t.pregResult;
@@ -3669,6 +3680,10 @@ function taskWrapHtml(t, isOverdue) {
           ${hasRecipBtn ? `
           <div style="margin-top:8px;padding-left:2px;">
             <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
+          </div>` : ''}
+          ${hasCalvBtn ? `
+          <div style="margin-top:8px;padding-left:2px;">
+            <button ontouchend="event.preventDefault();event.stopPropagation();openCalvingRecord('${t.cowId}')" onclick="openCalvingRecord('${t.cowId}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🍼 分娩日を記録</button>
           </div>` : ''}
         </div>
       </div>
@@ -4796,13 +4811,16 @@ function openCollectionPregOption(cowId, collectionTaskId) {
 function openRecipientModal(donorCowId, cidrDate) {
   const donor = cows.find(c=>c.id===donorCowId);
   const donorName = cowDisplayName(donorCowId) || (donor?donor.name:'') || '';
+  // ドナーのプロトコルを判定（高橋式かどうか）
+  const isTakahashi = donor && (donor.events||[]).some(e=>e.type==='donor_et_takahashi_start');
   document.getElementById('recipient-donor-id').value = donorCowId;
   document.getElementById('recipient-cidr-date').value = cidrDate;
+  document.getElementById('recipient-protocol').value = isTakahashi ? 'takahashi' : 'standard';
   document.getElementById('recipient-title').textContent = `🐄 受卵牛を登録 — ${donorCowId} ${donorName}`;
   document.getElementById('recipient-donor-info').innerHTML =
     `ドナー牛: <strong style="font-family:'JetBrains Mono',monospace">${donorCowId}</strong> <strong style="color:var(--danger)">${donorName}</strong><br>
      受卵牛CIDR挿入日: <strong style="color:var(--warn)">${fmtDate(cidrDate)}</strong><br>
-     <span style="font-size:11px;color:var(--muted);">採卵予定の受け牛を入力してください。ET実施日まで自動でスケジュールが生成されます。</span>`;
+     <span style="font-size:11px;color:var(--muted);">${isTakahashi?'【高橋式】':''}採卵予定の受け牛を入力してください。ET実施日まで自動でスケジュールが生成されます。</span>`;
   document.getElementById('recipient-rows').innerHTML = '';
   recipientRowCount = 0;
   addRecipientRow();
@@ -4860,6 +4878,8 @@ function selectRecipient(id, name, n) {
 function saveRecipients() {
   const donorId = document.getElementById('recipient-donor-id').value;
   const cidrDate = document.getElementById('recipient-cidr-date').value;
+  const protocol = document.getElementById('recipient-protocol')?.value || 'standard';
+  const isTakahashi = protocol === 'takahashi';
   const inputs = document.getElementById('recipient-rows').querySelectorAll('input[id^="recip-id-"]');
   const recipientIds = [...inputs].map(inp=>inp.value.trim()).filter(Boolean);
   if (!recipientIds.length) { alert('受卵牛を1頭以上入力してください'); return; }
@@ -4880,8 +4900,13 @@ function saveRecipients() {
     recipCow.events.push({ type:'et_recipient', date:cidrDate, memo:`ドナー:${donorId}` });
     // 既存の古い妊鑑タスクをクリア
     tasks = tasks.filter(t=>!(t.cowId===recipId&&!t.done&&(t.action.includes('妊娠鑑定')||t.action.includes('再発情'))));
-    // ETレシピエントCIDRプログラムを生成
-    const etSchedule = generateSchedule('et_cidr', cidrDate, recipId);
+    // 高橋式の場合はD19移植、標準はet_cidr（D21移植）
+    let etSchedule;
+    if (isTakahashi) {
+      etSchedule = generateSchedule('et_cidr_takahashi', cidrDate, recipId);
+    } else {
+      etSchedule = generateSchedule('et_cidr', cidrDate, recipId);
+    }
     etSchedule.forEach(s => {
       const existing = tasks.find(t=>t.cowId===recipId&&t.action===s.action&&t.date===s.date);
       if (!existing) tasks.push({...s, memo:`ドナー:${donorId}`});
