@@ -10725,11 +10725,13 @@ function buildEggCertHTML(colRec, embryo) {
   var aiDates = (colRec.aiDates||[]);
   var semenCertNos = aiDates.map(function(ai){
     var nos = [];
-    // INSEM_BOOK_DATAから全件取得
+    // INSEM_BOOK_DATAから全件取得（insemBookEditsのn欄も参照）
     for(var i=0; i<INSEM_BOOK_DATA.length; i++){
       var r = INSEM_BOOK_DATA[i];
       if(r.d===ai.date && r.t===colRec.donorId && staticDonorAIFlags['static_'+i]){
-        if(r.n) nos.push(r.n);
+        var edit = insemBookEdits && insemBookEdits['static_'+i];
+        var n = (edit && edit.n) ? edit.n : r.n;
+        if(n) nos.push(n);
       }
     }
     // insemBookRecordsから全件取得
