@@ -3405,6 +3405,42 @@ function renderGrouped(taskList) {
   });
   return order.map(k => {
     const gtasks = groups[k];
+    // ドナータスク（etRecipients持ち）と受卡牛タスク（memo=ドナー:XXX）を分離
+    const donorTasks = gtasks.filter(t => t.etRecipients && t.etRecipients.length);
+    const recipientTasksByDonor = {}; // donorId -> tasks
+    const otherTasks = [];
+    gtasks.forEach(t => {
+      if (t.etRecipients && t.etRecipients.length) return; // ドナータスクは別処理
+      const m = (t.memo||'').match(/^ドナー:(.+)$/);
+      if (m && t.action === 'CIDR挿入') {
+        const did = m[1];
+        if (!recipientTasksByDonor[did]) recipientTasksByDonor[did] = [];
+        recipientTasksByDonor[did].push(t);
+      } else {
+        otherTasks.push(t);
+      }
+    });
+
+    // ドナータスクに受卡牛タスクを統合
+    const mergedTasks = [...donorTasks, ...otherTasks];
+    const recipientHTML = {};
+    donorTasks.forEach(dt => {
+      const recTasks = recipientTasksByDonor[dt.cowId] || [];
+      if (recTasks.length) {
+        recipientHTML[dt.id] = recTasks.map((rt,i) => {
+          const rname = cowDisplayName(rt.cowId);
+          const isChecked = rt.done;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);">
+            <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();toggleTask('${rt.id}')" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;"></div>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
+            ${rname?`<span style="font-size:11px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
+            <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;margin-left:auto;">✕</button>
+          </div>`;
+        }).join('');
+      }
+    });
+
+    const allTasks = [...mergedTasks];
     const pend = gtasks.filter(t=>!t.done&&!t.pregResult).length;
     const allDone = pend === 0;
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
@@ -3412,7 +3448,7 @@ function renderGrouped(taskList) {
         <span style="font-size:13px;font-weight:700;color:var(--text);">${k}</span>
         <span style="font-size:11px;color:${allDone?'var(--accent)':'var(--muted)'};">${allDone?'✓ 完了':pend+'頭未完了'}</span>
       </div>
-      ${gtasks.map((t,i) => {
+      ${allTasks.map((t,i) => {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
         const hasPregBtn = t.action.includes('妊娠鑑定');
@@ -3425,19 +3461,14 @@ function renderGrouped(taskList) {
           t.action === '発情確認 ＋ GnRH ＋ 授精' ||
           t.action.includes('発情確認（翌日）')
         );
-        const isRecipientTask = (t.memo||'').startsWith('ドナー:') && t.action === 'CIDR挿入';
         const _memoDisp = (() => {
           if (!t.memo) return '';
-          if (isRecipientTask) return ''; // 受卡牛CIDRはmemo非表示
           const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
           return isLotMemo ? t.memo.replace(/^精液:/,'ET:') : t.memo;
         })();
         const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
-        // 受卡牛CIDRタスクはコンパクト表示（detailなし、ドナー名小表示）
-        const detailHtml = isRecipientTask
-          ? `<div style="font-size:10px;color:var(--info);margin-top:1px;">受卡牛 📝${(t.memo||'')}</div>`
-          : (t.detail ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>` : '');
+        const detailHtml = t.detail ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>` : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
           <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
@@ -3460,13 +3491,7 @@ function renderGrouped(taskList) {
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openEditCollectionFromTask('${t.collectionId}','${t.id}')" onclick="openEditCollectionFromTask('${t.collectionId}','${t.id}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🌱 採卵記録を開いて入力</button>
             </div>` : ''}
-            ${t.etRecipients && t.etRecipients.length && (t.action.includes('CIDR') || t.action.includes('採卵') || t.action.includes('受精卵回収') || t.action.includes('PG投与')) ? `
-            <div style="margin-top:6px;font-size:11px;color:var(--info);">
-              🐄 受卵牛: ${t.etRecipients.map(id => {
-                const rc = cows.find(c=>c.id===id);
-                return '<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">'+id+(rc&&rc.name?' '+rc.name:'')+'</span>';
-              }).join('')}
-            </div>` : ''}
+            ${recipientHTML[t.id] ? `<div style="margin-top:6px;">${recipientHTML[t.id]}</div>` : ''}
             ${hasRecipBtn ? `
             <div style="margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
@@ -3489,120 +3514,6 @@ function renderGrouped(taskList) {
     </div>`;
   }).join('');
 }
-
-function renderToday() {
-  const todayStr = today();
-  const isToday = viewDate === todayStr;
-
-  // 日付ラベル
-  document.getElementById('today-date-label').textContent = isToday
-    ? fmtDateFull(viewDate)
-    : fmtDateFull(viewDate) + (viewDate < todayStr ? ' (過去)' : ' (予定)');
-  document.getElementById('today-jump-btn').style.display = isToday ? 'none' : '';
-
-  // バッジ（未完了件数）
-  const pendingCount = tasks.filter(t => !t.done && t.date <= todayStr).length;
-  document.getElementById('today-pending-count').textContent = pendingCount;
-  const todayBadge = document.getElementById('today-badge');
-  todayBadge.textContent = pendingCount;
-  todayBadge.style.display = pendingCount > 0 ? '' : 'none';
-
-  // ===== 表示対象タスクを決定 =====
-  let overdueUndone, dayTasks;
-
-  if (isToday) {
-    overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
-    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後'));
-  } else {
-    overdueUndone = [];
-    dayTasks = tasks.filter(t => t.date === viewDate);
-  }
-
-  const displayTasks = [...overdueUndone, ...dayTasks];
-
-  // Summary chips（未完了ベース）
-  const pendingDisplay = displayTasks.filter(t => !t.done);
-  const cowSet = new Set(pendingDisplay.map(t => t.cowId));
-  const byType = {};
-  const byTypeFirst = {}; // タイプ別最初のタスクID
-  pendingDisplay.forEach(t => {
-    const type = t.action.includes('AI') ? 'AI'
-      : t.action.includes('ET') || t.action.includes('胚移植') ? 'ET'
-      : t.action.includes('FSH') ? 'FSH'
-      : t.action.includes('CIDR') ? 'CIDR'
-      : t.action.includes('PG') ? 'PG'
-      : t.action.includes('採卵') ? '採卵' : 'その他';
-    byType[type] = (byType[type] || 0) + 1;
-    if (!byTypeFirst[type]) byTypeFirst[type] = t.id;
-  });
-  // 対象牛チップは最初のタスクIDにスクロール
-  const firstTaskId = pendingDisplay[0]?.id;
-  const chips = Object.entries(byType).map(([k,v]) =>
-    `<div class="summary-chip" style="cursor:pointer;" onclick="scrollToTask('${byTypeFirst[k]}')">${k} <strong>${v}件</strong></div>`).join('');
-  document.getElementById('today-summary').innerHTML =
-    pendingDisplay.length
-      ? `<div class="summary-chip" style="cursor:pointer;" onclick="scrollToTask('${firstTaskId}')">対象牛 <strong>${cowSet.size}頭</strong></div>${chips}`
-      : '';
-
-  const container = document.getElementById('today-tasks-container');
-  const empty = document.getElementById('today-empty');
-  const emptyText = document.getElementById('today-empty-text');
-
-  // 表示すべきタスクが0件の場合のみ「予定なし」を出す
-  if (displayTasks.length === 0) {
-    container.innerHTML = '';
-    emptyText.innerHTML = isToday
-      ? '今日の処置はありません<br><span style="color:var(--accent)">お疲れ様です！</span>'
-      : `${fmtDate(viewDate)} の予定はありません`;
-    empty.style.display = '';
-    return;
-  }
-  empty.style.display = 'none';
-
-  let html = '';
-  if (isToday && overdueUndone.length) {
-    html += `<div class="task-group"><div class="task-group-label" style="color:var(--danger)">⚠ 未処置（期限超過）</div>`;
-    html += renderGrouped(overdueUndone.sort((a,b) => a.date.localeCompare(b.date)));
-    html += '</div>';
-  }
-  if (dayTasks.length) {
-    if (isToday) {
-      const morning = dayTasks.filter(t => t.timeOfDay === '朝');
-      const evening = dayTasks.filter(t => t.timeOfDay === '夕');
-      const other   = dayTasks.filter(t => !t.timeOfDay || (t.timeOfDay !== '朝' && t.timeOfDay !== '夕'));
-      if (morning.length) {
-        const pendM = morning.filter(t=>!t.done).length;
-        html += `<div class="task-group"><div class="task-group-label" style="color:#4ade80;">🌅 朝の処置 <span style="color:var(--muted);font-weight:400;">${pendM ? pendM+'件未完了' : '✓ 完了'}</span></div>`;
-        html += renderGrouped(morning.sort((a,b)=>a.action.localeCompare(b.action)));
-        html += '</div>';
-      }
-      if (evening.length) {
-        const pendE = evening.filter(t=>!t.done).length;
-        html += `<div class="task-group"><div class="task-group-label" style="color:#a78bfa;">🌙 夕の処置 <span style="color:var(--muted);font-weight:400;">${pendE ? pendE+'件未完了' : '✓ 完了'}</span></div>`;
-        html += renderGrouped(evening.sort((a,b)=>a.action.localeCompare(b.action)));
-        html += '</div>';
-      }
-      if (other.length) {
-        const pendO = other.filter(t=>!t.done).length;
-        html += `<div class="task-group"><div class="task-group-label">📋 本日の処置 <span style="color:var(--muted);font-weight:400;">${pendO ? pendO+'件未完了' : '✓ 完了'}</span></div>`;
-        html += renderGrouped(other.sort((a,b)=>a.date.localeCompare(b.date)));
-        html += '</div>';
-      }
-    } else {
-      const label = fmtDate(viewDate) + ' の予定';
-      const pendD = dayTasks.filter(t=>!t.done).length;
-      html += `<div class="task-group"><div class="task-group-label">${label} <span style="color:var(--muted);font-weight:400;">${pendD ? pendD+'件未完了' : '✓ 完了'}</span></div>`;
-      html += renderGrouped(dayTasks.sort((a,b)=>{
-        const ta = a.timeOfDay==='朝'?0:a.timeOfDay==='夕'?1:2;
-        const tb = b.timeOfDay==='朝'?0:b.timeOfDay==='夕'?1:2;
-        return ta-tb||a.date.localeCompare(b.date);
-      }));
-      html += '</div>';
-    }
-  }
-  container.innerHTML = html;
-}
-
 function taskWrapHtml(t, isOverdue) {
   const pcls = {high:'priority-high',mid:'priority-mid',low:'priority-low',et:'priority-et'}[t.priority]||'priority-mid';
   const overdueDays = isOverdue ? diffDays(today(), t.date) : 0;
