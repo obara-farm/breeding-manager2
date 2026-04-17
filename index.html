@@ -3425,13 +3425,19 @@ function renderGrouped(taskList) {
           t.action === '発情確認 ＋ GnRH ＋ 授精' ||
           t.action.includes('発情確認（翌日）')
         );
+        const isRecipientTask = (t.memo||'').startsWith('ドナー:') && t.action === 'CIDR挿入';
         const _memoDisp = (() => {
           if (!t.memo) return '';
+          if (isRecipientTask) return ''; // 受卡牛CIDRはmemo非表示
           const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
           return isLotMemo ? t.memo.replace(/^精液:/,'ET:') : t.memo;
         })();
         const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
+        // 受卡牛CIDRタスクはコンパクト表示（detailなし、ドナー名小表示）
+        const detailHtml = isRecipientTask
+          ? `<div style="font-size:10px;color:var(--info);margin-top:1px;">受卡牛 📝${(t.memo||'')}</div>`
+          : (t.detail ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>` : '');
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
           <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
@@ -3439,7 +3445,7 @@ function renderGrouped(taskList) {
               <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
               ${name?`<span style="font-size:12px;font-weight:700;color:var(--accent);">${name}</span>`:''}
             </div>
-            ${t.detail?`<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>`:''}
+            ${detailHtml}
             ${hasPregBtn ? `
             <div style="display:flex;gap:6px;margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','positive')" onclick="recordPregFromTask('${t.cowId}','${t.id}','positive')" style="background:${t.pregResult==='positive'?'#14532d':'#0d2a1a'};border:2px solid ${t.pregResult==='positive'?'#22c55e':'var(--accent2)'};color:${t.pregResult==='positive'?'#fff':'var(--accent)'};font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='positive'?'✓ 陽性 ✔':'✓ 陽性'}</button>
