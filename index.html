@@ -2713,7 +2713,7 @@ const PROTOCOLS = {
   ],
   et_cidr: s => [
     {day:0, action:'CIDR挿入', detail:'レシピエント同期プログラム開始', color:'#a78bfa', priority:'high'},
-    {day:11, action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α 3cc 筋注（夕方）', color:'#f59e0b', priority:'high'},
+    {day:11, action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α 3ml 筋注（夕方）', color:'#f59e0b', priority:'high'},
     {day:20, action:'ゲストロン投与', detail:'ゲストロン1500IU 筋注', color:'#60a5fa', priority:'high'},
     {day:21, action:'胚移植（ET）', detail:'移植実施 ★胚番号・ドナー情報をメモに記入 → チェックすると妊鑑予定が自動追加されます', color:'#4ade80', priority:'high'},
     // 妊娠鑑定はET実施チェック時に自動追加（D66）
@@ -2727,12 +2727,12 @@ const PROTOCOLS = {
   ],
   donor_et: s => [
     {day:0, action:'CIDR挿入 ＋ E2投与', detail:'CIDR挿入・E2（オバホルモン）1ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:''},
-    {day:12, action:'CIDR除去 ＋ PG投与', detail:'CIDR抜去・PGF2α 3cc 筋注', color:'#f59e0b', priority:'high', timeOfDay:''},
+    {day:12, action:'CIDR除去 ＋ PG投与', detail:'CIDR抜去・PGF2α 3ml 筋注', color:'#f59e0b', priority:'high', timeOfDay:''},
     {day:14, action:'FSH 2.5ml【朝】', detail:'アントリンR 2.5ml 筋注（朝）', color:'#60a5fa', priority:'high', timeOfDay:'朝'},
     {day:14, action:'FSH 2.5ml【夕】', detail:'アントリンR 2.5ml 筋注（夕）', color:'#60a5fa', priority:'high', timeOfDay:'夕'},
     {day:15, action:'FSH 1.5ml【朝】', detail:'アントリンR 1.5ml 筋注（朝）', color:'#60a5fa', priority:'high', timeOfDay:'朝'},
     {day:15, action:'FSH 1.5ml【夕】', detail:'アントリンR 1.5ml 筋注（夕）', color:'#60a5fa', priority:'high', timeOfDay:'夕'},
-    {day:16, action:'FSH 1.0ml ＋ PG【朝】', detail:'アントリンR 1.0ml ＋ PGF2α 3cc 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
+    {day:16, action:'FSH 1.0ml ＋ PG【朝】', detail:'アントリンR 1.0ml ＋ PGF2α 3ml 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
     {day:16, action:'FSH 1.0ml ＋ CIDR除去【夕】', detail:'アントリンR 1.0ml ＋ CIDR抜去（夕）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
     {day:18, action:'発情確認 ＋ GnRH ＋ 授精', detail:'GnRH（コンセラール等）2ml 筋注・授精', color:'#4ade80', priority:'high', timeOfDay:''},
     {day:20, action:'★ 採卵', detail:'採卵実施 ★胚数・凍結/新鮮をメモに記入', color:'#ef4444', priority:'high', timeOfDay:''},
@@ -2740,7 +2740,7 @@ const PROTOCOLS = {
   // 小原式 パターン①：前処置あり（プレ発情同期化）D0=前処置CIDR挿入日
   donor_et_pretreat: s => [
     {day:0,  action:'【前処置】CIDR挿入', detail:'プレ発情同期化開始', color:'#a78bfa', priority:'high', timeOfDay:''},
-    {day:12, action:'【前処置】CIDR除去 ＋ PG 3cc', detail:'CIDR抜去・PGF2α 3cc 筋注 — D14〜16に発情予定', color:'#f59e0b', priority:'high', timeOfDay:''},
+    {day:12, action:'【前処置】CIDR除去 ＋ PG 3cc', detail:'CIDR抜去・PGF2α 3ml 筋注 — D14〜16に発情予定', color:'#f59e0b', priority:'high', timeOfDay:''},
     {day:14, action:'発情予定（前日）', detail:'発情期間 D14〜16 ★実際の発情確認日に「📅日付」で以降まとめてずらしてください', color:'#4ade80', priority:'mid', timeOfDay:''},
     {day:15, action:'発情予定（基準日）', detail:'発情期間 D14〜16 — この日を基準に以降のスケジュールを組んでいます', color:'#4ade80', priority:'high', timeOfDay:''},
     {day:16, action:'発情予定（翌日）＋【受卵牛】CIDR挿入', detail:'発情期間 D14〜16 ／ 受卵牛：同期化のためCIDR挿入（採卵予定日の受け牛を登録）', color:'#4ade80', priority:'high', timeOfDay:''},
@@ -2748,8 +2748,8 @@ const PROTOCOLS = {
     {day:26, action:'FSH 2.5ml【朝】', detail:'アントリンR 2.5ml 筋注（朝）', color:'#60a5fa', priority:'high', timeOfDay:'朝'},
     {day:26, action:'FSH 2.5ml【夕】', detail:'アントリンR 2.5ml 筋注（夕）', color:'#60a5fa', priority:'high', timeOfDay:'夕'},
     {day:27, action:'FSH 1.5ml【朝】', detail:'アントリンR 1.5ml 筋注（朝）', color:'#60a5fa', priority:'high', timeOfDay:'朝'},
-    {day:27, action:'FSH 1.5ml【夕】＋【受卵牛】CIDR除去+PG', detail:'アントリンR 1.5ml 筋注（夕）／ 受卵牛：CIDR除去・PGF2α 3cc 筋注', color:'#60a5fa', priority:'high', timeOfDay:'夕'},
-    {day:28, action:'FSH 1.0ml ＋ PG【朝】', detail:'アントリンR 1.0ml ＋ PGF2α 3cc 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
+    {day:27, action:'FSH 1.5ml【夕】＋【受卵牛】CIDR除去+PG', detail:'アントリンR 1.5ml 筋注（夕）／ 受卵牛：CIDR除去・PGF2α 3ml 筋注', color:'#60a5fa', priority:'high', timeOfDay:'夕'},
+    {day:28, action:'FSH 1.0ml ＋ PG【朝】', detail:'アントリンR 1.0ml ＋ PGF2α 3ml 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
     {day:28, action:'FSH 1.0ml ＋ CIDR除去【夕】', detail:'アントリンR 1.0ml ＋ CIDR抜去（夕）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
     {day:29, action:'発情確認（前日）', detail:'発情期間 D29〜31 前後も発情あり', color:'#4ade80', priority:'mid', timeOfDay:''},
     {day:30, action:'発情確認 ＋ GnRH ＋ 授精', detail:'スタンディング発情確認 → GnRH（コンセラール等）2ml 筋注・授精（前後日も授精可）', color:'#4ade80', priority:'high', timeOfDay:''},
@@ -2767,7 +2767,7 @@ const PROTOCOLS = {
     // D8(9/7): ドナー アントリンワンショット
     {day:8,  action:'ドナー アントリンワンショット', detail:'アントリン20A（20ml）頸部皮下 ＋ 10A（5ml）尾根部皮下', color:'#60a5fa', priority:'high', timeOfDay:''},
     // D9(9/8): 受卵牛 PG+CIDR抜去
-    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'受卵牛 PGF2α投与 ＋ CIDR抜去', color:'#f59e0b', priority:'high', timeOfDay:''},
+    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'受卵牛 PGF2α 2ml投与 ＋ CIDR抜去', color:'#f59e0b', priority:'high', timeOfDay:''},
     // D10(9/9): ドナー CIDR抜去+ジノプロスト
     {day:10, action:'ドナー CIDR抜去 ＋ ジノプロスト 2.5ml', detail:'CIDR抜去・ジノプロスト（PGF2α）2.5ml 筋注', color:'#f59e0b', priority:'high', timeOfDay:''},
     // D11(9/10): 受卵牛 スタンディング発情確認1回目
@@ -2784,7 +2784,7 @@ const PROTOCOLS = {
   // 高橋式受卵牛専用：D0=CIDR挿入、D19=胚移植（採卵日と同日）
   et_cidr_takahashi: s => [
     {day:0,  action:'CIDR挿入', detail:'レシピエント同期プログラム開始【高橋式】', color:'#a78bfa', priority:'high'},
-    {day:9,  action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α投与', color:'#f59e0b', priority:'high'},
+    {day:9,  action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α 3ml 筋注（夕方）', color:'#f59e0b', priority:'high'},
     {day:11, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（1回目）', color:'#4ade80', priority:'mid'},
     {day:12, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断）', color:'#4ade80', priority:'high'},
     {day:18, action:'ゲストロン投与', detail:'ゲストロン1500IU 筋注', color:'#60a5fa', priority:'high'},
@@ -3442,9 +3442,14 @@ function renderGrouped(taskList) {
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);">
             <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();toggleTask('${rt.id}')" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;"></div>
             <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;">受牛</span>
-            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
-            ${rname?`<span style="font-size:11px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
-            <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;margin-left:auto;">✕</button>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:baseline;gap:4px;">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
+                ${rname?`<span style="font-size:11px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
+              </div>
+              ${rt.detail?`<div style="font-size:10px;color:var(--muted);margin-top:1px;">${rt.detail}</div>`:''}
+            </div>
+            <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;flex-shrink:0;">✕</button>
           </div>`;
         }).join('');
       }
