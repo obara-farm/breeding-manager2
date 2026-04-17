@@ -3383,7 +3383,7 @@ function jumpToToday() {
 function actionKey(action) {
   if (action.includes('妊娠鑑定')) return '🔬 妊娠鑑定';
   if (action.includes('FSH')) return '💉 FSH投与';
-  if (action.includes('CIDR挿入') || action.includes('CIDRプログラム開始')) return '💉 CIDR挿入';
+  if (action.includes('CIDR挿入') || action.includes('CIDRプログラム開始') || action.includes('レシピエント同期プログラム開始')) return '💉 CIDR挿入';
   if (action.includes('CIDR抜去') || action.includes('CIDR除去')) return '🔧 CIDR抜去';
   if ((action.includes('PG') || action.includes('ジノプロスト')) && !action.includes('CIDR')) return '💉 PG投与';
   if (action.includes('アントリン') || action.includes('ワンショット')) return '💉 アントリン';
