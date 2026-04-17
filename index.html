@@ -10724,21 +10724,22 @@ function buildEggCertHTML(colRec, embryo) {
   var collectDateJP = fmtDateJP(collectDate);
   var aiDates = (colRec.aiDates||[]);
   var semenCertNos = aiDates.map(function(ai){
-    // 授精簿のn欄を常に優先（最新の入力値を反映）
-    var allRecs = [].concat(INSEM_BOOK_DATA, insemBookRecords);
-    // donorAIフラグを正しく判定（静的レコードはstaticDonorAIFlags参照）
-    var rec = allRecs.find(function(r, i){
-      if(r.d!==ai.date || r.t!==colRec.donorId) return false;
-      var isDonorAI = r._src==='static'
-        ? (staticDonorAIFlags['static_'+r._idx]||false)
-        : (r.donorAI || !!(insemBookEdits && insemBookEdits[r._src+'_'+r._idx]||{}).donorAI);
-      // INSEM_BOOK_DATAは_srcがないのでインデックスで判定
-      if(!r._src && i < INSEM_BOOK_DATA.length) {
-        isDonorAI = staticDonorAIFlags['static_'+i]||false;
+    var nos = [];
+    // INSEM_BOOK_DATAから全件取得
+    for(var i=0; i<INSEM_BOOK_DATA.length; i++){
+      var r = INSEM_BOOK_DATA[i];
+      if(r.d===ai.date && r.t===colRec.donorId && staticDonorAIFlags['static_'+i]){
+        if(r.n) nos.push(r.n);
       }
-      return isDonorAI;
+    }
+    // insemBookRecordsから全件取得
+    insemBookRecords.forEach(function(r){
+      if(r.d===ai.date && r.t===colRec.donorId &&
+        (r.donorAI || !!(insemBookEdits&&(insemBookEdits[r._src+'_'+r._idx]||{}).donorAI))){
+        if(r.n && !nos.includes(r.n)) nos.push(r.n);
+      }
     });
-    if(rec && rec.n) return rec.n;
+    if(nos.length) return nos.join('・');
     // 授精簿にない場合はaiDatesのsemenCertNoにフォールバック
     if(ai.semenCertNo||ai.certNo) return ai.semenCertNo||ai.certNo;
     return '';
