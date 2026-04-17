@@ -3462,11 +3462,12 @@ function renderGrouped(taskList) {
         ? `${k} <span style="font-size:11px;color:var(--info);font-weight:400;">${soloRecipDonorId} ${cowDisplayName(soloRecipDonorId)||''} 受卵牛プログラム</span>`
         : k;
 
-    // 表示タスク：受卡牛専用日はドナータスクを除外
-    const allTasks = recipientOnlyDay ? otherTasks : [...mergedTasks];
+    // 表示タスク：受卡牛専用日はドナータスクを除外、soloRecipは全タスクがrecipientTasksByDonorに入るので空
+    const allTasks = (recipientOnlyDay || soloRecipDonorId) ? otherTasks : [...mergedTasks];
 
-    // 受卡牛専用日は受卡牛タスクを直接表示
-    const recipientDirectHTML = recipientOnlyDay
+    // 受牛タスクを直接表示（recipientOnlyDay または soloRecipDonorId の場合）
+    const showRecipDirect = recipientOnlyDay || !!soloRecipDonorId;
+    const recipientDirectHTML = showRecipDirect
       ? Object.values(recipientTasksByDonor).flat().map(rt => {
           const rname = cowDisplayName(rt.cowId);
           const isChecked = rt.done;
