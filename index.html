@@ -3432,6 +3432,7 @@ function renderGrouped(taskList) {
           const isChecked = rt.done;
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);">
             <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();toggleTask('${rt.id}')" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;"></div>
+            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;">受卡</span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
             ${rname?`<span style="font-size:11px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
             <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;margin-left:auto;">✕</button>
@@ -3454,13 +3455,16 @@ function renderGrouped(taskList) {
         const hasPregBtn = t.action.includes('妊娠鑑定');
         const hasRecipBtn = !t.done && (
           (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) ||
-          t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'
+          t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)' ||
+          (t.etRecipients && t.etRecipients.length > 0 && t.action.includes('CIDR') && !t.action.includes('抜去'))
         );
         const isDonorAITask = !t.done && (
           t.action.includes('発情確認（前日）') ||
           t.action === '発情確認 ＋ GnRH ＋ 授精' ||
           t.action.includes('発情確認（翌日）')
         );
+        const isDonorTask = !!(t.etRecipients && t.etRecipients.length) || t.action.includes('ドナー') || t.action.includes('受卵牛') || t.action.includes('採卵') || t.action.includes('受精卵回収') || t.action.includes('アントリン') || t.action.includes('ジノプロスト') || t.action.includes('コンセラール');
+        const donorBadge = isDonorTask && !t.action.includes('妊娠鑑定') ? `<span style="background:#1a0808;border:1px solid var(--danger);color:#fca5a5;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:5px;">供胚</span>` : '';
         const _memoDisp = (() => {
           if (!t.memo) return '';
           const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
@@ -3475,6 +3479,7 @@ function renderGrouped(taskList) {
             <div style="display:flex;align-items:baseline;gap:5px;">
               <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
               ${name?`<span style="font-size:12px;font-weight:700;color:var(--accent);">${name}</span>`:''}
+              ${donorBadge}
             </div>
             ${detailHtml}
             ${hasPregBtn ? `
