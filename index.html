@@ -3441,7 +3441,7 @@ function renderGrouped(taskList) {
           const isChecked = rt.done;
           return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid rgba(255,255,255,.05);">
             <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();toggleTask('${rt.id}')" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;"></div>
-            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;">受卵牛</span>
+            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;">受牛</span>
             <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
             ${rname?`<span style="font-size:11px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
             <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;margin-left:auto;">✕</button>
