@@ -3448,14 +3448,19 @@ function renderGrouped(taskList) {
     const recipientOnlyDay = donorTasks.length > 0 && otherTasks.length === 0 &&
       Object.values(recipientTasksByDonor).some(rt => rt.length > 0) &&
       donorTasks.every(dt => {
-        // ドナータスクのactionが受卡牛向け処置（ドナー自身は処置不要）
-        return dt.action.includes('受卵牛') || dt.action.includes('CIDR') && !dt.action.includes('ドナー');
+        return dt.action.includes('受卵牛') || (dt.action.includes('CIDR') && !dt.action.includes('ドナー'));
       });
 
-    // グループヘッダー：受卡牛専用日はドナー名を付加
+    // 全タスクが同一ドナーのmemoを持つグループ（受卡牛のみグループ）
+    const allFromSameDonor = gtasks.length > 0 && gtasks.every(t => (t.memo||'').match(/^ドナー:(.+)$/));
+    const soloRecipDonorId = allFromSameDonor ? (gtasks[0].memo||'').replace('ドナー:','') : null;
+
+    // グループヘッダー
     const groupLabel = recipientOnlyDay && donorTasks[0]
       ? `${k} <span style="font-size:11px;color:var(--info);font-weight:400;">${donorTasks[0].cowId} ${cowDisplayName(donorTasks[0].cowId)||''} 受卵牛プログラム</span>`
-      : k;
+      : soloRecipDonorId
+        ? `${k} <span style="font-size:11px;color:var(--info);font-weight:400;">${soloRecipDonorId} ${cowDisplayName(soloRecipDonorId)||''} 受卵牛プログラム</span>`
+        : k;
 
     // 表示タスク：受卡牛専用日はドナータスクを除外
     const allTasks = recipientOnlyDay ? otherTasks : [...mergedTasks];
