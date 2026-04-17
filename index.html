@@ -8009,11 +8009,13 @@ function renderCollectionTab() {
     });
     if(carryovers.length) {
       carryoverHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
-        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">📦 R6年度繰り越し在庫（種別不明）</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--muted);">📦 R6年度繰り越し在庫（種別不明）</div>' +
+          '<button onclick="openManualEggCert()" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;">✏ 卵証明書を手入力印刷</button>' +
+        '</div>' +
         carryovers.map(function(inv){
           var carryH = (inv.history||[]).find(function(h){return h.type==='carryover';});
           var stock = inv.stock||0;
-          var used = (inv.history||[]).filter(function(h){return ['transfer','use','discard'].includes(h.type);}).reduce(function(s,h){return s+h.count;},0);
           return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">' +
             '<div>' +
               '<span style="font-size:12px;font-weight:700;color:var(--text);">'+(inv.dam||inv.name||inv.id)+'</span>' +
@@ -10917,7 +10919,13 @@ function updateEggCartBadge() {
 }
 
 function openEggCartPreview() {
-  if(!eggCertCart.length){alert('カートが空です。採卵記録から胚を追加してください');return;}
+  if(!eggCertCart.length){
+    // カートが空でもモーダルを開いて手入力ボタンを表示
+    document.getElementById('egg-cert-list').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px;">カートが空です。採卵記録から胚を追加するか、手入力で印刷してください。</div>';
+    updateEggCertSelectCount();
+    openModal('modal-egg-cert-preview');
+    return;
+  }
   var listEl = document.getElementById('egg-cert-list');
   listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">印刷する胚（全'+eggCertCart.length+'枚）— 等級を入力してから印刷してください</div>' +
     eggCertCart.map(function(c,i){
