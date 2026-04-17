@@ -2758,35 +2758,24 @@ const PROTOCOLS = {
   ],
   // 高橋式：D0=受卵牛CIDR挿入日を起点（指示書 R7.8.30〜R7.9.18）
   donor_et_takahashi: s => [
-    // D0(8/30): 受卵牛 CIDR挿入+E2+PG
-    {day:0,  action:'【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)', detail:'受卵牛 同期化開始 — CIDR挿入・E2（オバホルモン）1ml ＋ PGF2α 2ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:''},
-    // D3(9/2): ドナー CIDR挿入
-    {day:3,  action:'ドナー CIDR挿入', detail:'供胚牛 CIDR挿入', color:'#a78bfa', priority:'high', timeOfDay:''},
-    // D4(9/3): ドナー オバホルモン
-    {day:4,  action:'ドナー オバホルモン 0.5ml', detail:'E2（オバホルモン）0.5ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:''},
-    // D8(9/7): ドナー アントリンワンショット
+    {day:0,  action:'【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)', detail:'受卵牛 同期化開始 — CIDR挿入・E2（オバホルモン）1ml ＋ PGF2α 2ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
+    {day:3,  action:'ドナー CIDR挿入', detail:'供胚牛 CIDR挿入', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
+    {day:4,  action:'ドナー オバホルモン 0.5ml', detail:'E2（オバホルモン）0.5ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
     {day:8,  action:'ドナー アントリンワンショット', detail:'アントリン20A（20ml）頸部皮下 ＋ 10A（5ml）尾根部皮下', color:'#60a5fa', priority:'high', timeOfDay:''},
-    // D9(9/8): 受卵牛 PG+CIDR抜去
-    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'受卵牛 PGF2α 2ml投与 ＋ CIDR抜去', color:'#f59e0b', priority:'high', timeOfDay:''},
-    // D10(9/9): ドナー CIDR抜去+ジノプロスト
-    {day:10, action:'ドナー CIDR抜去 ＋ ジノプロスト 2.5ml', detail:'CIDR抜去・ジノプロスト（PGF2α）2.5ml 筋注', color:'#f59e0b', priority:'high', timeOfDay:''},
-    // D11(9/10): 受卵牛 スタンディング発情確認1回目
-    {day:11, action:'【受卵牛】スタンディング発情確認', detail:'受卵牛 発情チェック（1回目）', color:'#4ade80', priority:'mid', timeOfDay:''},
-    // D12(9/11): ドナー 発情+コンセラール朝 / 授精+コンセラール夕 ／ 受卵牛 スタンディング発情確認2回目
+    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'受卵牛 PGF2α 2ml投与 ＋ CIDR抜去（夕方）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
+    {day:10, action:'ドナー CIDR抜去 ＋ ジノプロスト 2.5ml', detail:'CIDR抜去・ジノプロスト（PGF2α）2.5ml 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
+    {day:11, action:'【受卵牛】スタンディング発情確認', detail:'受卵牛 発情チェック（1回目・夕方）', color:'#4ade80', priority:'mid', timeOfDay:'夕'},
     {day:12, action:'ドナー スタンディング発情 ＋ コンセラール 100μg【朝】', detail:'発情確認 → コンセラール100μg（2.0ml）筋注（朝）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
     {day:12, action:'ドナー 人工授精 ＋ コンセラール 100μg【夕】', detail:'人工授精 ＋ コンセラール100μg（2.0ml）筋注（夕）', color:'#4ade80', priority:'high', timeOfDay:'夕'},
-    {day:12, action:'【受卵牛】スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断）', color:'#4ade80', priority:'high', timeOfDay:''},
-    // D13(9/12): ドナー 人工授精2回目
+    {day:12, action:'【受卵牛】スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断・朝）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
     {day:13, action:'ドナー 人工授精（2回目）', detail:'翌日授精（午前中）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
-    // D19(9/18): 採卵 ＋ 受卵牛 胚移植
     {day:19, action:'★ 受精卵回収（採卵）＋【受卵牛】胚移植', detail:'採卵実施 ★胚数・凍結/新鮮をメモに記入 ／ 受卵牛：胚移植実施', color:'#ef4444', priority:'high', timeOfDay:''},
   ],
-  // 高橋式受卵牛専用：D0=CIDR挿入、D19=胚移植（採卵日と同日）
   et_cidr_takahashi: s => [
-    {day:0,  action:'CIDR挿入', detail:'レシピエント同期プログラム開始【高橋式】', color:'#a78bfa', priority:'high'},
-    {day:9,  action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α 3ml 筋注（夕方）', color:'#f59e0b', priority:'high'},
-    {day:11, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（1回目）', color:'#4ade80', priority:'mid'},
-    {day:12, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断）', color:'#4ade80', priority:'high'},
+    {day:0,  action:'CIDR挿入', detail:'レシピエント同期プログラム開始【高橋式】（朝）', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
+    {day:9,  action:'CIDR除去 + PG投与', detail:'CIDR抜去・PGF2α 3ml 筋注（夕方）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
+    {day:11, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（1回目・夕方）', color:'#4ade80', priority:'mid', timeOfDay:'夕'},
+    {day:12, action:'スタンディング発情確認', detail:'受卵牛 発情チェック（2回目・ET実施判断・朝）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
     {day:18, action:'ゲストロン投与', detail:'ゲストロン1500IU 筋注', color:'#60a5fa', priority:'high'},
     {day:19, action:'胚移植（ET）', detail:'移植実施 ★胚番号・ドナー情報をメモに記入 → チェックすると妊鑑予定が自動追加されます', color:'#4ade80', priority:'high'},
   ],
