@@ -3514,117 +3514,112 @@ function renderGrouped(taskList) {
     </div>`;
   }).join('');
 }
-function taskWrapHtml(t, isOverdue) {
-  const pcls = {high:'priority-high',mid:'priority-mid',low:'priority-low',et:'priority-et'}[t.priority]||'priority-mid';
-  const overdueDays = isOverdue ? diffDays(today(), t.date) : 0;
-  const name = cowDisplayName(t.cowId);
-  const timeTag = t.timeOfDay ? `<span style="background:${t.timeOfDay==='朝'?'#1a3a1a':'#0a0a2a'};color:${t.timeOfDay==='朝'?'#4ade80':'#a78bfa'};font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;">${t.timeOfDay}</span>` : '';
-  const _memoDisp = (() => {
-    if (!t.memo) return '';
-    const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(t.memo.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
-    return isLotMemo ? t.memo.replace(/^精液:/,'ET:') : t.memo;
-  })();
-  const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
-  const hasPregBtn = t.action.includes('妊娠鑑定');
-  const hasColBtn = t.action.includes('採卵') || t.action.includes('受精卵回収');
-  const hasCalvBtn = t.action === '分娩予定' && !t.done;
-  const hasRecipBtn = (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)';
-  // ドナーAIタスク（発情確認系3種）
-  const isDonorAITask = !t.done && (
-    t.action.includes('発情確認（前日）') ||
-    t.action === '発情確認 ＋ GnRH ＋ 授精' ||
-    t.action.includes('発情確認（翌日）')
-  );
+function renderToday() {
+  const todayStr = today();
+  const isToday = viewDate === todayStr;
 
-  // ボタン行（task-itemの外に完全独立）
-  const btnRow = hasPregBtn ? `
-    <div style="display:flex;gap:6px;padding:4px 10px 6px 10px;background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:5px;">
-      <button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="positive" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">✓ 陽性</button>
-      <button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="negative" style="background:#1a0808;border:1px solid var(--danger);color:#fca5a5;font-size:12px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">✗ 陰性</button>
-      <button class="fixpreg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" style="background:none;border:1px solid var(--warn);color:var(--warn);font-size:11px;padding:6px 10px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">🔄</button>
-    </div>` :
-  hasColBtn && !t.done ? `
-    <div style="padding:4px 10px 6px 10px;background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:5px;">
-      <button class="col-preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;">🥚 残存胚に期待</button>
-    </div>` :
-  hasRecipBtn ? `
-    <div style="padding:4px 10px 6px 10px;background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;margin-bottom:5px;">
-      <button class="recip-btn" data-cowid="${t.cowId}" data-date="${t.date}" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;width:100%;">🐄 受卵牛を登録</button>
-    </div>` : '';
+  document.getElementById('today-date-label').textContent = isToday
+    ? fmtDateFull(viewDate)
+    : fmtDateFull(viewDate) + (viewDate < todayStr ? ' (過去)' : ' (予定)');
+  document.getElementById('today-jump-btn').style.display = isToday ? 'none' : '';
 
-  const hasBtnRow = hasPregBtn || (hasColBtn && !t.done) || hasRecipBtn || isDonorAITask || hasCalvBtn;
+  const pendingCount = tasks.filter(t => !t.done && t.date <= todayStr).length;
+  document.getElementById('today-pending-count').textContent = pendingCount;
+  const todayBadge = document.getElementById('today-badge');
+  todayBadge.textContent = pendingCount;
+  todayBadge.style.display = pendingCount > 0 ? '' : 'none';
 
-  // 妊鑑タスクはpregResultでチェック・背景色を制御
-  const isChecked = t.done || !!t.pregResult;
-  const cardBg = hasPregBtn && t.pregResult === 'positive' ? 'background:#0d2a1a;border-color:#22c55e;'
-               : hasPregBtn && t.pregResult === 'negative' ? 'background:#1a0808;border-color:#ef4444;'
-               : t.done ? 'background:#0d2a0d;' : '';
+  let overdueUndone, dayTasks;
+  if (isToday) {
+    overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
+    dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後'));
+  } else {
+    overdueUndone = [];
+    dayTasks = tasks.filter(t => t.date === viewDate);
+  }
 
-  return `
-    <div style="margin-bottom:5px;">
-      <div class="task-wrap" id="wrap-${t.id}" style="margin-bottom:0;">
-        <div class="task-swipe-bg">✓</div>
-        <div class="task-item${t.done?' done':''}" id="task-${t.id}" data-id="${t.id}" style="flex-direction:column;align-items:stretch;cursor:default;${cardBg}">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div class="task-priority ${pcls}" style="flex-shrink:0;align-self:stretch;"></div>
-            <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;${hasPregBtn?'cursor:default;':''}"></div>
-            <div style="flex:1;min-width:0;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
-              <div style="display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;">
-                <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${t.cowId}</span>
-                ${name?`<span style="font-size:12px;font-weight:700;color:var(--accent);">${name}</span>`:''}
-                <span style="font-size:11px;color:var(--muted);">${fmtDate(t.date)}</span>
-                ${timeTag}
-                ${isOverdue?`<span class="badge badge-overdue" style="font-size:9px;">${overdueDays}日超過</span>`:''}
-              </div>
-              <div style="font-size:12px;color:var(--text);font-weight:600;margin-top:1px;">${t.action}${memoHtml}</div>
-              ${t.detail?`<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${(() => {
-                const isLotMemo = /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((t.memo||'').replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim());
-                return isLotMemo ? t.detail.replace(/^AI後/,'ET後').replace(/\(AI日:/,'(ET日:') : t.detail;
-              })()}</div>`:''}
-            </div>
-            <button onclick="event.stopPropagation();openDeleteTask('${t.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:14px;cursor:pointer;padding:4px 10px;flex-shrink:0;border-radius:6px;line-height:1;">✕</button>
-          </div>
-          ${hasPregBtn ? `
-          <div style="display:flex;gap:8px;margin-top:8px;padding-left:2px;align-items:center;">
-            <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','positive')" onclick="recordPregFromTask('${t.cowId}','${t.id}','positive')" style="background:${t.pregResult==='positive'?'#14532d':'#0d2a1a'};border:2px solid ${t.pregResult==='positive'?'#22c55e':'var(--accent2)'};color:${t.pregResult==='positive'?'#fff':'var(--accent)'};font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='positive'?'✓ 陽性 ✔':'✓ 陽性'}</button>
-            <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','negative')" onclick="recordPregFromTask('${t.cowId}','${t.id}','negative')" style="background:${t.pregResult==='negative'?'#7f1d1d':'#1a0808'};border:2px solid ${t.pregResult==='negative'?'#ef4444':'var(--danger)'};color:${t.pregResult==='negative'?'#fff':'#fca5a5'};font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='negative'?'✗ 陰性 ✔':'✗ 陰性'}</button>
-            <button ontouchend="event.preventDefault();event.stopPropagation();openFixPreg('${t.cowId}','${t.id}')" onclick="openFixPreg('${t.cowId}','${t.id}')" style="background:none;border:2px solid var(--warn);color:var(--warn);font-size:12px;padding:8px 12px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🔄</button>
-          </div>` : ''}
-          ${hasColBtn && !t.done ? `
-          <div style="margin-top:8px;padding-left:2px;">
-            <button ontouchend="event.preventDefault();event.stopPropagation();openCollectionPregOption('${t.cowId}','${t.id}')" onclick="openCollectionPregOption('${t.cowId}','${t.id}')" style="background:#1a0a2a;border:2px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🌱 残存胚に期待</button>
-          </div>` : ''}
-          ${isDonorAITask ? `
-          <div style="margin-top:8px;padding-left:2px;">
-            <button ontouchend="event.preventDefault();event.stopPropagation();openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" onclick="openDonorAIRecord('${t.cowId}','${t.id}','${t.date}')" style="background:#1a0808;border:2px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🐄 ドナーAI記録</button>
-          </div>` : ''}
-          ${t.etRecipients && t.etRecipients.length && (t.action.includes('CIDR') || t.action.includes('採卵') || t.action.includes('受精卵回収') || t.action.includes('PG投与')) ? `
-          <div style="margin-top:8px;padding-left:2px;font-size:11px;color:var(--info);">
-            🐄 受卵牛: ${t.etRecipients.map(id => {
-              const rc = cows.find(c=>c.id===id);
-              return `<span style="background:#0a1a2a;border:1px solid var(--info);padding:1px 5px;border-radius:4px;margin-right:3px;">${id}${rc&&rc.name?' '+rc.name:''}</span>`;
-            }).join('')}
-          </div>` : ''}
-          ${hasRecipBtn ? `
-          <div style="margin-top:8px;padding-left:2px;">
-            <button ontouchend="event.preventDefault();event.stopPropagation();openRecipientModal('${t.cowId}','${t.date}')" onclick="openRecipientModal('${t.cowId}','${t.date}')" style="background:#0a1a2a;border:2px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);width:100%;">🐄 受卵牛を登録</button>
-          </div>` : ''}
-          ${hasCalvBtn ? `
-          <div style="margin-top:8px;padding-left:2px;">
-            ${(()=>{
-              const cow2 = cows.find(c=>c.id===t.cowId);
-              const lastAiEt = cow2 && [...(cow2.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
-              const isEt = lastAiEt && ['et_done','estrus_et'].includes(lastAiEt.type);
-              const sireStr = lastAiEt ? (lastAiEt.memo||'').replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
-              return lastAiEt ? `<div style="font-size:11px;color:var(--info);margin-bottom:4px;">${isEt?'🧬ET':'💉AI'} ${fmtDate(lastAiEt.date)}${sireStr?' — '+sireStr:''}</div>` : '';
-            })()}
-            <button ontouchend="event.preventDefault();event.stopPropagation();openCalvingRecord('${t.cowId}')" onclick="openCalvingRecord('${t.cowId}')" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;margin-top:4px;border-color:var(--purple);color:var(--purple);">🍼 分娩日を記録</button>
-          </div>` : ''}
-        </div>
-      </div>
-    </div>`;
+  const displayTasks = [...overdueUndone, ...dayTasks];
+
+  const pendingDisplay = displayTasks.filter(t => !t.done);
+  const cowSet = new Set(pendingDisplay.map(t => t.cowId));
+  const byType = {};
+  const byTypeFirst = {};
+  pendingDisplay.forEach(t => {
+    const type = t.action.includes('AI') ? 'AI'
+      : t.action.includes('ET') || t.action.includes('胚移植') ? 'ET'
+      : t.action.includes('FSH') ? 'FSH'
+      : t.action.includes('CIDR') ? 'CIDR'
+      : t.action.includes('PG') ? 'PG'
+      : t.action.includes('採卵') ? '採卵' : 'その他';
+    byType[type] = (byType[type] || 0) + 1;
+    if (!byTypeFirst[type]) byTypeFirst[type] = t.id;
+  });
+  const firstTaskId = pendingDisplay[0]?.id;
+  const chips = Object.entries(byType).map(([k,v]) =>
+    `<div class="summary-chip" style="cursor:pointer;" onclick="scrollToTask('${byTypeFirst[k]}')">${k} <strong>${v}件</strong></div>`).join('');
+  document.getElementById('today-summary').innerHTML =
+    pendingDisplay.length
+      ? `<div class="summary-chip" style="cursor:pointer;" onclick="scrollToTask('${firstTaskId}')">対象牛 <strong>${cowSet.size}頭</strong></div>${chips}`
+      : '';
+
+  const container = document.getElementById('today-tasks-container');
+  const empty = document.getElementById('today-empty');
+  const emptyText = document.getElementById('today-empty-text');
+
+  if (!displayTasks.length) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    emptyText.textContent = isToday ? '今日の処置はありません' : 'この日の予定はありません';
+    return;
+  }
+  empty.style.display = 'none';
+
+  renderPreCalvingAlerts();
+  renderCalvingAlerts();
+
+  let html = '';
+  if (isToday && overdueUndone.length) {
+    html += `<div class="task-group"><div class="task-group-label" style="color:var(--danger)">⚠ 未処置（期限超過）</div>`;
+    html += renderGrouped(overdueUndone.sort((a,b) => a.date.localeCompare(b.date)));
+    html += '</div>';
+  }
+  if (dayTasks.length) {
+    if (isToday) {
+      const morning = dayTasks.filter(t => t.timeOfDay === '朝');
+      const evening = dayTasks.filter(t => t.timeOfDay === '夕');
+      const other   = dayTasks.filter(t => !t.timeOfDay || (t.timeOfDay !== '朝' && t.timeOfDay !== '夕'));
+      if (morning.length) {
+        const pendM = morning.filter(t=>!t.done).length;
+        html += `<div class="task-group"><div class="task-group-label" style="color:#4ade80;">🌅 朝の処置 <span style="color:var(--muted);font-weight:400;">${pendM ? pendM+'件未完了' : '✓ 完了'}</span></div>`;
+        html += renderGrouped(morning.sort((a,b)=>a.action.localeCompare(b.action)));
+        html += '</div>';
+      }
+      if (evening.length) {
+        const pendE = evening.filter(t=>!t.done).length;
+        html += `<div class="task-group"><div class="task-group-label" style="color:#a78bfa;">🌙 夕の処置 <span style="color:var(--muted);font-weight:400;">${pendE ? pendE+'件未完了' : '✓ 完了'}</span></div>`;
+        html += renderGrouped(evening.sort((a,b)=>a.action.localeCompare(b.action)));
+        html += '</div>';
+      }
+      if (other.length) {
+        const pendO = other.filter(t=>!t.done).length;
+        html += `<div class="task-group"><div class="task-group-label">📋 本日の処置 <span style="color:var(--muted);font-weight:400;">${pendO ? pendO+'件未完了' : '✓ 完了'}</span></div>`;
+        html += renderGrouped(other.sort((a,b)=>a.date.localeCompare(b.date)));
+        html += '</div>';
+      }
+    } else {
+      const label = fmtDate(viewDate) + ' の予定';
+      const pendD = dayTasks.filter(t=>!t.done).length;
+      html += `<div class="task-group"><div class="task-group-label">${label} <span style="color:var(--muted);font-weight:400;">${pendD ? pendD+'件未完了' : '✓ 完了'}</span></div>`;
+      html += renderGrouped(dayTasks.sort((a,b)=>{
+        const ta = a.timeOfDay==='朝'?0:a.timeOfDay==='夕'?1:2;
+        const tb = b.timeOfDay==='朝'?0:b.timeOfDay==='夕'?1:2;
+        return ta-tb||a.date.localeCompare(b.date);
+      }));
+      html += '</div>';
+    }
+  }
+  container.innerHTML = html;
 }
-
 function toggleTask(id) {
   const task = tasks.find(t=>t.id===id);
   if (!task) return;
