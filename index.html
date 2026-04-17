@@ -2762,7 +2762,7 @@ const PROTOCOLS = {
     {day:3,  action:'ドナー CIDR挿入', detail:'供胚牛 CIDR挿入', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
     {day:4,  action:'ドナー オバホルモン 0.5ml', detail:'E2（オバホルモン）0.5ml 筋注', color:'#a78bfa', priority:'high', timeOfDay:'朝'},
     {day:8,  action:'ドナー アントリンワンショット', detail:'アントリン20A（20ml）頸部皮下 ＋ 10A（5ml）尾根部皮下', color:'#60a5fa', priority:'high', timeOfDay:''},
-    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'受卵牛 PGF2α 2ml投与 ＋ CIDR抜去（夕方）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
+    {day:9,  action:'【受卵牛】PG投与 ＋ CIDR抜去', detail:'ドナー PGF2α 2ml ＋ CIDR抜去（夕方）', color:'#f59e0b', priority:'high', timeOfDay:'夕'},
     {day:10, action:'ドナー CIDR抜去 ＋ ジノプロスト 2.5ml', detail:'CIDR抜去・ジノプロスト（PGF2α）2.5ml 筋注（朝）', color:'#f59e0b', priority:'high', timeOfDay:'朝'},
     {day:11, action:'【受卵牛】スタンディング発情確認', detail:'受卵牛 発情チェック（1回目・夕方）', color:'#4ade80', priority:'mid', timeOfDay:'夕'},
     {day:12, action:'ドナー スタンディング発情 ＋ コンセラール 100μg【朝】', detail:'発情確認 → コンセラール100μg（2.0ml）筋注（朝）', color:'#4ade80', priority:'high', timeOfDay:'朝'},
@@ -3444,14 +3444,46 @@ function renderGrouped(taskList) {
       }
     });
 
-    const allTasks = [...mergedTasks];
+    // 受卡牛専用処置日の判定：ドナータスクがあり全受卡牛タスクがその配下にある場合
+    const recipientOnlyDay = donorTasks.length > 0 && otherTasks.length === 0 &&
+      Object.values(recipientTasksByDonor).some(rt => rt.length > 0) &&
+      donorTasks.every(dt => {
+        // ドナータスクのactionが受卡牛向け処置（ドナー自身は処置不要）
+        return dt.action.includes('受卵牛') || dt.action.includes('CIDR') && !dt.action.includes('ドナー');
+      });
+
+    // グループヘッダー：受卡牛専用日はドナー名を付加
+    const groupLabel = recipientOnlyDay && donorTasks[0]
+      ? `${k} <span style="font-size:11px;color:var(--info);font-weight:400;">${donorTasks[0].cowId} ${cowDisplayName(donorTasks[0].cowId)||''} 受卵牛プログラム</span>`
+      : k;
+
+    // 表示タスク：受卡牛専用日はドナータスクを除外
+    const allTasks = recipientOnlyDay ? otherTasks : [...mergedTasks];
+
+    // 受卡牛専用日は受卡牛タスクを直接表示
+    const recipientDirectHTML = recipientOnlyDay
+      ? Object.values(recipientTasksByDonor).flat().map(rt => {
+          const rname = cowDisplayName(rt.cowId);
+          const isChecked = rt.done;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid rgba(255,255,255,.05);">
+            <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();toggleTask('${rt.id}')" style="flex-shrink:0;cursor:pointer;width:18px;height:18px;"></div>
+            <span style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0;">受牛</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--muted);">${rt.cowId}</span>
+            ${rname?`<span style="font-size:12px;font-weight:700;color:var(--accent);">${rname}</span>`:''}
+            <div style="flex:1;font-size:10px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${rt.detail||''}</div>
+            <button onclick="event.stopPropagation();openDeleteTask('${rt.id}')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;cursor:pointer;padding:1px 6px;border-radius:4px;flex-shrink:0;">✕</button>
+          </div>`;
+        }).join('')
+      : '';
+
     const pend = gtasks.filter(t=>!t.done&&!t.pregResult).length;
     const allDone = pend === 0;
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);">
-        <span style="font-size:13px;font-weight:700;color:var(--text);">${k}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text);">${groupLabel}</span>
         <span style="font-size:11px;color:${allDone?'var(--accent)':'var(--muted)'};">${allDone?'✓ 完了':pend+'頭未完了'}</span>
       </div>
+      ${recipientDirectHTML}
       ${allTasks.map((t,i) => {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
