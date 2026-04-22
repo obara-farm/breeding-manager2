@@ -2615,6 +2615,16 @@ function loadData() {
     });
   });
   if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
+
+  // retiredCowsに含まれるIDをcowsから除外（Firebase同期で復活する問題の根本対策）
+  const retiredIds = retiredCows.map(c => c.id);
+  if (retiredIds.length) {
+    const beforeLen = cows.length;
+    cows = cows.filter(c => !retiredIds.includes(c.id));
+    if (cows.length !== beforeLen) {
+      _store.setItem('cows', JSON.stringify(cows));
+    }
+  }
 }
 
 function save() {
