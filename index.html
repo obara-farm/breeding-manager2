@@ -5575,6 +5575,8 @@ function renderStats() {
       }
 
       if (result === null) return;
+      // 妊鑑予定日（45日後）がまだ来ていない場合は集計から除外
+      if (addDays(rec.date, 45) > todayStr && rec.pregResult === null) return;
 
       if (rec.isET) {
         // 授精簿のs欄（胚番号）から凍結/新鮮を判定
@@ -5804,6 +5806,9 @@ function renderStats() {
             if (Math.abs(diffDays(rec.date, expected)) <= 7) result = 'pos';
           }
           if (result === null) return;
+          // 妊鑑予定日（45日後）がまだ来ていない場合は集計から除外
+          const pregCheckDate = addDays(rec.date, rec.isET ? 45 : 45);
+          if (pregCheckDate > todayStr && rec.pregResult === null) return;
 
           const isPos = result === 'pos';
           const month = parseInt(rec.date.slice(5,7));
