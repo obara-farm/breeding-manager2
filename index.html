@@ -5789,10 +5789,15 @@ function renderStats() {
           const lastPreg = [...pregSearch].reverse()[0];
 
           let result = null;
-          if (lastPreg) {
+          // 授精簿レコードのpregResultを優先（全体集計と統一）
+          if (rec.pregResult === 'positive') result = 'pos';
+          else if (rec.pregResult === 'negative') result = 'neg';
+          else if (lastPreg) {
             result = lastPreg.type === 'preg_positive' ? 'pos' : 'neg';
           } else if (nextInsem) {
             result = 'neg';
+          } else if (cow && cow.calvingDate && cow.calvingDate >= rec.date) {
+            result = 'pos';
           } else if (cow && cow.status === 'pregnant' && cow.dueDate) {
             const days = rec.isET ? 278 : 285;
             const expected = addDays(cow.dueDate, -days);
