@@ -3027,8 +3027,8 @@ function updateAiEtPregPanel() {
   const implDate = document.getElementById('ai-et-impl-date').value;
   if (!implDate) return;
   const isAI = ev === 'ai_done';
-  // 妊鑑予定日 = AI後45日、ET後45日
-  const pregCheckDate = addDays(implDate, 45);
+  // 妊鑑予定日 = AI後45日、ET後38日（受精後7日で採卵のため）
+  const pregCheckDate = addDays(implDate, isAI ? 45 : 38);
   const todayStr = today();
   const hint = document.getElementById('ai-et-preg-date-hint');
   hint.innerHTML = `妊鑑予定日: <strong style="color:var(--warn)">${fmtDate(pregCheckDate)}</strong>`;
@@ -3223,7 +3223,7 @@ function registerEvent() {
       const implDate = document.getElementById('ai-et-impl-date').value || date;
       const pregResultRaw = document.getElementById('ai-et-preg-result-val').value;
       const pregResult = pregResultRaw || 'pending';
-      const pregCheckDate = addDays(implDate, 45);
+      const pregCheckDate = addDays(implDate, 38); // ET後38日（受精後7日で採卵のため）
       const todayStr = today();
       const isPastRecord = implDate < todayStr;
       // 同日同牛のet_done重複チェック（同じ胚番号のみ重複とみなす）
@@ -4630,7 +4630,7 @@ function skipEtRecord() {
 }
 
 function _addPregTask(cowId, baseDate, type, etRecordId) {
-  const pregDate = addDays(baseDate, 45);
+  const pregDate = addDays(baseDate, type === 'ET' ? 38 : 45);
   const already = tasks.some(t => t.cowId===cowId && !t.done && t.action.includes('妊娠鑑定'));
   if (!already) {
     tasks.push({
@@ -5586,7 +5586,7 @@ function renderStats() {
 
       if (result === null) return;
       // 妊鑑予定日（45日後）がまだ来ていない場合は集計から除外
-      if (addDays(rec.date, 45) > todayStr && rec.pregResult === null) return;
+      if (addDays(rec.date, rec.isET ? 38 : 45) > todayStr && rec.pregResult === null) return;
 
       if (rec.isET) {
         // 授精簿のs欄（胚番号）から凍結/新鮮を判定
