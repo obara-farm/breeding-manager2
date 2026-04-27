@@ -10867,14 +10867,16 @@ function printEggCertsFromModal() {
   if(!colRec) return;
   var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
   var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh', frozen:false});});
-  var allEmbryos = frozen.concat(fresh);
+  var culture = (colRec.cultureEmbryos||[]).filter(function(e){return e.cultureResult==='freeze'||e.cultureResult==='et';})
+    .map(function(e){return Object.assign({},e,{_type:e.cultureResult==='freeze'?'frozen':'fresh', no:e.embryoNo, cane:e.caneNo, stage:e.cultureStage||e.stage, rank:e.cultureRank||e.rank, _isCulture:true});});
+  var allEmbryos = frozen.concat(fresh).concat(culture);
   if(!allEmbryos.length){alert('胚の記録がありません');return;}
 
   var listEl = document.getElementById('egg-cert-list');
   listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">チェックしてカートに追加してください</div>' +
     allEmbryos.map(function(e,i){
       var inCart = eggCertCart.some(function(c){return c.colRecId===colRecId&&c.embryoIdx===i;});
-      var typeLabel = e._type==='fresh' ? '<span style="font-size:9px;color:var(--accent);background:rgba(74,222,128,.15);padding:1px 4px;border-radius:3px;">🌱新鮮</span>' : '<span style="font-size:9px;color:var(--info);background:rgba(59,130,246,.15);padding:1px 4px;border-radius:3px;">❄️凍結</span>';
+      var typeLabel = e._type==='fresh' ? '<span style="font-size:9px;color:var(--accent);background:rgba(74,222,128,.15);padding:1px 4px;border-radius:3px;">🌱新鮮</span>' : e._isCulture ? '<span style="font-size:9px;color:var(--purple);background:rgba(167,139,250,.15);padding:1px 4px;border-radius:3px;">🧫培養凍結</span>' : '<span style="font-size:9px;color:var(--info);background:rgba(59,130,246,.15);padding:1px 4px;border-radius:3px;">❄️凍結</span>';
       return '<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;background:'+(inCart?'rgba(74,222,128,.08)':'')+';">' +
         '<input type="checkbox" class="egg-cert-check" data-idx="'+i+'" data-colid="'+colRecId+'" '+(inCart?'checked':'')+' onchange="updateEggCart(this)" style="width:16px;height:16px;">' +
         typeLabel +
@@ -10896,7 +10898,9 @@ function updateEggCart(checkbox) {
   if(!colRec) return;
   var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
   var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh',frozen:false});});
-  var allEmbryos = frozen.concat(fresh);
+  var culture = (colRec.cultureEmbryos||[]).filter(function(e){return e.cultureResult==='freeze'||e.cultureResult==='et';})
+    .map(function(e){return Object.assign({},e,{_type:e.cultureResult==='freeze'?'frozen':'fresh',no:e.embryoNo,cane:e.caneNo,stage:e.cultureStage||e.stage,rank:e.cultureRank||e.rank,_isCulture:true});});
+  var allEmbryos = frozen.concat(fresh).concat(culture);
   var embryo = allEmbryos[idx];
   if(!embryo) return;
 
