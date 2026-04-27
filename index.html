@@ -7302,9 +7302,9 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
   let certQ = '';
   if (date > '2025-11-05' && !op) {
-    const allQ = [...INSEM_BOOK_DATA, ...insemBookRecords]
+    const allQ = insemBookRecords
       .map(r => parseInt(r.q))
-      .filter(n => !isNaN(n) && n >= 587);
+      .filter(n => !isNaN(n) && n >= 587 && n < 10000);
     const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
     certQ = String(maxQ + 1);
   }
@@ -7319,7 +7319,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
     for (let i = 1; i < count; i++) {
       let certQ2 = '';
       if (date > '2025-11-05' && !op) {
-        const allQ2 = [...INSEM_BOOK_DATA, ...insemBookRecords].map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587);
+        const allQ2 = insemBookRecords.map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 10000);
         const maxQ2 = allQ2.length > 0 ? Math.max(...allQ2) : 586;
         certQ2 = String(maxQ2 + 1);
       }
@@ -7634,7 +7634,7 @@ function renderInsemBook() {
     ...INSEM_BOOK_DATA.map((r, i) => ({...r, _src:'static', _idx:i}))
       .filter(r => !(insemBookEdits['static_' + r._idx] || {})._deleted),
     ...insemBookRecords.map((r, i) => ({...r, _src:'dynamic', _idx:i})),
-  ].sort((a,b) => a.d.localeCompare(b.d));
+  ].sort((a,b) => a.d.localeCompare(b.d) || a.t.localeCompare(b.t));
 
   let data = combined.filter(r => r.y === year);
   if (q) {
