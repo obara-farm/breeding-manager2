@@ -13249,7 +13249,7 @@ function renderCalves() {
           ${isEtFemale && calf.status === 'active' && !isFreemartin ? `<div style="font-size:11px;color:var(--purple);margin-bottom:8px;">🧬 ET産仔の雌牛です — 繁殖候補の保留を検討してください</div>` : ''}
           ${isFreemartin ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">⚠️ 異性双子（フリーマーチン）のため繁殖候補には登録できません</div>` : ''}
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          ${calf.status === 'active' && canKeep ? `
+          ${(calf.status === 'active' || calf.status === 'moved') && canKeep ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="keep" style="background:#0a2a0a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">🌟 繁殖候補として保留</button>
           ` : ''}
           ${calf.status === 'active' ? `
