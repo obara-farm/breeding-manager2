@@ -7351,8 +7351,10 @@ function saveInsemBookRecord(src, idx) {
     insemBookEdits[key].op = (document.getElementById('ib-op-' + recD + '-' + recT)?.value || '').trim();
   }
   // op欄・d欄変更時のみ在庫処理を実行（m欄やn欄のみの変更では在庫不要）
+  // ただし新規レコード（_new:true）の初回保存時は在庫処理を実行
   const triggerField = arguments[2] || 'unknown';
-  if (triggerField === 'm' || triggerField === 'n' || triggerField === 'q') {
+  const isNewRec = src === 'dynamic' && insemBookRecords[idx]?._new;
+  if (!isNewRec && (triggerField === 'm' || triggerField === 'n' || triggerField === 'q')) {
     save();
     return;
   }
