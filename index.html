@@ -3926,6 +3926,8 @@ function recordPreg(cowId, taskId, result) {
   tasks.filter(t=>t.cowId===cowId&&t.action.includes('妊娠鑑定')).forEach(t=>{
     t.pregResult = result;
     t.pregResultDate = pregDate;
+    t.done = true;
+    t.doneAt = new Date().toISOString();
   });
 
   // etRecordを更新
