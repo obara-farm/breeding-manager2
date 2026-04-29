@@ -4286,8 +4286,9 @@ function renderCowList() {
     const hasNewAiAfterNeg = lastNegAfterAi && (cow.events||[]).some(e =>
       ['ai_done','et_done'].includes(e.type) && !e.donorAI && e.date > lastNegAfterAi.date
     );
-    // 妊鑑待ち：AI済みで妊鑑結果なし、または陰性後に再AIあり
-    const isPregWaiting = (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
+    // ドナー牛（採卵プログラム中）は妊鑑待ち対象外
+    const isDonorCow = cow.isDonor || (cow.events||[]).some(e => ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type) && !e._retired);
+    const isPregWaiting = !isDonorCow && (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
       (!hasPregResult || hasNewAiAfterNeg);
     const displayStatus = isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
