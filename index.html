@@ -2636,7 +2636,9 @@ function loadData() {
     );
     if (already) return;
     cow.events = cow.events || [];
-    cow.events.push({type: eventType, date: rec.d, memo: '授精簿から自動同期'});
+    // isPregWaiting判定はe.date > lastAiEt.dateなので翌日付けで追加
+    const syncDate = addDays(rec.d, 1);
+    cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
     if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
       cow.status = 'pregnant';
       if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
