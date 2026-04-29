@@ -2627,7 +2627,7 @@ function loadData() {
   ];
   allInsemRecs.forEach(rec => {
     if (!rec.pregResult || rec.pregResult === 'pending') return;
-    if (rec.donorAI || rec.insemType === 'et') return;
+    if (rec.donorAI) return;
     const cow = cows.find(c => c.id === rec.t);
     if (!cow) return;
     const eventType = rec.pregResult === 'positive' ? 'preg_positive' : 'preg_negative';
@@ -2639,8 +2639,8 @@ function loadData() {
     cow.events.push({type: eventType, date: rec.d, memo: '授精簿から自動同期'});
     if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
       cow.status = 'pregnant';
-      if (!cow.dueDate) cow.dueDate = addDays(rec.d, 285);
-    } else if (rec.pregResult === 'negative' && cow.status === 'program') {
+      if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+    } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
       cow.status = 'open';
     }
     cowSyncFixed = true;
