@@ -2616,6 +2616,37 @@ function loadData() {
   });
   if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
 
+  // 授精簿のpregResultをcow.eventsとstatusに同期
+  let cowSyncFixed = false;
+  const allInsemRecs = [
+    ...INSEM_BOOK_DATA.map((r,i) => {
+      const edit = insemBookEdits['static_'+i] || {};
+      return {...r, ...edit, _src:'static', _idx:i};
+    }),
+    ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i}))
+  ];
+  allInsemRecs.forEach(rec => {
+    if (!rec.pregResult || rec.pregResult === 'pending') return;
+    if (rec.donorAI || rec.insemType === 'et') return;
+    const cow = cows.find(c => c.id === rec.t);
+    if (!cow) return;
+    const eventType = rec.pregResult === 'positive' ? 'preg_positive' : 'preg_negative';
+    const already = (cow.events||[]).some(e =>
+      (e.type==='preg_positive'||e.type==='preg_negative') && e.date >= rec.d
+    );
+    if (already) return;
+    cow.events = cow.events || [];
+    cow.events.push({type: eventType, date: rec.d, memo: '授精簿から自動同期'});
+    if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
+      cow.status = 'pregnant';
+      if (!cow.dueDate) cow.dueDate = addDays(rec.d, 285);
+    } else if (rec.pregResult === 'negative' && cow.status === 'program') {
+      cow.status = 'open';
+    }
+    cowSyncFixed = true;
+  });
+  if (cowSyncFixed) _store.setItem('cows', JSON.stringify(cows));
+
   // retiredCowsに含まれるIDをcowsから除外（Firebase同期で復活する問題の根本対策）
   const retiredIds = retiredCows.map(c => c.id);
   if (retiredIds.length) {
