@@ -2649,6 +2649,17 @@ function loadData() {
   });
   if (cowSyncFixed) _store.setItem('cows', JSON.stringify(cows));
 
+  // pregResultが入っているのにdone:falseのタスクを自動修正
+  let taskSyncFixed = false;
+  tasks.forEach(t => {
+    if (t.pregResult && !t.done) {
+      t.done = true;
+      t.doneAt = t.doneAt || new Date().toISOString();
+      taskSyncFixed = true;
+    }
+  });
+  if (taskSyncFixed) _store.setItem('tasks', JSON.stringify(tasks));
+
   // retiredCowsに含まれるIDをcowsから除外（Firebase同期で復活する問題の根本対策）
   const retiredIds = retiredCows.map(c => c.id);
   if (retiredIds.length) {
@@ -3536,7 +3547,6 @@ function renderGrouped(taskList) {
       ${allTasks.map((t,i) => {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
-        const hasPregBtn = t.action.includes('妊娠鑑定');
         const hasRecipBtn = !t.done && (
           (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) ||
           t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)' ||
@@ -3620,7 +3630,7 @@ function renderToday() {
 
   let overdueUndone, dayTasks;
   if (isToday) {
-    overdueUndone = tasks.filter(t => !t.done && t.date < todayStr && !t.action.includes('流産後'));
+    overdueUndone = tasks.filter(t => !t.done && !t.pregResult && t.date < todayStr && !t.action.includes('流産後'));
     dayTasks = tasks.filter(t => t.date === todayStr && !t.action.includes('流産後'));
   } else {
     overdueUndone = [];
