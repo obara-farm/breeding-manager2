@@ -11202,7 +11202,9 @@ function printSelectedEggCerts() {
     if(!colRec) return null;
     var frozen = (colRec.frozenEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'frozen'});});
     var fresh = (colRec.freshEmbryos||[]).map(function(e){return Object.assign({},e,{_type:'fresh',frozen:false});});
-    var embryo = frozen.concat(fresh)[c.embryoIdx];
+    var culture = (colRec.cultureEmbryos||[]).filter(function(e){return e.cultureResult==='freeze'||e.cultureResult==='et';})
+      .map(function(e){return Object.assign({},e,{_type:e.cultureResult==='freeze'?'frozen':'fresh',no:e.embryoNo,cane:e.caneNo,stage:e.cultureStage||e.stage,rank:e.cultureRank||e.rank,_isCulture:true});});
+    var embryo = frozen.concat(fresh).concat(culture)[c.embryoIdx];
     // カートの等級をembryo側に上書き
     if(embryo && c.grade) embryo = Object.assign({}, embryo, {_grade: c.grade});
     return {colRec:colRec, embryo:embryo};
