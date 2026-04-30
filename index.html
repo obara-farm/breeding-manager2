@@ -5864,7 +5864,7 @@ function renderStats() {
           }
           if (result === null) return;
           // 妊鑑予定日（45日後）がまだ来ていない場合は集計から除外
-          const pregCheckDate = addDays(rec.date, rec.isET ? 45 : 45);
+          const pregCheckDate = addDays(rec.date, rec.isET ? 38 : 45);
           if (pregCheckDate > todayStr && rec.pregResult === null) return;
 
           const isPos = result === 'pos';
@@ -10548,7 +10548,8 @@ function toggleDonorAIFlag(src, idx) {
         const ev = (cow.events||[]).find(e => e.type === 'ai_done' && e.date === date && e.donorAI);
         if (ev) {
           ev.donorAI = false;
-          const pregCheckDate = addDays(date, 45);
+          const isET = rec.insemType === 'et' || rec.isET;
+          const pregCheckDate = addDays(date, isET ? 38 : 45);
           const todayStr = today();
           tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && t.action.includes('妊娠鑑定')));
           tasks.push({ id:Math.random().toString(36).slice(2), cowId, day:45, action:'妊娠鑑定', detail:`AI後45日 (AI日:${fmtDate(date)}) ※ドナーAIフラグOFF→通常AI`, color:'#f59e0b', date:pregCheckDate, priority:'high', done:false });
@@ -10572,7 +10573,7 @@ function toggleDonorAIFlag(src, idx) {
       if (ev) {
         ev.donorAI = false;
         // 妊鑑タスクを生成
-        const pregCheckDate = addDays(rec.d, 45);
+        const pregCheckDate = addDays(rec.d, (rec.insemType==='et'||rec.isET) ? 38 : 45);
         const todayStr = today();
         tasks = tasks.filter(t => !(t.cowId===rec.t && !t.done && t.action.includes('妊娠鑑定')));
         tasks.push({
