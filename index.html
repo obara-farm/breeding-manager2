@@ -10262,7 +10262,13 @@ function _processFreshToFreezeWithNo(rec, fe, embryoNo, caneNo, date, lot) {
       originalRank:  fe.rank,
       collectedDate: cultureCollectedDate,
     });
-    invItem.stock += 1;
+    // 採卵時に新鮮胚としてカウント済みかチェック（済みなら在庫は変わらず、未カウントなら+1）
+    const alreadyCounted = invItem.history.some(h =>
+      (h.type==='selfcollect'||h.type==='restock') && !h.memo?.includes('培養→凍結')
+    );
+    if (!alreadyCounted) {
+      invItem.stock += 1;
+    }
   }
   // 履歴重複防止
   if (!invItem.history.some(h=>h.type==='selfcollect'&&h.memo?.includes(embryoNo))) {
