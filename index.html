@@ -7528,7 +7528,8 @@ function getPregCellHtml(cowId, date, isDonorAI) {
     </div>`;
   }
   // 未記録→妊鑑予定日表示
-  const pd2 = addDays(date, 45);
+  const isETRec = bookRec?.insemType === 'et' || bookRec?.isET;
+  const pd2 = addDays(date, isETRec ? 38 : 45);
   return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
     <span style="font-size:9px;color:var(--muted);">妊鑑予定 ${fmtDateShort(pd2)}</span>
     <div style="display:flex;gap:3px;">
