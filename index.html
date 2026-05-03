@@ -13277,7 +13277,22 @@ function renderCalves() {
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:700;">${calf.earTagId}</span>` : ''}
               ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
-              <span style="font-size:12px;color:var(--muted);">母: <strong style="color:var(--text);">${calf.damId}${damName?' '+damName:''}</strong></span>
+              <span style="font-size:12px;color:var(--muted);">母: <strong style="color:var(--text);">${calf.damId}${damName?' '+damName:''}</strong>${(()=>{
+                if(calf.sex!=='雌') return '';
+                const dm = cows.find(c=>c.id===calf.damId);
+                if(!dm) return '';
+                const lastAiEt = [...(dm.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI);
+                const hasPregRes = lastAiEt&&(dm.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
+                const lastNeg = lastAiEt&&hasPregRes&&[...(dm.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+                const hasNewAiAfterNeg = lastNeg&&(dm.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
+                const isPregWaiting = (dm.status==='open'||dm.status==='program')&&lastAiEt&&(!hasPregRes||hasNewAiAfterNeg);
+                if(dm.status==='pregnant') return ' <span style="color:#4ade80;font-size:10px;">●妊娠中</span>';
+                if(isPregWaiting) return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
+                const openDays = dm.calvingDate ? diffDays(todayStr, dm.calvingDate) : null;
+                if(openDays!==null && openDays>=60) return ' <span style="color:#ef4444;font-size:10px;">●未受精'+openDays+'日</span>';
+                if(openDays!==null && openDays>=45) return ' <span style="color:#f59e0b;font-size:10px;">●未受精'+openDays+'日</span>';
+                return ' <span style="color:var(--muted);font-size:10px;">●空胎</span>';
+              })()}</span>
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
