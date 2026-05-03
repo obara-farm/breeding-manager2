@@ -2671,7 +2671,30 @@ function loadData() {
   }
 }
 
+let _firebaseReady = false; // Firebase初期ロード完了フラグ
+
 function save() {
+  if (!_firebaseReady) {
+    // Firebase初期ロード前はlocalStorageのみに書き込み（Firebaseは上書きしない）
+    _store.setItem('cows', JSON.stringify(cows));
+    _store.setItem('tasks', JSON.stringify(tasks));
+    _store.setItem('collectionRecords', JSON.stringify(collectionRecords));
+    _store.setItem('calvingRecords', JSON.stringify(calvingRecords));
+    _store.setItem('calves', JSON.stringify(calves));
+    _store.setItem('etRecords', JSON.stringify(etRecords));
+    _store.setItem('semenInventory', JSON.stringify(semenInventory));
+    _store.setItem('embryoInventory', JSON.stringify(embryoInventory));
+    _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
+    _store.setItem('retiredCows', JSON.stringify(retiredCows));
+    _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
+    _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
+    _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
+    _store.setItem('collectionRecordsNew', JSON.stringify(collectionRecordsNew));
+    _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
+    _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
+    _store.setItem('data_version', String(DATA_VERSION));
+    return;
+  }
   _store.setItem('cows', JSON.stringify(cows));
   _store.setItem('tasks', JSON.stringify(tasks));
   _store.setItem('collectionRecords', JSON.stringify(collectionRecords));
@@ -2864,6 +2887,8 @@ function initApp() {
   document.getElementById('reg-date').value = today();
   initCowsFromMaster();
   loadData();
+  // Firebaseなし環境ではlocalStorageから読み込み後すぐにsave可能にする
+  if (!window._firebaseInitialized) _firebaseReady = true;
   migrateDates();
   renderAll();
   initSwipe();
@@ -17015,6 +17040,7 @@ const firebaseConfig = {
   appId: "1:663663293010:web:eaef68dee692fe1322258b"
 };
 firebase.initializeApp(firebaseConfig);
+window._firebaseInitialized = true;
 const auth = firebase.auth();
 const db = firebase.database();
 
@@ -17246,6 +17272,8 @@ function initFirebaseSync() {
         });
         if (typeof loadData === 'function') {
           loadData();
+          // Firebase初期ロード完了→以降のsave()はFirebaseにも書き込み可能
+          _firebaseReady = true;
           // retiredCowsに含まれるIDをcowsから除外
           const retiredIds = retiredCows.map(c=>c.id);
           if (retiredIds.length) {
@@ -17260,7 +17288,7 @@ function initFirebaseSync() {
         setSyncStatus('synced');
       }
     });
-  }).catch(() => setSyncStatus('error'));
+  }).catch(() => { setSyncStatus('error'); _firebaseReady = true; });
 }
 
 // 前回送信時のスナップショット（変更検知用）
