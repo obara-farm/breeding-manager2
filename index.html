@@ -115,7 +115,7 @@ textarea{resize:vertical;}
 .cow-status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;}
 .dot-open{background:var(--warn);}
 .dot-pregnant{background:var(--accent2);}
-.dot-program{background:var(--info);}
+.dot-program{background:var(--purple);}
 .dot-fresh{background:var(--purple);}
 .dot-donor{background:var(--danger);}
 .cow-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--muted);}
@@ -13310,12 +13310,17 @@ function renderCalves() {
                 const lastNeg = lastAiEt&&hasPregRes&&[...(dm.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
                 const hasNewAiAfterNeg = lastNeg&&(dm.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
                 const isPregWaiting = (dm.status==='open'||dm.status==='program')&&lastAiEt&&(!hasPregRes||hasNewAiAfterNeg);
-                if(dm.status==='pregnant') return ' <span style="color:#4ade80;font-size:10px;">●妊娠中</span>';
-                if(isPregWaiting) return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
+                const isDonorCow = dm.isDonor||(dm.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type));
                 const openDays = dm.calvingDate ? diffDays(todayStr, dm.calvingDate) : null;
-                if(openDays!==null && openDays>=60) return ' <span style="color:#ef4444;font-size:10px;">●未受精'+openDays+'日</span>';
-                if(openDays!==null && openDays>=45) return ' <span style="color:#f59e0b;font-size:10px;">●未受精'+openDays+'日</span>';
-                return ' <span style="color:var(--muted);font-size:10px;">●空胎</span>';
+                if(dm.status==='pregnant') return ' <span style="color:#4ade80;font-size:10px;">●妊娠中</span>';
+                if(isPregWaiting && !isDonorCow) return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
+                if(dm.status==='program'||isDonorCow) return ' <span style="color:var(--purple);font-size:10px;">●プログラム中</span>';
+                if(openDays!==null && openDays<45){
+                  const availDate = addDays(dm.calvingDate, 45);
+                  return ' <span style="color:var(--muted);font-size:10px;">●新鮮分娩 '+availDate.slice(5).replace('-','/')+'から授精可</span>';
+                }
+                if(openDays!==null && openDays>=45) return ' <span style="color:var(--warn);font-size:10px;">●未受精'+openDays+'日</span>';
+                return '';
               })()}</span>
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
