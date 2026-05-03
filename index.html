@@ -13303,9 +13303,7 @@ function renderCalves() {
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:700;">${calf.earTagId}</span>` : ''}
               ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
               <span style="font-size:12px;color:var(--muted);">母: <strong style="color:var(--text);">${calf.damId}${damName?' '+damName:''}</strong>${(()=>{
-                if(calf.sex!=='雌') return '';
                 const dm = cows.find(c=>c.id===calf.damId);
-                if(!dm) return '';
                 const lastAiEt = [...(dm.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI);
                 const hasPregRes = lastAiEt&&(dm.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
                 const lastNeg = lastAiEt&&hasPregRes&&[...(dm.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
