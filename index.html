@@ -2723,18 +2723,10 @@ function save() {
   _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
   _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
   _store.setItem('data_version', String(DATA_VERSION));
-  // localStorageに書いた内容を即座にlastSentSnapshotに反映
-  // → Firebaseリスナーが200ms以内に反応しても自分のデータと認識して上書きを防ぐ
-  if (typeof _lastSentSnapshot !== 'undefined') {
-    const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
-      'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
-      'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-      'pendingUseRecords','data_version'];
-    keys.forEach(k => {
-      const v = _store.getItem(k);
-      if (v !== null) _lastSentSnapshot[k] = v;
-    });
-  }
+  // ※ _lastSentSnapshotはここでは更新しない。
+  // saveToFirebase()が変更を検知してFirebaseに送信するため、
+  // ここで更新すると「変更なし」と誤判定されFirebaseに送信されなくなるバグの原因になる。
+  // リスナーのエコー対策はsaveToFirebase()内のisSyncing=trueで担保している。
 }
 
 // 分娩予定日と実際の分娩日から分娩時期を自動判定
