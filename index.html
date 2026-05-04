@@ -2649,6 +2649,17 @@ function loadData() {
   });
   if (cowSyncFixed) _store.setItem('cows', JSON.stringify(cows));
 
+  // cow.calvingDateをcalves配列から同期（calves配列が正式な記録元）
+  calves.forEach(calf => {
+    if (!calf.damId || !calf.dob) return;
+    const cow = cows.find(c => c.id === calf.damId);
+    if (!cow) return;
+    // 最新の子牛の誕生日でcalvingDateを更新
+    if (!cow.calvingDate || calf.dob > cow.calvingDate) {
+      cow.calvingDate = calf.dob;
+    }
+  });
+
   // pregResultが入っているのにdone:falseのタスクを自動修正
   let taskSyncFixed = false;
   tasks.forEach(t => {
