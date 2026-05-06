@@ -17213,6 +17213,12 @@ function initFirebaseSync() {
           _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         }
       });
+      // ★ _lastSentSnapshotをFirebaseの値で初期化
+      // 　 これがないと500ms後のsaveToFirebase()が「全キー変更あり」と判定し、
+      // 　 古いローカルデータをFirebaseに誤送信してPC側も書き戻されてしまうのを防ぐ
+      Object.keys(remote).forEach(k => {
+        _lastSentSnapshot[k] = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+      });
     }
     setSyncStatus('synced');
     if (typeof initApp === 'function') initApp();
