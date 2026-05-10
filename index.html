@@ -17188,30 +17188,8 @@ function initFirebaseSync() {
             _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
           }
         } else if (k === 'semenInventory' || k === 'embryoInventory') {
-          // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
-          try {
-            const remoteItems = JSON.parse(typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
-            const localItems = JSON.parse(_store.getItem(k) || '[]');
-            const merged = remoteItems.map(ri => {
-              const li = localItems.find(l => l.id === ri.id);
-              if (!li) return ri;
-              // ローカルのhistoryにあってFirebaseにないエントリを追加
-              const remoteHistory = ri.history || [];
-              const localHistory = li.history || [];
-              const remoteKeys = new Set(remoteHistory.map(h => h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-              const extraLocal = localHistory.filter(h => !remoteKeys.has(h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-              if (!extraLocal.length) return ri;
-              const mergedHistory = [...remoteHistory, ...extraLocal].sort((a,b) => (a.date||'').localeCompare(b.date||''));
-              return {...ri, history: mergedHistory};
-            });
-            // ローカルにあってFirebaseにないアイテム自体も保持
-            localItems.forEach(li => {
-              if (!merged.find(m => m.id === li.id)) merged.push(li);
-            });
-            _store.setItem(k, JSON.stringify(merged));
-          } catch(e) {
-            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
-          }
+          // 精液・受精卵在庫はFirebaseを正とする（マージ廃止：削除操作がマージで復活するバグを防ぐ）
+          _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         } else {
           _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         }
@@ -17321,33 +17299,8 @@ function initFirebaseSync() {
             }
             return;
           }
-          // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
-          if (k === 'semenInventory' || k === 'embryoInventory') {
-            try {
-              const remoteItems = JSON.parse(rv);
-              const localItems = JSON.parse(_store.getItem(k) || '[]');
-              const merged = remoteItems.map(ri => {
-                const li = localItems.find(l => l.id === ri.id);
-                if (!li) return ri;
-                const remoteHistory = ri.history || [];
-                const localHistory = li.history || [];
-                const remoteKeys = new Set(remoteHistory.map(h => h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-                const extraLocal = localHistory.filter(h => !remoteKeys.has(h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-                if (!extraLocal.length) return ri;
-                const mergedHistory = [...remoteHistory, ...extraLocal].sort((a,b) => (a.date||'').localeCompare(b.date||''));
-                return {...ri, history: mergedHistory};
-              });
-              localItems.forEach(li => {
-                if (!merged.find(m => m.id === li.id)) merged.push(li);
-              });
-              const mergedStr = JSON.stringify(merged);
-              _store.setItem(k, mergedStr);
-              _lastSentSnapshot[k] = mergedStr;
-            } catch(e) {
-              _store.setItem(k, rv);
-            }
-            return;
-          }
+          // 精液・受精卵在庫はFirebaseを正とする（マージ不要：同期バグ修正済み）
+          // ※マージするとFirebaseで削除したエントリがローカルから復活してしまうため廃止
           _store.setItem(k, rv);
         });
         if (typeof loadData === 'function') {
