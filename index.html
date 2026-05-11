@@ -2642,11 +2642,16 @@ function loadData() {
       const syncDate = addDays(rec.d, 1);
       cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
     }
-    if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
-      cow.status = 'pregnant';
-      if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
-    } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
-      cow.status = 'open';
+    // ★分娩後のAI記録でstatusをpregnantに戻さないようにする
+    // calvingDateがinsemRecord日付より後なら、その記録は済んだ妊娠なのでstatus更新スキップ
+    const hasCalvingAfter = cow.calvingDate && cow.calvingDate > rec.d;
+    if (!hasCalvingAfter) {
+      if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
+        cow.status = 'pregnant';
+        if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+      } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
+        cow.status = 'open';
+      }
     }
     cowSyncFixed = true;
   });
