@@ -2634,16 +2634,24 @@ function loadData() {
     const already = (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') && e.date >= rec.d
     );
-    if (already) return;
-    cow.events = cow.events || [];
-    // isPregWaiting判定はe.date > lastAiEt.dateなので翌日付けで追加
-    const syncDate = addDays(rec.d, 1);
-    cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
-    if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
-      cow.status = 'pregnant';
-      if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
-    } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
-      cow.status = 'open';
+    // ★イベント追加とstatus更新を分離
+    // alreadyでもstatus更新は必ず行う（イベントが手動追加されていてもstatusが更新されないバグを修正）
+    if (!already) {
+      cow.events = cow.events || [];
+      // isPregWaiting判定はe.date > lastAiEt.dateなので翌日付けで追加
+      const syncDate = addDays(rec.d, 1);
+      cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
+    }
+    // ★分娩後のAI記録でstatusをpregnantに戻さないようにする
+    // calvingDateがinsemRecord日付より後なら、その記録は済んだ妊娠なのでstatus更新スキップ
+    const hasCalvingAfter = cow.calvingDate && cow.calvingDate > rec.d;
+    if (!hasCalvingAfter) {
+      if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
+        cow.status = 'pregnant';
+        if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+      } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
+        cow.status = 'open';
+      }
     }
     cowSyncFixed = true;
   });
