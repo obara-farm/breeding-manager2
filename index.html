@@ -2674,9 +2674,17 @@ function loadData() {
       // calvingDateがdueDateの前後60日以内でも判定
       const calvDateNearDue = cow.calvingDate && Math.abs(new Date(cow.calvingDate).getTime() - dueDateMs) < 60 * 24 * 60 * 60 * 1000;
       if (hasCalvingNearDue || calvDateNearDue) {
-        cow.dueDate = null;
-        cow.status = 'open';
-        cowSyncFixed = true;
+        // ★分娩後にドナー/受卵牛/CIDRプログラムを開始している場合はstatusを変更しない
+        const hasRecentProgram = (cow.events||[]).some(e =>
+          ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start',
+           'et_recipient','cidr_ai_start'].includes(e.type) &&
+          e.date >= (cow.calvingDate || cow.dueDate || '1900-01-01')
+        );
+        if (!hasRecentProgram) {
+          cow.dueDate = null;
+          cow.status = 'open';
+          cowSyncFixed = true;
+        }
       }
     }
   });
