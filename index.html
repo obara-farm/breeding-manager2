@@ -2625,35 +2625,52 @@ function loadData() {
     }),
     ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i}))
   ];
+  // ★牛ごとに最新のinsemRecordだけを適用する（古い妊娠記録で上書きされないよう）
+  const latestRecPerCow = {};
   allInsemRecs.forEach(rec => {
     if (!rec.pregResult || rec.pregResult === 'pending') return;
     if (rec.donorAI) return;
+    if (!latestRecPerCow[rec.t] || rec.d > latestRecPerCow[rec.t].d) {
+      latestRecPerCow[rec.t] = rec;
+    }
+  });
+  Object.values(latestRecPerCow).forEach(rec => {
     const cow = cows.find(c => c.id === rec.t);
     if (!cow) return;
     const eventType = rec.pregResult === 'positive' ? 'preg_positive' : 'preg_negative';
     const already = (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') && e.date >= rec.d
     );
-    // ★イベント追加とstatus更新を分離
-    // alreadyでもstatus更新は必ず行う（イベントが手動追加されていてもstatusが更新されないバグを修正）
     if (!already) {
       cow.events = cow.events || [];
-      // isPregWaiting判定はe.date > lastAiEt.dateなので翌日付けで追加
       const syncDate = addDays(rec.d, 1);
       cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
     }
-    // ★分娩後のAI記録でstatusをpregnantに戻さないようにする
-    // calvingDateがinsemRecord日付より後なら、その記録は済んだ妊娠なのでstatus更新スキップ
-    const hasCalvingAfter = cow.calvingDate && cow.calvingDate > rec.d;
+    // 分娩後のAI記録でstatusをpregnantに戻さない
+    const hasCalvingAfter = (cow.events||[]).some(e => e.type === 'calving' && e.date >= rec.d);
     if (!hasCalvingAfter) {
-      if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
+      if (rec.pregResult === 'positive' && cow.status !== 'fresh') {
         cow.status = 'pregnant';
-        if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+        // ★dueDateが過去日付または未設定の場合は最新記録から再計算
+        const newDue = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+        if (!cow.dueDate || cow.dueDate < today()) cow.dueDate = newDue;
       } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
         cow.status = 'open';
       }
     }
     cowSyncFixed = true;
+  });
+  // ★過去のdueDateを持つpregnant牛で分娩済みのものをopenに整理
+  const todayStr = today();
+  cows.forEach(cow => {
+    if (cow.status === 'pregnant' && cow.dueDate && cow.dueDate < todayStr) {
+      const hasCalvingAfterDue = (cow.events||[]).some(e => e.type === 'calving' && e.date > cow.dueDate);
+      if (hasCalvingAfterDue) {
+        cow.dueDate = null;
+        cow.status = 'open';
+        cowSyncFixed = true;
+      }
+    }
   });
   if (cowSyncFixed) _store.setItem('cows', JSON.stringify(cows));
 
