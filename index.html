@@ -2665,6 +2665,24 @@ function loadData() {
     }
     cowSyncFixed = true;
   });
+  // ★status=openだがプログラムイベント＋未完了タスクがある牛をprogramに復元
+  const programEventTypes = ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start','et_recipient','cidr_ai_start'];
+  cows.forEach(cow => {
+    if (cow.status !== 'open') return;
+    const lastCalvingDate = (cow.events||[]).filter(e => e.type==='calving')
+      .sort((a,b) => b.date.localeCompare(a.date))[0]?.date || '1900-01-01';
+    const hasRecentProgram = (cow.events||[]).some(e =>
+      programEventTypes.includes(e.type) && e.date > lastCalvingDate
+    );
+    if (!hasRecentProgram) return;
+    const hasUndoneTasks = tasks.some(t =>
+      t.cowId === cow.id && !t.done && !t.action.includes('妊娠鑑定')
+    );
+    if (hasUndoneTasks) {
+      cow.status = 'program';
+      cowSyncFixed = true;
+    }
+  });
   // ★過去のdueDateを持つpregnant牛で分娩済みのものをopenに整理
   const todayStr = today();
   cows.forEach(cow => {
