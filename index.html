@@ -2664,8 +2664,16 @@ function loadData() {
   const todayStr = today();
   cows.forEach(cow => {
     if (cow.status === 'pregnant' && cow.dueDate && cow.dueDate < todayStr) {
-      const hasCalvingAfterDue = (cow.events||[]).some(e => e.type === 'calving' && e.date > cow.dueDate);
-      if (hasCalvingAfterDue) {
+      // dueDateの前後60日以内に分娩イベントがあれば分娩済みとみなす
+      const dueDateMs = new Date(cow.dueDate).getTime();
+      const hasCalvingNearDue = (cow.events||[]).some(e => {
+        if (e.type !== 'calving') return false;
+        const diff = Math.abs(new Date(e.date).getTime() - dueDateMs);
+        return diff < 60 * 24 * 60 * 60 * 1000; // 60日以内
+      });
+      // calvingDateがdueDateの前後60日以内でも判定
+      const calvDateNearDue = cow.calvingDate && Math.abs(new Date(cow.calvingDate).getTime() - dueDateMs) < 60 * 24 * 60 * 60 * 1000;
+      if (hasCalvingNearDue || calvDateNearDue) {
         cow.dueDate = null;
         cow.status = 'open';
         cowSyncFixed = true;
