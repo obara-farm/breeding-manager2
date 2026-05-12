@@ -2655,7 +2655,12 @@ function loadData() {
         const newDue = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
         if (!cow.dueDate || cow.dueDate < today()) cow.dueDate = newDue;
       } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
-        cow.status = 'open';
+        // ★insemRecord日付より後にプログラム（CIDR/ドナー/受卵牛）を開始している場合はopenに戻さない
+        const hasNewerProgram = (cow.events||[]).some(e =>
+          ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start',
+           'et_recipient','cidr_ai_start'].includes(e.type) && e.date > rec.d
+        );
+        if (!hasNewerProgram) cow.status = 'open';
       }
     }
     cowSyncFixed = true;
