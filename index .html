@@ -7392,9 +7392,10 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // memoから術者を抽出（operatorArgが直接渡された場合はそちらを優先）
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
-  // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
+  // 授精証明書No自動採番（2025/11/05以降・術者なし・AI記録のみ）
   let certQ = '';
-  if (date > '2025-11-05' && !op) {
+  const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
+  if (date > '2025-11-05' && !op && !isETForCert) {
     const allQ = insemBookRecords
       .map(r => parseInt(r.q))
       .filter(n => !isNaN(n) && n >= 587 && n < 10000);
@@ -11833,7 +11834,9 @@ function openCertPreview(records) {
   var CUTOFF = '2025-11-05';
   var certCounter = 587;
   container.innerHTML = records.map(function(r, i) {
-    var certNo = (r.d && r.d > CUTOFF) ? certCounter++ : null;
+    // ★ET記録はcertCounterを消費しない（ET記録が挟まると番号が飛ぶバグを修正）
+    const isETRec = r.s && (r.s.includes('×') || r.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s));
+    var certNo = (r.d && r.d > CUTOFF && !isETRec) ? certCounter++ : null;
     return buildCertHTML(r, i, certNo);
   }).join('');
   modal.classList.add('open');
