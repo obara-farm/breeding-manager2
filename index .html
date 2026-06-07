@@ -7818,7 +7818,7 @@ function renderInsemBook() {
               const edQ=insemBookEdits[ekQ]||{};
               const opQ=edQ.op!==undefined?edQ.op:(found.op||'');
               if(opQ) return ''; // 術者ありは除外
-              return edQ.q||found.q||'';
+              return edQ.n||found.n||edQ.q||found.q||'';
             }).filter(Boolean);
             const donorQStr = donorQs.join(' / ');
             return '<span id="ib-etq-' + idx + '" style="font-size:11px;color:var(--purple);padding:3px 5px;">' + (donorQStr||'—') + '</span>';
