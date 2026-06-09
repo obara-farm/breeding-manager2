@@ -2445,7 +2445,7 @@ function setNatId(prefix, val) {
 function clearNatId(prefix) { setNatId(prefix, ''); }
 
 // ===== MASTER COW LIST =====
-const MASTER_COWS = [{"id": "b91", "name": "すずみ", "nationalId": "1374266672", "dob": "2019-08-04", "ageYears": 6}, {"id": "b92", "name": "ゆき", "nationalId": "1374267112", "dob": "2019-08-10", "ageYears": 6}, {"id": "b93", "name": "あやな", "nationalId": "1587235397", "dob": "2019-10-13", "ageYears": 6}, {"id": "b94", "name": "いずみ", "nationalId": "1546735821", "dob": "2020-06-11", "ageYears": 5}, {"id": "b95", "name": "けいこ", "nationalId": "1546735739", "dob": "2020-03-09", "ageYears": 6}, {"id": "b96", "name": "ほしたか", "nationalId": "1391696070", "dob": "2020-07-18", "ageYears": 5}, {"id": "b98", "name": "まかな", "nationalId": "1478797218", "dob": "2020-07-28", "ageYears": 5}, {"id": "b99", "name": "ひかり", "nationalId": "1391696605", "dob": "2020-07-31", "ageYears": 5}, {"id": "r3", "name": "ひでみつ", "nationalId": "1630736420", "dob": "2021-01-09", "ageYears": 5}, {"id": "r2", "name": "のりみ", "nationalId": "1413587119", "dob": "2021-09-09", "ageYears": 4}, {"id": "r7", "name": "でこぽん", "nationalId": "1521033140", "dob": "2021-08-10", "ageYears": 4}, {"id": "r5", "name": "たかみつ", "nationalId": "1451044889", "dob": "2021-08-20", "ageYears": 4}, {"id": "r4", "name": "そよかぜ", "nationalId": "1521034840", "dob": "2021-08-24", "ageYears": 4}, {"id": "b42", "name": "まこ", "nationalId": "1477306305", "dob": "2014-08-16", "ageYears": 11}, {"id": "b43", "name": "わかつる", "nationalId": "1477306558", "dob": "2014-08-27", "ageYears": 11}, {"id": "b45", "name": "やまと", "nationalId": "1355231682", "dob": "2014-10-07", "ageYears": 11}, {"id": "b48", "name": "ののか", "nationalId": "1355231651", "dob": "2014-09-20", "ageYears": 11}, {"id": "b49", "name": "さくら", "nationalId": "1477309146", "dob": "2014-09-10", "ageYears": 11}, {"id": "b50", "name": "もみじの子", "nationalId": "1355231668", "dob": "2014-09-30", "ageYears": 11}, {"id": "b51", "name": "第11てつよ", "nationalId": "1361037377", "dob": "2015-08-16", "ageYears": 10}, {"id": "b53", "name": "みえこ", "nationalId": "1501013780", "dob": "2015-08-28", "ageYears": 10}, {"id": "b54", "name": "ともかず", "nationalId": "1373955027", "dob": "2015-09-08", "ageYears": 10}, {"id": "b55", "name": "にわか", "nationalId": "1501532328", "dob": "2015-10-30", "ageYears": 10}, {"id": "b56", "name": "みらの", "nationalId": "1501532281", "dob": "2015-10-26", "ageYears": 10}, {"id": "b57", "name": "りいか", "nationalId": "1501532311", "dob": "2015-10-29", "ageYears": 10}, {"id": "b58", "name": "めいか", "nationalId": "1501532304", "dob": "2015-10-29", "ageYears": 10}, {"id": "b59", "name": "まつり", "nationalId": "1465042291", "dob": "2015-10-24", "ageYears": 10}, {"id": "b60", "name": "かえ", "nationalId": "1368792484", "dob": "2015-10-26", "ageYears": 10}, {"id": "b62", "name": "ともみ", "nationalId": "1509332739", "dob": "2016-06-24", "ageYears": 9}, {"id": "b63", "name": "はなえ", "nationalId": "1509332869", "dob": "2016-08-08", "ageYears": 9}, {"id": "b65", "name": "つるひめ", "nationalId": "1529946992", "dob": "2016-07-20", "ageYears": 9}, {"id": "b67", "name": "あかり", "nationalId": "1421533603", "dob": "2017-08-18", "ageYears": 8}, {"id": "b68", "name": "まろん", "nationalId": "1556704442", "dob": "2017-09-25", "ageYears": 8}, {"id": "b71", "name": "はれみ", "nationalId": "1421533979", "dob": "2018-01-05", "ageYears": 8}, {"id": "b72", "name": "こなみ", "nationalId": "1392834235", "dob": "2018-08-06", "ageYears": 7}, {"id": "b73", "name": "はれみ", "nationalId": "1392834464", "dob": "2018-09-06", "ageYears": 7}, {"id": "b74", "name": "ゆみえ", "nationalId": "1392834396", "dob": "2018-08-29", "ageYears": 7}, {"id": "b75", "name": "みちる", "nationalId": "1392834365", "dob": "2018-08-21", "ageYears": 7}, {"id": "b76", "name": "みなと", "nationalId": "1392834242", "dob": "2018-08-10", "ageYears": 7}, {"id": "b77", "name": "あつみ", "nationalId": "1392834495", "dob": "2018-09-10", "ageYears": 7}, {"id": "b78", "name": "うららん", "nationalId": "1539424688", "dob": "2018-08-22", "ageYears": 7}, {"id": "b79", "name": "はるみ", "nationalId": "1431893773", "dob": "2018-08-18", "ageYears": 7}, {"id": "b85", "name": "つばさ", "nationalId": "1587235090", "dob": "2019-07-09", "ageYears": 6}, {"id": "b89", "name": "どれみ", "nationalId": "1587235137", "dob": "2019-07-22", "ageYears": 6}, {"id": "b90", "name": "ひなき", "nationalId": "1587235380", "dob": "2019-10-12", "ageYears": 6}, {"id": "b21", "name": "みづき", "nationalId": "1356830792", "dob": "2013-03-05", "ageYears": 13}, {"id": "b26", "name": "みちる", "nationalId": "1356897634", "dob": "2013-10-04", "ageYears": 12}, {"id": "b28", "name": "あいみ", "nationalId": "1356897528", "dob": "2013-10-19", "ageYears": 12}, {"id": "b29", "name": "みき", "nationalId": "1356897238", "dob": "2013-10-28", "ageYears": 12}, {"id": "b31", "name": "たかひでの子", "nationalId": "1356830921", "dob": "2013-08-13", "ageYears": 12}, {"id": "b32", "name": "そにん", "nationalId": "1356830938", "dob": "2013-08-14", "ageYears": 12}, {"id": "b33", "name": "ひかり", "nationalId": "1434431316", "dob": "2013-11-25", "ageYears": 12}, {"id": "b37", "name": "のぞみ", "nationalId": "1477305995", "dob": "2014-08-26", "ageYears": 11}, {"id": "b39", "name": "ひめ", "nationalId": "1477306602", "dob": "2014-08-29", "ageYears": 11}, {"id": "b80", "name": "ひさの", "nationalId": "1575834700", "dob": "2018-12-10", "ageYears": 7}, {"id": "b81", "name": "おひさ", "nationalId": "1575834847", "dob": "2019-01-18", "ageYears": 7}, {"id": "b82", "name": "ひまり", "nationalId": "1575834922", "dob": "2019-03-20", "ageYears": 6}, {"id": "b87", "name": "あきね", "nationalId": "1587235519", "dob": "2019-11-30", "ageYears": 6}, {"id": "b88", "name": "ひめな", "nationalId": "1546735685", "dob": "2020-01-17", "ageYears": 6}, {"id": "r6", "name": "あいの", "nationalId": "1630736512", "dob": "2021-03-12", "ageYears": 5}, {"id": "r1", "name": "はるひ", "nationalId": "1607036874", "dob": "2021-09-15", "ageYears": 4}, {"id": "r8", "name": "はやの", "nationalId": "1645837129", "dob": "2022-01-13", "ageYears": 4}, {"id": "r9", "name": "さきか", "nationalId": "1645837082", "dob": "2021-12-05", "ageYears": 4}, {"id": "f73", "name": "F1", "nationalId": "1426216914", "dob": "2016-09-23", "ageYears": 9}, {"id": "赤字", "name": "F1", "nationalId": "1575056409", "dob": "2018-05-17", "ageYears": 7}, {"id": "f64", "name": "F1", "nationalId": "1558414783", "dob": "2018-05-29", "ageYears": 7}, {"id": "f83", "name": "F1", "nationalId": "1442617986", "dob": "2019-08-13", "ageYears": 6}, {"id": "f97", "name": "F1", "nationalId": "1616969903", "dob": "2020-06-25", "ageYears": 5}, {"id": "f100", "name": "F1", "nationalId": "1391596516", "dob": "2020-06-27", "ageYears": 5}, {"id": "r12", "name": "無登録", "nationalId": "1653637728", "dob": "2022-11-07", "ageYears": 3}, {"id": "r14", "name": "いずみ", "nationalId": "1653637612", "dob": "2022-09-15", "ageYears": 3}, {"id": "r13", "name": "はるき", "nationalId": "1653637773", "dob": "2022-11-09", "ageYears": 3}, {"id": "r10", "name": "みつる", "nationalId": "1607036935", "dob": "2021-10-17", "ageYears": 4}, {"id": "r15", "name": "ことみ", "nationalId": "1653637872", "dob": "2023-01-13", "ageYears": 3}, {"id": "r11", "name": "みつき", "nationalId": "1653637605", "dob": "2022-09-10", "ageYears": 3}, {"id": "r16", "name": "さやこ", "nationalId": "1653637445", "dob": "2022-05-31", "ageYears": 3}, {"id": "r18", "name": "ごくう", "nationalId": "1675138029", "dob": "2023-04-09", "ageYears": 2}, {"id": "r19", "name": "みずき", "nationalId": "1675138074", "dob": "2023-04-29", "ageYears": 2}, {"id": "r20", "name": "ゆうか", "nationalId": "1675138142", "dob": "2023-05-15", "ageYears": 2}, {"id": "r21", "name": "ごま", "nationalId": "1675138197", "dob": "2023-06-03", "ageYears": 2}, {"id": "r23", "name": "", "nationalId": "", "dob": "", "ageYears": 0}, {"id": "r24", "name": "無登録", "nationalId": "1417537509", "dob": "2023-08-05", "ageYears": 2}, {"id": "r25", "name": "ともえ", "nationalId": "1687438308", "dob": "2023-08-02", "ageYears": 2}, {"id": "r26", "name": "ごじいた", "nationalId": "1687438391", "dob": "2023-08-27", "ageYears": 2}, {"id": "r27", "name": "無登録", "nationalId": "1417541001", "dob": "2023-09-17", "ageYears": 2}, {"id": "r28", "name": "あげは", "nationalId": "1687438612", "dob": "2023-12-31", "ageYears": 2}, {"id": "r29", "name": "ごんた", "nationalId": "1687438537", "dob": "2023-11-03", "ageYears": 2}, {"id": "r30", "name": "すずえ", "nationalId": "1687438438", "dob": "2023-09-05", "ageYears": 2}, {"id": "r31", "name": "ごろみ", "nationalId": "1687438421", "dob": "2023-09-04", "ageYears": 2}, {"id": "r32", "name": "ごん", "nationalId": "1687438407", "dob": "2023-08-28", "ageYears": 2}, {"id": "r33", "name": "ごろう", "nationalId": "1687438544", "dob": "2023-11-06", "ageYears": 2}, {"id": "神1", "name": "おうや", "nationalId": "1391696636", "dob": "2020-07-24", "ageYears": 5}, {"id": "神3", "name": "なみさくら19", "nationalId": "1374266986", "dob": "2019-08-23", "ageYears": 6}, {"id": "しおん", "name": "しおん", "nationalId": "1687438759", "dob": "2024-04-12", "ageYears": 1}];
+const MASTER_COWS = [{"id":"b91","name":"すずみ","nationalId":"1374266672","dob":"2019-08-04","ageYears":6},{"id":"b92","name":"ゆき","nationalId":"1374267112","dob":"2019-08-10","ageYears":6},{"id":"b93","name":"あやな","nationalId":"1587235397","dob":"2019-10-13","ageYears":6},{"id":"b94","name":"いずみ","nationalId":"1546735821","dob":"2020-06-11","ageYears":5},{"id":"b95","name":"けいこ","nationalId":"1546735739","dob":"2020-03-09","ageYears":6},{"id":"b96","name":"ほしたか","nationalId":"1391696070","dob":"2020-07-18","ageYears":5},{"id":"b98","name":"まかな","nationalId":"1478797218","dob":"2020-07-28","ageYears":5},{"id":"b99","name":"ひかり","nationalId":"1391696605","dob":"2020-07-31","ageYears":5},{"id":"r3","name":"ひでみつ","nationalId":"1630736420","dob":"2021-01-09","ageYears":5},{"id":"b101","name":"無登録","nationalId":"1630736628","dob":"2021-05-24","ageYears":4},{"id":"r2","name":"のりみ","nationalId":"1413587119","dob":"2021-09-09","ageYears":4},{"id":"r7","name":"でこぽん","nationalId":"1521033140","dob":"2021-08-10","ageYears":4},{"id":"r5","name":"たかみつ","nationalId":"1451044889","dob":"2021-08-20","ageYears":4},{"id":"r4","name":"そよかぜ","nationalId":"1521034840","dob":"2021-08-24","ageYears":4},{"id":"b42","name":"まこ","nationalId":"1477306305","dob":"2014-08-16","ageYears":11},{"id":"b43","name":"わかつる","nationalId":"1477306558","dob":"2014-08-27","ageYears":11},{"id":"b45","name":"やまと","nationalId":"1355231682","dob":"2014-10-07","ageYears":11},{"id":"b46","name":"あやの","nationalId":"1355231804","dob":"2014-11-07","ageYears":11},{"id":"b48","name":"ののか","nationalId":"1355231651","dob":"2014-09-20","ageYears":11},{"id":"b49","name":"さくら","nationalId":"1477309146","dob":"2014-09-10","ageYears":11},{"id":"b50","name":"もみじの子","nationalId":"1355231668","dob":"2014-09-30","ageYears":11},{"id":"b51","name":"第11てつよ","nationalId":"1361037377","dob":"2015-08-16","ageYears":10},{"id":"b53","name":"みえこ","nationalId":"1501013780","dob":"2015-08-28","ageYears":10},{"id":"b54","name":"ともかず","nationalId":"1373955027","dob":"2015-09-08","ageYears":10},{"id":"b55","name":"にわか","nationalId":"1501532328","dob":"2015-10-30","ageYears":10},{"id":"b56","name":"みらの","nationalId":"1501532281","dob":"2015-10-26","ageYears":10},{"id":"b57","name":"りいか","nationalId":"1501532311","dob":"2015-10-29","ageYears":10},{"id":"b58","name":"めいか","nationalId":"1501532304","dob":"2015-10-29","ageYears":10},{"id":"b59","name":"まつり","nationalId":"1465042291","dob":"2015-10-24","ageYears":10},{"id":"b60","name":"かえ","nationalId":"1368792484","dob":"2015-10-26","ageYears":10},{"id":"b61","name":"ゆいか","nationalId":"1501532625","dob":"2016-03-15","ageYears":10},{"id":"b62","name":"ともみ","nationalId":"1509332739","dob":"2016-06-24","ageYears":9},{"id":"b63","name":"はなえ","nationalId":"1509332869","dob":"2016-08-08","ageYears":9},{"id":"b65","name":"つるひめ","nationalId":"1529946992","dob":"2016-07-20","ageYears":9},{"id":"b67","name":"あかり","nationalId":"1421533603","dob":"2017-08-18","ageYears":8},{"id":"b68","name":"まろん","nationalId":"1556704442","dob":"2017-09-25","ageYears":8},{"id":"b70","name":"はるな☆","nationalId":"1356987731","dob":"2017-09-05","ageYears":8},{"id":"b71","name":"はれみ","nationalId":"1421533979","dob":"2018-01-05","ageYears":8},{"id":"b72","name":"こなみ","nationalId":"1392834235","dob":"2018-08-06","ageYears":7},{"id":"b73","name":"はれみ","nationalId":"1392834464","dob":"2018-09-06","ageYears":7},{"id":"b74","name":"ゆみえ","nationalId":"1392834396","dob":"2018-08-29","ageYears":7},{"id":"b75","name":"みちる","nationalId":"1392834365","dob":"2018-08-21","ageYears":7},{"id":"b76","name":"みなと","nationalId":"1392834242","dob":"2018-08-10","ageYears":7},{"id":"b77","name":"あつみ","nationalId":"1392834495","dob":"2018-09-10","ageYears":7},{"id":"b78","name":"うららん","nationalId":"1539424688","dob":"2018-08-22","ageYears":7},{"id":"b79","name":"はるみ","nationalId":"1431893773","dob":"2018-08-18","ageYears":7},{"id":"b85","name":"つばさ","nationalId":"1587235090","dob":"2019-07-09","ageYears":6},{"id":"b89","name":"どれみ","nationalId":"1587235137","dob":"2019-07-22","ageYears":6},{"id":"b90","name":"ひなき","nationalId":"1587235380","dob":"2019-10-12","ageYears":6},{"id":"Y55","name":"ひでみの子","nationalId":"1250245111","dob":"2008-12-20","ageYears":17},{"id":"Y93","name":"みつこ","nationalId":"1211633674","dob":"2005-09-04","ageYears":20},{"id":"Y99","name":"たまみつ","nationalId":"1238317625","dob":"2006-05-22","ageYears":19},{"id":"y103","name":"つるくま","nationalId":"208718059","dob":"2007-08-01","ageYears":18},{"id":"y105","name":"たかひでの子","nationalId":"1240889127","dob":"2007-06-15","ageYears":18},{"id":"Y108","name":"あおい","nationalId":"1247638537","dob":"2007-12-09","ageYears":18},{"id":"y110","name":"みついずみ","nationalId":"241324606","dob":"2008-08-06","ageYears":17},{"id":"y111","name":"とよはる","nationalId":"247168297","dob":"2008-08-08","ageYears":17},{"id":"y112","name":"つるのぶ","nationalId":"1123069059","dob":"2008-09-05","ageYears":17},{"id":"y117","name":"れみこ","nationalId":"1250245388","dob":"2009-06-28","ageYears":16},{"id":"y121","name":"みらい","nationalId":"1250245555","dob":"2009-09-23","ageYears":16},{"id":"b3","name":"さえか","nationalId":"1263429164","dob":"2010-10-02","ageYears":15},{"id":"b5","name":"たましげ","nationalId":"1337351261","dob":"2011-09-02","ageYears":14},{"id":"b6","name":"しげみつ","nationalId":"1342613828","dob":"2011-09-20","ageYears":14},{"id":"b7","name":"しげみ","nationalId":"1303229785","dob":"2011-09-14","ageYears":14},{"id":"b8","name":"みひろ","nationalId":"1303229792","dob":"2011-09-15","ageYears":14},{"id":"b10","name":"ひさえ","nationalId":"1353229810","dob":"2011-09-18","ageYears":14},{"id":"b11","name":"めいこ","nationalId":"1353229827","dob":"2011-09-17","ageYears":14},{"id":"b13","name":"みきか","nationalId":"1353229858","dob":"2011-10-24","ageYears":14},{"id":"b17","name":"みひえ","nationalId":"1357630407","dob":"2012-08-08","ageYears":13},{"id":"b18","name":"さわみつの子","nationalId":"1357630469","dob":"2012-10-04","ageYears":13},{"id":"b19","name":"もとひめ八","nationalId":"1379615529","dob":"2012-08-04","ageYears":13},{"id":"b21","name":"みづき","nationalId":"1356830792","dob":"2013-03-05","ageYears":13},{"id":"b25","name":"よしこ","nationalId":"1356893575","dob":"2013-09-10","ageYears":12},{"id":"b26","name":"みちる","nationalId":"1356897634","dob":"2013-10-04","ageYears":12},{"id":"b27","name":"ひかる","nationalId":"1356898334","dob":"2013-10-10","ageYears":12},{"id":"b28","name":"あいみ","nationalId":"1356897528","dob":"2013-10-19","ageYears":12},{"id":"b29","name":"みき","nationalId":"1356897238","dob":"2013-10-28","ageYears":12},{"id":"y30","name":"なぎこ","nationalId":"1340431134","dob":"2013-11-08","ageYears":12},{"id":"b31","name":"たかひでの子","nationalId":"1356830921","dob":"2013-08-13","ageYears":12},{"id":"b32","name":"そにん","nationalId":"1356830938","dob":"2013-08-14","ageYears":12},{"id":"b33","name":"ひかり","nationalId":"1434431316","dob":"2013-11-25","ageYears":12},{"id":"b37","name":"のぞみ","nationalId":"1477305995","dob":"2014-08-26","ageYears":11},{"id":"b39","name":"ひめ","nationalId":"1477306602","dob":"2014-08-29","ageYears":11},{"id":"y123","name":"みゆこ","nationalId":"1250245371","dob":"2009-06-26","ageYears":16},{"id":"b15","name":"みさき","nationalId":"1357630216","dob":"2012-03-26","ageYears":13},{"id":"b80","name":"ひさの","nationalId":"1575834700","dob":"2018-12-10","ageYears":7},{"id":"b81","name":"おひさ","nationalId":"1575834847","dob":"2019-01-18","ageYears":7},{"id":"b82","name":"ひまり","nationalId":"1575834922","dob":"2019-03-20","ageYears":6},{"id":"b87","name":"あきね","nationalId":"1587235519","dob":"2019-11-30","ageYears":6},{"id":"b88","name":"ひめな","nationalId":"1546735685","dob":"2020-01-17","ageYears":6},{"id":"r6","name":"あいの","nationalId":"1630736512","dob":"2021-03-12","ageYears":5},{"id":"r1","name":"はるひ","nationalId":"1607036874","dob":"2021-09-15","ageYears":4},{"id":"r8","name":"はやの","nationalId":"1645837129","dob":"2022-01-13","ageYears":4},{"id":"r9","name":"さきか","nationalId":"1645837082","dob":"2021-12-05","ageYears":4},{"id":"f73","name":"F1","nationalId":"1426216914","dob":"2016-09-23","ageYears":9},{"id":"赤字","name":"F1","nationalId":"1575056409","dob":"2018-05-17","ageYears":7},{"id":"f64","name":"F1","nationalId":"1558414783","dob":"2018-05-29","ageYears":7},{"id":"f83","name":"F1","nationalId":"1442617986","dob":"2019-08-13","ageYears":6},{"id":"f97","name":"F1","nationalId":"1616969903","dob":"2020-06-25","ageYears":5},{"id":"f100","name":"F1","nationalId":"1391596516","dob":"2020-06-27","ageYears":5},{"id":"120","name":"さわみつ1の子","nationalId":"1250245531","dob":"2009-09-13","ageYears":16},{"id":"r12","name":"無登録","nationalId":"1653637728","dob":"2022-11-07","ageYears":3},{"id":"r14","name":"いずみ","nationalId":"1653637612","dob":"2022-09-15","ageYears":3},{"id":"r13","name":"はるき","nationalId":"1653637773","dob":"2022-11-09","ageYears":3},{"id":"r10","name":"みつる","nationalId":"1607036935","dob":"2021-10-17","ageYears":4},{"id":"r15","name":"ことみ","nationalId":"1653637872","dob":"2023-01-13","ageYears":3},{"id":"3776","name":"みれい","nationalId":"1653637766","dob":"2022-11-15","ageYears":3},{"id":"r11","name":"みつき","nationalId":"1653637605","dob":"2022-09-10","ageYears":3},{"id":"r16","name":"さやこ","nationalId":"1653637445","dob":"2022-05-31","ageYears":3},{"id":"r17","name":"さゆり","nationalId":"1653637803","dob":"2022-11-29","ageYears":3},{"id":"y55","name":"ひでみの子","nationalId":"1250245111","dob":"2008-12-20","ageYears":17},{"id":"y93","name":"みつこ","nationalId":"1211633674","dob":"2005-09-04","ageYears":20},{"id":"y99","name":"たまみつ","nationalId":"1238317625","dob":"2006-05-22","ageYears":19},{"id":"y108","name":"あおい","nationalId":"1247638537","dob":"2007-12-09","ageYears":18},{"id":"y120","name":"さわみつ1の子","nationalId":"1250245531","dob":"2009-09-13","ageYears":16},{"id":"r18","name":"ごくう","nationalId":"1675138029","dob":"2023-04-09","ageYears":2},{"id":"r19","name":"みずき","nationalId":"1675138074","dob":"2023-04-29","ageYears":2},{"id":"r20","name":"ゆうか","nationalId":"1675138142","dob":"2023-05-15","ageYears":2},{"id":"r21","name":"ごま","nationalId":"1675138197","dob":"2023-06-03","ageYears":2},{"id":"r22","name":"みれい","nationalId":"1653637766","dob":"2022-11-15","ageYears":3},{"id":"r23","name":"","nationalId":"","dob":"","ageYears":0},{"id":"r24","name":"無登録","nationalId":"1417537509","dob":"2023-08-05","ageYears":2},{"id":"r25","name":"ともえ","nationalId":"1687438308","dob":"2023-08-02","ageYears":2},{"id":"r26","name":"ごじいた","nationalId":"1687438391","dob":"2023-08-27","ageYears":2},{"id":"r27","name":"無登録","nationalId":"1417541001","dob":"2023-09-17","ageYears":2},{"id":"r28","name":"あげは","nationalId":"1687438612","dob":"2023-12-31","ageYears":2},{"id":"r29","name":"ごんた","nationalId":"1687438537","dob":"2023-11-03","ageYears":2},{"id":"r30","name":"すずえ","nationalId":"1687438438","dob":"2023-09-05","ageYears":2},{"id":"r31","name":"ごろみ","nationalId":"1687438421","dob":"2023-09-04","ageYears":2},{"id":"r32","name":"ごん","nationalId":"1687438407","dob":"2023-08-28","ageYears":2},{"id":"r33","name":"ごろう","nationalId":"1687438544","dob":"2023-11-06","ageYears":2},{"id":"神1","name":"おうや","nationalId":"1391696636","dob":"2020-07-24","ageYears":5},{"id":"神3","name":"なみさくら19","nationalId":"1374266986","dob":"2019-08-23","ageYears":6},{"id":"しおん","name":"しおん","nationalId":"1687438759","dob":"2024-04-12","ageYears":1}];
 
 function getMasterCow(id) {
   if (!id) return null;
@@ -2625,91 +2625,27 @@ function loadData() {
     }),
     ...insemBookRecords.map((r,i) => ({...r, _src:'dynamic', _idx:i}))
   ];
-  // ★牛ごとに最新のinsemRecordだけを適用する（古い妊娠記録で上書きされないよう）
-  const latestRecPerCow = {};
   allInsemRecs.forEach(rec => {
     if (!rec.pregResult || rec.pregResult === 'pending') return;
     if (rec.donorAI) return;
-    if (!latestRecPerCow[rec.t] || rec.d > latestRecPerCow[rec.t].d) {
-      latestRecPerCow[rec.t] = rec;
-    }
-  });
-  Object.values(latestRecPerCow).forEach(rec => {
     const cow = cows.find(c => c.id === rec.t);
     if (!cow) return;
     const eventType = rec.pregResult === 'positive' ? 'preg_positive' : 'preg_negative';
     const already = (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') && e.date >= rec.d
     );
-    if (!already) {
-      cow.events = cow.events || [];
-      const syncDate = addDays(rec.d, 1);
-      cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
-    }
-    // 分娩後のAI記録でstatusをpregnantに戻さない
-    const hasCalvingAfter = (cow.events||[]).some(e => e.type === 'calving' && e.date >= rec.d);
-    if (!hasCalvingAfter) {
-      if (rec.pregResult === 'positive' && cow.status !== 'fresh') {
-        cow.status = 'pregnant';
-        // ★dueDateが過去日付または未設定の場合は最新記録から再計算
-        const newDue = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
-        if (!cow.dueDate || cow.dueDate < today()) cow.dueDate = newDue;
-      } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
-        // ★insemRecord日付より後にプログラム（CIDR/ドナー/受卵牛）を開始している場合はopenに戻さない
-        const hasNewerProgram = (cow.events||[]).some(e =>
-          ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start',
-           'et_recipient','cidr_ai_start'].includes(e.type) && e.date > rec.d
-        );
-        if (!hasNewerProgram) cow.status = 'open';
-      }
+    if (already) return;
+    cow.events = cow.events || [];
+    // isPregWaiting判定はe.date > lastAiEt.dateなので翌日付けで追加
+    const syncDate = addDays(rec.d, 1);
+    cow.events.push({type: eventType, date: syncDate, memo: '授精簿から自動同期'});
+    if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
+      cow.status = 'pregnant';
+      if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+    } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
+      cow.status = 'open';
     }
     cowSyncFixed = true;
-  });
-  // ★status=openだがプログラムイベント＋未完了タスクがある牛をprogramに復元
-  const programEventTypes = ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start','et_recipient','cidr_ai_start'];
-  cows.forEach(cow => {
-    if (cow.status !== 'open') return;
-    const lastCalvingDate = (cow.events||[]).filter(e => e.type==='calving')
-      .sort((a,b) => b.date.localeCompare(a.date))[0]?.date || '1900-01-01';
-    const hasRecentProgram = (cow.events||[]).some(e =>
-      programEventTypes.includes(e.type) && e.date > lastCalvingDate
-    );
-    if (!hasRecentProgram) return;
-    const hasUndoneTasks = tasks.some(t =>
-      t.cowId === cow.id && !t.done && !t.action.includes('妊娠鑑定')
-    );
-    if (hasUndoneTasks) {
-      cow.status = 'program';
-      cowSyncFixed = true;
-    }
-  });
-  // ★過去のdueDateを持つpregnant牛で分娩済みのものをopenに整理
-  const todayStr = today();
-  cows.forEach(cow => {
-    if (cow.status === 'pregnant' && cow.dueDate && cow.dueDate < todayStr) {
-      // dueDateの前後60日以内に分娩イベントがあれば分娩済みとみなす
-      const dueDateMs = new Date(cow.dueDate).getTime();
-      const hasCalvingNearDue = (cow.events||[]).some(e => {
-        if (e.type !== 'calving') return false;
-        const diff = Math.abs(new Date(e.date).getTime() - dueDateMs);
-        return diff < 60 * 24 * 60 * 60 * 1000; // 60日以内
-      });
-      // calvingDateがdueDateの前後60日以内でも判定
-      const calvDateNearDue = cow.calvingDate && Math.abs(new Date(cow.calvingDate).getTime() - dueDateMs) < 60 * 24 * 60 * 60 * 1000;
-      if (hasCalvingNearDue || calvDateNearDue) {
-        // ★分娩後にドナー/受卵牛/CIDRプログラムを開始している場合はstatusを変更しない
-        const hasRecentProgram = (cow.events||[]).some(e =>
-          ['donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start',
-           'et_recipient','cidr_ai_start'].includes(e.type) &&
-          e.date >= (cow.calvingDate || cow.dueDate || '1900-01-01')
-        );
-        if (!hasRecentProgram) {
-          cow.dueDate = null;
-          cow.status = 'open';
-          cowSyncFixed = true;
-        }
-      }
-    }
   });
   if (cowSyncFixed) _store.setItem('cows', JSON.stringify(cows));
 
@@ -2952,11 +2888,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initApp() {
   document.getElementById('reg-date').value = today();
-  // ★ loadData()を先に呼び、Firebaseマージ済みの_storeを全グローバル変数に反映させる
-  // （先にinitCowsFromMaster()を呼ぶとFirebaseマージ前の古いデータでsave()が走り
-  //   マージ済みデータが上書きされてしまうバグを防ぐ）
-  loadData();
   initCowsFromMaster();
+  loadData();
   // Firebaseなし環境ではlocalStorageから読み込み後すぐにsave可能にする
   if (!window._firebaseInitialized) _firebaseReady = true;
   migrateDates();
@@ -7270,6 +7203,26 @@ function syncOneInsemRecord(date, cowId, sire, addInventory) {
       }
     }
   }
+  // ★受精卵在庫に使用記録を追加（ETの場合）
+  if (isET) {
+    const embryoNo = sire.trim();
+    // lotを胚番号から検索（historyのmemoまたはembryoDetailsで一致するもの）
+    const etLot = embryoInventory.find(lot =>
+      (lot.embryos||[]).some(e => e.no === embryoNo) ||
+      (lot.history||[]).some(h => (h.memo||'').includes(embryoNo)) ||
+      (lot.frozenDetails||[]).some(e => e.no === embryoNo)
+    );
+    if (etLot) {
+      const alreadyInInv = (etLot.history||[]).some(h =>
+        h.type==='use' && h.date===effectiveDate && h.cowId===cowId && (h.memo||'').includes(embryoNo)
+      );
+      if (!alreadyInInv) {
+        etLot.history = etLot.history || [];
+        etLot.history.push({ date: effectiveDate, type: 'use', count: 1, cowId, memo: `移植 ${embryoNo}` });
+        etLot.history.sort((a,b) => a.date.localeCompare(b.date));
+      }
+    }
+  }
 
   save();
   renderInsemBook();
@@ -7439,9 +7392,10 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // memoから術者を抽出（operatorArgが直接渡された場合はそちらを優先）
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
-  // 授精証明書No自動採番（2025/11/05以降・術者なしのみ）
+  // 授精証明書No自動採番（2025/11/05以降・術者なし・AI記録のみ）
   let certQ = '';
-  if (date > '2025-11-05' && !op) {
+  const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
+  if (date > '2025-11-05' && !op && !isETForCert) {
     const allQ = insemBookRecords
       .map(r => parseInt(r.q))
       .filter(n => !isNaN(n) && n >= 587 && n < 10000);
@@ -7453,7 +7407,9 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
     .map(p => p.startsWith('ケーン:') ? p.replace('ケーン:', '') : p)
     .join('／').trim();
-  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type, pregResult: pregResult||null });
+  // ★ET記録でmemoCleanが空の場合は胚番号を自動セット
+  const finalMemo = (!memoClean && (type==='et' || isETForCert)) ? '胚番号:'+sire : memoClean;
+  insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ, m: finalMemo, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type, pregResult: pregResult||null });
   // count>1の場合は追加分も登録
   if (count && count > 1) {
     for (let i = 1; i < count; i++) {
@@ -7862,7 +7818,7 @@ function renderInsemBook() {
               const edQ=insemBookEdits[ekQ]||{};
               const opQ=edQ.op!==undefined?edQ.op:(found.op||'');
               if(opQ) return ''; // 術者ありは除外
-              return edQ.q||found.q||'';
+              return edQ.n||found.n||edQ.q||found.q||'';
             }).filter(Boolean);
             const donorQStr = donorQs.join(' / ');
             return '<span id="ib-etq-' + idx + '" style="font-size:11px;color:var(--purple);padding:3px 5px;">' + (donorQStr||'—') + '</span>';
@@ -11556,7 +11512,7 @@ function buildEtCertHTML(r, certNo) {
         var count = ai.count || 1;
         var found = allBookRecs2.filter(function(rd){return rd.t===donorId2&&rd.d===ai.date;});
         return found.slice(0, count).map(function(f){
-          var ek=f._src+'_'+f._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||f.n||'';
+          var ek=f._src+'_'+f._idx;var ed3=insemBookEdits[ek]||{};return ed3.n||f.n||f.q||'';
         });
       }).reduce(function(a,b){return a.concat(b);},[]).filter(Boolean);
       semenCertNoFromCol = certNos.join('、');
@@ -11880,7 +11836,9 @@ function openCertPreview(records) {
   var CUTOFF = '2025-11-05';
   var certCounter = 587;
   container.innerHTML = records.map(function(r, i) {
-    var certNo = (r.d && r.d > CUTOFF) ? certCounter++ : null;
+    // ★ET記録はcertCounterを消費しない（ET記録が挟まると番号が飛ぶバグを修正）
+    const isETRec = r.s && (r.s.includes('×') || r.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s));
+    var certNo = (r.d && r.d > CUTOFF && !isETRec) ? certCounter++ : null;
     return buildCertHTML(r, i, certNo);
   }).join('');
   modal.classList.add('open');
@@ -12800,11 +12758,6 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
 
   // 直近の受精記録から受精卵・精液情報を自動補完（ET記録を優先）
   const cowEvents = cow?.events || [];
-  const isLotMemo = e => {
-    const m = e.memo||'';
-    const s = m.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim();
-    return /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(s) || m.includes('胚番号:');
-  };
   // 最新の授精日を取得
   const allInsemEvents = [...cowEvents].filter(e =>
     ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
@@ -17252,34 +17205,47 @@ function initFirebaseSync() {
             _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
           }
         } else if (k === 'semenInventory' || k === 'embryoInventory') {
-          // 精液・受精卵在庫はFirebaseを正とする（マージ廃止：削除操作がマージで復活するバグを防ぐ）
-          _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+          // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
+          try {
+            const remoteItems = JSON.parse(typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+            const localItems = JSON.parse(_store.getItem(k) || '[]');
+            const merged = remoteItems.map(ri => {
+              const li = localItems.find(l => l.id === ri.id);
+              if (!li) return ri;
+              // ローカルのhistoryにあってFirebaseにないエントリを追加
+              const remoteHistory = ri.history || [];
+              const localHistory = li.history || [];
+              const remoteKeys = new Set(remoteHistory.map(h => h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
+              const extraLocal = localHistory.filter(h => !remoteKeys.has(h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
+              if (!extraLocal.length) return ri;
+              const mergedHistory = [...remoteHistory, ...extraLocal].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+              return {...ri, history: mergedHistory};
+            });
+            // ローカルにあってFirebaseにないアイテム自体も保持
+            localItems.forEach(li => {
+              if (!merged.find(m => m.id === li.id)) merged.push(li);
+            });
+            _store.setItem(k, JSON.stringify(merged));
+          } catch(e) {
+            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
+          }
         } else {
           _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         }
       });
-      // ★ _lastSentSnapshotをマージ後の_store値で初期化（raw Firebaseではなく）
-      // 　 semenInventory/embryoInventoryはマージ後の値が_storeに入っているため
-      // 　 Firebaseの生データで初期化すると差分誤検知が起きる
-      const safeKeysForSnapshot = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
-        'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
-        'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-        'pendingUseRecords','data_version'];
-      safeKeysForSnapshot.forEach(k => {
-        const v = _store.getItem(k);
-        if (v !== null) _lastSentSnapshot[k] = v;
+      // ★ _lastSentSnapshotをFirebaseの値で初期化
+      // 　 これがないと500ms後のsaveToFirebase()が「全キー変更あり」と判定し、
+      // 　 古いローカルデータをFirebaseに誤送信してPC側も書き戻されてしまうのを防ぐ
+      Object.keys(remote).forEach(k => {
+        _lastSentSnapshot[k] = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
       });
     }
     setSyncStatus('synced');
-    // ★ initApp()内のsave()がFirebaseに誤送信しないよう、先に_firebaseReadyをtrueにする
-    _firebaseReady = true;
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
     // 初回ロード後、ローカルにFirebaseより新しいデータがあれば即座にFirebaseに送信
     // （強制リロード後にローカルデータが消えるのを防ぐ）
     setTimeout(() => { if (typeof saveToFirebase === 'function') saveToFirebase(); }, 500);
-    // 自動日次バックアップ（1日1回）
-    setTimeout(() => { runDailyBackup(dbRef); }, 3000);
 
     // リアルタイムリスナー（自動同期）
     // エコー対策：自分が送信したデータ(_lastSentSnapshot)と一致する場合のみ無視
@@ -17363,8 +17329,33 @@ function initFirebaseSync() {
             }
             return;
           }
-          // 精液・受精卵在庫はFirebaseを正とする（マージ不要：同期バグ修正済み）
-          // ※マージするとFirebaseで削除したエントリがローカルから復活してしまうため廃止
+          // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
+          if (k === 'semenInventory' || k === 'embryoInventory') {
+            try {
+              const remoteItems = JSON.parse(rv);
+              const localItems = JSON.parse(_store.getItem(k) || '[]');
+              const merged = remoteItems.map(ri => {
+                const li = localItems.find(l => l.id === ri.id);
+                if (!li) return ri;
+                const remoteHistory = ri.history || [];
+                const localHistory = li.history || [];
+                const remoteKeys = new Set(remoteHistory.map(h => h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
+                const extraLocal = localHistory.filter(h => !remoteKeys.has(h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
+                if (!extraLocal.length) return ri;
+                const mergedHistory = [...remoteHistory, ...extraLocal].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+                return {...ri, history: mergedHistory};
+              });
+              localItems.forEach(li => {
+                if (!merged.find(m => m.id === li.id)) merged.push(li);
+              });
+              const mergedStr = JSON.stringify(merged);
+              _store.setItem(k, mergedStr);
+              _lastSentSnapshot[k] = mergedStr;
+            } catch(e) {
+              _store.setItem(k, rv);
+            }
+            return;
+          }
           _store.setItem(k, rv);
         });
         if (typeof loadData === 'function') {
@@ -17453,38 +17444,11 @@ document.getElementById('login-screen').classList.add('active');
 
 }); // window.onload end
 
-// ===== 自動日次バックアップ（Firebase） =====
-// 1日1回、現在のデータをFirebaseのbackupsノードに保存する（最大7日分保持）
-function runDailyBackup(dbRef) {
-  if (!dbRef) return;
-  const todayStr = today();
-  const lastBackupKey = 'last_auto_backup_date';
-  const lastBackup = _store.getItem(lastBackupKey);
-  if (lastBackup === todayStr) return; // 今日はもうバックアップ済み
-
-  const backupData = {};
-  ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
-   'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
-   'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords',
-   'pendingEtList','pendingUseRecords'].forEach(k => {
-    const v = _store.getItem(k);
-    if (v) backupData[k] = v;
-  });
-  backupData._saved_at = new Date().toISOString();
-
-  // 今日付けでバックアップ保存
-  dbRef.root.child('backups/' + dbRef.key + '/' + todayStr).set(backupData)
-    .then(() => {
-      _store.setItem(lastBackupKey, todayStr);
-      console.log('自動バックアップ完了:', todayStr);
-      // 8日前以降のバックアップを削除（7日分のみ保持）
-      const oldDate = addDays(todayStr, -8);
-      dbRef.root.child('backups/' + dbRef.key).orderByKey().endAt(oldDate).limitToLast(10)
-        .once('value').then(snap => {
-          snap.forEach(child => { child.ref.remove(); });
-        });
-    })
-    .catch(e => console.warn('自動バックアップ失敗:', e));
+// ★ グローバルヘルパー：イベントのmemoがロット番号形式かどうか判定
+function isLotMemo(e) {
+  const m = e.memo||'';
+  const s = m.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim();
+  return /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(s) || m.includes('胚番号:');
 }
 
 
