@@ -8551,8 +8551,44 @@ function openEditCollection(id) {
   const crc = trueCulture.length;
   document.getElementById('col-culture-count').value = crc;
   onColCultureCountInput(crc, trueCulture);
-  // テーブル復元後に採卵成績を再集計（培養胚の変性等を反映）
-  setTimeout(() => syncEmbryoGrades(), 50);
+  // ★編集モードで培養胚を復元するとき、処置が選択済みなのに胚番号が空なら自動採番
+  if (existing) {
+    setTimeout(() => {
+      const tbody2 = document.getElementById('col-culture-tbody');
+      if (!tbody2) return;
+      const colDate2 = document.getElementById('col-date').value;
+      const lot2 = document.getElementById('col-lot').value || '';
+      const d2 = colDate2 ? new Date(colDate2) : new Date();
+      const yl2 = `R${d2.getFullYear()-2018}`;
+      tbody2.querySelectorAll('tr').forEach(tr => {
+        const actionSel = tr.querySelector('.cul-action');
+        const embryoNoInp = tr.querySelector('.cul-embryo-no');
+        const caneNoInp = tr.querySelector('.cul-cane-no');
+        if (!actionSel || !embryoNoInp) return;
+        const isFreeze2 = actionSel.value === 'freeze';
+        const isET2 = actionSel.value === 'et';
+        if ((isFreeze2 || isET2) && !embryoNoInp.value) {
+          // 一時的に空にして自分を除外してから採番
+          embryoNoInp.value = '';
+          const maxNo2 = getMaxEmbryoNo(yl2);
+          embryoNoInp.value = `01L237${yl2}-${String(maxNo2+1).padStart(4,'0')}`;
+          embryoNoInp.style.borderColor = 'var(--info)';
+          embryoNoInp.style.color = 'var(--info)';
+          if (isFreeze2 && caneNoInp && !caneNoInp.value) {
+            let maxCane = 64;
+            document.querySelectorAll('#col-frozen-tbody .cf-cane').forEach(inp => {
+              if (inp.value) { const m2 = inp.value.match(/([A-Z])$/); if (m2) maxCane = Math.max(maxCane, m2[1].charCodeAt(0)); }
+            });
+            document.querySelectorAll('#col-culture-tbody .cul-cane-no').forEach(inp => {
+              if (inp !== caneNoInp && inp.value) { const m2 = inp.value.match(/([A-Z])$/); if (m2) maxCane = Math.max(maxCane, m2[1].charCodeAt(0)); }
+            });
+            caneNoInp.value = lot2 ? `${lot2}-${String.fromCharCode(maxCane+1)}` : '';
+            caneNoInp.style.borderColor = 'var(--info)';
+          }
+        }
+      });
+    }, 100);
+  }
   // 凍結胚がある場合は卵証明書ボタンを表示
   const btnArea = document.getElementById('collection-egg-cert-btn-area');
   if(btnArea) btnArea.style.display = ((r.frozenEmbryos||[]).length > 0 || (r.freshEmbryos||[]).length > 0) ? '' : 'none';
@@ -9641,6 +9677,23 @@ function saveCollection() {
     const cowname = document.getElementById('col-ext-cowname').value.trim();
     if (!farmer || !cowname) { _savingCollection = false; alert('農家名と牛名を入力してください'); return; }
   }
+
+  // ★培養胚で処置が選択済みなのに胚番号が空なら自動採番
+  const colDate3 = document.getElementById('col-date').value;
+  const d3 = colDate3 ? new Date(colDate3) : new Date();
+  const yl3 = `R${d3.getFullYear()-2018}`;
+  const cultureRows = document.querySelectorAll('#col-culture-tbody tr');
+  cultureRows.forEach(tr => {
+    const actionSel = tr.querySelector('.cul-action');
+    const embryoNoInp = tr.querySelector('.cul-embryo-no');
+    const caneNoInp = tr.querySelector('.cul-cane-no');
+    if (!actionSel || !embryoNoInp) return;
+    if ((actionSel.value === 'freeze' || actionSel.value === 'et') && !embryoNoInp.value) {
+      embryoNoInp.value = '';
+      const maxNo3 = getMaxEmbryoNo(yl3);
+      embryoNoInp.value = `01L237${yl3}-${String(maxNo3+1).padStart(4,'0')}`;
+    }
+  });
 
   const lot = document.getElementById('col-lot').value.trim();
   const sire = document.getElementById('col-sire').value.trim();
