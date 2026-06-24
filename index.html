@@ -8552,8 +8552,7 @@ function openEditCollection(id) {
   document.getElementById('col-culture-count').value = crc;
   onColCultureCountInput(crc, trueCulture);
   // ★編集モードで培養胚を復元するとき、処置が選択済みなのに胚番号が空なら自動採番
-  if (existing) {
-    setTimeout(() => {
+  setTimeout(() => {
       const tbody2 = document.getElementById('col-culture-tbody');
       if (!tbody2) return;
       const colDate2 = document.getElementById('col-date').value;
@@ -8588,7 +8587,6 @@ function openEditCollection(id) {
         }
       });
     }, 100);
-  }
   // 凍結胚がある場合は卵証明書ボタンを表示
   const btnArea = document.getElementById('collection-egg-cert-btn-area');
   if(btnArea) btnArea.style.display = ((r.frozenEmbryos||[]).length > 0 || (r.freshEmbryos||[]).length > 0) ? '' : 'none';
