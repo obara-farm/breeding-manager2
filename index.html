@@ -9700,7 +9700,11 @@ function saveCollection() {
   const pg = document.getElementById('col-pg').value !== 'false';
   const frozenEmbryos = getColFrozenEmbryos();
   const freshEmbryos = getColFreshEmbryos();
+  // ★デバッグ：保存時点のDOM値を確認
+  const _debugActions = Array.from(document.querySelectorAll('#col-culture-tbody .cul-action')).map(s=>s.value);
+  console.log('[DEBUG] saveCollection cultureActions:', _debugActions);
   const cultureEmbryos = getColCultureEmbryos();
+  console.log('[DEBUG] cultureEmbryos[0].cultureResult:', cultureEmbryos[0]&&cultureEmbryos[0].cultureResult);
   const editId = document.getElementById('collection-edit-id').value;
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
