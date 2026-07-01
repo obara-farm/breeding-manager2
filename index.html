@@ -406,6 +406,22 @@ textarea{resize:vertical;}
       <button class="modal-close" onclick="closeModal('modal-settings')">✕</button>
     </div>
 
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🐄 らくちく連携設定</div>
+    <div style="background:#0a1a2a;border:1px solid var(--info);border-radius:10px;padding:12px 14px;margin-bottom:20px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">ログイン情報はこの端末のみに保存されます。サーバーには送信されません。</div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label style="font-size:12px;">ログインID</label>
+        <input type="text" id="rakuchiku-id" placeholder="らくちくのID" style="font-size:13px;"
+          value="" oninput="saveRakuchikuSettings()">
+      </div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label style="font-size:12px;">パスワード</label>
+        <input type="password" id="rakuchiku-pw" placeholder="らくちくのパスワード" style="font-size:13px;"
+          value="" oninput="saveRakuchikuSettings()">
+      </div>
+      <div id="rakuchiku-save-status" style="font-size:11px;color:var(--accent);height:16px;"></div>
+    </div>
+
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">💾 バックアップ</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
       <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;">
@@ -2364,6 +2380,24 @@ textarea{resize:vertical;}
     </div>
 
     <button class="btn btn-primary" onclick="saveCalvingRecord()" style="width:100%;">💾 産仔記録を保存</button>
+    <button class="btn btn-secondary" id="rakuchiku-report-btn" onclick="openRakuchikuReport()" style="width:100%;margin-top:8px;border-color:var(--info);color:var(--info);display:none;">🐄 らくちく出生報告</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-rakuchiku-report">
+  <div class="modal" style="max-width:min(98vw,480px);">
+    <div class="modal-title">
+      <span>🐄 らくちく出生報告</span>
+      <button class="modal-close" onclick="closeModal('modal-rakuchiku-report')">✕</button>
+    </div>
+    <div id="rakuchiku-report-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.8;"></div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>子牛ID（個体識別番号・10桁）</label>
+      <input type="text" id="rakuchiku-calf-id" placeholder="例: 1234567890" maxlength="10"
+        style="font-size:16px;letter-spacing:2px;" oninput="this.value=this.value.replace(/\D/g,'')">
+    </div>
+    <button class="btn btn-primary" onclick="submitRakuchikuReport()" style="width:100%;margin-bottom:8px;">🚀 らくちくで報告する</button>
+    <div style="font-size:11px;color:var(--muted);text-align:center;">らくちくが新しいタブで開きます。内容を確認して申請ボタンを押してください。</div>
   </div>
 </div>
 
@@ -12040,7 +12074,7 @@ function openModal(id) {
     }
   }
   document.getElementById(id).classList.add('open');
-  if (id === 'modal-settings') renderSettingsStats();
+  if (id === 'modal-settings') { renderSettingsStats(); loadRakuchikuSettings(); }
 }
 
 // ===== 日付バリデーション =====
@@ -13196,6 +13230,9 @@ function saveCalvingRecord() {
   });
   if (calvesFixed2) save();
   closeModal('modal-calving-record');
+  // ★らくちく報告ボタンを表示（分娩記録保存後）
+  const rakuBtn = document.getElementById('rakuchiku-report-btn');
+  if (rakuBtn) rakuBtn.style.display = '';
   renderAll();
   switchTab('calves');
 }
@@ -17446,6 +17483,92 @@ document.getElementById('login-screen').classList.add('active');
 }); // window.onload end
 
 // ★ グローバルヘルパー：イベントのmemoがロット番号形式かどうか判定
+// ===== らくちく連携 =====
+let _rakuchikuReportData = null;
+
+function loadRakuchikuSettings() {
+  const idEl = document.getElementById('rakuchiku-id');
+  const pwEl = document.getElementById('rakuchiku-pw');
+  if (idEl) idEl.value = localStorage.getItem('rakuchiku_id') || '';
+  if (pwEl) pwEl.value = localStorage.getItem('rakuchiku_pw') || '';
+}
+
+function saveRakuchikuSettings() {
+  localStorage.setItem('rakuchiku_id', document.getElementById('rakuchiku-id')?.value || '');
+  localStorage.setItem('rakuchiku_pw', document.getElementById('rakuchiku-pw')?.value || '');
+  const status = document.getElementById('rakuchiku-save-status');
+  if (status) { status.textContent = '✓ 保存しました'; setTimeout(() => { status.textContent = ''; }, 2000); }
+}
+
+function openRakuchikuReport() {
+  const cowId = document.getElementById('cr-cowid')?.value;
+  const calvingDate = document.getElementById('cr-date')?.value;
+  const sex = document.getElementById('cr-sex')?.value;
+  const isTwin = document.getElementById('cr-twin')?.checked;
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow || !calvingDate) { alert('分娩記録を先に保存してください'); return; }
+  const operator = document.getElementById('cr-operator')?.value || '';
+  const isExternalOp = operator && !['小原','obara','OBARA'].some(n => operator.toLowerCase().includes(n.toLowerCase()));
+  const breedMap = {'黒毛':'黒毛和種','褐毛':'褐毛和種','ホルスタイン':'ホルスタイン','F1':'F1'};
+  const breed = breedMap[cow.breed] || '黒毛和種';
+  const sexLabel = sex === 'bull' ? '♂' : sex === 'heifer' ? '♀' : '不明';
+  _rakuchikuReportData = { cowId, calvingDate, sex, sexLabel, isTwin, breed,
+    motherNatId: cow.nationalId || '', isExternalOp,
+    cowName: cowDisplayName(cowId) || cow.name || cowId };
+  const info = document.getElementById('rakuchiku-report-info');
+  if (info) info.innerHTML =
+    `<div style="color:var(--muted);font-size:11px;margin-bottom:4px;">報告内容</div>` +
+    `<div>🐄 母牛：${_rakuchikuReportData.cowName}（${cow.nationalId || '耳標なし'}）</div>` +
+    `<div>📅 出生日：${calvingDate}</div><div>品種：${breed}　性別：${sexLabel}</div>` +
+    `<div>双子：${isTwin ? '双子以上' : '単子'}　出生状態：正常</div>` +
+    `<div>授証：${isExternalOp ? 'なし（外部術者）' : 'あり（自院）'}　集荷：✓　補給金：全✓</div>`;
+  document.getElementById('rakuchiku-calf-id').value = '';
+  closeModal('modal-calving-record');
+  openModal('modal-rakuchiku-report');
+}
+
+function submitRakuchikuReport() {
+  const calfId = (document.getElementById('rakuchiku-calf-id')?.value || '').replace(/\D/g,'');
+  if (calfId.length !== 10) { alert('子牛IDは10桁で入力してください'); return; }
+  if (!_rakuchikuReportData) { alert('データが不正です'); return; }
+  const d = _rakuchikuReportData;
+  // 子牛IDをcalvesに反映
+  const calf = calves.find(c => c.damId === d.cowId && c.birthDate === d.calvingDate && !c.nationalId);
+  if (calf) { calf.nationalId = calfId; save(); }
+  const rakuId = localStorage.getItem('rakuchiku_id') || '';
+  const rakuPw = localStorage.getItem('rakuchiku_pw') || '';
+  const calvDate = d.calvingDate.replace(/-/g,'/');
+  const sexVal = d.sex === 'bull' ? '1' : '2';
+  const twinVal = d.isTwin ? '2' : '1';
+  const certChk = d.isExternalOp ? 'false' : 'true';
+  const script = `(function(){
+  var id=document.querySelector('[name="userId"],[name="id"],[name="loginId"],#userId,#loginId');
+  var pw=document.querySelector('[name="password"],#password');
+  if(id&&pw){id.value='${rakuId}';pw.value='${rakuPw}';
+    var btn=document.querySelector('[type="submit"],#loginBtn,.login-btn');
+    if(btn){btn.click();alert('ログイン中...報告画面に進んだら再度実行');}return;}
+  function sv(s,v){var e=document.querySelector(s);if(e){e.value=v;e.dispatchEvent(new Event('change'));e.dispatchEvent(new Event('input'));}}
+  function sc(s,v){var e=document.querySelector(s);if(e)e.checked=v;}
+  setTimeout(function(){
+    sv('[name="motherCattleId"],[name="damId"]','${d.motherNatId}');
+    sv('[name="childCattleId"],[name="calfId"]','${calfId}');
+    sv('[name="birthDate"]','${calvDate}');
+    sv('[name="sex"]','${sexVal}');
+    sv('[name="twins"]','${twinVal}');
+    sv('[name="birthCondition"]','1');
+    sc('[name="collection"]',true);
+    sc('[name="authCert"]',${certChk});
+    sc('[name="nursing"]',false);
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(e){if(e.name&&e.name.match(/subsidy|supplement|hogo|補給/i))e.checked=true;});
+    alert('✓ 入力完了！内容確認して申請ボタンを押してください');
+  },800);
+})();`;
+  navigator.clipboard.writeText(script).catch(() => {});
+  window.open('https://rakuchiku.jatokachi.jp/SeisanPC/DLL60', '_blank');
+  closeModal('modal-rakuchiku-report');
+  alert('✓ らくちくを新しいタブで開きました\n\nF12→Consoleに貼り付けてEnter\n（クリップボードにコピー済み）\n\n子牛ID: ' + calfId + ' をデータに反映しました');
+}
+
 function isLotMemo(e) {
   const m = e.memo||'';
   const s = m.replace(/^精液:/,'').replace(/^胚番号:/,'').split('／')[0].trim();
