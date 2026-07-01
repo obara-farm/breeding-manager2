@@ -2888,8 +2888,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initApp() {
   document.getElementById('reg-date').value = today();
-  initCowsFromMaster();
+  // ★ loadData()を先に呼び、Firebaseマージ済みの_storeを全グローバル変数に反映させる
   loadData();
+  initCowsFromMaster();
   // Firebaseなし環境ではlocalStorageから読み込み後すぐにsave可能にする
   if (!window._firebaseInitialized) _firebaseReady = true;
   migrateDates();
@@ -17292,19 +17293,28 @@ function initFirebaseSync() {
           _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
         }
       });
-      // ★ _lastSentSnapshotをFirebaseの値で初期化
-      // 　 これがないと500ms後のsaveToFirebase()が「全キー変更あり」と判定し、
-      // 　 古いローカルデータをFirebaseに誤送信してPC側も書き戻されてしまうのを防ぐ
-      Object.keys(remote).forEach(k => {
-        _lastSentSnapshot[k] = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+      // ★ _lastSentSnapshotをマージ後の_store値で初期化（raw Firebaseではなく）
+      // 　 semenInventory/embryoInventoryはマージ後の値が_storeに入っているため
+      // 　 Firebaseの生データで初期化すると差分誤検知が起きる
+      const safeKeysForSnapshot = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
+        'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
+        'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
+        'pendingUseRecords','data_version'];
+      safeKeysForSnapshot.forEach(k => {
+        const v = _store.getItem(k);
+        if (v !== null) _lastSentSnapshot[k] = v;
       });
     }
     setSyncStatus('synced');
+    // ★ initApp()内のsave()がFirebaseに誤送信しないよう、先に_firebaseReadyをtrueにする
+    _firebaseReady = true;
     if (typeof initApp === 'function') initApp();
     else if (typeof loadData === 'function') { loadData(); renderAll(); }
     // 初回ロード後、ローカルにFirebaseより新しいデータがあれば即座にFirebaseに送信
     // （強制リロード後にローカルデータが消えるのを防ぐ）
     setTimeout(() => { if (typeof saveToFirebase === 'function') saveToFirebase(); }, 500);
+    // 自動日次バックアップ（1日1回）
+    setTimeout(() => { runDailyBackup(dbRef); }, 3000);
 
     // リアルタイムリスナー（自動同期）
     // エコー対策：自分が送信したデータ(_lastSentSnapshot)と一致する場合のみ無視
@@ -17388,33 +17398,7 @@ function initFirebaseSync() {
             }
             return;
           }
-          // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
-          if (k === 'semenInventory' || k === 'embryoInventory') {
-            try {
-              const remoteItems = JSON.parse(rv);
-              const localItems = JSON.parse(_store.getItem(k) || '[]');
-              const merged = remoteItems.map(ri => {
-                const li = localItems.find(l => l.id === ri.id);
-                if (!li) return ri;
-                const remoteHistory = ri.history || [];
-                const localHistory = li.history || [];
-                const remoteKeys = new Set(remoteHistory.map(h => h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-                const extraLocal = localHistory.filter(h => !remoteKeys.has(h.date + '|' + h.type + '|' + h.count + '|' + (h.memo||'')));
-                if (!extraLocal.length) return ri;
-                const mergedHistory = [...remoteHistory, ...extraLocal].sort((a,b) => (a.date||'').localeCompare(b.date||''));
-                return {...ri, history: mergedHistory};
-              });
-              localItems.forEach(li => {
-                if (!merged.find(m => m.id === li.id)) merged.push(li);
-              });
-              const mergedStr = JSON.stringify(merged);
-              _store.setItem(k, mergedStr);
-              _lastSentSnapshot[k] = mergedStr;
-            } catch(e) {
-              _store.setItem(k, rv);
-            }
-            return;
-          }
+          // 精液・受精卵在庫はFirebaseを正とする（マージ廃止：削除操作がマージで復活するバグを防ぐ）
           _store.setItem(k, rv);
         });
         if (typeof loadData === 'function') {
@@ -17510,6 +17494,32 @@ function isLotMemo(e) {
   return /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(s) || m.includes('胚番号:');
 }
 
+
+// ===== 自動日次バックアップ（Firebase） =====
+function runDailyBackup(dbRef) {
+  if (!dbRef) return;
+  const todayStr = today();
+  const lastBackupKey = 'last_auto_backup_date';
+  const lastBackup = _store.getItem(lastBackupKey);
+  if (lastBackup === todayStr) return;
+  const backupData = {};
+  ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
+   'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
+   'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords',
+   'pendingEtList','pendingUseRecords'].forEach(k => {
+    const v = _store.getItem(k);
+    if (v) backupData[k] = v;
+  });
+  backupData._saved_at = new Date().toISOString();
+  dbRef.root.child('backups/' + dbRef.key + '/' + todayStr).set(backupData)
+    .then(() => {
+      _store.setItem(lastBackupKey, todayStr);
+      const oldDate = addDays(todayStr, -8);
+      dbRef.root.child('backups/' + dbRef.key).orderByKey().endAt(oldDate).limitToLast(10)
+        .once('value').then(snap => { snap.forEach(child => { child.ref.remove(); }); });
+    })
+    .catch(e => console.warn('自動バックアップ失敗:', e));
+}
 
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'hidden') {
