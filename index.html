@@ -321,83 +321,41 @@ textarea{resize:vertical;}
 /* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
 @media (max-width: 430px) {
 
-  /* 採卵モーダル：凍結胚テーブルをカード形式に */
-  #col-frozen-tbody-wrap { overflow-x: visible !important; }
-  #col-frozen-tbody tr {
-    display: block;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    padding: 8px;
-  }
-  #col-frozen-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
-  #col-frozen-tbody td:first-child { /* 行番号 */
-    font-size: 10px; color: var(--muted); margin-bottom: 2px;
-  }
-  #col-frozen-tbody .cf-no  { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
-  #col-frozen-tbody .cf-cane { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  /* 採卵モーダル：テーブルを横スクロールで表示（PCと同じレイアウト） */
+  #col-frozen-tbody-wrap,
+  #col-fresh-tbody-wrap,
+  #col-culture-tbody-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+
+  #col-frozen-tbody-wrap table,
+  #col-fresh-tbody-wrap table,
+  #col-culture-tbody-wrap table { min-width: 600px; font-size: 11px; }
+
+  #col-frozen-tbody-wrap thead,
+  #col-fresh-tbody-wrap thead,
+  #col-culture-tbody-wrap thead { display: table-header-group !important; }
+
+  #col-frozen-tbody tr,
+  #col-fresh-tbody tr,
+  #col-culture-tbody tr { display: table-row !important; background: unset !important; border: none !important; border-radius: 0 !important; margin-bottom: 0 !important; padding: 0 !important; }
+
+  #col-frozen-tbody td,
+  #col-fresh-tbody td,
+  #col-culture-tbody td { display: table-cell !important; padding: 4px 3px !important; border: 1px solid var(--border) !important; }
+
+  #col-frozen-tbody .cf-no,
+  #col-frozen-tbody .cf-cane { width: auto !important; font-size: 11px !important; padding: 3px !important; }
   #col-frozen-tbody .cf-stage,
-  #col-frozen-tbody .cf-rank {
-    display: inline-block !important; width: 48% !important;
-    font-size: 13px !important; padding: 6px 4px !important;
-  }
-  #col-frozen-tbody .cf-comment { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-frozen-tbody .cf-rank { display: table-cell !important; width: auto !important; font-size: 11px !important; padding: 3px !important; }
+  #col-frozen-tbody .cf-comment { width: auto !important; font-size: 11px !important; padding: 3px !important; }
 
-  /* 採卵モーダル：新鮮胚テーブルをカード形式に */
-  #col-fresh-tbody-wrap { overflow-x: visible !important; }
-  #col-fresh-tbody tr {
-    display: block;
-    background: var(--bg2);
-    border: 1px solid var(--accent2);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    padding: 8px;
-  }
-  #col-fresh-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
-  #col-fresh-tbody td:first-child { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
-  #col-fresh-tbody .cfr-embryo-no { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
-  #col-fresh-tbody .cfr-stage,
-  #col-fresh-tbody .cfr-rank {
-    display: inline-block !important; width: 48% !important;
-    font-size: 13px !important; padding: 6px 4px !important;
-  }
-  #col-fresh-tbody .cfr-comment { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
-  #col-fresh-tbody .cfr-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
-
-  /* 採卵モーダル：培養胚テーブルをカード形式に */
-  #col-culture-tbody-wrap { overflow-x: visible !important; }
-  #col-culture-tbody tr {
-    display: block;
-    background: var(--bg2);
-    border: 1px solid var(--purple);
-    border-radius: 8px;
-    margin-bottom: 8px;
-    padding: 8px;
-  }
-  #col-culture-tbody td { display: block; padding: 3px 0 !important; border: none !important; }
-  #col-culture-tbody td:first-child { font-size: 10px; color: var(--muted); margin-bottom: 2px; }
-  #col-culture-tbody .cul-embryo-no { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
-  #col-culture-tbody .cul-cane-no   { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; }
+  #col-culture-tbody .cul-embryo-no,
+  #col-culture-tbody .cul-cane-no { width: auto !important; font-size: 11px !important; padding: 3px !important; }
   #col-culture-tbody .cul-stage,
   #col-culture-tbody .cul-rank,
   #col-culture-tbody .cul-next-stage,
-  #col-culture-tbody .cul-next-rank {
-    display: inline-block !important; width: 48% !important;
-    font-size: 13px !important; padding: 6px 4px !important;
-  }
-  #col-culture-tbody .cul-action { width: 100% !important; font-size: 13px !important; padding: 6px 4px !important; }
-  #col-culture-tbody .cul-recip-search { width: 100% !important; font-size: 13px !important; padding: 6px 8px !important; box-sizing: border-box; }
-
-  /* テーブルのtheadをスマホでは非表示（カード形式なので不要） */
-  #col-frozen-tbody-wrap thead,
-  #col-fresh-tbody-wrap thead,
-  #col-culture-tbody-wrap thead { display: none !important; }
-
-  /* テーブル本体のmin-widthを解除 */
-  #col-frozen-tbody-wrap table,
-  #col-fresh-tbody-wrap table,
-  #col-culture-tbody-wrap table { min-width: unset !important; width: 100% !important; }
+  #col-culture-tbody .cul-next-rank { display: table-cell !important; width: auto !important; font-size: 11px !important; padding: 3px !important; }
+  #col-culture-tbody .cul-action { width: auto !important; font-size: 11px !important; padding: 3px !important; }
+  #col-culture-tbody .cul-recip-search { width: 80px !important; font-size: 11px !important; padding: 3px !important; }
 
   /* 授精簿：行をタップで展開するためのスタイル */
   .insem-row-header {
