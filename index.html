@@ -2974,20 +2974,23 @@ function migrateDates() {
 }
 
 function initCowsFromMaster() {
+  // ★廃用牛IDセットを先に取得（廃用牛は絶対に追加しない）
+  const retiredIds = new Set(JSON.parse(_store.getItem('retiredCows') || '[]').map(r => r.id));
+
   if (cows.length === 0) {
-    // 初回：MASTERから全頭作成
-    cows = MASTER_COWS.map(m => ({
+    // 初回：MASTERから廃用牛を除いて全頭作成
+    cows = MASTER_COWS.filter(m => !retiredIds.has(m.id)).map(m => ({
       id: m.id, name: m.name, nationalId: m.nationalId, dob: m.dob,
       ageYears: m.ageYears, lactation: 0, status: 'open', events: [],
     }));
     save();
     return;
   }
-  // 既存データあり：MASTERにいてcowsにいない牛を追加
+  // 既存データあり：MASTERにいてcowsにいない牛を追加（廃用牛は除外）
   const existingIds = new Set(cows.map(c => c.id));
   let added = 0;
   MASTER_COWS.forEach(m => {
-    if (!existingIds.has(m.id)) {
+    if (!existingIds.has(m.id) && !retiredIds.has(m.id)) {
       cows.push({
         id: m.id, name: m.name, nationalId: m.nationalId, dob: m.dob,
         ageYears: m.ageYears, lactation: 0, status: 'open', events: [],
@@ -2995,7 +2998,10 @@ function initCowsFromMaster() {
       added++;
     }
   });
-  if (added > 0) save();
+  // ★cowsに紛れ込んでいる廃用牛を除去
+  const before = cows.length;
+  cows = cows.filter(c => !retiredIds.has(c.id));
+  if (added > 0 || cows.length < before) save();
 }
 
 // ===== AUTOCOMPLETE =====
