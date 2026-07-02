@@ -7559,16 +7559,16 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   // 結果あり→ボタンで表示
   if (hasResult) {
     return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
     </div>`;
   }
   // 次のAI記録がある→自動陰性ボタン
   if (nextDate) {
     const pd = addDays(date, 45);
     return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd}','negative',this,'${date}')" style="background:#7f1d1d;border:1px solid #ef4444;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd}','negative',this,'${date}')" style="background:#7f1d1d;border:1px solid #ef4444;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
     </div>`;
   }
   // 未記録→妊鑑予定日表示
@@ -7577,8 +7577,8 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">
     <span style="font-size:9px;color:var(--muted);">妊鑑予定 ${fmtDateShort(pd2)}</span>
     <div style="display:flex;gap:3px;">
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd2}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd2}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
-      <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd2}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd2}','negative',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd2}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd2}','positive',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
+      <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pd2}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pd2}','negative',this,'${date}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
     </div>
   </div>`;
 }
