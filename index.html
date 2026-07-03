@@ -7396,6 +7396,7 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
   if (date > '2025-11-05' && !op && !isETForCert) {
     const allQ = insemBookRecords
+      .filter(r => r.insemType !== 'et' && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s))))
       .map(r => parseInt(r.q))
       .filter(n => !isNaN(n) && n >= 587 && n < 10000);
     const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
