@@ -2587,26 +2587,25 @@ function loadData() {
   });
   if (calvesFixed) _store.setItem('calves', JSON.stringify(calves));
 
-  // aiDatesのcount>1の場合、授精簿に不足している行を自動追加
-  let insemBookFixed = false;
-  collectionRecordsNew.forEach(cr => {
-    if (!cr.donorId || !cr.aiDates) return;
-    cr.aiDates.forEach(ai => {
-      if (!ai.count || ai.count <= 1) return;
-      // 授精簿に同日同牛の記録が何行あるか確認
-      const existingRows = insemBookRecords.filter(r => r.t === cr.donorId && r.d === ai.date);
-      const needed = ai.count - existingRows.length;
-      if (needed <= 0) return;
-      // 既存の1行目をベースに不足分を追加
-      const base = existingRows[0] || insemBookRecords.find(r => r.t === cr.donorId && r.d === ai.date);
-      if (!base) return;
-      for (let i = 0; i < needed; i++) {
-        insemBookRecords.push({ ...base, n: '', q: '', _new: true });
-        insemBookFixed = true;
-      }
-    });
-  });
-  if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
+  // ★無効化：この処理が起動のたびに授精簿へ行を自動追加し、手動削除した記録を復活させていたため停止。
+  // // aiDatesのcount>1の場合、授精簿に不足している行を自動追加
+  // let insemBookFixed = false;
+  // collectionRecordsNew.forEach(cr => {
+  //   if (!cr.donorId || !cr.aiDates) return;
+  //   cr.aiDates.forEach(ai => {
+  //     if (!ai.count || ai.count <= 1) return;
+  //     const existingRows = insemBookRecords.filter(r => r.t === cr.donorId && r.d === ai.date);
+  //     const needed = ai.count - existingRows.length;
+  //     if (needed <= 0) return;
+  //     const base = existingRows[0] || insemBookRecords.find(r => r.t === cr.donorId && r.d === ai.date);
+  //     if (!base) return;
+  //     for (let i = 0; i < needed; i++) {
+  //       insemBookRecords.push({ ...base, n: '', q: '', _new: true });
+  //       insemBookFixed = true;
+  //     }
+  //   });
+  // });
+  // if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
 
   // 授精簿のpregResultをcow.eventsとstatusに同期
   let cowSyncFixed = false;
@@ -7392,13 +7391,18 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
   // 授精証明書No自動採番（2025/11/05以降・術者なし・AI記録のみ）
+  // ★自分が授精した記録＝術者なし(op空)のAIのみを対象に最大値を取る。
+  //   外部授精所（術者あり）の1000番台に引っ張られて番号が飛ぶのを防ぐ。
   let certQ = '';
   const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
+  const isMineAI = r => !r.op && r.insemType !== 'et'
+    && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s)))
+    && !(r.s && r.s.includes('ET'));
   if (date > '2025-11-05' && !op && !isETForCert) {
     const allQ = insemBookRecords
-      .filter(r => r.insemType !== 'et' && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s))))
+      .filter(isMineAI)
       .map(r => parseInt(r.q))
-      .filter(n => !isNaN(n) && n >= 587 && n < 10000);
+      .filter(n => !isNaN(n) && n >= 587 && n < 1000);
     const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
     certQ = String(maxQ + 1);
   }
@@ -7414,8 +7418,8 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   if (count && count > 1) {
     for (let i = 1; i < count; i++) {
       let certQ2 = '';
-      if (date > '2025-11-05' && !op) {
-        const allQ2 = insemBookRecords.map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 10000);
+      if (date > '2025-11-05' && !op && !isETForCert) {
+        const allQ2 = insemBookRecords.filter(isMineAI).map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 1000);
         const maxQ2 = allQ2.length > 0 ? Math.max(...allQ2) : 586;
         certQ2 = String(maxQ2 + 1);
       }
@@ -17169,7 +17173,7 @@ document.getElementById('login-password').addEventListener('keydown', e => {
 });
 
 // ===== 認証状態の監視（匿名認証＋固定UIDに統一）=====
-// 7/4以前と同じ方式に復帰：全端末が匿名認証で同じ牧場データ(data/FhVF...)を共有する。
+// 全端末が匿名認証で同じ牧場データ(data/FhVF...)を共有する。
 // メール/パスワードのログイン方式は端末ごとに別アカウント＝別データになり同期が壊れたため廃止。
 const CANONICAL_UID = 'FhVF92oHJXMwK01gakK1Mms4HGP2';
 auth.onAuthStateChanged(user => {
@@ -17180,11 +17184,9 @@ auth.onAuthStateChanged(user => {
     dbRef = db.ref('data/' + CANONICAL_UID);
     initFirebaseSync();
   } else {
-    // 未サインインなら匿名で自動サインイン（ログイン画面は使わない）
     auth.signInAnonymously().catch(err => {
       console.error('匿名認証に失敗:', err);
-      setSyncStatus('error');
-      // 念のためログイン画面をフォールバック表示
+      if (typeof setSyncStatus === 'function') setSyncStatus('error');
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('app-root').style.display = 'none';
     });
