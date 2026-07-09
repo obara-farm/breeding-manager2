@@ -17174,7 +17174,10 @@ auth.onAuthStateChanged(user => {
     currentUser = user;
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('app-root').style.display = '';
-    dbRef = db.ref('data/' + user.uid);
+    // ★ データ保存場所は固定UIDに統一（端末ごとにログインUIDが異なっても同じデータを共有するため）
+    //   匿名/別アカウントでも canonical な牧場データ（data/FhVF...）を読み書きする
+    const CANONICAL_UID = 'FhVF92oHJXMwK01gakK1Mms4HGP2';
+    dbRef = db.ref('data/' + CANONICAL_UID);
     initFirebaseSync();
   } else {
     // 保存された認証情報で自動再ログイン
