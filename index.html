@@ -317,6 +317,12 @@ textarea{resize:vertical;}
   body.printing-egg-cert #app-root > *:not(#modal-egg-cert-print) { display: none !important; }
   .egg-cert-page div[style*="border-top:0.5px dashed"],
   .egg-cert-page div[style*="border-left:0.5px dashed"] { display: block !important; }
+  /* ===== 納品書 印刷 ===== */
+  body.printing-delivery #modal-delivery-slip { display: block !important; position: static !important; background:#fff !important; overflow:visible !important; }
+  body.printing-delivery #modal-delivery-slip .modal { max-width:100% !important; box-shadow:none !important; overflow:visible !important; background:#fff !important; border:none !important; padding:0 !important; }
+  body.printing-delivery #modal-delivery-slip .modal > *:not(#delivery-print-area) { display:none !important; }
+  body.printing-delivery #app-root > *:not(#modal-delivery-slip) { display:none !important; }
+  body.printing-delivery #delivery-print-area { display:block !important; color:#000 !important; }
 }
 /* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
 @media (max-width: 430px) {
@@ -2587,25 +2593,26 @@ function loadData() {
   });
   if (calvesFixed) _store.setItem('calves', JSON.stringify(calves));
 
-  // ★無効化：この処理が起動のたびに授精簿へ行を自動追加し、手動削除した記録を復活させていたため停止。
-  // // aiDatesのcount>1の場合、授精簿に不足している行を自動追加
-  // let insemBookFixed = false;
-  // collectionRecordsNew.forEach(cr => {
-  //   if (!cr.donorId || !cr.aiDates) return;
-  //   cr.aiDates.forEach(ai => {
-  //     if (!ai.count || ai.count <= 1) return;
-  //     const existingRows = insemBookRecords.filter(r => r.t === cr.donorId && r.d === ai.date);
-  //     const needed = ai.count - existingRows.length;
-  //     if (needed <= 0) return;
-  //     const base = existingRows[0] || insemBookRecords.find(r => r.t === cr.donorId && r.d === ai.date);
-  //     if (!base) return;
-  //     for (let i = 0; i < needed; i++) {
-  //       insemBookRecords.push({ ...base, n: '', q: '', _new: true });
-  //       insemBookFixed = true;
-  //     }
-  //   });
-  // });
-  // if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
+  // aiDatesのcount>1の場合、授精簿に不足している行を自動追加
+  let insemBookFixed = false;
+  collectionRecordsNew.forEach(cr => {
+    if (!cr.donorId || !cr.aiDates) return;
+    cr.aiDates.forEach(ai => {
+      if (!ai.count || ai.count <= 1) return;
+      // 授精簿に同日同牛の記録が何行あるか確認
+      const existingRows = insemBookRecords.filter(r => r.t === cr.donorId && r.d === ai.date);
+      const needed = ai.count - existingRows.length;
+      if (needed <= 0) return;
+      // 既存の1行目をベースに不足分を追加
+      const base = existingRows[0] || insemBookRecords.find(r => r.t === cr.donorId && r.d === ai.date);
+      if (!base) return;
+      for (let i = 0; i < needed; i++) {
+        insemBookRecords.push({ ...base, n: '', q: '', _new: true });
+        insemBookFixed = true;
+      }
+    });
+  });
+  if (insemBookFixed) _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
 
   // 授精簿のpregResultをcow.eventsとstatusに同期
   let cowSyncFixed = false;
@@ -7391,18 +7398,13 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
   // 授精証明書No自動採番（2025/11/05以降・術者なし・AI記録のみ）
-  // ★自分が授精した記録＝術者なし(op空)のAIのみを対象に最大値を取る。
-  //   外部授精所（術者あり）の1000番台に引っ張られて番号が飛ぶのを防ぐ。
   let certQ = '';
   const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
-  const isMineAI = r => !r.op && r.insemType !== 'et'
-    && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s)))
-    && !(r.s && r.s.includes('ET'));
   if (date > '2025-11-05' && !op && !isETForCert) {
     const allQ = insemBookRecords
-      .filter(isMineAI)
+      .filter(r => r.insemType !== 'et' && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s))))
       .map(r => parseInt(r.q))
-      .filter(n => !isNaN(n) && n >= 587 && n < 1000);
+      .filter(n => !isNaN(n) && n >= 587 && n < 10000);
     const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
     certQ = String(maxQ + 1);
   }
@@ -7418,8 +7420,8 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   if (count && count > 1) {
     for (let i = 1; i < count; i++) {
       let certQ2 = '';
-      if (date > '2025-11-05' && !op && !isETForCert) {
-        const allQ2 = insemBookRecords.filter(isMineAI).map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 1000);
+      if (date > '2025-11-05' && !op) {
+        const allQ2 = insemBookRecords.map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 10000);
         const maxQ2 = allQ2.length > 0 ? Math.max(...allQ2) : 586;
         certQ2 = String(maxQ2 + 1);
       }
@@ -7932,8 +7934,6 @@ function renderInsemBook() {
             '<input id="' + mId + '" value="' + dispM2.replace(/"/g,'&quot;') + '" onchange="' + onSave + '" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
             '<div style="margin-bottom:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">術者</div>' +
             '<input id="' + opId + '" value="' + (dispOp2||'').replace(/"/g,'&quot;') + '" onchange="' + onSave + '" placeholder="術者" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
-            '<div style="margin-bottom:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:4px;">妊娠鑑定</div>' +
-            '<div>' + getPregCellHtml(r.t, r.d, r.donorAI||false) + '</div></div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               syncBtn2 +
               '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--purple);">📄 授精証</span></label>' +
@@ -8088,6 +8088,254 @@ function renderEmbryoDetails(details, usedNos) {
       <tbody>${rows}</tbody>
     </table>
   </div>`;
+}
+
+// ===== 受精卵 納品書機能（既存データに影響しない独立機能） =====
+// 譲渡先・納品書番号は Firebase の独立キー（deliveryTargets / deliverySlipCounter）に保存し、
+// 既存の同期キー配列には一切追加しない（データ破壊防止）。
+let _deliveryTargets = [];   // [{name, addr}]
+let _deliveryLotId = null;   // 現在対象のロット先頭ID
+
+function _delivFarm() {
+  return { name:'小原農場　小原　秀樹', addr:'北海道中川郡池田町字千代田697番地' };
+}
+
+// 譲渡先をFirebaseから読む（無ければ空）
+function loadDeliveryTargets(cb) {
+  try {
+    if (typeof dbRef !== 'undefined' && dbRef) {
+      dbRef.child('deliveryTargets').once('value').then(function(s){
+        var v = s.val();
+        if (typeof v === 'string') { try { v = JSON.parse(v); } catch(e){ v = null; } }
+        _deliveryTargets = Array.isArray(v) ? v : [];
+        if (cb) cb();
+      }).catch(function(){ _deliveryTargets = _deliveryTargets||[]; if(cb) cb(); });
+    } else { if(cb) cb(); }
+  } catch(e){ if(cb) cb(); }
+}
+
+function saveDeliveryTargetsToDb() {
+  try {
+    if (typeof dbRef !== 'undefined' && dbRef) {
+      dbRef.child('deliveryTargets').set(JSON.stringify(_deliveryTargets));
+    }
+  } catch(e){}
+}
+
+// 納品書番号を採番（deliverySlipCounter を +1）。形式: N-YYYY-000
+function nextDeliveryNo(cb) {
+  try {
+    if (typeof dbRef !== 'undefined' && dbRef) {
+      dbRef.child('deliverySlipCounter').once('value').then(function(s){
+        var n = parseInt(s.val()||'0', 10) || 0;
+        n += 1;
+        dbRef.child('deliverySlipCounter').set(n);
+        var yr = new Date().getFullYear();
+        cb('N-' + yr + '-' + String(n).padStart(3,'0'));
+      }).catch(function(){ cb(''); });
+    } else { cb(''); }
+  } catch(e){ cb(''); }
+}
+
+// ロットの胚一覧を取得（embryoDetails + 使用/譲渡状況）
+function _getLotEmbryos(lotId) {
+  var lot = embryoInventory.find(function(e){ return e && e.id === lotId; });
+  if (!lot) return { lot:null, items:[] };
+  // 同じロットキーの全アイテムをまとめる
+  var lotKey = (lot.lot && lot.collectionDate) ? lot.lot : ('__noLot__'+lot.id);
+  var lotItems = embryoInventory.filter(function(e){
+    var k = (e.lot && e.collectionDate) ? e.lot : ('__noLot__'+e.id);
+    return k === lotKey;
+  });
+  var usedNos = buildUsedNos(lotItems);
+  var details = [];
+  lotItems.forEach(function(e){
+    (e.embryoDetails||[]).forEach(function(d){
+      details.push({
+        no: d.no||'', cane: d.cane||'', stage: d.stage||'', rank: d.rank||'',
+        collectedDate: d.collectedDate||e.collectionDate||'',
+        dam: e.dam||'', sire: e.sire||'', breed: e.breed||'',
+        isTransferred: (usedNos._types && usedNos._types[d.no]) === 'transfer',
+        isUsed: d.no && usedNos.includes(d.no)
+      });
+    });
+  });
+  return { lot:lot, lotItems:lotItems, items:details };
+}
+
+function openDeliverySlip(lotId) {
+  _deliveryLotId = lotId;
+  loadDeliveryTargets(function(){
+    // 譲渡先セレクト
+    var sel = document.getElementById('delivery-target-select');
+    sel.innerHTML = '<option value="">選択...</option>' +
+      _deliveryTargets.map(function(t,i){ return '<option value="'+i+'">'+_esc(t.name)+'</option>'; }).join('');
+    // 発行日=今日
+    var today = new Date();
+    document.getElementById('delivery-date').value = today.toISOString().slice(0,10);
+    document.getElementById('delivery-no').value = '';
+    document.getElementById('delivery-memo').value = '';
+    // 胚リスト
+    var info = _getLotEmbryos(lotId);
+    var list = document.getElementById('delivery-embryo-list');
+    if (!info.items.length) {
+      list.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">胚の記録がありません</div>';
+    } else {
+      list.innerHTML = info.items.map(function(d,i){
+        var badge = d.isTransferred ? '<span style="font-size:9px;color:var(--warn);background:rgba(245,158,11,.15);padding:1px 5px;border-radius:3px;">譲渡済</span>'
+          : d.isUsed ? '<span style="font-size:9px;color:var(--muted);background:var(--bg3);padding:1px 5px;border-radius:3px;">使用済</span>' : '';
+        return '<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;">' +
+          '<input type="checkbox" class="deliv-chk" data-idx="'+i+'" '+(d.isTransferred?'checked':'')+' style="width:16px;height:16px;">' +
+          '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);min-width:120px;">'+_esc(d.no||'—')+'</span>' +
+          '<span style="font-size:11px;color:var(--muted);min-width:70px;">'+_esc(d.cane||'')+'</span>' +
+          '<span style="font-size:11px;color:var(--text);">'+_esc(d.stage||'')+_esc(d.rank||'')+'</span>' +
+          '<span style="font-size:10px;color:var(--muted);flex:1;text-align:right;">'+_esc(d.dam||'')+'×'+_esc(d.sire||'')+'</span>' +
+          badge +
+        '</label>';
+      }).join('');
+    }
+    document.getElementById('delivery-print-area').innerHTML = '';
+    openModal('modal-delivery-slip');
+  });
+}
+
+function onDeliveryTargetChange() { /* 選択のみ。プレビューは更新ボタンで */ }
+
+function _esc(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function buildDeliveryPreview(cb) {
+  var info = _getLotEmbryos(_deliveryLotId);
+  var checks = Array.prototype.slice.call(document.querySelectorAll('.deliv-chk'));
+  var selected = checks.filter(function(c){return c.checked;}).map(function(c){ return info.items[parseInt(c.dataset.idx)]; });
+  if (!selected.length) { alert('納品する胚にチェックを入れてください'); return; }
+
+  var tIdx = document.getElementById('delivery-target-select').value;
+  var target = (tIdx!=='' && _deliveryTargets[tIdx]) ? _deliveryTargets[tIdx] : {name:'',addr:''};
+  var dateStr = document.getElementById('delivery-date').value;
+  var memo = document.getElementById('delivery-memo').value || '';
+
+  // 納品書番号：空なら採番
+  var noField = document.getElementById('delivery-no');
+  function render(no) {
+    noField.value = no;
+    document.getElementById('delivery-print-area').innerHTML = _deliverySlipHtml(selected, target, dateStr, no, memo);
+    if (cb) cb();
+  }
+  if (noField.value.trim()) { render(noField.value.trim()); }
+  else { nextDeliveryNo(function(no){ render(no); }); }
+}
+
+function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
+  var farm = _delivFarm();
+  var d = dateStr ? new Date(dateStr+'T00:00:00') : new Date();
+  var wa = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
+  var rows = embryos.map(function(e,i){
+    return '<tr>' +
+      '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">'+(i+1)+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;font-family:monospace;">'+_esc(e.no||'')+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(e.cane||'')+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc((e.dam||'')+' × '+(e.sire||''))+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(e.breed||'')+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc((e.stage||'')+' '+(e.rank||''))+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+(e.collectedDate?fmtDate(e.collectedDate):'')+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">1</td>' +
+    '</tr>';
+  }).join('');
+  // 空行を足して見栄えを整える（最低8行）
+  var blank = '';
+  for (var k=embryos.length; k<8; k++) {
+    blank += '<tr>' + Array(8).join('') +
+      '<td style="border:1px solid #000;padding:4px 6px;height:7mm;">&nbsp;</td>' +
+      '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
+      '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
+    '</tr>';
+  }
+  return '' +
+  '<div style="width:277mm;min-height:180mm;margin:0 auto;padding:10mm;box-sizing:border-box;color:#000;font-family:\'Yu Gothic\',\'Hiragino Sans\',sans-serif;background:#fff;">' +
+    '<div style="text-align:center;font-size:20pt;font-weight:700;letter-spacing:8px;margin-bottom:6mm;">納　品　書</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6mm;">' +
+      '<div style="width:52%;">' +
+        '<div style="font-size:13pt;border-bottom:1.5px solid #000;padding-bottom:2px;margin-bottom:3px;min-height:8mm;">'+_esc(target.name||'')+'　御中</div>' +
+        '<div style="font-size:9pt;color:#333;min-height:5mm;">'+_esc(target.addr||'')+'</div>' +
+        '<div style="font-size:10pt;margin-top:4mm;">下記のとおり納品いたします。</div>' +
+      '</div>' +
+      '<div style="width:42%;font-size:9.5pt;line-height:1.9;">' +
+        '<div style="text-align:right;margin-bottom:2mm;">納品書番号：'+_esc(no||'')+'</div>' +
+        '<div style="text-align:right;margin-bottom:3mm;">発行日：'+wa+'</div>' +
+        '<div style="border:1px solid #000;padding:3mm;position:relative;">' +
+          '<div style="font-size:11pt;font-weight:700;margin-bottom:2px;">'+_esc(farm.name)+'</div>' +
+          '<div style="font-size:8.5pt;">'+_esc(farm.addr)+'</div>' +
+          '<div style="position:absolute;top:2mm;right:2mm;width:17mm;height:17mm;border:1px dashed #c00;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:7pt;color:#c00;">角印</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:5mm;">' +
+      '<thead><tr style="background:#eee;">' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:8mm;">No</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;">胚番号（証明書番号）</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:22mm;">ケーン</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;">母 × 種雄牛</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:18mm;">品種</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:20mm;">ｽﾃｰｼﾞ/ﾗﾝｸ</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:26mm;">採卵日</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:14mm;">数量</th>' +
+      '</tr></thead>' +
+      '<tbody>'+rows+blank+'</tbody>' +
+      '<tfoot><tr>' +
+        '<td colspan="7" style="border:1px solid #000;padding:4px 8px;text-align:right;font-size:10pt;font-weight:700;">合計本数</td>' +
+        '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:10pt;font-weight:700;">'+embryos.length+'</td>' +
+      '</tr></tfoot>' +
+    '</table>' +
+    (memo ? '<div style="font-size:9pt;border:1px solid #000;padding:3mm;min-height:12mm;"><span style="color:#555;">備考：</span>'+_esc(memo)+'</div>' : '<div style="font-size:9pt;border:1px solid #000;padding:3mm;min-height:12mm;"><span style="color:#555;">備考：</span></div>') +
+  '</div>';
+}
+
+function printDeliverySlip() {
+  // プレビュー未生成なら生成してから印刷
+  var area = document.getElementById('delivery-print-area');
+  if (!area.innerHTML.trim()) {
+    buildDeliveryPreview(function(){ _doDelivPrint(); });
+  } else {
+    _doDelivPrint();
+  }
+}
+function _doDelivPrint() {
+  document.body.classList.add('printing-delivery');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-delivery'); }, 500);
+}
+
+// ===== 譲渡先の管理 =====
+function openDeliveryTargetEdit() {
+  loadDeliveryTargets(function(){
+    renderDeliveryTargetRows();
+    openModal('modal-delivery-target');
+  });
+}
+function renderDeliveryTargetRows() {
+  var wrap = document.getElementById('delivery-target-rows');
+  if (!_deliveryTargets.length) { _deliveryTargets = [{name:'',addr:''}]; }
+  wrap.innerHTML = _deliveryTargets.map(function(t,i){
+    return '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">' +
+      '<input type="text" value="'+_esc(t.name)+'" oninput="_deliveryTargets['+i+'].name=this.value" placeholder="譲渡先名（例：長島牧場）" style="flex:1;">' +
+      '<input type="text" value="'+_esc(t.addr)+'" oninput="_deliveryTargets['+i+'].addr=this.value" placeholder="住所（任意）" style="flex:1.3;">' +
+      '<button onclick="_deliveryTargets.splice('+i+',1);renderDeliveryTargetRows()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:6px 9px;border-radius:6px;cursor:pointer;">🗑</button>' +
+    '</div>';
+  }).join('');
+}
+function addDeliveryTargetRow() {
+  _deliveryTargets.push({name:'',addr:''});
+  renderDeliveryTargetRows();
+}
+function saveDeliveryTargets() {
+  _deliveryTargets = _deliveryTargets.filter(function(t){ return (t.name||'').trim(); });
+  saveDeliveryTargetsToDb();
+  // セレクト更新
+  var sel = document.getElementById('delivery-target-select');
+  if (sel) sel.innerHTML = '<option value="">選択...</option>' +
+    _deliveryTargets.map(function(t,i){ return '<option value="'+i+'">'+_esc(t.name)+'</option>'; }).join('');
+  closeModal('modal-delivery-target');
+  alert('譲渡先を保存しました');
 }
 // ===== 採卵記録タブ =====
 
@@ -14286,6 +14534,7 @@ function renderEmbryo() {
             })()}
             <button onclick="openEmbryoRestock('${mainId}');event.stopPropagation()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📦 入荷・補充</button>
             <button onclick="openUseRecord('embryo','${mainId}');event.stopPropagation()" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📝 使用記録</button>
+            <button onclick="openDeliverySlip('${mainId}');event.stopPropagation()" style="background:#0a1520;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">📄 納品書</button>
             <button onclick="confirmDeleteEmbryoLot('${lotKey}','${encodeURIComponent(key)}');event.stopPropagation()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;">🗑 このロットを削除</button>
           </div>
         </div>
@@ -17081,7 +17330,70 @@ try {
 </div>
 
 
-<!-- 術者あり在庫処理選択モーダル -->
+<!-- 受精卵 納品書モーダル -->
+<div class="modal-overlay" id="modal-delivery-slip" style="z-index:500;">
+  <div class="modal" style="max-width:min(98vw,900px);width:98vw;max-height:92vh;overflow-y:auto;padding:14px;">
+    <div class="modal-title">
+      <span>📄 受精卵 納品書</span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="printDeliverySlip()" style="background:var(--purple);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer;">🖨 印刷</button>
+        <button class="modal-close" onclick="closeModal('modal-delivery-slip')">✕</button>
+      </div>
+    </div>
+
+    <!-- 入力エリア（印刷されない） -->
+    <div id="delivery-input-area">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+        <div style="flex:1;min-width:200px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px;">譲渡先（宛名）</label>
+          <div style="display:flex;gap:6px;">
+            <select id="delivery-target-select" onchange="onDeliveryTargetChange()" style="flex:1;">
+              <option value="">選択...</option>
+            </select>
+            <button onclick="openDeliveryTargetEdit()" style="background:var(--bg3);border:1px solid var(--border);color:var(--info);font-size:12px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">＋管理</button>
+          </div>
+        </div>
+        <div style="width:130px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px;">発行日</label>
+          <input type="date" id="delivery-date" style="width:100%;">
+        </div>
+        <div style="width:130px;">
+          <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px;">納品書番号</label>
+          <input type="text" id="delivery-no" placeholder="自動採番" style="width:100%;">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">納品する胚にチェック（譲渡済みは初期選択）</div>
+      <div id="delivery-embryo-list" style="border:1px solid var(--border);border-radius:8px;max-height:30vh;overflow-y:auto;margin-bottom:10px;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:3px;">備考</label>
+        <input type="text" id="delivery-memo" placeholder="（任意）" style="width:100%;">
+      </div>
+      <div style="text-align:center;margin-bottom:14px;">
+        <button onclick="buildDeliveryPreview()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:13px;font-weight:700;padding:8px 24px;border-radius:6px;cursor:pointer;">プレビュー更新</button>
+      </div>
+    </div>
+
+    <!-- 印刷エリア（A4横） -->
+    <div id="delivery-print-area"></div>
+  </div>
+</div>
+
+<!-- 譲渡先 管理モーダル -->
+<div class="modal-overlay" id="modal-delivery-target" style="z-index:600;">
+  <div class="modal" style="max-width:min(98vw,560px);width:98vw;max-height:88vh;overflow-y:auto;padding:14px;">
+    <div class="modal-title">
+      <span>📇 譲渡先の管理</span>
+      <button class="modal-close" onclick="closeModal('modal-delivery-target')">✕</button>
+    </div>
+    <div id="delivery-target-rows" style="margin-bottom:10px;"></div>
+    <button onclick="addDeliveryTargetRow()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:6px 14px;border-radius:6px;cursor:pointer;width:100%;margin-bottom:12px;">＋ 譲渡先を追加</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveDeliveryTargets()" style="background:#0a1a0a;border:1px solid var(--accent);color:var(--accent);font-size:13px;font-weight:700;padding:8px 20px;border-radius:6px;cursor:pointer;flex:1;">💾 保存</button>
+      <button onclick="closeModal('modal-delivery-target')" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:8px 16px;border-radius:6px;cursor:pointer;">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-insem-operator">
   <div class="modal" style="max-width:min(98vw,500px);width:98vw;">
     <div class="modal-title">
@@ -17174,24 +17486,33 @@ document.getElementById('login-password').addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin();
 });
 
-// ===== 認証状態の監視（匿名認証＋固定UIDに統一）=====
-// 全端末が匿名認証で同じ牧場データ(data/FhVF...)を共有する。
-// メール/パスワードのログイン方式は端末ごとに別アカウント＝別データになり同期が壊れたため廃止。
-const CANONICAL_UID = 'FhVF92oHJXMwK01gakK1Mms4HGP2';
+// ===== 認証状態の監視 =====
 auth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('app-root').style.display = '';
-    dbRef = db.ref('data/' + CANONICAL_UID);
+    dbRef = db.ref('data/' + user.uid);
     initFirebaseSync();
   } else {
-    auth.signInAnonymously().catch(err => {
-      console.error('匿名認証に失敗:', err);
-      if (typeof setSyncStatus === 'function') setSyncStatus('error');
+    // 保存された認証情報で自動再ログイン
+    const savedEmail = localStorage.getItem('_auth_email');
+    const savedPass  = localStorage.getItem('_auth_pass');
+    if (savedEmail && savedPass) {
+      auth.signInWithEmailAndPassword(savedEmail, savedPass).catch(() => {
+        localStorage.removeItem('_auth_email');
+        localStorage.removeItem('_auth_pass');
+        currentUser = null;
+        dbRef = null;
+        document.getElementById('login-screen').classList.add('active');
+        document.getElementById('app-root').style.display = 'none';
+      });
+    } else {
+      currentUser = null;
+      dbRef = null;
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('app-root').style.display = 'none';
-    });
+    }
   }
 });
 
