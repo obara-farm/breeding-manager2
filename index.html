@@ -301,7 +301,7 @@ textarea{resize:vertical;}
 @media print {
   @page { size: A4 landscape; margin: 8mm; }
   body > *:not(#app-root) { display: none !important; }
-  #app-root > *:not(#modal-cert-preview):not(#modal-egg-cert-print) { display: none !important; }
+  #app-root > *:not(#modal-cert-preview):not(#modal-egg-cert-print):not(#modal-delivery-slip) { display: none !important; }
   #modal-cert-preview { display: block !important; position: static !important; background: #fff !important; overflow: visible !important; }
   #modal-cert-preview .modal { max-width: 100% !important; box-shadow: none !important; overflow: visible !important; background: #fff !important; border: none !important; padding: 0 !important; }
   #modal-cert-preview .modal > *:not(#cert-preview-container) { display: none !important; }
@@ -318,11 +318,14 @@ textarea{resize:vertical;}
   .egg-cert-page div[style*="border-top:0.5px dashed"],
   .egg-cert-page div[style*="border-left:0.5px dashed"] { display: block !important; }
   /* ===== 納品書 印刷 ===== */
+  body.printing-delivery #modal-cert-preview { display: none !important; }
+  body.printing-delivery #modal-egg-cert-print { display: none !important; }
   body.printing-delivery #modal-delivery-slip { display: block !important; position: static !important; background:#fff !important; overflow:visible !important; }
   body.printing-delivery #modal-delivery-slip .modal { max-width:100% !important; box-shadow:none !important; overflow:visible !important; background:#fff !important; border:none !important; padding:0 !important; }
   body.printing-delivery #modal-delivery-slip .modal > *:not(#delivery-print-area) { display:none !important; }
   body.printing-delivery #app-root > *:not(#modal-delivery-slip) { display:none !important; }
   body.printing-delivery #delivery-print-area { display:block !important; color:#000 !important; }
+  body.printing-delivery #delivery-print-area * { visibility:visible !important; }
 }
 /* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
 @media (max-width: 430px) {
@@ -8137,29 +8140,67 @@ function nextDeliveryNo(cb) {
   } catch(e){ cb(''); }
 }
 
-// ロットの胚一覧を取得（embryoDetails + 使用/譲渡状況）
+// ロットの胚一覧を取得（凍結=embryoDetails ＋ 新鮮/培養=採卵記録から）
 function _getLotEmbryos(lotId) {
   var lot = embryoInventory.find(function(e){ return e && e.id === lotId; });
   if (!lot) return { lot:null, items:[] };
-  // 同じロットキーの全アイテムをまとめる
   var lotKey = (lot.lot && lot.collectionDate) ? lot.lot : ('__noLot__'+lot.id);
   var lotItems = embryoInventory.filter(function(e){
     var k = (e.lot && e.collectionDate) ? e.lot : ('__noLot__'+e.id);
     return k === lotKey;
   });
   var usedNos = buildUsedNos(lotItems);
+  var seen = {};
   var details = [];
+  // 1) 凍結胚（embryoDetails）
   lotItems.forEach(function(e){
     (e.embryoDetails||[]).forEach(function(d){
+      if (!d.no || seen[d.no]) return;
+      seen[d.no] = true;
       details.push({
-        no: d.no||'', cane: d.cane||'', stage: d.stage||'', rank: d.rank||'',
+        no: d.no, cane: d.cane||'', stage: d.stage||'', rank: d.rank||'',
         collectedDate: d.collectedDate||e.collectionDate||'',
-        dam: e.dam||'', sire: e.sire||'', breed: e.breed||'',
+        dam: e.dam||'', sire: e.sire||'', breed: e.breed||'', kind:'凍結',
         isTransferred: (usedNos._types && usedNos._types[d.no]) === 'transfer',
-        isUsed: d.no && usedNos.includes(d.no)
+        isUsed: usedNos.includes(d.no)
       });
     });
   });
+  // 2) 新鮮胚・培養胚（採卵記録から）：embryoDetailsに無いものを補う
+  var colRec = collectionRecordsNew.find(function(r){
+    return r.lot === (lotKey.indexOf('__noLot__')===0 ? null : lotKey) && r.date === lot.collectionDate;
+  });
+  if (colRec) {
+    var dam = lot.dam || '';
+    var sire = lot.sire || colRec.sire || '';
+    var breed = lot.breed || '';
+    // 新鮮胚
+    (colRec.freshEmbryos||[]).forEach(function(fe){
+      var no = fe.embryoNo || '';
+      if (!no || seen[no]) return;
+      seen[no] = true;
+      details.push({
+        no: no, cane: fe.cane||'', stage: fe.stage||'', rank: fe.rank||'',
+        collectedDate: lot.collectionDate||colRec.date||'',
+        dam: dam, sire: sire, breed: breed, kind:'新鮮',
+        isTransferred: (usedNos._types && usedNos._types[no]) === 'transfer',
+        isUsed: usedNos.includes(no)
+      });
+    });
+    // 培養胚（新鮮のまま移植/譲渡＝cultureResultが'et'などembryoDetailsに無いもの）
+    (colRec.cultureEmbryos||[]).forEach(function(ce){
+      var no = ce.embryoNo || '';
+      if (!no || seen[no]) return;
+      seen[no] = true;
+      details.push({
+        no: no, cane: ce.caneNo||'', stage: ce.cultureStage||ce.stage||'', rank: ce.cultureRank||ce.rank||'',
+        collectedDate: lot.collectionDate||colRec.date||'',
+        dam: dam, sire: sire, breed: breed, kind:'培養',
+        isTransferred: (usedNos._types && usedNos._types[no]) === 'transfer',
+        isUsed: usedNos.includes(no)
+      });
+    });
+  }
   return { lot:lot, lotItems:lotItems, items:details };
 }
 
@@ -8182,15 +8223,20 @@ function openDeliverySlip(lotId) {
       list.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;">胚の記録がありません</div>';
     } else {
       list.innerHTML = info.items.map(function(d,i){
-        var badge = d.isTransferred ? '<span style="font-size:9px;color:var(--warn);background:rgba(245,158,11,.15);padding:1px 5px;border-radius:3px;">譲渡済</span>'
+        var kindBadge = d.kind==='新鮮' ? '<span style="font-size:9px;color:var(--accent);background:rgba(74,222,128,.15);padding:1px 5px;border-radius:3px;">🌱新鮮</span>'
+          : d.kind==='培養' ? '<span style="font-size:9px;color:var(--purple);background:rgba(167,139,250,.15);padding:1px 5px;border-radius:3px;">🧫培養</span>'
+          : '<span style="font-size:9px;color:var(--info);background:rgba(59,130,246,.15);padding:1px 5px;border-radius:3px;">❄️凍結</span>';
+        var statusBadge = d.isTransferred ? '<span style="font-size:9px;color:var(--warn);background:rgba(245,158,11,.15);padding:1px 5px;border-radius:3px;">譲渡済</span>'
           : d.isUsed ? '<span style="font-size:9px;color:var(--muted);background:var(--bg3);padding:1px 5px;border-radius:3px;">使用済</span>' : '';
+        var sr = (d.stage||'') + (d.rank ? '/' + d.rank : '');
         return '<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;">' +
           '<input type="checkbox" class="deliv-chk" data-idx="'+i+'" '+(d.isTransferred?'checked':'')+' style="width:16px;height:16px;">' +
-          '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);min-width:120px;">'+_esc(d.no||'—')+'</span>' +
-          '<span style="font-size:11px;color:var(--muted);min-width:70px;">'+_esc(d.cane||'')+'</span>' +
-          '<span style="font-size:11px;color:var(--text);">'+_esc(d.stage||'')+_esc(d.rank||'')+'</span>' +
+          kindBadge +
+          '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);min-width:110px;">'+_esc(d.no||'—')+'</span>' +
+          '<span style="font-size:11px;color:var(--muted);min-width:60px;">'+_esc(d.cane||'')+'</span>' +
+          '<span style="font-size:11px;color:var(--text);">'+_esc(sr)+'</span>' +
           '<span style="font-size:10px;color:var(--muted);flex:1;text-align:right;">'+_esc(d.dam||'')+'×'+_esc(d.sire||'')+'</span>' +
-          badge +
+          statusBadge +
         '</label>';
       }).join('');
     }
@@ -8230,13 +8276,15 @@ function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
   var d = dateStr ? new Date(dateStr+'T00:00:00') : new Date();
   var wa = d.getFullYear() + '年' + (d.getMonth()+1) + '月' + d.getDate() + '日';
   var rows = embryos.map(function(e,i){
+    var sr = (e.stage||'') + (e.rank ? '/' + e.rank : '');
     return '<tr>' +
       '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">'+(i+1)+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;font-family:monospace;">'+_esc(e.no||'')+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(e.kind||'')+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(e.cane||'')+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc((e.dam||'')+' × '+(e.sire||''))+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(e.breed||'')+'</td>' +
-      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc((e.stage||'')+' '+(e.rank||''))+'</td>' +
+      '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+_esc(sr)+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;font-size:9pt;text-align:center;">'+(e.collectedDate?fmtDate(e.collectedDate):'')+'</td>' +
       '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:9pt;">1</td>' +
     '</tr>';
@@ -8244,10 +8292,11 @@ function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
   // 空行を足して見栄えを整える（最低8行）
   var blank = '';
   for (var k=embryos.length; k<8; k++) {
-    blank += '<tr>' + Array(8).join('') +
+    blank += '<tr>' +
       '<td style="border:1px solid #000;padding:4px 6px;height:7mm;">&nbsp;</td>' +
       '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
-      '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
+      '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
+      '<td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td>' +
     '</tr>';
   }
   return '' +
@@ -8273,16 +8322,17 @@ function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
       '<thead><tr style="background:#eee;">' +
         '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:8mm;">No</th>' +
         '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;">胚番号（証明書番号）</th>' +
-        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:22mm;">ケーン</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:16mm;">区分</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:20mm;">ケーン</th>' +
         '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;">母 × 種雄牛</th>' +
-        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:18mm;">品種</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:16mm;">品種</th>' +
         '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:20mm;">ｽﾃｰｼﾞ/ﾗﾝｸ</th>' +
-        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:26mm;">採卵日</th>' +
-        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:14mm;">数量</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:24mm;">採卵日</th>' +
+        '<th style="border:1px solid #000;padding:4px 6px;font-size:9pt;width:13mm;">数量</th>' +
       '</tr></thead>' +
       '<tbody>'+rows+blank+'</tbody>' +
       '<tfoot><tr>' +
-        '<td colspan="7" style="border:1px solid #000;padding:4px 8px;text-align:right;font-size:10pt;font-weight:700;">合計本数</td>' +
+        '<td colspan="8" style="border:1px solid #000;padding:4px 8px;text-align:right;font-size:10pt;font-weight:700;">合計本数</td>' +
         '<td style="border:1px solid #000;padding:4px 6px;text-align:center;font-size:10pt;font-weight:700;">'+embryos.length+'</td>' +
       '</tr></tfoot>' +
     '</table>' +
