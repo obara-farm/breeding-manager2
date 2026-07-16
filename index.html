@@ -6986,6 +6986,10 @@ function switchTab(name) {
   });
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
+  // 採卵タブ以外に移動したら納品書カートを空にする
+  if (name !== 'collection' && typeof _deliveryCart !== 'undefined' && _deliveryCart.length) {
+    _deliveryCart = [];
+  }
   // 授精簿以外に切り替えたらハイライト・検索フィルターをクリア
   if (name !== 'insembook' && window._calfCertHighlights) {
     window._calfCertHighlights = null;
@@ -8305,13 +8309,10 @@ function buildDeliveryPreview(cb) {
   var memo = document.getElementById('delivery-memo').value || '';
 
   var noField = document.getElementById('delivery-no');
-  function render(no) {
-    noField.value = no;
-    document.getElementById('delivery-print-area').innerHTML = _deliverySlipHtml(selected, target, dateStr, no, memo);
-    if (cb) cb();
-  }
-  if (noField.value.trim()) { render(noField.value.trim()); }
-  else { nextDeliveryNo(function(no){ render(no); }); }
+  // プレビューでは採番しない（印刷時に確定）。手入力番号があればそれを表示、無ければ仮表示。
+  var no = noField.value.trim() || '（印刷時に自動採番）';
+  document.getElementById('delivery-print-area').innerHTML = _deliverySlipHtml(selected, target, dateStr, no, memo);
+  if (cb) cb();
 }
 
 function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
@@ -8384,13 +8385,26 @@ function _deliverySlipHtml(embryos, target, dateStr, no, memo) {
 }
 
 function printDeliverySlip() {
-  // プレビュー未生成なら生成してから印刷
-  var area = document.getElementById('delivery-print-area');
-  if (!area.innerHTML.trim()) {
-    buildDeliveryPreview(function(){ _doDelivPrint(); });
+  if (!_deliveryCart.length) { alert('カートに胚がありません'); return; }
+  var noField = document.getElementById('delivery-no');
+  // 手入力番号があればそれを使い採番しない。無ければ印刷時に確定採番。
+  if (noField.value.trim() && noField.value.indexOf('自動採番')<0) {
+    _renderDelivAndPrint(noField.value.trim());
   } else {
-    _doDelivPrint();
+    nextDeliveryNo(function(no){
+      noField.value = no;
+      _renderDelivAndPrint(no);
+    });
   }
+}
+function _renderDelivAndPrint(no) {
+  var selected = _deliveryCart.slice();
+  var tIdx = document.getElementById('delivery-target-select').value;
+  var target = (tIdx!=='' && _deliveryTargets[tIdx]) ? _deliveryTargets[tIdx] : {name:'',addr:''};
+  var dateStr = document.getElementById('delivery-date').value;
+  var memo = document.getElementById('delivery-memo').value || '';
+  document.getElementById('delivery-print-area').innerHTML = _deliverySlipHtml(selected, target, dateStr, no, memo);
+  _doDelivPrint();
 }
 function _doDelivPrint() {
   document.body.classList.add('printing-delivery');
