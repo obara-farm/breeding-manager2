@@ -17595,60 +17595,30 @@ let dbRef = null;
 let isSyncing = false;
 let syncTimer = null;
 
-// ===== ログイン =====
+// ===== ログイン（匿名認証方式・メール/パスワードは廃止） =====
 window.doLogin = function() {
-  const email = document.getElementById('login-email').value.trim();
-  const pass  = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  const loadEl = document.getElementById('login-loading');
-  errEl.textContent = '';
-  if (!email || !pass) { errEl.textContent = 'メールアドレスとパスワードを入力してください'; return; }
-  document.getElementById('login-btn').style.display = 'none';
-  loadEl.style.display = 'block';
-  auth.signInWithEmailAndPassword(email, pass)
-    .then(() => {
-      // ログイン成功時に認証情報を保存
-      localStorage.setItem('_auth_email', email);
-      localStorage.setItem('_auth_pass', pass);
-    })
-    .catch(() => {
-      loadEl.style.display = 'none';
-      document.getElementById('login-btn').style.display = 'block';
-      errEl.textContent = 'ログインに失敗しました。メールアドレスまたはパスワードを確認してください。';
-    });
+  // 匿名認証方式では使わない（自動でログインされる）
+  auth.signInAnonymously().catch(function(e){ console.error('匿名認証エラー:', e); });
 };
 
-document.getElementById('login-password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') doLogin();
-});
-
-// ===== 認証状態の監視 =====
+// ===== 認証状態の監視（匿名認証で全端末が同じ固定パスを共有） =====
+const CANONICAL_UID = 'FhVF92oHJXMwK01gakK1Mms4HGP2';
 auth.onAuthStateChanged(user => {
   if (user) {
     currentUser = user;
-    document.getElementById('login-screen').classList.remove('active');
+    const ls = document.getElementById('login-screen');
+    if (ls) ls.classList.remove('active');
     document.getElementById('app-root').style.display = '';
-    dbRef = db.ref('data/' + user.uid);
+    // 認証UIDに関わらず、常に固定パスを読み書き（全端末で同期）
+    dbRef = db.ref('data/' + CANONICAL_UID);
     initFirebaseSync();
   } else {
-    // 保存された認証情報で自動再ログイン
-    const savedEmail = localStorage.getItem('_auth_email');
-    const savedPass  = localStorage.getItem('_auth_pass');
-    if (savedEmail && savedPass) {
-      auth.signInWithEmailAndPassword(savedEmail, savedPass).catch(() => {
-        localStorage.removeItem('_auth_email');
-        localStorage.removeItem('_auth_pass');
-        currentUser = null;
-        dbRef = null;
-        document.getElementById('login-screen').classList.add('active');
-        document.getElementById('app-root').style.display = 'none';
-      });
-    } else {
-      currentUser = null;
-      dbRef = null;
-      document.getElementById('login-screen').classList.add('active');
-      document.getElementById('app-root').style.display = 'none';
-    }
+    // 未認証なら匿名認証を実行（自動ログイン）
+    auth.signInAnonymously().catch(function(e){
+      console.error('匿名認証エラー:', e);
+      const ls = document.getElementById('login-screen');
+      if (ls) ls.classList.add('active');
+    });
   }
 });
 
