@@ -1140,7 +1140,8 @@ textarea{resize:vertical;}
     <select id="fat-farmer-filter" style="display:none;"><option value="all">全農家</option></select>
     <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
       <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;">🧊 自家精液のみ</label>
-    <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">🗑 データ削除</button>
+    <button onclick="exportFarmerReport()" style="background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">📄 農家別レポート出力</button>
+    <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑 データ削除</button>
   </div>
 
   <!-- サマリーカード -->
@@ -16296,6 +16297,8 @@ function fmtVal(v, unit='') { return v !== null ? v+unit : '—'; }
 // パターン1（枝重重視）: 枝重35% 歩留率20% A3以上率20% BMS15% A4以上率10%
 // パターン2（A4以上重視）: A4以上率35% 枝重20% 歩留率20% BMS15%（A3以上は使わない）
 let fatScorePattern = 1;
+let koubutsuBarMode = 'farmer';
+function setKoubutsuBarMode(m){ koubutsuBarMode = m; renderFattening(); }
 let fatRankWorst = false;
 function setFatRankOrder(w){ fatRankWorst = w; renderFattening(); }
 let fatLivingOnly = false;
@@ -16334,6 +16337,239 @@ function computeCompositeScore(groups) {
 function setFatScorePattern(p){ fatScorePattern=p; renderFattening(); }
 
 // 上物率グラフ（推移の折れ線＋内訳の積み上げ棒）。recsは年度・農家・品種で絞込済み
+const REPORT_TEMPLATE = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>ドナー選定レポート — __FARMER__</title>
+<style>
+:root{--bg:#14110e;--card:#1e1a15;--bg2:#262019;--bg3:#2d261d;--border:#3a3229;--text:#f0e9dd;--muted:#9a8f7d;--accent:#c9843f;--danger:#d0563a;--warn:#c9a227;--info:#5a9bd4;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;font-size:15px;padding-bottom:40px;}
+header{background:var(--accent);color:#2a1c0e;padding:14px 16px;position:sticky;top:0;z-index:10;}
+header h1{margin:0;font-size:17px;font-weight:900;}
+header .sub{font-size:11px;opacity:.85;}
+.wrap{max-width:760px;margin:0 auto;padding:14px;}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+.seg{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+.seg button{background:var(--bg3);border:none;color:var(--muted);font-size:12px;font-weight:700;padding:7px 11px;cursor:pointer;}
+.seg button.on{color:#fff;background:var(--accent);}
+.seg button.on-worst{color:#fff;background:var(--danger);}
+.note{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px;cursor:pointer;}
+.chd{display:flex;align-items:center;gap:10px;margin-bottom:9px;}
+.rk{font-size:22px;font-weight:900;font-family:monospace;width:30px;text-align:center;}
+.nm{flex:1;font-size:16px;font-weight:900;}
+.sc{font-size:24px;font-weight:900;font-family:monospace;}
+.mgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;font-size:12px;text-align:center;}
+.mcell{background:var(--bg3);border-radius:6px;padding:5px 3px;}
+.mcell b{font-weight:800;} .mcell div{font-size:9px;color:var(--muted);}
+.detail{display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
+.ocard{border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;}
+.ohd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.ogrid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.ocell{background:var(--bg2);border-radius:4px;padding:4px 6px;}
+.ocell .l{font-size:9px;color:var(--muted);} .ocell .v{font-size:12px;font-weight:700;}
+.badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:800;margin-left:6px;}
+.donor{background:rgba(201,132,63,.2);color:var(--accent);border:1px solid var(--accent);}
+.recip{background:rgba(208,86,58,.2);color:var(--danger);border:1px solid var(--danger);}
+.gcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;}
+.gtitle{font-size:13px;font-weight:700;margin-bottom:8px;}
+.ymenu{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+.ychip{font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);cursor:pointer;}
+.ychip.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+</style></head><body>
+<header><div class="wrap" style="padding:0;"><h1>🐂 ドナー選定レポート</h1><div class="sub">__FARMER__ 様 ／ 出力日 __TODAY__ ／ __COUNT__頭の枝肉成績より</div></div></header>
+<div class="wrap">
+  <div class="note">総合スコアが高い牛＝<b style="color:var(--accent);">ドナー候補</b>（優秀な受精卵の採取元）、低い牛＝<b style="color:var(--danger);">受け牛候補</b>（受精卵の移植先）の目安です。カードをタップで産子詳細。上物率グラフでは全農家平均と比較できます（他農家の個別成績は含みません）。</div>
+  <div class="ctrl">
+    <div class="seg vw"><button id="vdam" class="on" onclick="setView('dam')">母牛別</button><button id="vsire" onclick="setView('sire')">種雄牛別</button><button id="vk" onclick="setView('koubutsu')">📊上物率</button></div>
+  </div>
+  <div class="ctrl" id="rankctrl">
+    <div class="seg"><button id="p1" class="on" onclick="setPat(1)">枝重重視</button><button id="p2" onclick="setPat(2)">A4以上重視</button></div>
+    <div class="seg"><button id="ob" class="on" onclick="setOrd(0)">ドナー候補(上位)</button><button id="ow" onclick="setOrd(1)">受け牛候補(下位)</button></div>
+  </div>
+  <div id="list"></div>
+</div>
+<script>
+const DATA=__DATA__;
+const OVERALL=__OVERALL__;
+let pat=1, worst=0, view='dam', selYears=[];
+function qnum(mg){const m=String(mg||'').match(/[1-5]/);return m?+m[0]:0;}
+function avg(a){return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;}
+function bmsColor(v){if(v==null)return 'var(--muted)';if(v>=6)return 'var(--danger)';if(v>=4)return 'var(--warn)';return 'var(--info)';}
+function gradeColor(g){const n=qnum(g);return n>=4?'var(--danger)':n>=3?'var(--warn)':'var(--muted)';}
+function sizeLabel(val){if(val==null)return '—';if(val>=520)return '大('+Math.round(val)+')';if(val>=460)return '中('+Math.round(val)+')';return '小('+Math.round(val)+')';}
+function yrLabel(y){return 'R'+(parseInt(y)-2018);}
+function v(x,s){return x!=null&&x!==''?x+(s||''):'—';}
+function buildGroups(key){
+  const map={};
+  DATA.forEach(r=>{const k=r[key]||'不明';(map[k]=map[k]||[]).push(r);});
+  let groups=Object.keys(map).map(function(name){
+    const rs=map[name];
+    const bl=rs.filter(r=>r.bms!=null).map(r=>r.bms),wl=rs.filter(r=>r.weight!=null).map(r=>r.weight),yl=rs.filter(r=>r.yieldRate!=null).map(r=>r.yieldRate);
+    const g3=rs.filter(r=>qnum(r.meatGrade)>=3).length;
+    return {name:name,count:rs.length,recs:rs,avgBms:avg(bl),avgWeight:avg(wl),avgYield:avg(yl),
+      rateHigh:rs.length?Math.round((rs.filter(r=>qnum(r.meatGrade)>=4).length)/rs.length*100):0,
+      rateA3:rs.length?Math.round(g3/rs.length*100):0};
+  });
+  score(groups); return groups;
+}
+function score(groups){
+  const traits = pat===2 ? [['rateHigh',.35],['avgWeight',.20],['avgYield',.20],['avgBms',.15]]
+    : [['avgWeight',.35],['avgYield',.20],['rateA3',.20],['avgBms',.15],['rateHigh',.10]];
+  const st=traits.map(function(t){const k=t[0],w=t[1];const vals=groups.map(g=>g[k]).filter(x=>typeof x==='number'&&!isNaN(x));
+    const m=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    const sd=vals.length?Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length):0;return {k:k,w:w,m:m,sd:sd};});
+  groups.forEach(function(g){let s=0,ws=0;st.forEach(function(t){const val=g[t.k];if(typeof val==='number'&&!isNaN(val)&&t.sd>0){s+=(50+(val-t.m)/t.sd*10)*t.w;ws+=t.w;}});g.score=ws>0?Math.round(s/ws*10)/10:null;});
+}
+function offspring(recs){
+  const sorted=recs.slice().sort((a,b)=>String(b.slaughterDate||'').localeCompare(String(a.slaughterDate||'')));
+  return '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:700;">産子ごとの成績('+recs.length+'頭)</div>'+sorted.map(function(r){
+    const sx=/去勢/.test(r.sex||'')?'<span style="color:var(--info);">オス</span>':/未経|雌/.test(r.sex||'')?'<span style="color:var(--danger);">メス</span>':(r.sex||'');
+    const c=function(l,val){return '<div class="ocell"><div class="l">'+l+'</div><div class="v">'+val+'</div></div>';};
+    return '<div class="ocard"><div class="ohd"><div><span style="color:var(--info);font-weight:900;font-size:14px;">'+(r.sire||r.dam||'—')+'</span> '+sx+' <span style="font-size:10px;color:var(--muted);font-family:monospace;">'+(r.nationalId||'')+'</span></div><div style="font-size:16px;font-weight:900;color:'+gradeColor(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div></div><div class="ogrid">'
+      +c('屠畜日',v(r.slaughterDate))+c('枝肉番号',v(r.carcassNo))+c('生年月日',v(r.dob))+c('生体重',v(r.liveWeight,'kg'))
+      +c('月齢',v(r.age))+c('枝重',v(r.weight,'kg'))+c('単価',r.unitPrice!=null?('¥'+r.unitPrice):'—')+c('金額',r.amount!=null?('¥'+r.amount.toLocaleString()):'—')
+      +c('歩留',v(r.yieldGrade))+c('等級',v(r.meatGrade))+c('ロース芯',v(r.loin,'cm2'))+c('ばら厚',v(r.baraThick,'cm'))
+      +c('脂肪厚',v(r.fatThick,'cm'))+c('歩留率',v(r.yieldRate,'%'))+c('BMS',v(r.bms))+c('脂肪交雑',v(r.marbling))+c('出荷日齢',v(r.slaughterDays))
+      +'</div></div>';
+  }).join('');
+}
+function renderRank(){
+  const key = view==='sire'?'sire':'dam';
+  let groups=buildGroups(key);
+  groups.sort((a,b)=>((b.score||0)-(a.score||0))*(worst?-1:1));
+  const lbl = key==='sire'?'種雄牛':'母牛';
+  document.getElementById('list').innerHTML=groups.map(function(g,i){
+    const rc=i===0?(worst?'var(--danger)':'var(--accent)'):i===1?'var(--warn)':'var(--muted)';
+    const badge=key==='dam'?(worst?'<span class="badge recip">受け牛候補</span>':(g.score>=52?'<span class="badge donor">ドナー候補</span>':'')):'';
+    return '<div class="card" onclick="var d=this.querySelector(\\'.detail\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
+      +'<div class="chd"><div class="rk" style="color:'+rc+';">'+(i+1)+'</div>'
+      +'<div class="nm">'+g.name+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで産子詳細</div></div>'
+      +'<div style="text-align:right;"><div class="sc" style="color:'+(g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)')+';">'+(g.score==null?'—':g.score)+'</div><div style="font-size:9px;color:var(--muted);">総合スコア</div></div></div>'
+      +'<div class="mgrid">'
+      +'<div class="mcell"><b style="color:'+bmsColor(g.avgBms)+';">'+(g.avgBms==null?'—':g.avgBms)+'</b><div>BMS平均</div></div>'
+      +'<div class="mcell"><b style="color:var(--info);">'+sizeLabel(g.avgWeight)+'</b><div>枝重平均</div></div>'
+      +'<div class="mcell"><b style="color:var(--accent);">'+(g.avgYield==null?'—':g.avgYield+'%')+'</b><div>歩留率</div></div>'
+      +'<div class="mcell"><b style="color:var(--accent);">'+g.rateA3+'%</b><div>A3以上率</div></div>'
+      +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>A4以上率</div></div>'
+      +'</div><div class="detail" onclick="event.stopPropagation()">'+offspring(g.recs)+'</div></div>';
+  }).join('');
+}
+function myJorateByYear(y){const rs=DATA.filter(r=>r.year===y);if(!rs.length)return null;return Math.round(rs.filter(r=>qnum(r.meatGrade)>=3).length/rs.length*1000)/10;}
+function ovJorateByYear(y){const o=OVERALL[y];if(!o||!o.n)return null;return Math.round((o.b3+o.b4+o.b5)/o.n*1000)/10;}
+function myBucketsByYear(y){const rs=DATA.filter(r=>r.year===y);if(!rs.length)return null;const c={5:0,4:0,3:0,2:0,0:0};rs.forEach(r=>{const q=qnum(r.meatGrade);c[q>=2?q:0]++;});return {n:rs.length,b:c};}
+function ovBucketsByYear(y){const o=OVERALL[y];if(!o||!o.n)return null;return {n:o.n,b:{5:o.b5,4:o.b4,3:o.b3,2:o.b2,0:o.b0}};}
+function renderKoubutsu(){
+  const years=[...new Set(Object.keys(OVERALL).concat(DATA.map(r=>r.year)).filter(Boolean))].sort();
+  const useYears = selYears.length?years.filter(y=>selYears.includes(y)):years;
+  // 折れ線（自分 vs 全体平均）
+  const W=360,H=220,padL=34,padR=10,padT=14,padB=26,plotW=W-padL-padR,plotH=H-padT-padB;
+  const xOf=i=>padL+(years.length<=1?plotW/2:plotW*i/(years.length-1));
+  const yOf=v=>padT+plotH*(1-v/100);
+  const grid=[0,25,50,75,100].map(g=>'<line x1="'+padL+'" y1="'+yOf(g)+'" x2="'+(W-padR)+'" y2="'+yOf(g)+'" stroke="var(--border)" stroke-width="0.5"/><text x="'+(padL-4)+'" y="'+(yOf(g)+3)+'" font-size="8" fill="var(--muted)" text-anchor="end">'+g+'</text>').join('');
+  const xlab=years.map((y,i)=>'<text x="'+xOf(i)+'" y="'+(H-padB+14)+'" font-size="9" fill="var(--muted)" text-anchor="middle">'+yrLabel(y)+'</text>').join('');
+  function line(fn,col,wd,dots){let pts=years.map((y,i)=>{const v=fn(y);return v==null?null:[xOf(i),yOf(v),v];});
+    const path=pts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
+    let d='<path d="'+path+'" fill="none" stroke="'+col+'" stroke-width="'+wd+'"/>';
+    if(dots)d+=pts.filter(Boolean).map(p=>'<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="'+col+'"/><text x="'+p[0]+'" y="'+(p[1]-6)+'" font-size="8" fill="'+col+'" text-anchor="middle" font-weight="700">'+p[2]+'</text>').join('');
+    return d;}
+  const svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;">'+grid+xlab
+    +line(ovJorateByYear,'var(--muted)',2,false)
+    +line(myJorateByYear,'var(--accent)',2.5,true)+'</svg>';
+  const lineCard='<div class="gcard"><div class="gtitle">📈 上物率(A3以上)の推移 — <span style="color:var(--accent);">自分</span> vs <span style="color:var(--muted);">全農家平均</span></div>'+svg
+    +'<div style="margin-top:6px;font-size:10px;"><span style="color:var(--accent);font-weight:700;">━ 自分（'+"__FARMER__"+'）</span>　<span style="color:var(--muted);">━ 全農家平均</span></div></div>';
+  // 年度チップ
+  const chips='<div class="ymenu">'+years.map(y=>'<span class="ychip '+(selYears.includes(y)?'on':(selYears.length?'':'on'))+'" onclick="toggleYear(\\''+y+'\\')">'+yrLabel(y)+'</span>').join('')+'</div>';
+  // 内訳 積み上げ（年度別・自分vs全体）
+  const buckets=[{k:5,label:'A5',col:'#b5271a'},{k:4,label:'A4',col:'#e0563f'},{k:3,label:'A3',col:'#c9a227'},{k:2,label:'A2',col:'#4a90d9'},{k:0,label:'A2未満',col:'#8a8a8a'}];
+  function stack(label,bd){if(!bd||!bd.n)return '';let seg='';buckets.forEach(b=>{const c=bd.b[b.k]||0;const pct=c/bd.n*100;if(pct>0)seg+='<div style="width:'+pct+'%;background:'+b.col+';display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700;">'+(pct>=8?Math.round(pct)+'%':'')+'</div>';});
+    const up=Math.round((bd.b[3]+bd.b[4]+bd.b[5])/bd.n*1000)/10;
+    return '<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="font-weight:700;">'+label+'</span><span style="color:var(--muted);">上物'+up+'% ・ '+bd.n+'頭</span></div><div style="display:flex;height:20px;border-radius:5px;overflow:hidden;background:var(--bg3);">'+seg+'</div></div>';}
+  let bars='';
+  useYears.forEach(y=>{ bars+='<div style="font-size:12px;font-weight:800;color:var(--accent);margin:8px 0 4px;">'+yrLabel(y)+'年</div>'
+    +stack('自分',myBucketsByYear(y))+stack('全農家',ovBucketsByYear(y)); });
+  const legendB=buckets.map(b=>'<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:10px;height:10px;background:'+b.col+';display:inline-block;border-radius:2px;"></span>'+b.label+'</span>').join('');
+  const barCard='<div class="gcard"><div class="gtitle">📊 等級内訳（年度別・自分 vs 全農家）</div><div style="font-size:10px;color:var(--muted);margin-bottom:8px;">年度をタップで絞り込み（無選択=全年度）</div>'+chips+'<div style="margin-bottom:8px;">'+legendB+'</div>'+bars+'</div>';
+  document.getElementById('list').innerHTML=lineCard+barCard;
+}
+function render(){
+  document.getElementById('rankctrl').style.display = view==='koubutsu'?'none':'flex';
+  if(view==='koubutsu') renderKoubutsu(); else renderRank();
+}
+function setView(v){view=v;
+  document.getElementById('vdam').className=v==='dam'?'on':'';
+  document.getElementById('vsire').className=v==='sire'?'on':'';
+  document.getElementById('vk').className=v==='koubutsu'?'on':'';
+  render();}
+function setPat(p){pat=p;document.getElementById('p1').className=p===1?'on':'';document.getElementById('p2').className=p===2?'on':'';render();}
+function setOrd(w){worst=w;document.getElementById('ob').className=w?'':'on';document.getElementById('ow').className=w?'on-worst':'';render();}
+function toggleYear(y){const i=selYears.indexOf(y);if(i>=0)selYears.splice(i,1);else selYears.push(y);render();}
+render();
+__ENDSCRIPT__
+</body></html>`;
+
+// ===== 農家別レポート書き出し（単体HTML）=====
+function exportFarmerReport(){
+  const farmers=[...new Set(fatteningRecords.map(r=>r.farmer).filter(Boolean))]
+    .sort((a,b)=> a===OWN_FARMER?-1:b===OWN_FARMER?1:a.localeCompare(b));
+  if(!farmers.length){ alert('肥育データがありません'); return; }
+  let ov=document.getElementById('farmer-export-ov');
+  if(ov) ov.remove();
+  ov=document.createElement('div'); ov.id='farmer-export-ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML='<div style="background:var(--card,#1a1a1a);border:1px solid var(--border,#333);border-radius:14px;padding:18px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">'
+    +'<div style="font-size:15px;font-weight:800;color:var(--text,#fff);margin-bottom:4px;">📄 農家別レポート出力</div>'
+    +'<div style="font-size:11px;color:var(--muted,#999);margin-bottom:12px;">農家を選ぶと、その農家のデータだけを収めた単体HTML（ボタン操作可・他農家の成績は含まない）をダウンロードします。相手はブラウザで開くだけで使えます。</div>'
+    +'<div style="display:flex;flex-direction:column;gap:6px;">'
+    +farmers.map(f=>{ const n=fatteningRecords.filter(r=>r.farmer===f).length;
+        return '<button onclick="downloadFarmerHTML(\''+f.replace(/'/g,"\\'")+'\')" style="text-align:left;background:var(--bg3,#2a2a2a);border:1px solid var(--border,#333);color:var(--text,#fff);font-size:14px;font-weight:700;padding:11px 14px;border-radius:8px;cursor:pointer;">'+(f===OWN_FARMER?'🏠 '+f+'（うち）':f)+' <span style="font-size:11px;color:var(--muted,#999);font-weight:400;">'+n+'頭</span></button>';
+      }).join('')
+    +'</div>'
+    +'<button onclick="document.getElementById(\'farmer-export-ov\').remove()" style="margin-top:12px;width:100%;background:none;border:1px solid var(--border,#333);color:var(--muted,#999);font-size:13px;padding:10px;border-radius:8px;cursor:pointer;">閉じる</button>'
+    +'</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{ if(e.target===ov)ov.remove(); });
+}
+function downloadFarmerHTML(farmer){
+  const pick = r => ({
+    dam:r.dam||'',sire:r.sire||'',nationalId:r.nationalId||'',sex:r.sex||'',
+    slaughterDate:r.slaughterDate||'',dob:r.dob||'',carcassNo:r.carcassNo||'',
+    liveWeight:r.liveWeight,age:r.age,weight:r.weight,unitPrice:r.unitPrice,amount:r.amount,
+    yieldGrade:r.yieldGrade||'',meatGrade:r.meatGrade||'',loin:r.loin,baraThick:r.baraThick,
+    fatThick:r.fatThick,yieldRate:r.yieldRate,bms:r.bms,marbling:r.marbling,slaughterDays:r.slaughterDays,
+    year:r.year||''
+  });
+  const recs=fatteningRecords.filter(r=>r.farmer===farmer).map(pick);
+  // 全体集計（年度別のバケット数のみ。他農家の個体成績は含めない）
+  const qn = mg => { const m=String(mg||'').match(/[1-5]/); return m?+m[0]:0; };
+  const overall={};
+  fatteningRecords.forEach(r=>{ const y=r.year||''; if(!y)return; if(!overall[y])overall[y]={n:0,b5:0,b4:0,b3:0,b2:0,b0:0};
+    const q=qn(r.meatGrade); overall[y].n++; overall[y]['b'+(q>=2?q:0)]++; });
+  const html=buildFarmerReportHTML(farmer, recs, overall);
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='ドナー選定_'+farmer.replace(/[\s　]/g,'')+'.html';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const ov=document.getElementById('farmer-export-ov'); if(ov)ov.remove();
+  if(typeof toast==='function') toast('「'+farmer+'」のレポートを出力しました');
+}
+function buildFarmerReportHTML(farmer, recs, overall){
+  const dataJson=JSON.stringify(recs);
+  const overallJson=JSON.stringify(overall||{});
+  const today=new Date().toLocaleDateString('ja-JP');
+  const T='<'+'/script>';
+  return REPORT_TEMPLATE
+    .replace(/__FARMER__/g, farmer)
+    .replace('__TODAY__', today)
+    .replace('__COUNT__', recs.length)
+    .replace('__OVERALL__', overallJson)
+    .replace('__DATA__', dataJson)
+    .replace('__ENDSCRIPT__', T);
+}
+// ===== 農家別レポート書き出し ここまで =====
+
 function renderKoubutsu(recs){
   if(!recs || !recs.length) return '<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';
   const qnum = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
@@ -16391,13 +16627,27 @@ function renderKoubutsu(recs){
       <div style="display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--bg3);">${seg}</div>
     </div>`;
   };
-  let stacks = mkStack('全体', recs, true);
-  if (farmerList.length>1) farmerList.forEach(f=>{ stacks += mkStack(f===OWN_FARMER?'🏠 小原（うち）':f, recs.filter(r=>r.farmer===f), false); });
+  let stacks;
+  if (koubutsuBarMode==='year') {
+    // 年度別：年度ごとに全体の内訳
+    stacks = years.map(y=>mkStack(yrLabel(y), recs.filter(r=>r.year===y), false)).join('');
+    if(!stacks) stacks = mkStack('全体', recs, true);
+  } else {
+    // 農家別：全体＋各農家
+    stacks = mkStack('全体', recs, true);
+    if (farmerList.length>1) farmerList.forEach(f=>{ stacks += mkStack(f===OWN_FARMER?'🏠 小原（うち）':f, recs.filter(r=>r.farmer===f), false); });
+  }
   const legendB = buckets.map(b=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:10px;height:10px;background:${b.col};display:inline-block;border-radius:2px;"></span>${b.label}</span>`).join('');
   const barChart = `
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">📊 等級内訳（A5/A4/A3/A2/それ以下）</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">全体と各農家を比較（上のフィルタで農家・年度を選択）</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">📊 等級内訳（A5/A4/A3/A2/それ以下）</div>
+        <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <button onclick="setKoubutsuBarMode('farmer')" style="background:${koubutsuBarMode!=='year'?'var(--accent)':'var(--bg3)'};border:none;color:${koubutsuBarMode!=='year'?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;">農家別</button>
+          <button onclick="setKoubutsuBarMode('year')" style="background:${koubutsuBarMode==='year'?'var(--accent)':'var(--bg3)'};border:none;color:${koubutsuBarMode==='year'?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;">年度別</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">${koubutsuBarMode==='year'?'年度ごとの内訳（上のフィルタで農家・年度を選択）':'全体と各農家を比較（上のフィルタで農家・年度を選択）'}</div>
       <div style="margin-bottom:10px;">${legendB}</div>
       ${stacks}
     </div>`;
