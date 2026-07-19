@@ -16486,10 +16486,11 @@ function renderKoubutsu(){
     const up=Math.round((bd.b[3]+bd.b[4]+bd.b[5])/bd.n*1000)/10;
     return '<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="font-weight:700;">'+label+'</span><span style="color:var(--muted);">上物'+up+'% ・ '+bd.n+'頭</span></div><div style="display:flex;height:20px;border-radius:5px;overflow:hidden;background:var(--bg3);">'+seg+'</div></div>';}
   let bars='';
+  const oneYear = selYears.length===1;
   useYears.forEach(y=>{ bars+='<div style="font-size:12px;font-weight:800;color:var(--accent);margin:8px 0 4px;">'+yrLabel(y)+'年</div>'
-    +stack('自分',myBucketsByYear(y))+stack('全農家',ovBucketsByYear(y)); });
+    +stack('自分',myBucketsByYear(y)); if(oneYear) bars+=stack('全農家',ovBucketsByYear(y)); });
   const legendB=buckets.map(b=>'<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:10px;height:10px;background:'+b.col+';display:inline-block;border-radius:2px;"></span>'+b.label+'</span>').join('');
-  const barCard='<div class="gcard"><div class="gtitle">📊 等級内訳（年度別・自分 vs 全農家）</div><div style="font-size:10px;color:var(--muted);margin-bottom:8px;">年度をタップで絞り込み（無選択=全年度）</div>'+chips+'<div style="margin-bottom:8px;">'+legendB+'</div>'+bars+'</div>';
+  const barCard='<div class="gcard"><div class="gtitle">📊 等級内訳（年度別）</div><div style="font-size:10px;color:var(--muted);margin-bottom:8px;">年度をタップで絞り込み。1年度だけ選ぶと全農家平均と比較できます（無選択=全年度・自分のみ）</div>'+chips+'<div style="margin-bottom:8px;">'+legendB+'</div>'+bars+'</div>';
   document.getElementById('list').innerHTML=lineCard+barCard;
 }
 function render(){
@@ -16570,11 +16571,13 @@ function buildFarmerReportHTML(farmer, recs, overall){
 }
 // ===== 農家別レポート書き出し ここまで =====
 
-function renderKoubutsu(recs){
+function renderKoubutsu(recs, allRecs){
   if(!recs || !recs.length) return '<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';
+  allRecs = allRecs || recs;
   const qnum = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
   const yrLabel = y => 'R'+(parseInt(y)-2018);
-  const years = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort();
+  // X軸は全農家平均のある年度全体を使う
+  const years = [...new Set(allRecs.map(r=>r.year).filter(Boolean))].sort();
   const farmers = [...new Set(recs.map(r=>r.farmer).filter(Boolean))];
   const farmerList = farmers.sort((a,b)=> a===OWN_FARMER?-1:b===OWN_FARMER?1:a.localeCompare(b));
   const jorate = rs => { if(!rs.length) return null; const up=rs.filter(r=>qnum(r)>=3).length; return Math.round(up/rs.length*1000)/10; };
@@ -16586,15 +16589,20 @@ function renderKoubutsu(recs){
   const yOf = v => padT + plotH*(1 - v/100);
   const gridY = [0,25,50,75,100].map(g=>`<line x1="${padL}" y1="${yOf(g)}" x2="${W-padR}" y2="${yOf(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${padL-4}" y="${yOf(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
   const xLabels = years.map((y,i)=>`<text x="${xOf(i)}" y="${H-padB+14}" font-size="9" fill="var(--muted)" text-anchor="middle">${yrLabel(y)}</text>`).join('');
-  const avgPts = years.map((y,i)=>{ const v=jorate(recs.filter(r=>r.year===y)); return v==null?null:[xOf(i),yOf(v),v,y]; });
+  // 全農家平均（allRecsから）
+  const avgPts = years.map((y,i)=>{ const v=jorate(allRecs.filter(r=>r.year===y)); return v==null?null:[xOf(i),yOf(v),v,y]; });
   const avgPath = avgPts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
-  const avgDots = avgPts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--text)"/><text x="${p[0]}" y="${p[1]-6}" font-size="8" fill="var(--text)" text-anchor="middle" font-weight="700">${p[2]}</text>`).join('');
+  const avgDots = avgPts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--text)"/>`).join('');
+  // 各農家ライン（1農家でも常に表示）
   let farmerLines='', legend='';
-  const showFarmers = farmerList.length>1 ? farmerList : [];
+  const allFarmersInData = [...new Set(allRecs.map(r=>r.farmer).filter(Boolean))];
+  // 絞り込みがある(=recsの農家数 < 全農家数)なら各農家線、絞りなし(全農家)なら各農家線を全部
+  const showFarmers = farmerList;
   showFarmers.forEach((f,fi)=>{ const col=palette[fi%palette.length];
-    const pts=years.map((y,i)=>{ const v=jorate(recs.filter(r=>r.farmer===f && r.year===y)); return v==null?null:[xOf(i),yOf(v)]; });
+    const pts=years.map((y,i)=>{ const v=jorate(recs.filter(r=>r.farmer===f && r.year===y)); return v==null?null:[xOf(i),yOf(v),v]; });
     const path=pts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
-    if(path) farmerLines+=`<path d="${path}" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.85"/>`+pts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2" fill="${col}"/>`).join('');
+    const single = farmerList.length===1;
+    if(path) farmerLines+=`<path d="${path}" fill="none" stroke="${col}" stroke-width="${single?2.5:1.5}" opacity="0.9"/>`+pts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="${single?3:2}" fill="${col}"/>`+(single?`<text x="${p[0]}" y="${p[1]-6}" font-size="8" fill="${col}" text-anchor="middle" font-weight="700">${p[2]}</text>`:'')).join('');
     const fname=f===OWN_FARMER?'🏠小原':f;
     legend+=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:12px;height:3px;background:${col};display:inline-block;border-radius:2px;"></span>${fname}</span>`;
   });
@@ -16629,9 +16637,19 @@ function renderKoubutsu(recs){
   };
   let stacks;
   if (koubutsuBarMode==='year') {
-    // 年度別：年度ごとに全体の内訳
-    stacks = years.map(y=>mkStack(yrLabel(y), recs.filter(r=>r.year===y), false)).join('');
-    if(!stacks) stacks = mkStack('全体', recs, true);
+    const selYrs = fatSelectedYears.length ? years.filter(y=>fatSelectedYears.includes(y)) : years;
+    if (selYrs.length===1) {
+      // 単体年度：絞り込み分 vs 全農家 を比較
+      const y=selYrs[0];
+      const farmerLabel = farmerList.length===1 ? (farmerList[0]===OWN_FARMER?'🏠 小原（うち）':farmerList[0]) : '絞り込み';
+      stacks = `<div style="font-size:12px;font-weight:800;color:var(--accent);margin:4px 0;">${yrLabel(y)}年</div>`
+        + mkStack(farmerLabel, recs.filter(r=>r.year===y), false)
+        + mkStack('全農家', allRecs.filter(r=>r.year===y), true);
+    } else {
+      // 複数/全年度：絞り込み分のみ、年度ごと
+      stacks = selYrs.map(y=>mkStack(yrLabel(y), recs.filter(r=>r.year===y), false)).join('');
+      if(!stacks) stacks = mkStack('全体', recs, true);
+    }
   } else {
     // 農家別：全体＋各農家
     stacks = mkStack('全体', recs, true);
@@ -16754,7 +16772,11 @@ function renderFattening() {
 
   // 上物率グラフ（推移＋内訳）
   if (view === 'koubutsu') {
-    list.innerHTML = renderKoubutsu(recs);
+    // 全農家平均用：品種・年度だけ絞り、農家/自家精液の絞りは外す
+    let allRecs = fatteningRecords;
+    if (fatSelectedYears.length > 0) allRecs = allRecs.filter(r=>fatSelectedYears.includes(r.year));
+    if (breedFilter !== 'all') allRecs = allRecs.filter(r=>r.breed===breedFilter);
+    list.innerHTML = renderKoubutsu(recs, allRecs);
     return;
   }
 
