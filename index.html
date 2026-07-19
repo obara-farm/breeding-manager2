@@ -1130,6 +1130,12 @@ textarea{resize:vertical;}
       <option value="dam">母牛別</option>
       <option value="record">個体一覧</option>
     </select>
+    <select id="fat-farmer-filter" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
+      <option value="all">全農家</option>
+      <option value="__own">🏠 うちの牛だけ</option>
+    </select>
+    <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
+      <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;">🧊 自家精液のみ</label>
     <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">🗑 データ削除</button>
   </div>
 
@@ -16211,7 +16217,18 @@ function updateFatYearFilter() {
   sel.innerHTML = '<option value="all">全年度</option>' +
     years.map(y => `<option value="${y}">${y}年</option>`).join('');
   if (years.includes(cur)) sel.value = cur;
+  // 農家フィルタも更新
+  const fsel = document.getElementById('fat-farmer-filter');
+  if (fsel) {
+    const farmers = [...new Set(fatteningRecords.map(r=>r.farmer).filter(Boolean))]
+      .filter(f=>f!=='小原秀樹').sort();
+    const fcur = fsel.value;
+    fsel.innerHTML = '<option value="all">全農家</option><option value="__own">🏠 うちの牛だけ</option>' +
+      farmers.map(f => `<option value="${f}">${f}</option>`).join('');
+    if (fcur==='all'||fcur==='__own'||farmers.includes(fcur)) fsel.value = fcur;
+  }
 }
+const OWN_FARMER = '小原秀樹';
 
 function bmsColor(v) {
   if (v === null) return 'var(--muted)';
@@ -16230,6 +16247,35 @@ function gradeColor(g) {
 function avg(arr) { return arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10 : null; }
 function fmtVal(v, unit='') { return v !== null ? v+unit : '—'; }
 
+// 総合スコア：BMS・枝重・歩留率・A4以上率を偏差値化して加重平均（あか牛向けの重み）
+// 重み: BMS30% 枝重30% 歩留率20% A4以上率20%。3頭未満は参考(点は付くが低信頼)
+function computeCompositeScore(groups) {
+  const traits = [
+    {key:'avgBms',    w:0.30},
+    {key:'avgWeight', w:0.30},
+    {key:'avgYield',  w:0.20},
+    {key:'rateHigh',  w:0.20},
+  ];
+  // 各指標の平均・標準偏差（有効な群のみ）
+  traits.forEach(t => {
+    const vals = groups.map(g=>g[t.key]).filter(v=>typeof v==='number' && !isNaN(v));
+    const m = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+    const sd = vals.length ? Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length) : 0;
+    t.mean = m; t.sd = sd;
+  });
+  groups.forEach(g => {
+    let score = 0, wsum = 0;
+    traits.forEach(t => {
+      const v = g[t.key];
+      if (typeof v==='number' && !isNaN(v) && t.sd>0) {
+        const dev = 50 + (v - t.mean)/t.sd*10; // 偏差値
+        score += dev * t.w; wsum += t.w;
+      }
+    });
+    g.score = wsum>0 ? Math.round(score/wsum*10)/10 : null;
+  });
+}
+
 function renderFattening() {
   const year = document.getElementById('fat-year-filter')?.value || 'all';
   const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
@@ -16242,6 +16288,18 @@ function renderFattening() {
   let recs = fatteningRecords;
   if (year !== 'all') recs = recs.filter(r=>r.year===year);
   if (breedFilter !== 'all') recs = recs.filter(r=>r.breed===breedFilter);
+  // 農家フィルタ
+  const farmerFilter = document.getElementById('fat-farmer-filter')?.value || 'all';
+  if (farmerFilter === '__own') recs = recs.filter(r=>r.farmer===OWN_FARMER);
+  else if (farmerFilter !== 'all') recs = recs.filter(r=>r.farmer===farmerFilter);
+  // 自家精液のみ（種雄牛が精液在庫にある褐毛のものだけ）
+  const ownSemenOnly = document.getElementById('fat-own-semen')?.checked;
+  if (ownSemenOnly) {
+    const semSet = new Set((typeof semenInventory!=='undefined'?semenInventory:[])
+      .filter(s=>s && s.name && (s.breed==='褐毛') && (s.stock||0)>0)
+      .map(s=>String(s.name).trim()));
+    recs = recs.filter(r=>r.sire && semSet.has(String(r.sire).trim()));
+  }
   const breedLabel = breedFilter==='褐毛' ? '🟥 褐毛和種' : breedFilter==='黒毛' ? '⬛ 黒毛和種' : '全品種';
 
   if (!recs.length) {
@@ -16328,8 +16386,12 @@ function renderFattening() {
       weightLabel, grade5, grade4,
       rate4: rs.length ? Math.round(grade4/rs.length*100) : 0,
       rate5: rs.length ? Math.round(grade5/rs.length*100) : 0,
+      rateHigh: rs.length ? Math.round((grade4+grade5)/rs.length*100) : 0,
+      _bmsList: bmsList, _wList: wList, _yList: yList,
     };
   });
+  // 総合スコア（偏差値ベース：BMS・枝重・歩留率・A4以上率を標準化して加重平均）
+  computeCompositeScore(groups);
 
   // ランキングモード：BMS・歩留率・枝重の3カードを縦に並べる
   if (view === 'ranking' || view === 'sire' || view === 'dam') {
@@ -16354,25 +16416,31 @@ function renderFattening() {
         </div>`;
       };
       list.innerHTML =
+        mkCard('総合スコア','🏆','var(--danger)',                            (a,b)=>(b.score||0)-(a.score||0),      g=>`${g.score??'—'}`,     'score')  +
         mkCard('BMS',   '🎯', bmsColor(avg(groups.map(g=>g.avgBms||0))),   (a,b)=>(b.avgBms||0)-(a.avgBms||0),    g=>`${g.avgBms??'—'}`,    'bms')   +
+        mkCard('A4以上率','🥩','var(--warn)',                               (a,b)=>(b.rateHigh||0)-(a.rateHigh||0),g=>`${g.rateHigh??0}%`,   'high')  +
         mkCard('歩留率', '📐', 'var(--accent)',                               (a,b)=>(b.avgYield||0)-(a.avgYield||0), g=>`${g.avgYield??'—'}%`, 'yield') +
         mkCard('枝重',  '⚖️', 'var(--info)',                                 (a,b)=>(b.avgWeight||0)-(a.avgWeight||0),g=>g.weightLabel,         'weight');
       return;
     }
 
     // 詳細ランキング（種雄牛別 or 母牛別）
-    const sortKey = document.getElementById('fat-detail-sort')?.value || 'bms';
+    const sortKey = document.getElementById('fat-detail-sort')?.value || 'score';
     groups.sort((a,b) => {
+      if (sortKey==='score') return (b.score||0)-(a.score||0);
       if (sortKey==='bms') return (b.avgBms||0)-(a.avgBms||0);
+      if (sortKey==='high') return (b.rateHigh||0)-(a.rateHigh||0);
       if (sortKey==='yield') return (b.avgYield||0)-(a.avgYield||0);
       if (sortKey==='weight') return (b.avgWeight||0)-(a.avgWeight||0);
       return b.count-a.count;
     });
     list.innerHTML = `
-      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;">
+      <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;">
         <button onclick="setFatView('ranking','')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">← ランキングに戻る</button>
         <select id="fat-detail-sort" onchange="renderFattening()" style="font-size:12px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;">
+          <option value="score" ${sortKey==='score'?'selected':''}>総合スコア順</option>
           <option value="bms" ${sortKey==='bms'?'selected':''}>BMS順</option>
+          <option value="high" ${sortKey==='high'?'selected':''}>A4以上率順</option>
           <option value="yield" ${sortKey==='yield'?'selected':''}>歩留率順</option>
           <option value="weight" ${sortKey==='weight'?'selected':''}>枝重順</option>
           <option value="count" ${sortKey==='count'?'selected':''}>頭数順</option>
@@ -16388,11 +16456,15 @@ function renderFattening() {
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷</div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:26px;font-weight:900;color:${bmsColor(g.avgBms)};font-family:'JetBrains Mono',monospace;">${g.avgBms??'—'}</div>
-            <div style="font-size:10px;color:var(--muted);">BMS平均</div>
+            <div style="font-size:26px;font-weight:900;color:${g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)'};font-family:'JetBrains Mono',monospace;">${g.score??'—'}</div>
+            <div style="font-size:10px;color:var(--muted);">総合スコア</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:12px;text-align:center;">
+          <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
+            <div style="font-weight:700;color:${bmsColor(g.avgBms)};">${g.avgBms??'—'}</div>
+            <div style="font-size:10px;color:var(--muted);">BMS平均</div>
+          </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
             <div style="font-weight:700;color:var(--info);font-size:${g.weightLabel.includes('/')? '10':'12'}px;line-height:1.4;">${g.weightLabel}</div>
             <div style="font-size:10px;color:var(--muted);">枝重平均</div>
@@ -16402,12 +16474,8 @@ function renderFattening() {
             <div style="font-size:10px;color:var(--muted);">歩留率平均</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
-            <div style="font-weight:700;color:var(--warn);">${g.rate4}%</div>
-            <div style="font-size:10px;color:var(--muted);">A4等級率</div>
-          </div>
-          <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
-            <div style="font-weight:700;color:var(--danger);">${g.rate5}%</div>
-            <div style="font-size:10px;color:var(--muted);">A5等級率</div>
+            <div style="font-weight:700;color:var(--warn);">${g.rateHigh}%</div>
+            <div style="font-size:10px;color:var(--muted);">A4以上率</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
             <div style="font-weight:700;color:var(--text);">${g.grade4+g.grade5}頭</div>
