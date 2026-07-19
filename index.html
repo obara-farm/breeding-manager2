@@ -1121,9 +1121,11 @@ textarea{resize:vertical;}
       <option value="褐毛">🟥 褐毛和種</option>
       <option value="黒毛">⬛ 黒毛和種</option>
     </select>
-    <select id="fat-year-filter" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
-      <option value="all">全年度</option>
-    </select>
+    <div id="fat-year-wrap" style="position:relative;">
+      <button id="fat-year-btn" onclick="toggleYearMenu(event)" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全年度 ▼</button>
+      <div id="fat-year-menu" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:130px;box-shadow:0 4px 16px rgba(0,0,0,.3);"></div>
+    </div>
+    <select id="fat-year-filter" style="display:none;"><option value="all">全年度</option></select>
     <select id="fat-view" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
       <option value="ranking">ランキング</option>
       <option value="sire">種雄牛別</option>
@@ -16209,14 +16211,17 @@ function parseCSVLine(line) {
   return result;
 }
 
+let fatSelectedYears = []; // 空=全年度
 function updateFatYearFilter() {
-  const sel = document.getElementById('fat-year-filter');
-  if (!sel) return;
   const years = [...new Set(fatteningRecords.map(r=>r.year).filter(Boolean))].sort().reverse();
-  const cur = sel.value;
-  sel.innerHTML = '<option value="all">全年度</option>' +
-    years.map(y => `<option value="${y}">${y}年</option>`).join('');
-  if (years.includes(cur)) sel.value = cur;
+  const menu = document.getElementById('fat-year-menu');
+  if (menu) {
+    menu.innerHTML =
+      '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:4px;">'
+      + '<input type="checkbox" id="fat-year-all" onchange="onYearAllToggle(this)" '+(fatSelectedYears.length===0?'checked':'')+'> 全年度</label>'
+      + years.map(y=>'<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;">'
+        + '<input type="checkbox" class="fat-year-cb" value="'+y+'" onchange="onYearToggle()" '+(fatSelectedYears.includes(y)?'checked':'')+'> '+y+'年</label>').join('');
+  }
   // 農家フィルタも更新
   const fsel = document.getElementById('fat-farmer-filter');
   if (fsel) {
@@ -16227,7 +16232,15 @@ function updateFatYearFilter() {
       farmers.map(f => `<option value="${f}">${f}</option>`).join('');
     if (fcur==='all'||fcur==='__own'||farmers.includes(fcur)) fsel.value = fcur;
   }
+  updateYearBtnLabel();
 }
+function toggleYearMenu(e){ e.stopPropagation(); const m=document.getElementById('fat-year-menu'); m.style.display = m.style.display==='none'?'block':'none'; }
+function onYearAllToggle(cb){ if(cb.checked){ fatSelectedYears=[]; } document.querySelectorAll('.fat-year-cb').forEach(c=>c.checked=false); updateYearBtnLabel(); renderFattening(); }
+function onYearToggle(){ fatSelectedYears=[...document.querySelectorAll('.fat-year-cb:checked')].map(c=>c.value);
+  const allcb=document.getElementById('fat-year-all'); if(allcb)allcb.checked=fatSelectedYears.length===0; updateYearBtnLabel(); renderFattening(); }
+function updateYearBtnLabel(){ const b=document.getElementById('fat-year-btn'); if(!b)return;
+  b.textContent = (fatSelectedYears.length===0?'全年度':fatSelectedYears.length===1?fatSelectedYears[0]+'年':fatSelectedYears.length+'年度選択')+' ▼'; }
+document.addEventListener('click', e=>{ const w=document.getElementById('fat-year-wrap'); const m=document.getElementById('fat-year-menu'); if(w&&m&&!w.contains(e.target))m.style.display='none'; });
 const OWN_FARMER = '小原秀樹';
 
 function bmsColor(v) {
@@ -16247,16 +16260,16 @@ function gradeColor(g) {
 function avg(arr) { return arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10 : null; }
 function fmtVal(v, unit='') { return v !== null ? v+unit : '—'; }
 
-// 総合スコア：BMS・枝重・歩留率・A4以上率を偏差値化して加重平均（あか牛向けの重み）
-// 重み: BMS30% 枝重30% 歩留率20% A4以上率20%。3頭未満は参考(点は付くが低信頼)
+// 総合スコア：優先順位 枝肉重量＞歩留り=A3以上＞BMS を重みに反映
+// 重み: 枝重35% / 歩留率20% / A3以上率20% / BMS15% / A4以上率10%
 function computeCompositeScore(groups) {
   const traits = [
-    {key:'avgBms',    w:0.30},
-    {key:'avgWeight', w:0.30},
+    {key:'avgWeight', w:0.35},
     {key:'avgYield',  w:0.20},
-    {key:'rateHigh',  w:0.20},
+    {key:'rateA3',    w:0.20},
+    {key:'avgBms',    w:0.15},
+    {key:'rateHigh',  w:0.10},
   ];
-  // 各指標の平均・標準偏差（有効な群のみ）
   traits.forEach(t => {
     const vals = groups.map(g=>g[t.key]).filter(v=>typeof v==='number' && !isNaN(v));
     const m = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
@@ -16268,7 +16281,7 @@ function computeCompositeScore(groups) {
     traits.forEach(t => {
       const v = g[t.key];
       if (typeof v==='number' && !isNaN(v) && t.sd>0) {
-        const dev = 50 + (v - t.mean)/t.sd*10; // 偏差値
+        const dev = 50 + (v - t.mean)/t.sd*10;
         score += dev * t.w; wsum += t.w;
       }
     });
@@ -16286,7 +16299,7 @@ function renderFattening() {
   if (!list) return;
 
   let recs = fatteningRecords;
-  if (year !== 'all') recs = recs.filter(r=>r.year===year);
+  if (fatSelectedYears.length > 0) recs = recs.filter(r=>fatSelectedYears.includes(r.year));
   if (breedFilter !== 'all') recs = recs.filter(r=>r.breed===breedFilter);
   // 農家フィルタ
   const farmerFilter = document.getElementById('fat-farmer-filter')?.value || 'all';
@@ -16345,6 +16358,7 @@ function renderFattening() {
           <div>
             <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);">${r.nationalId}</span>
             <span style="font-size:11px;color:var(--muted);margin-left:8px;">${r.slaughterDate||''} ${r.sex||''}</span>
+            ${r.farmer?`<span style="font-size:11px;color:var(--accent);margin-left:8px;">🏠${r.farmer}</span>`:''}
           </div>
           <span style="font-size:22px;font-weight:900;color:${bmsColor(r.bms)};font-family:'JetBrains Mono',monospace;">BMS${r.bms??'—'}</span>
         </div>
@@ -16369,11 +16383,13 @@ function renderFattening() {
     map[k].push(r);
   });
   const groups = Object.entries(map).map(([name, rs]) => {
+    const farmers = [...new Set(rs.map(r=>r.farmer).filter(Boolean))];
     const bmsList = rs.filter(r=>r.bms!==null).map(r=>r.bms);
     const wList = rs.filter(r=>r.weight!==null).map(r=>r.weight);
     const yList = rs.filter(r=>r.yieldRate!==null).map(r=>r.yieldRate);
     const grade5 = rs.filter(r=>r.meatGrade==='A5'||r.meatGrade==='B5').length;
     const grade4 = rs.filter(r=>r.meatGrade==='A4'||r.meatGrade==='B4').length;
+    const grade3plus = rs.filter(r=>{ const g=r.meatGrade||''; return /[345]/.test(g); }).length;
     const wCast = rs.filter(r=>r.sex==='去勢'&&r.weight!==null).map(r=>r.weight);
     const wHeif = rs.filter(r=>r.sex==='未経'&&r.weight!==null).map(r=>r.weight);
     const weightLabel = [
@@ -16381,12 +16397,13 @@ function renderFattening() {
       wHeif.length ? `未経${fmtVal(avg(wHeif),'kg')}` : '',
     ].filter(Boolean).join('/') || fmtVal(avg(wList),'kg');
     return {
-      name, count: rs.length,
+      name, count: rs.length, farmers,
       avgBms: avg(bmsList), avgYield: avg(yList), avgWeight: avg(wList),
       weightLabel, grade5, grade4,
       rate4: rs.length ? Math.round(grade4/rs.length*100) : 0,
       rate5: rs.length ? Math.round(grade5/rs.length*100) : 0,
       rateHigh: rs.length ? Math.round((grade4+grade5)/rs.length*100) : 0,
+      rateA3: rs.length ? Math.round(grade3plus/rs.length*100) : 0,
       _bmsList: bmsList, _wList: wList, _yList: yList,
     };
   });
@@ -16453,7 +16470,7 @@ function renderFattening() {
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
             <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}</div>
-            <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷</div>
+            <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
           </div>
           <div style="text-align:right;">
             <div style="font-size:26px;font-weight:900;color:${g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)'};font-family:'JetBrains Mono',monospace;">${g.score??'—'}</div>
@@ -16474,12 +16491,12 @@ function renderFattening() {
             <div style="font-size:10px;color:var(--muted);">歩留率平均</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
-            <div style="font-weight:700;color:var(--warn);">${g.rateHigh}%</div>
-            <div style="font-size:10px;color:var(--muted);">A4以上率</div>
+            <div style="font-weight:700;color:var(--accent);">${g.rateA3}%</div>
+            <div style="font-size:10px;color:var(--muted);">A3以上率</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
-            <div style="font-weight:700;color:var(--text);">${g.grade4+g.grade5}頭</div>
-            <div style="font-size:10px;color:var(--muted);">4・5等級計</div>
+            <div style="font-weight:700;color:var(--warn);">${g.rateHigh}%</div>
+            <div style="font-size:10px;color:var(--muted);">A4以上率</div>
           </div>
         </div>
         ${g.count >= 3 ? '' : '<div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;">※ 3頭未満のため参考値</div>'}
