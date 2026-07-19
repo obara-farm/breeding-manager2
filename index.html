@@ -16260,10 +16260,19 @@ function gradeColor(g) {
 function avg(arr) { return arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length*10)/10 : null; }
 function fmtVal(v, unit='') { return v !== null ? v+unit : '—'; }
 
-// 総合スコア：優先順位 枝肉重量＞歩留り=A3以上＞BMS を重みに反映
-// 重み: 枝重35% / 歩留率20% / A3以上率20% / BMS15% / A4以上率10%
+// 総合スコア：2パターンの評価方法を偏差値ベースで加重平均
+// パターン1（枝重重視）: 枝重35% 歩留率20% A3以上率20% BMS15% A4以上率10%
+// パターン2（A4以上重視）: A4以上率35% 枝重20% 歩留率20% BMS15%（A3以上は使わない）
+let fatScorePattern = 1;
+let fatLivingOnly = false;
+function toggleFatLivingOnly(){ fatLivingOnly = document.getElementById('fat-living-only')?.checked || false; renderFattening(); }
 function computeCompositeScore(groups) {
-  const traits = [
+  const traits = (fatScorePattern===2) ? [
+    {key:'rateHigh',  w:0.35},
+    {key:'avgWeight', w:0.20},
+    {key:'avgYield',  w:0.20},
+    {key:'avgBms',    w:0.15},
+  ] : [
     {key:'avgWeight', w:0.35},
     {key:'avgYield',  w:0.20},
     {key:'rateA3',    w:0.20},
@@ -16288,7 +16297,30 @@ function computeCompositeScore(groups) {
     g.score = wsum>0 ? Math.round(score/wsum*10)/10 : null;
   });
 }
+function setFatScorePattern(p){ fatScorePattern=p; renderFattening(); }
 
+// 母牛カードクリックで産子詳細を展開
+function toggleDamDetail(id){ const el=document.getElementById(id); if(!el)return; el.style.display = el.style.display==='none'?'block':'none'; }
+function renderDamOffspring(recs){
+  if(!recs||!recs.length) return '<div style="font-size:11px;color:var(--muted);">産子データなし</div>';
+  // 屠畜日で新しい順
+  const sorted=[...recs].sort((a,b)=>String(b.slaughterDate||'').localeCompare(String(a.slaughterDate||'')));
+  const gradeColor=g=>{ const m=(g||'').match(/[1-5]/); const n=m?+m[0]:0; return n>=4?'var(--danger)':n>=3?'var(--warn)':'var(--muted)'; };
+  const rows=sorted.map(r=>{
+    const wt = r.weight!=null?Math.round(r.weight):'—';
+    return `<div style="display:grid;grid-template-columns:1.4fr 1fr 0.7fr 0.7fr 0.7fr;gap:4px;font-size:11px;padding:5px 4px;border-bottom:1px solid var(--border);align-items:center;">
+      <div><span style="color:var(--info);font-weight:700;">${r.sire||'—'}</span><div style="font-size:9px;color:var(--muted);">${r.slaughterDate||''}</div></div>
+      <div style="font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:10px;">${r.nationalId||''}</div>
+      <div style="text-align:center;font-weight:700;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div>
+      <div style="text-align:center;">${wt}<span style="font-size:9px;color:var(--muted);">kg</span></div>
+      <div style="text-align:center;color:${bmsColor(r.bms)};font-weight:700;">${r.bms!=null?('B'+r.bms):'—'}</div>
+    </div>`;
+  }).join('');
+  return `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:700;">産子ごとの成績（交配種雄牛・等級・枝重・BMS）</div>
+    <div style="display:grid;grid-template-columns:1.4fr 1fr 0.7fr 0.7fr 0.7fr;gap:4px;font-size:9px;color:var(--muted);padding:0 4px 4px;border-bottom:1px solid var(--border);">
+      <div>種雄牛 / 屠畜日</div><div>個体番号</div><div style="text-align:center;">等級</div><div style="text-align:center;">枝重</div><div style="text-align:center;">BMS</div>
+    </div>${rows}`;
+}
 function renderFattening() {
   const year = document.getElementById('fat-year-filter')?.value || 'all';
   const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
@@ -16382,7 +16414,7 @@ function renderFattening() {
     if (!map[k]) map[k] = [];
     map[k].push(r);
   });
-  const groups = Object.entries(map).map(([name, rs]) => {
+  let groups = Object.entries(map).map(([name, rs]) => {
     const farmers = [...new Set(rs.map(r=>r.farmer).filter(Boolean))];
     const bmsList = rs.filter(r=>r.bms!==null).map(r=>r.bms);
     const wList = rs.filter(r=>r.weight!==null).map(r=>r.weight);
@@ -16397,18 +16429,24 @@ function renderFattening() {
       wHeif.length ? `未経${fmtVal(avg(wHeif),'kg')}` : '',
     ].filter(Boolean).join('/') || fmtVal(avg(wList),'kg');
     return {
-      name, count: rs.length, farmers,
+      name, count: rs.length, farmers, _recs: rs,
       avgBms: avg(bmsList), avgYield: avg(yList), avgWeight: avg(wList),
       weightLabel, grade5, grade4,
       rate4: rs.length ? Math.round(grade4/rs.length*100) : 0,
       rate5: rs.length ? Math.round(grade5/rs.length*100) : 0,
       rateHigh: rs.length ? Math.round((grade4+grade5)/rs.length*100) : 0,
       rateA3: rs.length ? Math.round(grade3plus/rs.length*100) : 0,
-      _bmsList: bmsList, _wList: wList, _yList: yList,
+      _bmsList: bmsList, _wList: wList, _yList: yList, _recs: rs,
     };
   });
   // 総合スコア（偏差値ベース：BMS・枝重・歩留率・A4以上率を標準化して加重平均）
   computeCompositeScore(groups);
+
+  // 母牛別で「現存牛のみ」：在籍牛リスト(cows)にいる母牛だけに絞る
+  if (groupKey==='dam' && typeof fatLivingOnly!=='undefined' && fatLivingOnly) {
+    const living = new Set((typeof cows!=='undefined'?cows:[]).map(c=>String(c.name||'').trim()).filter(Boolean));
+    groups = groups.filter(g=>living.has(String(g.name).trim()));
+  }
 
   // ランキングモード：BMS・歩留率・枝重の3カードを縦に並べる
   if (view === 'ranking' || view === 'sire' || view === 'dam') {
@@ -16462,14 +16500,21 @@ function renderFattening() {
           <option value="weight" ${sortKey==='weight'?'selected':''}>枝重順</option>
           <option value="count" ${sortKey==='count'?'selected':''}>頭数順</option>
         </select>
+        <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+          <button onclick="setFatScorePattern(1)" style="background:${fatScorePattern===1?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===1?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">枝重重視</button>
+          <button onclick="setFatScorePattern(2)" style="background:${fatScorePattern===2?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===2?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">A4以上重視</button>
+        </div>
+        ${groupKey==='dam' ? `<label style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" ${fatLivingOnly?'checked':''}>現存牛のみ</label>` : ''}
       </div>` +
     groups.map((g,i) => {
       const rankColor = i===0?'var(--danger)':i===1?'var(--warn)':i===2?'var(--info)':'var(--muted)';
-      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+      const clickable = (groupKey==='dam');
+      const cardId = 'fatdam-'+i;
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;${clickable?'cursor:pointer;':''}" ${clickable?`onclick="toggleDamDetail('${cardId}')"`:''}>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
-            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}</div>
+            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}</div>
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
           </div>
           <div style="text-align:right;">
@@ -16499,6 +16544,7 @@ function renderFattening() {
             <div style="font-size:10px;color:var(--muted);">A4以上率</div>
           </div>
         </div>
+        ${clickable ? `<div id="${cardId}" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;cursor:default;">${renderDamOffspring(g._recs)}</div>` : ''}
         ${g.count >= 3 ? '' : '<div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;">※ 3頭未満のため参考値</div>'}
       </div>`;
     }).join('');
