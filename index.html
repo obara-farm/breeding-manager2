@@ -16423,16 +16423,24 @@ function score(groups){
 }
 function offspring(recs){
   const sorted=recs.slice().sort((a,b)=>String(b.slaughterDate||'').localeCompare(String(a.slaughterDate||'')));
-  return '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:700;">産子ごとの成績('+recs.length+'頭)</div>'+sorted.map(function(r){
-    const sx=/去勢/.test(r.sex||'')?'<span style="color:var(--info);">オス</span>':/未経|雌/.test(r.sex||'')?'<span style="color:var(--danger);">メス</span>':(r.sex||'');
-    const c=function(l,val){return '<div class="ocell"><div class="l">'+l+'</div><div class="v">'+val+'</div></div>';};
-    return '<div class="ocard"><div class="ohd"><div><span style="color:var(--info);font-weight:900;font-size:14px;">'+(r.sire||r.dam||'—')+'</span> '+sx+' <span style="font-size:10px;color:var(--muted);font-family:monospace;">'+(r.nationalId||'')+'</span></div><div style="font-size:16px;font-weight:900;color:'+gradeColor(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div></div><div class="ogrid">'
-      +c('屠畜日',v(r.slaughterDate))+c('枝肉番号',v(r.carcassNo))+c('生年月日',v(r.dob))+c('生体重',v(r.liveWeight,'kg'))
-      +c('月齢',v(r.age))+c('枝重',v(r.weight,'kg'))+c('単価',r.unitPrice!=null?('¥'+r.unitPrice):'—')+c('金額',r.amount!=null?('¥'+r.amount.toLocaleString()):'—')
-      +c('歩留',v(r.yieldGrade))+c('等級',v(r.meatGrade))+c('ロース芯',v(r.loin,'cm2'))+c('ばら厚',v(r.baraThick,'cm'))
-      +c('脂肪厚',v(r.fatThick,'cm'))+c('歩留率',v(r.yieldRate,'%'))+c('BMS',v(r.bms))+c('脂肪交雑',v(r.marbling))+c('出荷日齢',v(r.slaughterDays))
-      +'</div></div>';
+  const md=function(d){if(!d)return '—';const p=String(d).split('-');return p.length>=3?(p[1]+'/'+p[2]).replace(/^0/,''):d;};
+  const cols='0.9fr 0.4fr 0.7fr 0.5fr 0.55fr 0.45fr 0.6fr 0.55fr 0.55fr';
+  const head='<div style="display:grid;grid-template-columns:'+cols+';gap:2px;font-size:8.5px;color:var(--muted);padding:0 2px 3px;border-bottom:1px solid var(--border);text-align:center;"><div style="text-align:left;">種雄牛</div><div>性</div><div>屠畜日</div><div>等級</div><div>枝重</div><div>BMS</div><div>歩留率</div><div>ロース</div><div>日齢</div></div>';
+  const rows=sorted.map(function(r){
+    const sx=/去勢/.test(r.sex||'')?'<span style="color:var(--info);">オス</span>':/未経|雌/.test(r.sex||'')?'<span style="color:var(--danger);">メス</span>':'';
+    return '<div style="display:grid;grid-template-columns:'+cols+';gap:2px;font-size:11px;padding:5px 2px;border-bottom:1px solid var(--border);text-align:center;align-items:center;">'
+      +'<div style="text-align:left;font-weight:700;color:var(--info);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(r.sire||r.dam||'—')+'</div>'
+      +'<div style="font-size:9px;">'+sx+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);">'+md(r.slaughterDate)+'</div>'
+      +'<div style="font-weight:800;color:'+gradeColor(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div>'
+      +'<div>'+v(r.weight)+'</div>'
+      +'<div style="font-weight:700;color:'+bmsColor(r.bms)+';">'+v(r.bms)+'</div>'
+      +'<div>'+v(r.yieldRate,'%')+'</div>'
+      +'<div>'+v(r.loin)+'</div>'
+      +'<div>'+v(r.slaughterDays)+'</div>'
+      +'</div>';
   }).join('');
+  return '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:700;">産子ごとの成績('+recs.length+'頭)</div>'+head+rows;
 }
 function renderRank(){
   const key = view==='sire'?'sire':'dam';
@@ -16679,37 +16687,25 @@ function renderDamOffspring(recs){
   const sorted=[...recs].sort((a,b)=>String(b.slaughterDate||'').localeCompare(String(a.slaughterDate||'')));
   const gradeColor=g=>{ const m=(g||'').match(/[1-5]/); const n=m?+m[0]:0; return n>=4?'var(--danger)':n>=3?'var(--warn)':'var(--muted)'; };
   const v=(x,suf)=>x!=null&&x!==''?x+(suf||''):'—';
-  const cards=sorted.map(r=>{
-    const sx = /去勢/.test(r.sex||'')?'<span style="color:var(--info);">♂</span>':/未経|雌|めす/.test(r.sex||'')?'<span style="color:var(--danger);">♀</span>':(r.sex||'');
-    const cell=(lbl,val)=>`<div style="background:var(--bg2);border-radius:4px;padding:4px 6px;"><div style="font-size:9px;color:var(--muted);">${lbl}</div><div style="font-size:12px;font-weight:700;color:var(--text);">${val}</div></div>`;
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:8px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <div><span style="color:var(--info);font-weight:900;font-size:14px;">${r.sire||'—'}</span> ${sx}
-          <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-left:6px;">${r.nationalId||''}</span></div>
-        <div style="font-size:16px;font-weight:900;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
-        ${cell('屠畜日',v(r.slaughterDate))}
-        ${cell('枝肉番号',v(r.carcassNo))}
-        ${cell('生年月日',v(r.dob))}
-        ${cell('生体重',v(r.liveWeight,'kg'))}
-        ${cell('月齢',v(r.age))}
-        ${cell('枝重',v(r.weight,'kg'))}
-        ${cell('単価',r.unitPrice!=null?('¥'+r.unitPrice):'—')}
-        ${cell('金額',r.amount!=null?('¥'+r.amount.toLocaleString()):'—')}
-        ${cell('歩留',v(r.yieldGrade))}
-        ${cell('等級',v(r.meatGrade))}
-        ${cell('ロース芯',v(r.loin,'㎠'))}
-        ${cell('ばら厚',v(r.baraThick,'cm'))}
-        ${cell('脂肪厚',v(r.fatThick,'cm'))}
-        ${cell('歩留率',v(r.yieldRate,'%'))}
-        ${cell('BMS',v(r.bms))}
-        ${cell('脂肪交雑',v(r.marbling))}
-        ${cell('出荷日齢',v(r.slaughterDays))}
-      </div>
+  const md=d=>{ if(!d)return '—'; const p=String(d).split('-'); return p.length>=3?(p[1]+'/'+p[2]).replace(/^0/,''):d; };
+  const cols='0.9fr 0.4fr 0.7fr 0.5fr 0.55fr 0.45fr 0.6fr 0.55fr 0.55fr';
+  const head=`<div style="display:grid;grid-template-columns:${cols};gap:2px;font-size:8.5px;color:var(--muted);padding:0 2px 3px;border-bottom:1px solid var(--border);text-align:center;">
+    <div style="text-align:left;">種雄牛</div><div>性</div><div>屠畜日</div><div>等級</div><div>枝重</div><div>BMS</div><div>歩留率</div><div>ロース</div><div>日齢</div></div>`;
+  const rows=sorted.map(r=>{
+    const sx = /去勢/.test(r.sex||'')?'<span style="color:var(--info);">♂</span>':/未経|雌|めす/.test(r.sex||'')?'<span style="color:var(--danger);">♀</span>':'';
+    return `<div style="display:grid;grid-template-columns:${cols};gap:2px;font-size:11px;padding:5px 2px;border-bottom:1px solid var(--border);text-align:center;align-items:center;">
+      <div style="text-align:left;font-weight:700;color:var(--info);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.sire||'—'}</div>
+      <div>${sx}</div>
+      <div style="font-size:10px;color:var(--muted);">${md(r.slaughterDate)}</div>
+      <div style="font-weight:800;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div>
+      <div>${v(r.weight)}</div>
+      <div style="font-weight:700;color:${bmsColor(r.bms)};">${v(r.bms)}</div>
+      <div>${v(r.yieldRate,'%')}</div>
+      <div>${v(r.loin)}</div>
+      <div>${v(r.slaughterDays)}</div>
     </div>`;
   }).join('');
-  return `<div style="font-size:10px;color:var(--muted);margin-bottom:6px;font-weight:700;">産子ごとの成績（${recs.length}頭・屠畜日の新しい順）</div>${cards}`;
+  return `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;font-weight:700;">産子ごとの成績（${recs.length}頭・屠畜日の新しい順）</div>${head}${rows}`;
 }
 function renderFattening() {
   const year = document.getElementById('fat-year-filter')?.value || 'all';
