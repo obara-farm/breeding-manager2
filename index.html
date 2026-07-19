@@ -1131,11 +1131,13 @@ textarea{resize:vertical;}
       <option value="sire">種雄牛別</option>
       <option value="dam">母牛別</option>
       <option value="record">個体一覧</option>
+      <option value="koubutsu">📊 上物率グラフ</option>
     </select>
-    <select id="fat-farmer-filter" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
-      <option value="all">全農家</option>
-      <option value="__own">🏠 うちの牛だけ</option>
-    </select>
+    <div id="fat-farmer-wrap" style="position:relative;">
+      <button id="fat-farmer-btn" onclick="toggleFarmerMenu(event)" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全農家 ▼</button>
+      <div id="fat-farmer-menu" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:150px;max-height:280px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3);"></div>
+    </div>
+    <select id="fat-farmer-filter" style="display:none;"><option value="all">全農家</option></select>
     <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
       <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;">🧊 自家精液のみ</label>
     <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">🗑 データ削除</button>
@@ -16222,18 +16224,32 @@ function updateFatYearFilter() {
       + years.map(y=>'<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;">'
         + '<input type="checkbox" class="fat-year-cb" value="'+y+'" onchange="onYearToggle()" '+(fatSelectedYears.includes(y)?'checked':'')+'> '+y+'年</label>').join('');
   }
-  // 農家フィルタも更新
-  const fsel = document.getElementById('fat-farmer-filter');
-  if (fsel) {
+  // 農家フィルタ（複数選択メニュー）
+  const fmenu = document.getElementById('fat-farmer-menu');
+  if (fmenu) {
     const farmers = [...new Set(fatteningRecords.map(r=>r.farmer).filter(Boolean))]
       .filter(f=>f!=='小原秀樹').sort();
-    const fcur = fsel.value;
-    fsel.innerHTML = '<option value="all">全農家</option><option value="__own">🏠 うちの牛だけ</option>' +
-      farmers.map(f => `<option value="${f}">${f}</option>`).join('');
-    if (fcur==='all'||fcur==='__own'||farmers.includes(fcur)) fsel.value = fcur;
+    fmenu.innerHTML =
+      '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:4px;">'
+      + '<input type="checkbox" id="fat-farmer-all" onchange="onFarmerAllToggle(this)" '+(fatSelectedFarmers.length===0?'checked':'')+'> 全農家</label>'
+      + '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--accent);cursor:pointer;font-weight:700;">'
+      + '<input type="checkbox" class="fat-farmer-cb" value="小原秀樹" onchange="onFarmerToggle()" '+(fatSelectedFarmers.includes('小原秀樹')?'checked':'')+'> 🏠 うちの牛（小原）</label>'
+      + farmers.map(f=>'<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;">'
+        + '<input type="checkbox" class="fat-farmer-cb" value="'+f.replace(/"/g,'&quot;')+'" onchange="onFarmerToggle()" '+(fatSelectedFarmers.includes(f)?'checked':'')+'> '+f+'</label>').join('');
   }
-  updateYearBtnLabel();
+  updateFarmerBtnLabel();
 }
+let fatSelectedFarmers = []; // 空=全農家
+function toggleFarmerMenu(e){ e.stopPropagation(); const m=document.getElementById('fat-farmer-menu'); m.style.display = m.style.display==='none'?'block':'none'; }
+function onFarmerAllToggle(cb){ if(cb.checked){ fatSelectedFarmers=[]; } document.querySelectorAll('.fat-farmer-cb').forEach(c=>c.checked=false); updateFarmerBtnLabel(); renderFattening(); }
+function onFarmerToggle(){ fatSelectedFarmers=[...document.querySelectorAll('.fat-farmer-cb:checked')].map(c=>c.value);
+  const allcb=document.getElementById('fat-farmer-all'); if(allcb)allcb.checked=fatSelectedFarmers.length===0; updateFarmerBtnLabel(); renderFattening(); }
+function updateFarmerBtnLabel(){ const b=document.getElementById('fat-farmer-btn'); if(!b)return;
+  let lbl='全農家';
+  if(fatSelectedFarmers.length===1) lbl = fatSelectedFarmers[0]==='小原秀樹'?'🏠 うちの牛':fatSelectedFarmers[0];
+  else if(fatSelectedFarmers.length>1) lbl = fatSelectedFarmers.length+'農家選択';
+  b.textContent = lbl+' ▼'; }
+document.addEventListener('click', e=>{ const w=document.getElementById('fat-farmer-wrap'); const m=document.getElementById('fat-farmer-menu'); if(w&&m&&!w.contains(e.target))m.style.display='none'; });
 function toggleYearMenu(e){ e.stopPropagation(); const m=document.getElementById('fat-year-menu'); m.style.display = m.style.display==='none'?'block':'none'; }
 function onYearAllToggle(cb){ if(cb.checked){ fatSelectedYears=[]; } document.querySelectorAll('.fat-year-cb').forEach(c=>c.checked=false); updateYearBtnLabel(); renderFattening(); }
 function onYearToggle(){ fatSelectedYears=[...document.querySelectorAll('.fat-year-cb:checked')].map(c=>c.value);
@@ -16299,6 +16315,77 @@ function computeCompositeScore(groups) {
 }
 function setFatScorePattern(p){ fatScorePattern=p; renderFattening(); }
 
+// 上物率グラフ（推移の折れ線＋内訳の積み上げ棒）。recsは年度・農家・品種で絞込済み
+function renderKoubutsu(recs){
+  if(!recs || !recs.length) return '<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';
+  const qnum = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
+  const yrLabel = y => 'R'+(parseInt(y)-2018);
+  const years = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort();
+  const farmers = [...new Set(recs.map(r=>r.farmer).filter(Boolean))];
+  const farmerList = farmers.sort((a,b)=> a===OWN_FARMER?-1:b===OWN_FARMER?1:a.localeCompare(b));
+  const jorate = rs => { if(!rs.length) return null; const up=rs.filter(r=>qnum(r)>=3).length; return Math.round(up/rs.length*1000)/10; };
+
+  const palette = ['#e0563f','#4a90d9','#4caf7d','#c9a227','#9b6bcc','#d97ba8','#5cb8b2','#b5794a','#7a8fb0'];
+  const W=360, H=220, padL=34, padR=10, padT=14, padB=26;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const xOf = i => padL + (years.length<=1? plotW/2 : plotW*i/(years.length-1));
+  const yOf = v => padT + plotH*(1 - v/100);
+  const gridY = [0,25,50,75,100].map(g=>`<line x1="${padL}" y1="${yOf(g)}" x2="${W-padR}" y2="${yOf(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${padL-4}" y="${yOf(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
+  const xLabels = years.map((y,i)=>`<text x="${xOf(i)}" y="${H-padB+14}" font-size="9" fill="var(--muted)" text-anchor="middle">${yrLabel(y)}</text>`).join('');
+  const avgPts = years.map((y,i)=>{ const v=jorate(recs.filter(r=>r.year===y)); return v==null?null:[xOf(i),yOf(v),v,y]; });
+  const avgPath = avgPts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
+  const avgDots = avgPts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--text)"/><text x="${p[0]}" y="${p[1]-6}" font-size="8" fill="var(--text)" text-anchor="middle" font-weight="700">${p[2]}</text>`).join('');
+  let farmerLines='', legend='';
+  const showFarmers = farmerList.length>1 ? farmerList : [];
+  showFarmers.forEach((f,fi)=>{ const col=palette[fi%palette.length];
+    const pts=years.map((y,i)=>{ const v=jorate(recs.filter(r=>r.farmer===f && r.year===y)); return v==null?null:[xOf(i),yOf(v)]; });
+    const path=pts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
+    if(path) farmerLines+=`<path d="${path}" fill="none" stroke="${col}" stroke-width="1.5" opacity="0.85"/>`+pts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="2" fill="${col}"/>`).join('');
+    const fname=f===OWN_FARMER?'🏠小原':f;
+    legend+=`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:12px;height:3px;background:${col};display:inline-block;border-radius:2px;"></span>${fname}</span>`;
+  });
+  legend = `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;font-weight:700;"><span style="width:12px;height:3px;background:var(--text);display:inline-block;border-radius:2px;"></span>全農家平均</span>`+legend;
+
+  const lineChart = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">📈 上物率（A3以上）の年度推移</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">上のフィルタで農家・年度を絞れます</div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+        ${gridY}${xLabels}${farmerLines}
+        <path d="${avgPath}" fill="none" stroke="var(--text)" stroke-width="2.5"/>${avgDots}
+      </svg>
+      <div style="margin-top:8px;line-height:1.8;">${legend}</div>
+    </div>`;
+
+  const buckets=[{k:5,label:'A5',col:'#b5271a'},{k:4,label:'A4',col:'#e0563f'},{k:3,label:'A3',col:'#c9a227'},{k:2,label:'A2',col:'#4a90d9'},{k:0,label:'A2未満',col:'#8a8a8a'}];
+  const mkStack = (label, rs, isTotal) => {
+    const n=rs.length; if(!n) return '';
+    const cnt={5:0,4:0,3:0,2:0,0:0};
+    rs.forEach(r=>{ const q=qnum(r); cnt[q>=2?q:0]++; });
+    let seg='';
+    buckets.forEach(b=>{ const c=cnt[b.k]||0; const pct=c/n*100; if(pct>0) seg+=`<div style="width:${pct}%;background:${b.col};display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;font-weight:700;" title="${b.label} ${Math.round(pct)}%">${pct>=8?Math.round(pct)+'%':''}</div>`; });
+    const jr=jorate(rs);
+    return `<div style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+        <span style="font-weight:700;color:${isTotal?'var(--accent)':'var(--text)'};">${label}</span>
+        <span style="color:var(--muted);">上物${jr}% ・ ${n}頭</span>
+      </div>
+      <div style="display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--bg3);">${seg}</div>
+    </div>`;
+  };
+  let stacks = mkStack('全体', recs, true);
+  if (farmerList.length>1) farmerList.forEach(f=>{ stacks += mkStack(f===OWN_FARMER?'🏠 小原（うち）':f, recs.filter(r=>r.farmer===f), false); });
+  const legendB = buckets.map(b=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:10px;height:10px;background:${b.col};display:inline-block;border-radius:2px;"></span>${b.label}</span>`).join('');
+  const barChart = `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">📊 等級内訳（A5/A4/A3/A2/それ以下）</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">全体と各農家を比較（上のフィルタで農家・年度を選択）</div>
+      <div style="margin-bottom:10px;">${legendB}</div>
+      ${stacks}
+    </div>`;
+
+  return lineChart + barChart;
+}
 // 母牛カードクリックで産子詳細を展開
 function toggleDamDetail(id){ const el=document.getElementById(id); if(!el)return; el.style.display = el.style.display==='none'?'block':'none'; }
 function renderDamOffspring(recs){
@@ -16308,8 +16395,9 @@ function renderDamOffspring(recs){
   const gradeColor=g=>{ const m=(g||'').match(/[1-5]/); const n=m?+m[0]:0; return n>=4?'var(--danger)':n>=3?'var(--warn)':'var(--muted)'; };
   const rows=sorted.map(r=>{
     const wt = r.weight!=null?Math.round(r.weight):'—';
+    const sx = /去勢/.test(r.sex||'')?'<span style="color:var(--info);">♂</span>':/未経|雌|めす/.test(r.sex||'')?'<span style="color:var(--danger);">♀</span>':'';
     return `<div style="display:grid;grid-template-columns:1.4fr 1fr 0.7fr 0.7fr 0.7fr;gap:4px;font-size:11px;padding:5px 4px;border-bottom:1px solid var(--border);align-items:center;">
-      <div><span style="color:var(--info);font-weight:700;">${r.sire||'—'}</span><div style="font-size:9px;color:var(--muted);">${r.slaughterDate||''}</div></div>
+      <div><span style="color:var(--info);font-weight:700;">${r.sire||'—'}</span> ${sx}<div style="font-size:9px;color:var(--muted);">${r.slaughterDate||''}</div></div>
       <div style="font-family:'JetBrains Mono',monospace;color:var(--muted);font-size:10px;">${r.nationalId||''}</div>
       <div style="text-align:center;font-weight:700;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div>
       <div style="text-align:center;">${wt}<span style="font-size:9px;color:var(--muted);">kg</span></div>
@@ -16333,10 +16421,8 @@ function renderFattening() {
   let recs = fatteningRecords;
   if (fatSelectedYears.length > 0) recs = recs.filter(r=>fatSelectedYears.includes(r.year));
   if (breedFilter !== 'all') recs = recs.filter(r=>r.breed===breedFilter);
-  // 農家フィルタ
-  const farmerFilter = document.getElementById('fat-farmer-filter')?.value || 'all';
-  if (farmerFilter === '__own') recs = recs.filter(r=>r.farmer===OWN_FARMER);
-  else if (farmerFilter !== 'all') recs = recs.filter(r=>r.farmer===farmerFilter);
+  // 農家フィルタ（複数選択・空=全農家）
+  if (fatSelectedFarmers.length > 0) recs = recs.filter(r=>fatSelectedFarmers.includes(r.farmer));
   // 自家精液のみ（種雄牛が精液在庫にある褐毛のものだけ）
   const ownSemenOnly = document.getElementById('fat-own-semen')?.checked;
   if (ownSemenOnly) {
@@ -16381,6 +16467,12 @@ function renderFattening() {
   // グループキー決定
   const groupKey = (view === 'dam') ? 'dam' : 'sire';
   const groupLabel = (view === 'dam') ? '母牛' : '種雄牛';
+
+  // 上物率グラフ（推移＋内訳）
+  if (view === 'koubutsu') {
+    list.innerHTML = renderKoubutsu(recs);
+    return;
+  }
 
   // 個体一覧
   if (view === 'record') {
