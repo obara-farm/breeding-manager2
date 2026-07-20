@@ -1115,18 +1115,18 @@ textarea{resize:vertical;}
   </div>
 
   <!-- フィルターバー -->
-  <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-    <select id="fat-breed-filter" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
+  <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+    <select id="fat-breed-filter" onchange="renderFattening()" style="height:34px;box-sizing:border-box;font-size:12px;padding:0 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
       <option value="all">全品種</option>
       <option value="褐毛">🟥 褐毛和種</option>
       <option value="黒毛">⬛ 黒毛和種</option>
     </select>
     <div id="fat-year-wrap" style="position:relative;">
-      <button id="fat-year-btn" onclick="toggleYearMenu(event)" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全年度 ▼</button>
+      <button id="fat-year-btn" onclick="toggleYearMenu(event)" style="height:34px;box-sizing:border-box;font-size:12px;padding:0 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全年度 ▼</button>
       <div id="fat-year-menu" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:130px;box-shadow:0 4px 16px rgba(0,0,0,.3);"></div>
     </div>
     <select id="fat-year-filter" style="display:none;"><option value="all">全年度</option></select>
-    <select id="fat-view" onchange="renderFattening()" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
+    <select id="fat-view" onchange="renderFattening()" style="height:34px;box-sizing:border-box;font-size:12px;padding:0 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
       <option value="ranking">ランキング</option>
       <option value="sire">種雄牛別</option>
       <option value="dam">母牛別</option>
@@ -1135,16 +1135,17 @@ textarea{resize:vertical;}
       <option value="koubutsu">📊 上物率グラフ</option>
     </select>
     <div id="fat-farmer-wrap" style="position:relative;">
-      <button id="fat-farmer-btn" onclick="toggleFarmerMenu(event)" style="font-size:12px;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全農家 ▼</button>
+      <button id="fat-farmer-btn" onclick="toggleFarmerMenu(event)" style="height:34px;box-sizing:border-box;font-size:12px;padding:0 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">全農家 ▼</button>
       <div id="fat-farmer-menu" style="display:none;position:absolute;top:100%;left:0;z-index:40;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:4px;min-width:150px;max-height:280px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.3);"></div>
     </div>
     <select id="fat-farmer-filter" style="display:none;"><option value="all">全農家</option></select>
-    <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
-      <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;">🧊 自家精液のみ</label>
-    <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
-      <input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" style="cursor:pointer;">🐄 現存牛のみ</label>
-    <button onclick="exportFarmerReport()" style="background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">📄 農家別レポート出力</button>
-    <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑 データ削除</button>
+    <label style="height:34px;box-sizing:border-box;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0 10px;white-space:nowrap;">
+      <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;margin:0;">🧊 自家精液</label>
+    <label style="height:34px;box-sizing:border-box;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0 10px;white-space:nowrap;">
+      <input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" style="cursor:pointer;margin:0;">🐄 現存牛のみ</label>
+    <span style="flex-basis:100%;height:0;"></span>
+    <button onclick="exportFarmerReport()" style="height:30px;box-sizing:border-box;background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">📄 農家別レポート出力</button>
+    <button onclick="confirmClearFattening()" style="height:30px;box-sizing:border-box;background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">🗑 データ削除</button>
   </div>
 
   <!-- サマリーカード -->
@@ -16424,6 +16425,7 @@ header .sub{font-size:11px;opacity:.85;}
     <div class="seg" id="ordseg"><button id="ob" class="on" onclick="setOrd(0)">ドナー候補(上位)</button><button id="ow" onclick="setOrd(1)">受け牛候補(下位)</button></div>
   </div>
   <div id="patdesc" class="note" style="margin-top:-6px;"></div>
+  <div id="yearbar" class="ymenu" style="margin-bottom:10px;"></div>
   <div id="list"></div>
 </div>
 <script>
@@ -16442,9 +16444,21 @@ function sizeLabel(val){if(val==null)return '—';if(val>=520)return '大('+Math
 function yrLabel(y){return 'R'+(parseInt(y)-2018);}
 function v(x,s){return x!=null&&x!==''?x+(s||''):'—';}
 function sexOf(r){return /去勢/.test(r.sex||'')?'M':/未経|雌|めす/.test(r.sex||'')?'F':'U';}
+// 年度絞り込み（selYears空=全年度）。母牛別・種雄牛別・産子ベストで共通
+function viewData(){ return selYears.length ? DATA.filter(function(r){return selYears.includes(r.year);}) : DATA; }
+function allYears(){ return [...new Set(DATA.map(function(r){return r.year;}).filter(Boolean))].sort(); }
+function renderYearBar(){ var el=document.getElementById('yearbar'); if(!el)return;
+  if(view==='koubutsu'){ el.style.display='none'; return; } el.style.display='';
+  var ys=allYears();
+  el.innerHTML='<span style="font-size:10px;color:var(--muted);margin-right:4px;align-self:center;">年度:</span>'
+    +'<span class="ychip '+(selYears.length===0?'on':'')+'" onclick="clearYears()">全年度</span>'
+    +ys.map(function(y){return '<span class="ychip '+(selYears.includes(y)?'on':'')+'" onclick="toggleYear(\\''+y+'\\')">'+('R'+(parseInt(y)-2018))+'</span>';}).join('');
+}
+function clearYears(){ selYears=[]; SEXW=null; render(); }
 var SEXW=null;
 function sexStats(){ if(SEXW)return SEXW; SEXW={};
-  ['M','F','U'].forEach(function(sx){ var grp=DATA.filter(function(r){return sexOf(r)===sx;});
+  var D=viewData();
+  ['M','F','U'].forEach(function(sx){ var grp=D.filter(function(r){return sexOf(r)===sx;});
     function st(key){var vals=grp.map(key).filter(function(v){return typeof v==='number'&&!isNaN(v);});
       var m=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
       var sd=vals.length?Math.sqrt(vals.reduce(function(a,b){return a+(b-m)*(b-m);},0)/vals.length):0;return {m:m,sd:sd};}
@@ -16454,7 +16468,7 @@ function sexStats(){ if(SEXW)return SEXW; SEXW={};
 function wDevOf(r){ if(r.weight==null)return null; var st=sexStats()[sexOf(r)].w; return st.sd>0?50+(r.weight-st.m)/st.sd*10:50; }
 function buildGroups(key){
   const map={};
-  DATA.forEach(r=>{const k=r[key]||'不明';(map[k]=map[k]||[]).push(r);});
+  viewData().forEach(r=>{const k=r[key]||'不明';(map[k]=map[k]||[]).push(r);});
   let groups=Object.keys(map).map(function(name){
     const rs=map[name];
     const bl=rs.filter(r=>r.bms!=null).map(r=>r.bms),wl=rs.filter(r=>r.weight!=null).map(r=>r.weight),yl=rs.filter(r=>r.yieldRate!=null).map(r=>r.yieldRate);
@@ -16569,9 +16583,10 @@ function renderKoubutsu(){
   document.getElementById('list').innerHTML=lineCard+barCard;
 }
 function render(){
+  SEXW=null;
+  renderYearBar();
   document.getElementById('rankctrl').style.display = (view==='koubutsu'||view==='homerun')?'none':'flex';
   updatePatDesc();
-  // 種雄牛別は採卵しないのでドナー/受け牛ではなくベスト/ワースト表記に
   var ob=document.getElementById('ob'),ow=document.getElementById('ow');
   if(ob&&ow){ if(view==='sire'){ ob.textContent='成績上位'; ow.textContent='成績下位'; } else { ob.textContent='ドナー候補(上位)'; ow.textContent='受け牛候補(下位)'; } }
   if(view==='koubutsu') renderKoubutsu(); else if(view==='homerun') renderHomerunR(); else renderRank();
@@ -16595,7 +16610,7 @@ function setView(v){view=v;
 function setPat(p){pat=p;document.getElementById('p1').className=p===1?'on':'';document.getElementById('p2').className=p===2?'on':'';document.getElementById('p3').className=p===3?'on':'';render();}
 // 産子ベスト（ホームラン）：全産子を個体成績順（性別内偏差値）に。カードタップで母の全産子
 function renderHomerunR(){
-  const rows=DATA.filter(r=>r.weight!=null||r.meatGrade);
+  const rows=viewData().filter(r=>r.weight!=null||r.meatGrade);
   if(!rows.length){document.getElementById('list').innerHTML='<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';return;}
   const dG=(function(){const vals=rows.map(r=>qnum(r.meatGrade)).filter(v=>!isNaN(v));const m=vals.reduce((a,b)=>a+b,0)/vals.length;const sd=Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length);return{m:m,sd:sd};})();
   const sy={};['M','F','U'].forEach(function(sx){const grp=rows.filter(r=>sexOf(r)===sx);
@@ -16632,7 +16647,7 @@ function renderHomerunR(){
   document.getElementById('list').innerHTML=note+cards;
 }
 function setOrd(w){worst=w;var ob=document.getElementById('ob'),ow=document.getElementById('ow');if(ob)ob.className=w?'':'on';if(ow)ow.className=w?'on-worst':'';render();}
-function toggleYear(y){const i=selYears.indexOf(y);if(i>=0)selYears.splice(i,1);else selYears.push(y);render();}
+function toggleYear(y){const i=selYears.indexOf(y);if(i>=0)selYears.splice(i,1);else selYears.push(y);SEXW=null;render();}
 render();
 __ENDSCRIPT__
 </body></html>`;
