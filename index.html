@@ -16417,15 +16417,13 @@ header .sub{font-size:11px;opacity:.85;}
 <div class="wrap">
   <div class="note">総合スコアが高い牛＝<b style="color:var(--accent);">ドナー候補</b>（優秀な受精卵の採取元）、低い牛＝<b style="color:var(--danger);">受け牛候補</b>（受精卵の移植先）の目安です。カードをタップで産子詳細。上物率グラフでは全農家平均と比較できます（他農家の個別成績は含みません）。</div>
   <div class="ctrl">
-    <div class="seg vw"><button id="vdam" class="on" onclick="setView('dam')">母牛別</button><button id="vsire" onclick="setView('sire')">種雄牛別</button><button id="vk" onclick="setView('koubutsu')">📊上物率</button></div>
-  </div>
-  <div class="ctrl">
     <div class="seg vw"><button id="vdam" class="on" onclick="setView('dam')">母牛別</button><button id="vsire" onclick="setView('sire')">種雄牛別</button><button id="vhr" onclick="setView('homerun')">🎯産子ベスト</button><button id="vk" onclick="setView('koubutsu')">📊上物率</button></div>
   </div>
   <div class="ctrl" id="rankctrl">
     <div class="seg"><button id="p3" class="on" onclick="setPat(3)">増体＋A4以上</button><button id="p1" onclick="setPat(1)">枝重重視</button><button id="p2" onclick="setPat(2)">A4以上重視</button></div>
-    <div class="seg"><button id="ob" class="on" onclick="setOrd(0)">ドナー候補(上位)</button><button id="ow" onclick="setOrd(1)">受け牛候補(下位)</button></div>
+    <div class="seg" id="ordseg"><button id="ob" class="on" onclick="setOrd(0)">ドナー候補(上位)</button><button id="ow" onclick="setOrd(1)">受け牛候補(下位)</button></div>
   </div>
+  <div id="patdesc" class="note" style="margin-top:-6px;"></div>
   <div id="list"></div>
 </div>
 <script>
@@ -16460,9 +16458,12 @@ function buildGroups(key){
   let groups=Object.keys(map).map(function(name){
     const rs=map[name];
     const bl=rs.filter(r=>r.bms!=null).map(r=>r.bms),wl=rs.filter(r=>r.weight!=null).map(r=>r.weight),yl=rs.filter(r=>r.yieldRate!=null).map(r=>r.yieldRate);
+    const wc=rs.filter(r=>sexOf(r)==='M'&&r.weight!=null).map(r=>r.weight);
+    const wh=rs.filter(r=>sexOf(r)==='F'&&r.weight!=null).map(r=>r.weight);
     const g3=rs.filter(r=>qnum(r.meatGrade)>=3).length;
     const wd=rs.map(wDevOf).filter(v=>v!=null);
     return {name:name,count:rs.length,recs:rs,avgBms:avg(bl),avgWeight:avg(wl),avgYield:avg(yl),
+      avgWCast:avg(wc),avgWHeif:avg(wh),
       wSexIdx: wd.length? wd.reduce((a,b)=>a+b,0)/wd.length : null,
       rateHigh:rs.length?Math.round((rs.filter(r=>qnum(r.meatGrade)>=4).length)/rs.length*100):0,
       rateA3:rs.length?Math.round(g3/rs.length*100):0};
@@ -16522,7 +16523,7 @@ function renderRank(){
       +'<div style="text-align:right;"><div class="sc" style="color:'+(g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)')+';">'+(g.score==null?'—':g.score)+'</div><div style="font-size:9px;color:var(--muted);">総合スコア</div></div></div>'
       +'<div class="mgrid">'
       +'<div class="mcell"><b style="color:'+bmsColor(g.avgBms)+';">'+(g.avgBms==null?'—':g.avgBms)+'</b><div>BMS平均</div></div>'
-      +'<div class="mcell"><b style="color:var(--info);">'+sizeLabel(g.avgWeight)+'</b><div>枝重平均</div></div>'
+      +'<div class="mcell"><b style="color:var(--info);font-size:'+((g.avgWCast!=null&&g.avgWHeif!=null)?'11':'15')+'px;">'+(function(){var wc=g.avgWCast!=null?Math.round(g.avgWCast):null,wh=g.avgWHeif!=null?Math.round(g.avgWHeif):null;if(wc!=null&&wh!=null)return '♂'+wc+'<br>♀'+wh;if(wc!=null)return '♂'+wc;if(wh!=null)return '♀'+wh;return sizeLabel(g.avgWeight);})()+'</b><div>枝重平均</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+(g.avgYield==null?'—':g.avgYield+'%')+'</b><div>歩留率</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+g.rateA3+'%</b><div>A3以上率</div></div>'
       +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>A4以上率</div></div>'
@@ -16569,7 +16570,21 @@ function renderKoubutsu(){
 }
 function render(){
   document.getElementById('rankctrl').style.display = (view==='koubutsu'||view==='homerun')?'none':'flex';
+  updatePatDesc();
+  // 種雄牛別は採卵しないのでドナー/受け牛ではなくベスト/ワースト表記に
+  var ob=document.getElementById('ob'),ow=document.getElementById('ow');
+  if(ob&&ow){ if(view==='sire'){ ob.textContent='成績上位'; ow.textContent='成績下位'; } else { ob.textContent='ドナー候補(上位)'; ow.textContent='受け牛候補(下位)'; } }
   if(view==='koubutsu') renderKoubutsu(); else if(view==='homerun') renderHomerunR(); else renderRank();
+}
+var PAT_DESC={
+  3:'【増体＋A4以上】枝重40%・A4以上率40%・歩留率20%。あか牛らしい増体と、A4以上の安定を両立する狙い。',
+  1:'【枝重重視】枝重35%・歩留率20%・A3以上率20%・BMS15%・A4以上率10%。とにかく大きさ優先。',
+  2:'【A4以上重視】A4以上率35%・枝重20%・歩留率20%・BMS15%。等級（サシ）優先。'
+};
+function updatePatDesc(){ var el=document.getElementById('patdesc'); if(!el)return;
+  if(view==='koubutsu'||view==='homerun'){ el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML=(PAT_DESC[pat]||'')+'<br><span style="opacity:.8;">※枝重・歩留率は<b>去勢／未経産で分けて偏差値化</b>（♂♀で枝重水準が違うため）。各指標を'+(view==='sire'?'種雄牛':'母牛')+'グループ内で標準化して加重平均し、50を平均とした総合スコアにしています。</span>';
 }
 function setView(v){view=v;
   document.getElementById('vdam').className=v==='dam'?'on':'';
@@ -16600,16 +16615,17 @@ function renderHomerunR(){
     const damRecs=DATA.filter(x=>String(x.dam||'').trim()===String(r.dam||'').trim());
     const hid='hrr-'+i;
     return '<div class="card" onclick="var d=document.getElementById(\\''+hid+'\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
-      +'<div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;font-weight:900;font-family:monospace;color:'+rc+';width:26px;text-align:center;">'+(i+1)+'</div>'
-      +'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:900;"><span style="color:var(--accent);">'+(r.dam||'—')+'</span>'+damIdBadge(r.dam)+' <span style="color:var(--muted);font-weight:400;">×</span> <span style="color:var(--info);">'+(r.sire||'—')+'</span> '+sx+'</div>'
-      +'<div style="font-size:10px;color:var(--muted);">'+v(r.slaughterDate)+' ・ タップで母の全産子</div></div>'
-      +'<div style="display:flex;gap:7px;text-align:center;">'
-      +'<div><div style="font-size:16px;font-weight:900;color:'+gc(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div><div style="font-size:8px;color:var(--muted);">等級</div></div>'
-      +'<div><div style="font-size:14px;font-weight:800;color:var(--info);">'+v(r.weight)+'</div><div style="font-size:8px;color:var(--muted);">枝重</div></div>'
-      +'<div><div style="font-size:14px;font-weight:800;color:'+bmsColor(r.bms)+';">'+v(r.bms)+'</div><div style="font-size:8px;color:var(--muted);">BMS</div></div>'
-      +'<div><div style="font-size:12px;font-weight:800;color:var(--accent);">'+v(r.yieldRate,'%')+'</div><div style="font-size:8px;color:var(--muted);">歩留</div></div>'
-      +'</div></div>'
-      +'<div id="'+hid+'" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;"><div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;">母「'+(r.dam||'—')+'」の全産子（'+damRecs.length+'頭）</div>'+offspring(damRecs)+'</div>';
+      +'<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">'
+      +'<div style="font-size:20px;font-weight:900;font-family:monospace;color:'+rc+';width:26px;text-align:center;flex:none;">'+(i+1)+'</div>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:900;line-height:1.3;"><span style="color:var(--accent);">'+(r.dam||'—')+'</span>'+damIdBadge(r.dam)+' <span style="color:var(--muted);font-weight:400;">×</span> <span style="color:var(--info);">'+(r.sire||'—')+'</span> '+sx+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);">'+v(r.slaughterDate)+' ・ タップで母の全産子</div></div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center;">'
+      +'<div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:16px;font-weight:900;color:'+gc(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div><div style="font-size:8px;color:var(--muted);">等級</div></div>'
+      +'<div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:15px;font-weight:800;color:var(--info);">'+v(r.weight)+'</div><div style="font-size:8px;color:var(--muted);">枝重</div></div>'
+      +'<div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:15px;font-weight:800;color:'+bmsColor(r.bms)+';">'+v(r.bms)+'</div><div style="font-size:8px;color:var(--muted);">BMS</div></div>'
+      +'<div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:14px;font-weight:800;color:var(--accent);">'+v(r.yieldRate,'%')+'</div><div style="font-size:8px;color:var(--muted);">歩留</div></div>'
+      +'</div>'
+      +'<div id="'+hid+'" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;"><div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;">母「'+(r.dam||'—')+'」の全産子（'+damRecs.length+'頭）</div>'+offspring(damRecs)+'</div></div>';
   }).join('');
   const note='<div class="note">全産子'+rows.length+'頭を'+(worst?'成績の低い':'成績の高い')+'順に個別表示。<b>母 × 種雄牛</b>で'+(worst?'':'ホームラン（当たり）')+'が分かります。カードをタップでその母の全産子。個体スコア＝枝重40%・肉質等級40%・歩留率20%を偏差値化（<b>枝重・歩留率は去勢／未経産で分けて評価</b>）'+(cap<rows.length?'。上位'+cap+'頭':'')+'。</div>'
     +'<div class="ctrl"><div class="seg"><button class="'+(!worst?'on':'')+'" onclick="setOrd(0)">🎯ベスト順</button><button class="'+(worst?'on-worst':'')+'" onclick="setOrd(1)">ワースト順</button></div></div>';
@@ -16833,21 +16849,23 @@ function renderHomerun(recs){
     const damRecs = fatteningRecords.filter(x=>String(x.dam||'').trim()===String(r.dam||'').trim());
     const hid='hr-'+i;
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
-      <div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="var d=document.getElementById('${hid}');d.style.display=d.style.display==='none'?'block':'none';">
-        <div style="font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rc};width:28px;text-align:center;">${i+1}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:15px;font-weight:900;color:var(--text);">
-            <span style="color:var(--accent);">${r.dam||'—'}</span>${damIdBadge(r.dam)}
-            <span style="color:var(--muted);font-weight:400;">×</span>
-            <span style="color:var(--info);">${r.sire||'—'}</span> ${sx}
+      <div style="cursor:pointer;" onclick="var d=document.getElementById('${hid}');d.style.display=d.style.display==='none'?'block':'none';">
+        <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+          <div style="font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rc};width:26px;text-align:center;flex:none;">${i+1}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:15px;font-weight:900;color:var(--text);line-height:1.3;">
+              <span style="color:var(--accent);">${r.dam||'—'}</span>${damIdBadge(r.dam)}
+              <span style="color:var(--muted);font-weight:400;">×</span>
+              <span style="color:var(--info);">${r.sire||'—'}</span> ${sx}
+            </div>
+            <div style="font-size:10px;color:var(--muted);">${v(r.slaughterDate)} ${farmerTag} <span style="font-family:'JetBrains Mono',monospace;">${r.nationalId||''}</span> ・ ▼母の全産子</div>
           </div>
-          <div style="font-size:10px;color:var(--muted);">${v(r.slaughterDate)} ${farmerTag} <span style="font-family:'JetBrains Mono',monospace;">${r.nationalId||''}</span> ・ ▼母の全産子</div>
         </div>
-        <div style="display:flex;gap:8px;text-align:center;align-items:center;">
-          <div><div style="font-size:17px;font-weight:900;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div><div style="font-size:8px;color:var(--muted);">等級</div></div>
-          <div><div style="font-size:15px;font-weight:800;color:var(--info);">${v(r.weight)}</div><div style="font-size:8px;color:var(--muted);">枝重</div></div>
-          <div><div style="font-size:15px;font-weight:800;color:${bmsColor(r.bms)};">${v(r.bms)}</div><div style="font-size:8px;color:var(--muted);">BMS</div></div>
-          <div><div style="font-size:13px;font-weight:800;color:var(--accent);">${v(r.yieldRate,'%')}</div><div style="font-size:8px;color:var(--muted);">歩留</div></div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;text-align:center;">
+          <div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:17px;font-weight:900;color:${gradeColor(r.meatGrade)};">${r.meatGrade||'—'}</div><div style="font-size:8px;color:var(--muted);">等級</div></div>
+          <div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:15px;font-weight:800;color:var(--info);">${v(r.weight)}</div><div style="font-size:8px;color:var(--muted);">枝重</div></div>
+          <div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:15px;font-weight:800;color:${bmsColor(r.bms)};">${v(r.bms)}</div><div style="font-size:8px;color:var(--muted);">BMS</div></div>
+          <div style="background:var(--bg3);border-radius:6px;padding:5px 2px;"><div style="font-size:14px;font-weight:800;color:var(--accent);">${v(r.yieldRate,'%')}</div><div style="font-size:8px;color:var(--muted);">歩留</div></div>
         </div>
       </div>
       <div id="${hid}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;" onclick="event.stopPropagation()">
