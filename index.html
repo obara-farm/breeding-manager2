@@ -16429,6 +16429,10 @@ header .sub{font-size:11px;opacity:.85;}
 <script>
 const DATA=__DATA__;
 const OVERALL=__OVERALL__;
+const DAMIDS=__DAMIDS__;
+function damIdBadge(name){ if(!name||!DAMIDS)return ''; const info=DAMIDS[String(name).trim()]; if(!info)return '';
+  var parts=[]; if(info.id)parts.push('🏷'+info.id); if(info.nationalId)parts.push('<span style="font-family:monospace;">'+info.nationalId+'</span>');
+  return parts.length?'<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">'+parts.join(' ')+'</span>':''; }
 let pat=3, worst=0, view='dam', selYears=[];
 function qnum(mg){const m=String(mg||'').match(/[1-5]/);return m?+m[0]:0;}
 function avg(a){return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;}
@@ -16512,7 +16516,7 @@ function renderRank(){
     const badge=key==='dam'?(worst?'<span class="badge recip">受け牛候補</span>':(g.score>=52?'<span class="badge donor">ドナー候補</span>':'')):'';
     return '<div class="card" onclick="var d=this.querySelector(\\'.detail\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
       +'<div class="chd"><div class="rk" style="color:'+rc+';">'+(i+1)+'</div>'
-      +'<div class="nm">'+g.name+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで産子詳細</div></div>'
+      +'<div class="nm">'+g.name+(key==='dam'?damIdBadge(g.name):'')+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで産子詳細</div></div>'
       +'<div style="text-align:right;"><div class="sc" style="color:'+(g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)')+';">'+(g.score==null?'—':g.score)+'</div><div style="font-size:9px;color:var(--muted);">総合スコア</div></div></div>'
       +'<div class="mgrid">'
       +'<div class="mcell"><b style="color:'+bmsColor(g.avgBms)+';">'+(g.avgBms==null?'—':g.avgBms)+'</b><div>BMS平均</div></div>'
@@ -16595,7 +16599,7 @@ function renderHomerunR(){
     const hid='hrr-'+i;
     return '<div class="card" onclick="var d=document.getElementById(\\''+hid+'\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
       +'<div style="display:flex;align-items:center;gap:10px;"><div style="font-size:20px;font-weight:900;font-family:monospace;color:'+rc+';width:26px;text-align:center;">'+(i+1)+'</div>'
-      +'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:900;"><span style="color:var(--accent);">'+(r.dam||'—')+'</span> <span style="color:var(--muted);font-weight:400;">×</span> <span style="color:var(--info);">'+(r.sire||'—')+'</span> '+sx+'</div>'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:15px;font-weight:900;"><span style="color:var(--accent);">'+(r.dam||'—')+'</span>'+damIdBadge(r.dam)+' <span style="color:var(--muted);font-weight:400;">×</span> <span style="color:var(--info);">'+(r.sire||'—')+'</span> '+sx+'</div>'
       +'<div style="font-size:10px;color:var(--muted);">'+v(r.slaughterDate)+' ・ タップで母の全産子</div></div>'
       +'<div style="display:flex;gap:7px;text-align:center;">'
       +'<div><div style="font-size:16px;font-weight:900;color:'+gc(r.meatGrade)+';">'+(r.meatGrade||'—')+'</div><div style="font-size:8px;color:var(--muted);">等級</div></div>'
@@ -16652,7 +16656,15 @@ function downloadFarmerHTML(farmer){
   const overall={};
   fatteningRecords.forEach(r=>{ const y=r.year||''; if(!y)return; if(!overall[y])overall[y]={n:0,b5:0,b4:0,b3:0,b2:0,b0:0};
     const q=qn(r.meatGrade); overall[y].n++; overall[y]['b'+(q>=2?q:0)]++; });
-  const html=buildFarmerReportHTML(farmer, recs, overall);
+  // 自分（小原）のレポートのみ：母牛名→個体識別番号・耳標を埋め込む（在籍牛データより）
+  let damIds={};
+  if(farmer===OWN_FARMER){
+    (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const nm=String(c.name||'').trim(); if(!nm)return;
+      const m=(typeof getMasterCow==='function')?getMasterCow(c.id):null;
+      const nid=(m?m.nationalId:c.nationalId)||'';
+      if(!damIds[nm]) damIds[nm]={id:c.id||'',nationalId:nid}; });
+  }
+  const html=buildFarmerReportHTML(farmer, recs, overall, damIds);
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -16662,9 +16674,10 @@ function downloadFarmerHTML(farmer){
   const ov=document.getElementById('farmer-export-ov'); if(ov)ov.remove();
   if(typeof toast==='function') toast('「'+farmer+'」のレポートを出力しました');
 }
-function buildFarmerReportHTML(farmer, recs, overall){
+function buildFarmerReportHTML(farmer, recs, overall, damIds){
   const dataJson=JSON.stringify(recs);
   const overallJson=JSON.stringify(overall||{});
+  const damIdsJson=JSON.stringify(damIds||{});
   const today=new Date().toLocaleDateString('ja-JP');
   const T='<'+'/script>';
   return REPORT_TEMPLATE
@@ -16672,6 +16685,7 @@ function buildFarmerReportHTML(farmer, recs, overall){
     .replace('__TODAY__', today)
     .replace('__COUNT__', recs.length)
     .replace('__OVERALL__', overallJson)
+    .replace('__DAMIDS__', damIdsJson)
     .replace('__DATA__', dataJson)
     .replace('__ENDSCRIPT__', T);
 }
@@ -16821,7 +16835,7 @@ function renderHomerun(recs){
         <div style="font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rc};width:28px;text-align:center;">${i+1}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:15px;font-weight:900;color:var(--text);">
-            <span style="color:var(--accent);">${r.dam||'—'}</span>
+            <span style="color:var(--accent);">${r.dam||'—'}</span>${damIdBadge(r.dam)}
             <span style="color:var(--muted);font-weight:400;">×</span>
             <span style="color:var(--info);">${r.sire||'—'}</span> ${sx}
           </div>
@@ -16887,7 +16901,28 @@ function renderDamOffspring(recs){
       </tr></thead><tbody>${rows}</tbody>
     </table></div>`;
 }
+// 母牛名 → 在籍牛の耳標・個体識別番号を照合（現存牛のみ引ける）
+let _damInfoCache=null;
+function damInfoByName(name){
+  if(!name) return null;
+  if(!_damInfoCache){ _damInfoCache={};
+    (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const nm=String(c.name||'').trim(); if(!nm)return;
+      const m=(typeof getMasterCow==='function')?getMasterCow(c.id):null;
+      const nid=(m?m.nationalId:c.nationalId)||'';
+      if(!_damInfoCache[nm]) _damInfoCache[nm]={id:c.id,nationalId:nid}; });
+  }
+  return _damInfoCache[String(name).trim()]||null;
+}
+function damIdBadge(name){
+  const info=damInfoByName(name);
+  if(!info) return '';
+  const parts=[];
+  if(info.id) parts.push('🏷'+info.id);
+  if(info.nationalId) parts.push('<span style="font-family:\'JetBrains Mono\',monospace;">'+info.nationalId+'</span>');
+  return parts.length?`<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">${parts.join(' ')}</span>`:'';
+}
 function renderFattening() {
+  _damInfoCache=null;
   const year = document.getElementById('fat-year-filter')?.value || 'all';
   const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
   const view = document.getElementById('fat-view')?.value || 'ranking';
@@ -17119,7 +17154,7 @@ function renderFattening() {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
-            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}</div>
+            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}</div>
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
           </div>
           <div style="text-align:right;">
