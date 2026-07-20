@@ -1141,6 +1141,8 @@ textarea{resize:vertical;}
     <select id="fat-farmer-filter" style="display:none;"><option value="all">全農家</option></select>
     <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
       <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;">🧊 自家精液のみ</label>
+    <label style="font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;">
+      <input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" style="cursor:pointer;">🐄 現存牛のみ</label>
     <button onclick="exportFarmerReport()" style="background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;margin-left:auto;">📄 農家別レポート出力</button>
     <button onclick="confirmClearFattening()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑 データ削除</button>
   </div>
@@ -17143,7 +17145,6 @@ function renderFattening() {
           <button onclick="setFatRankOrder(false)" style="background:${!fatRankWorst?'var(--accent)':'var(--bg3)'};border:none;color:${!fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ベスト順</button>
           <button onclick="setFatRankOrder(true)" style="background:${fatRankWorst?'var(--danger)':'var(--bg3)'};border:none;color:${fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ワースト順</button>
         </div>
-        ${groupKey==='dam' ? `<label style="font-size:11px;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" ${fatLivingOnly?'checked':''}>現存牛のみ</label>` : ''}
       </div>
       <div style="font-size:10px;color:var(--muted);margin:-4px 0 10px;">総合スコアの配分【${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).label}】：${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).desc}（同グループ内で偏差値化して加重平均）</div>` +
     groups.map((g,i) => {
