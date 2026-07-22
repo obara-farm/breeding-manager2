@@ -10438,9 +10438,9 @@ function saveCollection() {
           });
         }
       }
-      // 当日凍結：採番済み胚番号でそのまま凍結胚在庫へ
-      const freezeNo = fe.embryoNo || `${lot||date}-fresh-${i+1}`;
-      _processFreshToFreezeWithNo(rec, {stage: fe.stage, rank: fe.rank, cultureStage: fe.stage, cultureRank: fe.rank}, freezeNo, '', date, lot);
+      // ※以前はここで自動的に凍結胚在庫にも追加していたが、
+      //   移植先空欄＝他農家へ譲渡（新鮮胚のまま移植してもらう）運用のため、
+      //   譲渡と凍結の二重登録になっていた。凍結はしない。
     } else if (fe.action === 'culture') {
       // 培養（翌日）：結果入力済みなら処理、未入力ならタスク生成
       const feNo = fe.embryoNo || `${lot||date}-c${i+1}`;
