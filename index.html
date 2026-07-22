@@ -10366,10 +10366,11 @@ function saveCollection() {
     const donorBreed = isExternal ? '褐毛' : (cows.find(c=>c.id===donorId)?.breed||'黒毛');
     const invType = isExternal ? 'restock' : 'selfcollect';
     const freshCount = (freshEmbryos||[]).filter(fe => fe.embryoNo || fe.recipientId).length;
-    const totalCount = frozenEmbryos.length + freshCount;
+    // 凍結胚在庫は「凍結胚の本数」のみ。新鮮胚は別途1本ずつ記録されるため、ここに含めると二重計上になる
+    const totalCount = frozenEmbryos.length;
     const invMemo = isExternal
-      ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本${freshCount?` 新鮮${freshCount}本`:''}`
-      : `採卵${lot||date} 凍結${frozenEmbryos.length}本${freshCount?` 新鮮${freshCount}本`:''}`;
+      ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本${freshCount?`（同採卵の新鮮${freshCount}本は別途記録）`:''}`
+      : `採卵${lot||date} 凍結${frozenEmbryos.length}本${freshCount?`（同採卵の新鮮${freshCount}本は別途記録）`:''}`;
     // 同ロット・同採卵日・同ドナーの在庫を削除（採卵由来のみ）
     if (lot) {
       embryoInventory = embryoInventory.filter(e => {
@@ -15280,6 +15281,8 @@ function renderReport() {
           monthData[m].in += h.count;
           monthData[m].breakdown[name].in += h.count;
         } else if (h.type === 'selfcollect') {
+          // 新鮮→凍結変換は「新たな生産」ではない（採卵時に計上済み）ので二重計上しない
+          if ((h.memo||'').includes('変換')) return;
           monthData[m].production += h.count;
           if (!monthData[m].breakdown[name]) monthData[m].breakdown[name] = {in:0,use:0,transfer:0,discard:0,production:0};
           monthData[m].breakdown[name].production = (monthData[m].breakdown[name].production||0) + h.count;
@@ -16343,14 +16346,30 @@ function setFatRankOrder(w){ fatRankWorst = w; renderFattening(); }
 let fatLivingOnly = false;
 function toggleFatLivingOnly(){ fatLivingOnly = document.getElementById('fat-living-only')?.checked || false; renderFattening(); }
 // パターンごとの重み定義（画面表示にも使う）。keyの'wSexIdx'は性別調整済み枝重
+let FAT_CUSTOM_W = { wSexIdx:50, rateHigh:35, avgYield:15, avgBms:0, rateA3:0 };
+const FAT_TRAIT_LABELS = { wSexIdx:'枝重', rateHigh:'A4以上率', rateA3:'A3以上率', avgYield:'歩留率', avgBms:'BMS' };
+function customTraits(){
+  const out=[]; let sum=0;
+  for(const k in FAT_CUSTOM_W){ const v=Number(FAT_CUSTOM_W[k])||0; if(v>0){ out.push({key:k,w:v}); sum+=v; } }
+  if(!out.length) return [{key:'wSexIdx',w:1}];
+  out.forEach(t=>t.w=t.w/sum); // 合計100%でなくても正規化
+  return out;
+}
+function customDesc(){
+  const parts=[]; let sum=0;
+  for(const k in FAT_CUSTOM_W){ const v=Number(FAT_CUSTOM_W[k])||0; if(v>0){ parts.push(FAT_TRAIT_LABELS[k]+v+'%'); sum+=v; } }
+  return (parts.join('・')||'未設定')+(sum!==100?`（合計${sum}%→100%に正規化して計算）`:'');
+}
 const FAT_SCORE_PATTERNS = {
-  3: { label:'増体＋A4以上', desc:'枝重40%・A4以上率40%・歩留率20%（枝重は雌雄別評価）',
-       traits:[{key:'wSexIdx',w:0.40},{key:'rateHigh',w:0.40},{key:'avgYield',w:0.20}] },
+  3: { label:'増体＋A4以上', desc:'枝重50%・A4以上率35%・歩留率15%（枝重は雌雄別評価）',
+       traits:[{key:'wSexIdx',w:0.50},{key:'rateHigh',w:0.35},{key:'avgYield',w:0.15}] },
   1: { label:'枝重重視', desc:'枝重35%・歩留率20%・A3以上率20%・BMS15%・A4以上率10%（枝重は雌雄別評価）',
        traits:[{key:'wSexIdx',w:0.35},{key:'avgYield',w:0.20},{key:'rateA3',w:0.20},{key:'avgBms',w:0.15},{key:'rateHigh',w:0.10}] },
   2: { label:'A4以上重視', desc:'A4以上率35%・枝重20%・歩留率20%・BMS15%（枝重は雌雄別評価）',
        traits:[{key:'rateHigh',w:0.35},{key:'wSexIdx',w:0.20},{key:'avgYield',w:0.20},{key:'avgBms',w:0.15}] },
+  0: { label:'カスタム', get desc(){ return customDesc()+'（枝重は雌雄別評価）'; }, get traits(){ return customTraits(); } },
 };
+function setFatCustomW(key,val){ FAT_CUSTOM_W[key]=Math.max(0,Number(val)||0); fatScorePattern=0; renderFattening(); }
 function computeCompositeScore(groups) {
   const traits = (FAT_SCORE_PATTERNS[fatScorePattern]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:t.key,w:t.w}));
   traits.forEach(t => {
@@ -16829,10 +16848,15 @@ function renderKoubutsu(recs, allRecs){
 function toggleDamDetail(id){ const el=document.getElementById(id); if(!el)return; el.style.display = el.style.display==='none'?'block':'none'; }
 // 産子ベスト（ホームラン）：全産子を個体成績順（増体＋等級＋歩留）に並べる。母×種の当たりが分かる
 // 枝重・歩留率は性別（去勢/未経産）ごとに偏差値化（♂と♀で枝重水準が違うため）
+// 産子ベスト：配分カスタム＋単体指標ランキング
+let HR_W = { weight:40, grade:40, yieldRate:20 };
+let hrMode = 'total'; // total / wM / wF / bms / grade
+function setHrW(k,v){ HR_W[k]=Math.max(0,Number(v)||0); renderFattening(); }
+function setHrMode(m){ hrMode=m; renderFattening(); }
 function renderHomerun(recs){
   const qn = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
   const sexOf = r => /去勢/.test(r.sex||'') ? 'M' : /未経|雌|めす/.test(r.sex||'') ? 'F' : 'U';
-  const rows = recs.filter(r=>r.weight!=null || r.meatGrade);
+  let rows = recs.filter(r=>r.weight!=null || r.meatGrade);
   if(!rows.length) return '<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';
   // 性別ごとの平均・SD（枝重・歩留率）。等級は全体で偏差値化
   const sexStats={};
@@ -16847,13 +16871,22 @@ function renderHomerun(recs){
     const m=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
     const sd=vals.length?Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length):0; return {m,sd}; };
   const dG=devAll(r=>qn(r));
+  const wSum=(Number(HR_W.weight)||0)+(Number(HR_W.grade)||0)+(Number(HR_W.yieldRate)||0);
+  const ww=wSum>0?(Number(HR_W.weight)||0)/wSum:0.4, wg=wSum>0?(Number(HR_W.grade)||0)/wSum:0.4, wy=wSum>0?(Number(HR_W.yieldRate)||0)/wSum:0.2;
   rows.forEach(r=>{ let s=0,w=0; const st=sexStats[sexOf(r)];
-    if(r.weight!=null&&st.w.sd>0){ s+=(50+(r.weight-st.w.m)/st.w.sd*10)*0.4; w+=0.4; }
-    if(dG.sd>0){ s+=(50+(qn(r)-dG.m)/dG.sd*10)*0.4; w+=0.4; }
-    if(r.yieldRate!=null&&st.y.sd>0){ s+=(50+(r.yieldRate-st.y.m)/st.y.sd*10)*0.2; w+=0.2; }
+    if(r.weight!=null&&st.w.sd>0&&ww>0){ s+=(50+(r.weight-st.w.m)/st.w.sd*10)*ww; w+=ww; }
+    if(dG.sd>0&&wg>0){ s+=(50+(qn(r)-dG.m)/dG.sd*10)*wg; w+=wg; }
+    if(r.yieldRate!=null&&st.y.sd>0&&wy>0){ s+=(50+(r.yieldRate-st.y.m)/st.y.sd*10)*wy; w+=wy; }
     r._hs = w>0?Math.round(s/w*10)/10:0; });
   const worst = fatRankWorst;
-  rows.sort((a,b)=>(b._hs-a._hs)*(worst?-1:1));
+  // 単体指標モード：枝重(♂/♀別)・BMS・等級
+  let viewRows = rows;
+  if(hrMode==='wM'){ viewRows = rows.filter(r=>sexOf(r)==='M'&&r.weight!=null).sort((a,b)=>(b.weight-a.weight)*(worst?-1:1)); }
+  else if(hrMode==='wF'){ viewRows = rows.filter(r=>sexOf(r)==='F'&&r.weight!=null).sort((a,b)=>(b.weight-a.weight)*(worst?-1:1)); }
+  else if(hrMode==='bms'){ viewRows = rows.filter(r=>r.bms!=null).sort((a,b)=>((b.bms-a.bms)||((b.weight||0)-(a.weight||0)))*(worst?-1:1)); }
+  else if(hrMode==='grade'){ viewRows = rows.filter(r=>qn(r)>0).sort((a,b)=>((qn(b)-qn(a))||((b.bms||0)-(a.bms||0)))*(worst?-1:1)); }
+  else { viewRows = rows.slice().sort((a,b)=>(b._hs-a._hs)*(worst?-1:1)); }
+  rows = viewRows;
   const gradeColor=g=>{ const n=qn({meatGrade:g}); return n>=4?'var(--danger)':n>=3?'var(--warn)':'var(--muted)'; };
   const v=(x,suf)=>x!=null&&x!==''?x+(suf||''):'—';
   const cap = Math.min(rows.length, 200);
@@ -16889,11 +16922,23 @@ function renderHomerun(recs){
       </div>
     </div>`;
   }).join('');
-  const note = `<div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;">全産子${rows.length}頭を${worst?'成績の低い':'成績の高い'}順に個別表示。<b>母 × 種雄牛</b>の組み合わせで${worst?'':'ホームラン（当たり）'}が分かります。カードをタップでその母の全産子を表示。<br>個体スコア＝枝重40%・肉質等級40%・歩留率20%を偏差値化（<b>枝重と歩留率は去勢／未経産で分けて評価</b>：♂と♀で枝重水準が違うため）${cap<rows.length?`。上位${cap}頭を表示`:''}。</div>
-    <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content;margin-bottom:12px;">
-      <button onclick="setFatRankOrder(false)" style="background:${!fatRankWorst?'var(--accent)':'var(--bg3)'};border:none;color:${!fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;">🎯 ベスト順</button>
-      <button onclick="setFatRankOrder(true)" style="background:${fatRankWorst?'var(--danger)':'var(--bg3)'};border:none;color:${fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;">ワースト順</button>
-    </div>`;
+  const modeLabels={total:'総合スコア',wM:'枝重（去勢♂の部）',wF:'枝重（未経産♀の部）',bms:'BMS',grade:'等級'};
+  const modeBtn=(m,l)=>`<button onclick="setHrMode('${m}')" style="background:${hrMode===m?'var(--accent)':'var(--bg3)'};border:none;color:${hrMode===m?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">${l}</button>`;
+  const note = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.6;">全産子${rows.length}頭を${worst?'成績の低い':'成績の高い'}順に個別表示（<b>${modeLabels[hrMode]}</b>）。<b>母 × 種雄牛</b>の組み合わせで${worst?'':'ホームラン（当たり）'}が分かります。カードをタップでその母の全産子。${hrMode==='total'?'総合スコアは枝重・歩留率を<b>去勢／未経産で分けて偏差値化</b>':'枝重は♂♀を分けた部門別ランキング'}${cap<rows.length?`。上位${cap}頭を表示`:''}。</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        ${modeBtn('total','総合')}${modeBtn('wM','枝重♂')}${modeBtn('wF','枝重♀')}${modeBtn('bms','BMS')}${modeBtn('grade','等級')}
+      </div>
+      <div style="display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <button onclick="setFatRankOrder(false)" style="background:${!fatRankWorst?'var(--accent)':'var(--bg3)'};border:none;color:${!fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;">🎯 ベスト順</button>
+        <button onclick="setFatRankOrder(true)" style="background:${fatRankWorst?'var(--danger)':'var(--bg3)'};border:none;color:${fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 12px;cursor:pointer;">ワースト順</button>
+      </div>
+    </div>
+    ${hrMode==='total' ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:12px;">
+      <span style="font-size:10px;color:var(--muted);font-weight:700;">個体スコア配分(%)</span>
+      ${[['weight','枝重'],['grade','肉質等級'],['yieldRate','歩留率']].map(([k,l])=>`<label style="font-size:11px;color:var(--text);display:inline-flex;align-items:center;gap:3px;">${l}
+        <input type="number" min="0" max="100" step="5" value="${HR_W[k]}" onchange="setHrW('${k}',this.value)" style="width:52px;font-size:12px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;text-align:right;"></label>`).join('')}
+    </div>` : ''}`;
   return note + cards;
 }
 function renderDamOffspring(recs){
@@ -17173,13 +17218,19 @@ function renderFattening() {
           <button onclick="setFatScorePattern(3)" style="background:${fatScorePattern===3?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===3?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">増体＋A4以上</button>
           <button onclick="setFatScorePattern(1)" style="background:${fatScorePattern===1?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===1?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">枝重重視</button>
           <button onclick="setFatScorePattern(2)" style="background:${fatScorePattern===2?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===2?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">A4以上重視</button>
+          <button onclick="setFatScorePattern(0)" style="background:${fatScorePattern===0?'var(--accent)':'var(--bg3)'};border:none;color:${fatScorePattern===0?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">⚙️カスタム</button>
         </div>
         <div style="display:flex;gap:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
           <button onclick="setFatRankOrder(false)" style="background:${!fatRankWorst?'var(--accent)':'var(--bg3)'};border:none;color:${!fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ベスト順</button>
           <button onclick="setFatRankOrder(true)" style="background:${fatRankWorst?'var(--danger)':'var(--bg3)'};border:none;color:${fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ワースト順</button>
         </div>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin:-4px 0 10px;">総合スコアの配分【${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).label}】：${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).desc}（同グループ内で偏差値化して加重平均）</div>` +
+      <div style="font-size:10px;color:var(--muted);margin:-4px 0 10px;">総合スコアの配分【${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).label}】：${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).desc}（同グループ内で偏差値化して加重平均）</div>
+      ${fatScorePattern===0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:10px;">
+        <span style="font-size:10px;color:var(--muted);font-weight:700;">配分(%)</span>
+        ${['wSexIdx','rateHigh','rateA3','avgYield','avgBms'].map(k=>`<label style="font-size:11px;color:var(--text);display:inline-flex;align-items:center;gap:3px;">${FAT_TRAIT_LABELS[k]}
+          <input type="number" min="0" max="100" step="5" value="${FAT_CUSTOM_W[k]}" onchange="setFatCustomW('${k}',this.value)" style="width:52px;font-size:12px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;text-align:right;"></label>`).join('')}
+      </div>` : ''}` +
     groups.map((g,i) => {
       const rankColor = i===0?'var(--danger)':i===1?'var(--warn)':i===2?'var(--info)':'var(--muted)';
       const clickable = (groupKey==='dam');
