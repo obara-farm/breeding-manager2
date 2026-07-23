@@ -1146,6 +1146,7 @@ textarea{resize:vertical;}
     <span style="flex-basis:100%;height:0;"></span>
     <button onclick="exportFarmerReport()" style="height:30px;box-sizing:border-box;background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">📄 農家別レポート出力</button>
     <button onclick="confirmClearFattening()" style="height:30px;box-sizing:border-box;background:none;border:1px solid var(--danger);color:var(--danger);font-size:11px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">🗑 データ削除</button>
+    <div id="fat-living-note" style="flex-basis:100%;font-size:10px;color:var(--warn);"></div>
   </div>
 
   <!-- サマリーカード -->
@@ -17033,13 +17034,21 @@ function renderDamOffspring(recs){
 let _damInfoCache=null;
 function damInfoByName(name){
   if(!name) return null;
+  const key=String(name).trim();
   if(!_damInfoCache){ _damInfoCache={};
-    (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const nm=String(c.name||'').trim(); if(!nm)return;
+    // 選択中の農家に応じて参照先を切り替える（同じ名前の牛が農場をまたいで存在するため）
+    const sel=(typeof fatSelectedFarmers!=='undefined' && fatSelectedFarmers.length)? fatSelectedFarmers : null;
+    const useOwn = !sel || sel.includes(OWN_FARMER);
+    const others = sel ? sel.filter(f=>f!==OWN_FARMER) : Object.keys((typeof FARM_DAM_IDS!=='undefined')?FARM_DAM_IDS:{});
+    // 他農家（長島など）を先に登録：その農家だけを見ているときは他農家の番号が優先される
+    others.forEach(f=>{ const m=(typeof FARM_DAM_IDS!=='undefined')?FARM_DAM_IDS[f]:null;
+      if(m) Object.keys(m).forEach(nm=>{ if(!_damInfoCache[nm]) _damInfoCache[nm]=m[nm]; }); });
+    if(useOwn) (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const nm=String(c.name||'').trim(); if(!nm)return;
       const m=(typeof getMasterCow==='function')?getMasterCow(c.id):null;
       const nid=(m?m.nationalId:c.nationalId)||'';
       if(!_damInfoCache[nm]) _damInfoCache[nm]={id:c.id,nationalId:nid}; });
   }
-  return _damInfoCache[String(name).trim()]||null;
+  return _damInfoCache[key]||null;
 }
 function damIdBadge(name){
   const info=damInfoByName(name);
@@ -17069,6 +17078,7 @@ function jumpToDam(){
 }
 function renderFattening() {
   _damInfoCache=null;
+  { const _n=document.getElementById('fat-living-note'); if(_n)_n.textContent=''; }
   const year = document.getElementById('fat-year-filter')?.value || 'all';
   const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
   const view = document.getElementById('fat-view')?.value || 'ranking';
@@ -17218,10 +17228,22 @@ function renderFattening() {
   // 総合スコア（偏差値ベース：BMS・枝重・歩留率・A4以上率を標準化して加重平均）
   computeCompositeScore(groups);
 
-  // 母牛別で「現存牛のみ」：在籍牛リスト(cows)にいる母牛だけに絞る
+  // 母牛別で「現存牛のみ」：選択中の農家の在籍牛リストに載っている母牛だけに絞る
+  // 小原＝cows（Firebase同期）、他農家＝FARM_DAM_IDS（取込済みの在籍牛一覧）
   if (groupKey==='dam' && typeof fatLivingOnly!=='undefined' && fatLivingOnly) {
-    const living = new Set((typeof cows!=='undefined'?cows:[]).map(c=>String(c.name||'').trim()).filter(Boolean));
+    const living = new Set();
+    const sel = (typeof fatSelectedFarmers!=='undefined' && fatSelectedFarmers.length) ? fatSelectedFarmers : null;
+    const useOwn = !sel || sel.includes(OWN_FARMER);
+    if (useOwn) (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const n=String(c.name||'').trim(); if(n)living.add(n); });
+    const others = sel ? sel.filter(f=>f!==OWN_FARMER) : Object.keys(FARM_DAM_IDS||{});
+    const missing = [];
+    others.forEach(f=>{ const m=(typeof FARM_DAM_IDS!=='undefined')?FARM_DAM_IDS[f]:null;
+      if(m) Object.keys(m).forEach(n=>living.add(n)); else missing.push(f); });
     groups = groups.filter(g=>living.has(String(g.name).trim()));
+    if (missing.length) {
+      const note = document.getElementById('fat-living-note');
+      if (note) note.textContent = `※${missing.join('・')}の在籍牛一覧は未登録のため、現存牛の絞り込みができません（CSVを取り込めば対応できます）`;
+    }
   }
 
   // ランキングモード：BMS・歩留率・枝重の3カードを縦に並べる
