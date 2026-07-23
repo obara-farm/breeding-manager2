@@ -2112,6 +2112,7 @@ textarea{resize:vertical;}
           <option value="cidr_ai_start">CIDRプログラム開始（AI用）D0</option>
         </optgroup>
         <optgroup label="── ET プログラム ──">
+          <option value="estrus_et">自然発情 → ET（AIせず）発情確認日D0</option>
           <option value="et_recipient">ETレシピエント CIDRプログラム D0</option>
         </optgroup>
         <optgroup label="── 採卵（ドナー）──">
@@ -5612,6 +5613,11 @@ function isEmbryoFrozen(sire, memo) {
   return true; // デフォルト凍結
 }
 
+// ET受胎率の集計から除外する期間（融解方法の誤りなど、技術的要因で受胎率が実力を反映しない期間）
+const ET_RATE_EXCLUDE = [
+  { from:'2026-01-01', to:'2026-02-28', label:'R8年1〜2月（融解方法の誤りのため）' },
+];
+function isEtRateExcluded(d){ return ET_RATE_EXCLUDE.some(x => d >= x.from && d <= x.to); }
 function renderStats() {
   const todayStr = today();
   const container = document.getElementById('stats-container');
@@ -5620,13 +5626,17 @@ function renderStats() {
   const yearSel = document.getElementById('stats-year');
   if (yearSel && !yearSel.dataset.built) {
     const currentFY = new Date().getFullYear() - 2018;
-    yearSel.innerHTML = '<option value="all">全期間</option>';
+    yearSel.innerHTML = '';
     for (let fy = currentFY; fy >= 7; fy--) {
       const opt = document.createElement('option');
       opt.value = 'R' + fy;
       opt.textContent = 'R' + fy + '（' + (fy + 2018) + '年）';
       yearSel.appendChild(opt);
     }
+    const optAll = document.createElement('option');
+    optAll.value = 'all'; optAll.textContent = '全期間';
+    yearSel.appendChild(optAll);
+    yearSel.value = 'R' + currentFY;   // 初期表示は最新年度
     yearSel.dataset.built = '1';
   }
   const selectedYear = yearSel ? yearSel.value : 'all';
@@ -5647,6 +5657,7 @@ function renderStats() {
   // 2. 受胎率（授精簿全記録ベース）
   let aiTotal=0, aiPos=0, etTotal=0, etPos=0;
   let etFrozenTotal=0, etFrozenPos=0, etFreshTotal=0, etFreshPos=0;
+  let etExcluded=0;
 
   // 授精簿の全記録（固定＋動的）を取得
   const allInsemRecs = [
@@ -5721,6 +5732,8 @@ function renderStats() {
       if (addDays(rec.date, rec.isET ? 38 : 45) > todayStr && rec.pregResult === null) return;
 
       if (rec.isET) {
+        // 融解方法の誤りにより受胎率が異常低下した期間はET受胎率の集計から除外
+        if (isEtRateExcluded(rec.date)) { etExcluded++; return; }
         // 授精簿のs欄（胚番号）から凍結/新鮮を判定
         const isFrozen = isEmbryoFrozen(rec.s, rec.m);
         if (result === 'pos') {
@@ -5804,6 +5817,7 @@ function renderStats() {
         </div>
       </div>
       ${etTotal ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">ET合計: ${etPos} / ${etTotal} 頭（${etRate}%）</div>` : ''}
+      ${etExcluded ? `<div style="font-size:10px;color:var(--warn);margin-top:4px;text-align:center;">※ ${ET_RATE_EXCLUDE.map(x=>x.label).join('・')}の${etExcluded}件は集計から除外</div>` : ''}
       ` : '<div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">妊鑑結果を記録すると受胎率が表示されます</div>'}
     </div>
 
@@ -5951,6 +5965,8 @@ function renderStats() {
           // 妊鑑予定日（45日後）がまだ来ていない場合は集計から除外
           const pregCheckDate = addDays(rec.date, rec.isET ? 38 : 45);
           if (pregCheckDate > todayStr && rec.pregResult === null) return;
+          // 融解方法の誤りによる除外期間のETは月別集計にも入れない
+          if (rec.isET && isEtRateExcluded(rec.date)) return;
 
           const isPos = result === 'pos';
           const month = parseInt(rec.date.slice(5,7));
