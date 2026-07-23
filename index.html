@@ -16708,6 +16708,8 @@ function exportFarmerReport(){
   document.body.appendChild(ov);
   ov.addEventListener('click',e=>{ if(e.target===ov)ov.remove(); });
 }
+// 他農家の在籍牛（レポートの母牛に耳標・個体識別番号を出すため）。農家名は肥育データの表記に合わせる
+const FARM_DAM_IDS = {"長島　正典": {"えりこ":{"id":"N-22","nationalId":"1398824216"},"きくみつ":{"id":"K-48","nationalId":"1626600568"},"みえこ":{"id":"N-28","nationalId":"1383124604"},"たまき":{"id":"N-13","nationalId":"1637926787"},"あみか":{"id":"N-19","nationalId":"1516723933"},"おはる":{"id":"N-32","nationalId":"1602825343"},"たんぽぽ":{"id":"K-51","nationalId":"1417543432"},"かえら":{"id":"B-1","nationalId":"1300370640"},"しげたま":{"id":"K-33","nationalId":"1361037018"},"うめみ":{"id":"N-21","nationalId":"1398824193"},"みくな":{"id":"N-12","nationalId":"1637926770"},"しおみ":{"id":"N-27","nationalId":"1383124598"},"めぐ":{"id":"K-44","nationalId":"1348394288"},"ときこ":{"id":"N-36","nationalId":"1564625807"},"はづき":{"id":"K-43","nationalId":"1489335133"},"まさみ":{"id":"N-2","nationalId":"1400026140"},"はずき":{"id":"N-15","nationalId":"1391523482"},"しずく":{"id":"N-8","nationalId":"1376826379"},"しげふく":{"id":"K-42","nationalId":"1577670979"},"あきこ":{"id":"K-34","nationalId":"1368789323"},"なみみつしげ":{"id":"K-50","nationalId":"1365382497"},"ながと":{"id":"N-24","nationalId":"1398824490"},"くまち390ET":{"id":"K-40","nationalId":"1516746758"},"ゆうか":{"id":"K-46","nationalId":"1506100744"},"ららみ":{"id":"N-20","nationalId":"1398824179"},"第三ふくまる":{"id":"K-49","nationalId":"1395829108"},"はるか":{"id":"N-11","nationalId":"1376826713"},"ふみの":{"id":"N-23","nationalId":"1398824483"},"かがや":{"id":"N-33","nationalId":"1602825633"},"みつまる":{"id":"N-3","nationalId":"1400026157"},"みつよ":{"id":"N-35","nationalId":"1564625661"},"つるみ":{"id":"K-47","nationalId":"1490668916"},"はれまる":{"id":"E-1","nationalId":"1391986379"},"まさつる":{"id":"N-1","nationalId":"1602825510"},"にしき":{"id":"K-37","nationalId":"1529948538"},"ひのしずく":{"id":"K-6","nationalId":"1451046944"},"かいり":{"id":"N-34","nationalId":"1602825640"},"しげみ":{"id":"K-36","nationalId":"1529951781"},"ゆめの":{"id":"N-30","nationalId":"1585725166"},"きくな":{"id":"N-26","nationalId":"1383124567"},"まなか":{"id":"N-17","nationalId":"1516723735"},"あきこ壱":{"id":"K-39","nationalId":"1364565402"},"きみえ":{"id":"N-29","nationalId":"1585725135"},"とみはるET":{"id":"K-45","nationalId":"1366745857"},"みなみ":{"id":"N-6","nationalId":"1376826690"},"いろは":{"id":"E-2","nationalId":"1662669116"},"うらら":{"id":"E-3","nationalId":"1662669154"}}};
 function downloadFarmerHTML(farmer){
   const pick = r => ({
     dam:r.dam||'',sire:r.sire||'',nationalId:r.nationalId||'',sex:r.sex||'',
@@ -16725,6 +16727,7 @@ function downloadFarmerHTML(farmer){
     const q=qn(r.meatGrade); overall[y].n++; overall[y]['b'+(q>=2?q:0)]++; });
   // 自分（小原）のレポートのみ：母牛名→個体識別番号・耳標を埋め込む（在籍牛データより）
   let damIds={};
+  if(FARM_DAM_IDS[farmer]) damIds=Object.assign({}, FARM_DAM_IDS[farmer]);
   if(farmer===OWN_FARMER){
     (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const nm=String(c.name||'').trim(); if(!nm)return;
       const m=(typeof getMasterCow==='function')?getMasterCow(c.id):null;
