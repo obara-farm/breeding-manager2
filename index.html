@@ -9538,6 +9538,8 @@ function onColFreshCountInput(val, existing) {
       }
       tbody.appendChild(tr);
     }
+  // 行を作り直したらA胚・B胚・回収卵を再集計（凍結胚側と同じ挙動に）
+  syncEmbryoGrades();
 }
 
 
@@ -9859,6 +9861,8 @@ function onColCultureCountInput(val, existing) {
   } else {
     while (tbody.rows.length > n) tbody.deleteRow(tbody.rows.length-1);
   }
+  // 行を作り直したらA胚・B胚・回収卵を再集計
+  syncEmbryoGrades();
 }
 
 function onCultureNextStageChange(sel) {
