@@ -16374,6 +16374,17 @@ const FAT_SCORE_PATTERNS = {
   0: { label:'カスタム', get desc(){ return customDesc()+'（枝重は雌雄別評価）'; }, get traits(){ return customTraits(); } },
 };
 function setFatCustomW(key,val){ FAT_CUSTOM_W[key]=Math.max(0,Number(val)||0); fatScorePattern=0; renderFattening(); }
+function fatCustomSum(){ let s=0; for(const k in FAT_CUSTOM_W) s+=Number(FAT_CUSTOM_W[k])||0; return Math.round(s); }
+// 入力した比率を保ったまま合計100%に揃える（端数は最大項目で調整）
+function normalizeFatCustomW(){
+  const sum=fatCustomSum(); if(!sum){ renderFattening(); return; }
+  const keys=Object.keys(FAT_CUSTOM_W);
+  let total=0, maxK=keys[0];
+  keys.forEach(k=>{ const v=Math.round((Number(FAT_CUSTOM_W[k])||0)/sum*100); FAT_CUSTOM_W[k]=v; total+=v;
+    if(v>(Number(FAT_CUSTOM_W[maxK])||0)) maxK=k; });
+  if(total!==100) FAT_CUSTOM_W[maxK]=Math.max(0,(Number(FAT_CUSTOM_W[maxK])||0)+(100-total));
+  renderFattening();
+}
 function computeCompositeScore(groups) {
   const traits = (FAT_SCORE_PATTERNS[fatScorePattern]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:t.key,w:t.w}));
   traits.forEach(t => {
@@ -16856,6 +16867,15 @@ function toggleDamDetail(id){ const el=document.getElementById(id); if(!el)retur
 let HR_W = { weight:40, grade:40, yieldRate:20 };
 let hrMode = 'total'; // total / wM / wF / bms / grade
 function setHrW(k,v){ HR_W[k]=Math.max(0,Number(v)||0); renderFattening(); }
+function hrSum(){ let s=0; for(const k in HR_W) s+=Number(HR_W[k])||0; return Math.round(s); }
+function normalizeHrW(){
+  const sum=hrSum(); if(!sum){ renderFattening(); return; }
+  const keys=Object.keys(HR_W); let total=0, maxK=keys[0];
+  keys.forEach(k=>{ const v=Math.round((Number(HR_W[k])||0)/sum*100); HR_W[k]=v; total+=v;
+    if(v>(Number(HR_W[maxK])||0)) maxK=k; });
+  if(total!==100) HR_W[maxK]=Math.max(0,(Number(HR_W[maxK])||0)+(100-total));
+  renderFattening();
+}
 function setHrMode(m){ hrMode=m; renderFattening(); }
 function renderHomerun(recs){
   const qn = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
@@ -16942,6 +16962,8 @@ function renderHomerun(recs){
       <span style="font-size:10px;color:var(--muted);font-weight:700;">個体スコア配分(%)</span>
       ${[['weight','枝重'],['grade','肉質等級'],['yieldRate','歩留率']].map(([k,l])=>`<label style="font-size:11px;color:var(--text);display:inline-flex;align-items:center;gap:3px;">${l}
         <input type="number" min="0" max="100" step="5" value="${HR_W[k]}" onchange="setHrW('${k}',this.value)" style="width:52px;font-size:12px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;text-align:right;"></label>`).join('')}
+      ${(()=>{ const s=hrSum(); return `<span style="font-size:11px;font-weight:800;color:${s===100?'var(--accent)':'var(--danger)'};">合計 ${s}%</span>`
+        + (s!==100 ? `<button onclick="normalizeHrW()" style="background:var(--accent);border:none;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer;">100%に揃える</button>` : ''); })()}
     </div>` : ''}`;
   return note + cards;
 }
@@ -17234,6 +17256,8 @@ function renderFattening() {
         <span style="font-size:10px;color:var(--muted);font-weight:700;">配分(%)</span>
         ${['wSexIdx','rateHigh','rateA3','avgYield','avgBms'].map(k=>`<label style="font-size:11px;color:var(--text);display:inline-flex;align-items:center;gap:3px;">${FAT_TRAIT_LABELS[k]}
           <input type="number" min="0" max="100" step="5" value="${FAT_CUSTOM_W[k]}" onchange="setFatCustomW('${k}',this.value)" style="width:52px;font-size:12px;padding:3px 4px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:5px;text-align:right;"></label>`).join('')}
+        ${(()=>{ const s=fatCustomSum(); return `<span style="font-size:11px;font-weight:800;color:${s===100?'var(--accent)':'var(--danger)'};">合計 ${s}%</span>`
+          + (s!==100 ? `<button onclick="normalizeFatCustomW()" style="background:var(--accent);border:none;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer;">100%に揃える</button>` : ''); })()}
       </div>` : ''}` +
     groups.map((g,i) => {
       const rankColor = i===0?'var(--danger)':i===1?'var(--warn)':i===2?'var(--info)':'var(--muted)';
