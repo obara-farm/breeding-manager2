@@ -9501,7 +9501,7 @@ function onColFreshCountInput(val, existing) {
         <td style="background:var(--bg3);opacity:.4;"></td>
         <td style="background:var(--bg3);opacity:.4;"></td>
         <td style="padding:2px 3px;">
-          <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ"
+          <input class="cfr-comment" type="text" value="${ex?.comment||''}" placeholder="メモ／譲渡先の牧場名"
             style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:2px 4px;border-radius:3px;width:100px;">
         </td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
@@ -10420,7 +10420,7 @@ function saveCollection() {
             stock: 0, alertThreshold: 0, noAlert: false, collectionDate: date,
             history: [
               { date, type:'restock', count:1, memo:`外部採卵 譲受 🌱新鮮胚 ${freshNo}` },
-              { date, type:'transfer', count:1, cowId: null, memo:`外部農家牛へ移植（譲渡） ${freshNo}` },
+              { date, type:'transfer', count:1, cowId: null, memo:`外部農家牛へ移植（譲渡） ${freshNo}${fe.comment?`（${fe.comment}）`:''}` },
             ],
           });
         } else {
@@ -10433,7 +10433,7 @@ function saveCollection() {
             stock: 0, alertThreshold: 0, noAlert: false, collectionDate: date,
             history: [
               { date, type:'selfcollect', count:1, memo:`採卵 🌱新鮮胚 ${freshNo}` },
-              { date, type:'transfer', count:1, cowId: null, memo:`他農家へ譲渡 ${freshNo}` },
+              { date, type:'transfer', count:1, cowId: null, memo:`譲渡 ${freshNo}${fe.comment?`（譲渡先: ${fe.comment}）`:'（譲渡先未記入：コメント欄に牧場名を入れると記録されます）'}` },
             ],
           });
         }
