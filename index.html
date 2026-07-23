@@ -16469,6 +16469,19 @@ const DAMIDS=__DAMIDS__;
 function damIdBadge(name){ if(!name||!DAMIDS)return ''; const info=DAMIDS[String(name).trim()]; if(!info)return '';
   var parts=[]; if(info.id)parts.push('🏷'+info.id); if(info.nationalId)parts.push('<span style="font-family:monospace;">'+info.nationalId+'</span>');
   return parts.length?'<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">'+parts.join(' ')+'</span>':''; }
+function jumpToDamR(){
+  var inp=document.getElementById('dam-search'), out=document.getElementById('dam-result');
+  if(!inp)return; var q=(inp.value||'').trim().toLowerCase();
+  if(!q){ if(out)out.innerHTML=''; return; }
+  var cards=[].slice.call(document.querySelectorAll('[id^="rcard-"]'));
+  function m(c,exact){ return [c.dataset.dam,c.dataset.tag,c.dataset.nid].some(function(v){ v=(v||'').toLowerCase(); return exact? v===q : v.indexOf(q)>=0; }); }
+  var hit=cards.filter(function(c){return m(c,true);})[0] || cards.filter(function(c){return m(c,false);})[0];
+  if(!hit){ if(out)out.innerHTML='<span style="color:var(--danger);">「'+q+'」は今の絞り込みの中に見つかりません（年度の選択を確認してください）</span>'; return; }
+  if(out)out.innerHTML='<b style="color:var(--accent);">'+hit.dataset.dam+'</b> は <b style="color:var(--accent);font-size:15px;">'+hit.dataset.rank+'位</b> / '+cards.length+'頭中';
+  hit.scrollIntoView({behavior:'smooth',block:'center'});
+  var old=hit.style.boxShadow; hit.style.transition='box-shadow .3s'; hit.style.boxShadow='0 0 0 3px var(--accent)';
+  setTimeout(function(){ hit.style.boxShadow=old||''; },2500);
+}
 let pat=3, worst=0, view='dam', selYears=[];
 function qnum(mg){const m=String(mg||'').match(/[1-5]/);return m?+m[0]:0;}
 function avg(a){return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10:null;}
@@ -16562,10 +16575,16 @@ function renderRank(){
   let groups=buildGroups(key);
   groups.sort((a,b)=>((b.score||0)-(a.score||0))*(worst?-1:1));
   const lbl = key==='sire'?'種雄牛':'母牛';
-  document.getElementById('list').innerHTML=groups.map(function(g,i){
+  document.getElementById('list').innerHTML=(key==='dam'?
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">'
+    +'<input type="text" id="dam-search" placeholder="🔍 母牛を検索（名前・耳標・個体識別番号）" onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();jumpToDamR();}" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">'
+    +'<button onclick="jumpToDamR()" style="background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">順位へ</button></div>'
+    +'<div id="dam-result" style="font-size:12px;margin-bottom:8px;"></div>':'')
+    +groups.map(function(g,i){
     const rc=i===0?(worst?'var(--danger)':'var(--accent)'):i===1?'var(--warn)':'var(--muted)';
     const badge=key==='dam'?(worst?'<span class="badge recip">受け牛候補</span>':(g.score>=52?'<span class="badge donor">ドナー候補</span>':'')):'';
-    return '<div class="card" onclick="var d=this.querySelector(\\'.detail\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
+    const di=(key==='dam'&&DAMIDS)?(DAMIDS[String(g.name).trim()]||{}):{};
+    return '<div class="card" id="rcard-'+i+'" data-dam="'+String(g.name).replace(/"/g,'')+'" data-tag="'+(di.id||'')+'" data-nid="'+(di.nationalId||'')+'" data-rank="'+(i+1)+'" onclick="var d=this.querySelector(\\'.detail\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
       +'<div class="chd"><div class="rk" style="color:'+rc+';">'+(i+1)+'</div>'
       +'<div class="nm">'+g.name+(key==='dam'?damIdBadge(g.name):'')+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで産子詳細</div></div>'
       +'<div style="text-align:right;"><div class="sc" style="color:'+(g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)')+';">'+(g.score==null?'—':g.score)+'</div><div style="font-size:9px;color:var(--muted);">総合スコア</div></div></div>'
@@ -17030,6 +17049,24 @@ function damIdBadge(name){
   if(info.nationalId) parts.push('<span style="font-family:\'JetBrains Mono\',monospace;">'+info.nationalId+'</span>');
   return parts.length?`<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">${parts.join(' ')}</span>`:'';
 }
+// 母牛ランキング内を検索して順位へジャンプ（名前・自家耳標・個体識別番号）
+function jumpToDam(){
+  const inp=document.getElementById('fat-dam-search'); const out=document.getElementById('fat-dam-result');
+  if(!inp) return;
+  const q=(inp.value||'').trim().toLowerCase();
+  if(!q){ if(out)out.innerHTML=''; return; }
+  const cards=[...document.querySelectorAll('[id^="fatcard-"]')];
+  // 完全一致 → 部分一致 の順で探す
+  const hit = cards.find(c=>[c.dataset.dam,c.dataset.tag,c.dataset.nid].some(v=>(v||'').toLowerCase()===q))
+           || cards.find(c=>[c.dataset.dam,c.dataset.tag,c.dataset.nid].some(v=>(v||'').toLowerCase().includes(q)));
+  if(!hit){ if(out)out.innerHTML=`<span style="color:var(--danger);">「${q}」は今の絞り込みの中に見つかりません（年度・農家・現存牛のみ等の条件を確認してください）</span>`; return; }
+  const rank=hit.dataset.rank, total=cards.length;
+  if(out)out.innerHTML=`<b style="color:var(--accent);">${hit.dataset.dam}</b> は <b style="color:var(--accent);font-size:15px;">${rank}位</b> / ${total}頭中`;
+  hit.scrollIntoView({behavior:'smooth',block:'center'});
+  const old=hit.style.boxShadow;
+  hit.style.transition='box-shadow .3s'; hit.style.boxShadow='0 0 0 3px var(--accent)';
+  setTimeout(()=>{ hit.style.boxShadow=old||''; }, 2500);
+}
 function renderFattening() {
   _damInfoCache=null;
   const year = document.getElementById('fat-year-filter')?.value || 'all';
@@ -17255,6 +17292,11 @@ function renderFattening() {
         </div>
       </div>
       <div style="font-size:10px;color:var(--muted);margin:-4px 0 10px;">総合スコアの配分【${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).label}】：${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).desc}（同グループ内で偏差値化して加重平均）</div>
+      ${groupKey==='dam' ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+        <input type="text" id="fat-dam-search" placeholder="🔍 母牛を検索（名前・耳標・個体識別番号）" onkeydown="if(event.key==='Enter'){event.preventDefault();jumpToDam();}" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">
+        <button onclick="jumpToDam()" style="background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">順位へ</button>
+      </div>
+      <div id="fat-dam-result" style="font-size:12px;margin:-4px 0 8px;"></div>` : ''}
       ${fatScorePattern===0 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:10px;">
         <span style="font-size:10px;color:var(--muted);font-weight:700;">配分(%)</span>
         ${['wSexIdx','rateHigh','rateA3','avgYield','avgBms'].map(k=>`<label style="font-size:11px;color:var(--text);display:inline-flex;align-items:center;gap:3px;">${FAT_TRAIT_LABELS[k]}
@@ -17266,7 +17308,8 @@ function renderFattening() {
       const rankColor = i===0?'var(--danger)':i===1?'var(--warn)':i===2?'var(--info)':'var(--muted)';
       const clickable = (groupKey==='dam');
       const cardId = 'fatdam-'+i;
-      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;${clickable?'cursor:pointer;':''}" ${clickable?`onclick="toggleDamDetail('${cardId}')"`:''}>
+      const _di = groupKey==='dam' ? (damInfoByName(g.name)||{}) : {};
+      return `<div id="fatcard-${i}" data-dam="${(g.name||'').replace(/"/g,'')}" data-tag="${_di.id||''}" data-nid="${_di.nationalId||''}" data-rank="${i+1}" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;${clickable?'cursor:pointer;':''}" ${clickable?`onclick="toggleDamDetail('${cardId}')"`:''}>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
