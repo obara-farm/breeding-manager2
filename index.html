@@ -3656,7 +3656,7 @@ function renderGrouped(taskList) {
                 const lastAiEt = cow2 && [...(cow2.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
                 const isEt = lastAiEt && ['et_done','estrus_et'].includes(lastAiEt.type);
                 const sireStr = lastAiEt ? (lastAiEt.memo||'').replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
-                return lastAiEt ? `<div style="font-size:11px;color:var(--info);margin-bottom:4px;">${isEt?'🧬ET':'💉AI'} ${fmtDate(lastAiEt.date)}${sireStr?' — '+sireStr:''}</div>` : '';
+                return lastAiEt ? `<div style="font-size:11px;color:var(--info);margin-bottom:4px;">${isEt?'🧬ET':'💉AI'} ${fmtDate(lastAiEt.date)}${sireStr?' — '+etDisplayLabel(sireStr,isEt):''}</div>` : '';
               })()}
               <button ontouchend="event.preventDefault();event.stopPropagation();openCalvingRecord('${t.cowId}')" onclick="openCalvingRecord('${t.cowId}')" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;margin-top:4px;border-color:var(--purple);color:var(--purple);">🍼 分娩日を記録</button>
             </div>` : ''}
@@ -3895,7 +3895,7 @@ function renderPregList() {
     return `<div class="preg-item ${isOver?'overdue':daysToPreg<=7?'due-soon':''}">
       <div style="flex:1;min-width:0;">
         <div class="task-cow">${t.cowId} <span style="font-size:13px;color:var(--accent);font-family:'Noto Sans JP'">${name}</span></div>
-        <div style="font-size:11px;color:var(--info);margin-top:2px;">${typeStr} ${fmtDate(lastAiEt?.date||'')}${sireStr?' — '+sireStr:''}</div>
+        <div style="font-size:11px;color:var(--info);margin-top:2px;">${typeStr} ${fmtDate(lastAiEt?.date||'')}${sireStr?' — '+etDisplayLabel(sireStr,isEt):''}</div>
         <div style="font-size:12px;color:var(--warn);font-weight:700;margin-top:3px;">受精後${daysSince}日目</div>
         <div style="font-size:11px;color:var(--muted);">妊鑑予定: ${fmtDate(t.date)}</div>
       </div>
@@ -3932,7 +3932,7 @@ function renderPregList() {
             <span style="font-size:12px;color:${daysColor};font-weight:700;">${daysLabel}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px;">
-            ${lastAiEt2?`<span style="font-size:11px;color:var(--info);">${typeStr2}${sireStr2?' — '+sireStr2:''}</span>`:'<span></span>'}
+            ${lastAiEt2?`<span style="font-size:11px;color:var(--info);">${typeStr2}${sireStr2?' — '+etDisplayLabel(sireStr2,isEt2):''}</span>`:'<span></span>'}
             <span style="font-size:11px;color:var(--muted);">${fmtDate(cow.dueDate)}</span>
           </div>
         </div>`;
@@ -5581,6 +5581,39 @@ function confirmDeleteCow(cowId) {
 
 // ===== STATS =====
 // 胚番号(s欄)または備考(m欄)から凍結/新鮮を判定（true=凍結、false=新鮮）
+// 胚番号から「ドナー×種雄牛」を引く（在庫 → 採卵シートの順に照合）
+function embryoDonorSire(no) {
+  if (!no) return '';
+  const key = String(no).trim().split(/[\s　／/]/)[0];
+  if (!key) return '';
+  const clean = n => String(n||'').replace(/\d+\/\d+\s*$/,'').trim();  // 末尾の「5/4」等を除去
+  const lotKey = key.replace(/-\d+$/,'');
+  // 1) 胚在庫から
+  let inv = (typeof embryoInventory!=='undefined'?embryoInventory:[]).find(e => (e.embryoDetails||[]).some(d=>d.no===key));
+  if (!inv) inv = (typeof embryoInventory!=='undefined'?embryoInventory:[]).find(e => e.lot===lotKey);
+  if (inv && (inv.dam || inv.sire)) return [inv.dam, inv.sire].filter(Boolean).join('×');
+  // 2) 採卵シートから（凍結胚はケーン番号→採卵ロットを辿る）
+  const S = (typeof EMBRYO_SHEET2_DATA!=='undefined'?EMBRYO_SHEET2_DATA:[]);
+  for (const lot of S) {
+    const found = (lot.embryos||[]).find(e => e.no===key);
+    if (found) {
+      const cane = String(found.cane||'').replace(/[A-Z]$/,'');
+      if (cane) { const src = S.find(l => l.lot===cane); if (src && src.name) return clean(src.name); }
+      if (lot.name) return clean(lot.name);
+    }
+  }
+  const l2 = S.find(l => l.lot===lotKey);
+  if (l2 && l2.name) return clean(l2.name);
+  return '';
+}
+// 授精簿メモの表示用ラベル（ETならドナー×種雄牛を前に出す）
+function etDisplayLabel(str, isEt) {
+  const s = String(str||'').trim();
+  if (!isEt || !s) return s;
+  if (s.includes('ドナー:') || s.includes('×')) return s;   // 既に分かる表記ならそのまま
+  const pair = embryoDonorSire(s);
+  return pair ? `${pair}<span style="opacity:.65;"> ／ ${s}</span>` : s;
+}
 function isEmbryoFrozen(sire, memo) {
   const text = (sire||'') + ' ' + (memo||'');
   if (text.includes('🌱') || text.includes('新鮮')) return false;
@@ -5699,13 +5732,15 @@ function renderStats() {
 
       // この授精より後の次の授精（授精簿上）
       const nextInsem = recs.slice(i+1).find(r2 => !r2.donorAI);
+      // ドナーAI（PG未投与など）の後に出た妊鑑結果を、前のAI/ETの成績にしないための区切り
+      const nextAny = recs[i+1];
 
       // cow.eventsからpreg結果を探す（この授精日以降、次の授精日より前）
       const evts = cow ? (cow.events||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)) : [];
       const pregSearch = evts.filter(e => {
         if (e.type !== 'preg_positive' && e.type !== 'preg_negative') return false;
         if (e.date < rec.date) return false;
-        if (nextInsem && e.date >= nextInsem.date) return false;
+        if (nextAny && e.date >= nextAny.date) return false;
         return true;
       });
       const lastPreg = [...pregSearch].reverse()[0];
@@ -5937,11 +5972,12 @@ function renderStats() {
           }
 
           const nextInsem = recs.slice(i+1).find(r2 => !r2.donorAI);
+          const nextAny = recs[i+1];   // ドナーAIも妊鑑結果の区切りにする
           const evts = cow ? (cow.events||[]).slice().sort((a,b)=>a.date.localeCompare(b.date)) : [];
           const pregSearch = evts.filter(e => {
             if (e.type !== 'preg_positive' && e.type !== 'preg_negative') return false;
             if (e.date < rec.date) return false;
-            if (nextInsem && e.date >= nextInsem.date) return false;
+            if (nextAny && e.date >= nextAny.date) return false;
             return true;
           });
           const lastPreg = [...pregSearch].reverse()[0];
