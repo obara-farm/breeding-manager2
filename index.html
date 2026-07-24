@@ -1197,7 +1197,15 @@ textarea{resize:vertical;}
       <div class="section-title" style="font-size:14px;">🧬 受精卵（胚）在庫</div>
       <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="openAddEmbryo()">＋ 登録</button>
     </div>
-    <input type="text" id="embryo-search" placeholder="🔍 種雄牛名・ドナー牛・品種で検索..." style="margin-bottom:10px;" oninput="renderEmbryo()">
+    <input type="text" id="embryo-search" placeholder="🔍 種雄牛名・ドナー牛・品種で検索..." style="margin-bottom:8px;" oninput="renderEmbryo()">
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+      <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+        <button id="embfilt-all" onclick="setEmbryoBreed('all')" style="background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;">全部</button>
+        <button id="embfilt-褐毛" onclick="setEmbryoBreed('褐毛')" style="background:var(--bg3);border:none;color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;">🟥 褐毛</button>
+        <button id="embfilt-黒毛" onclick="setEmbryoBreed('黒毛')" style="background:var(--bg3);border:none;color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;">⬛ 黒毛</button>
+      </div>
+      <button id="emb-group-toggle" onclick="toggleEmbryoGroupByDonor()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;">🐄 ドナー別にまとめる</button>
+    </div>
     <div id="embryo-low-alert" style="display:none;background:#1a0808;border:1px solid var(--danger);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#fca5a5;"></div>
     <div id="embryo-list-container"></div>
     <div class="empty" id="embryo-empty" style="display:none;">
@@ -14813,6 +14821,19 @@ function switchSemenTab(tab) {
 }
 
 // ===== 受精卵在庫管理 =====
+let embryoBreedFilter = 'all';
+let embryoGroupByDonor = false;
+function setEmbryoBreed(b){
+  embryoBreedFilter = b;
+  ['all','褐毛','黒毛'].forEach(x=>{ const el=document.getElementById('embfilt-'+x); if(el){ el.style.background = x===b?'var(--accent)':'var(--bg3)'; el.style.color = x===b?'#fff':'var(--muted)'; }});
+  renderEmbryo();
+}
+function toggleEmbryoGroupByDonor(){
+  embryoGroupByDonor = !embryoGroupByDonor;
+  const el=document.getElementById('emb-group-toggle');
+  if(el){ el.style.background = embryoGroupByDonor?'var(--purple)':'var(--bg3)'; el.style.color = embryoGroupByDonor?'#fff':'var(--muted)'; }
+  renderEmbryo();
+}
 function renderEmbryo() {
   // stockは各操作で直接管理するためsyncは呼ばない
   // embryoInventory.forEach(syncStockFromHistory);
@@ -14830,13 +14851,18 @@ function renderEmbryo() {
   // 新鮮胚の使用済みアイテム（stock:0 + use履歴あり）は在庫タブに表示しない
   const _visibleEmbryo = embryoInventory.filter(e => {
     if (e.type === 'fresh' && e.stock === 0 && (e.history||[]).some(h=>h.type==='use')) return false;
+    if (embryoBreedFilter !== 'all') {   // 品種フィルタ
+      const b = e.breed || '';
+      if (embryoBreedFilter === '褐毛' && b !== '褐毛') return false;
+      if (embryoBreedFilter === '黒毛' && b !== '黒毛') return false;
+    }
     return true;
   });
   const filteredEmbryo = qe
     ? _visibleEmbryo.filter(e => (e.sire||'').toLowerCase().includes(qe) || (e.breed||'').includes(qe) || (e.dam||'').toLowerCase().includes(qe) || (e.lot||'').toLowerCase().includes(qe))
     : _visibleEmbryo;
 
-  if (!filteredEmbryo.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">「${qe}」に一致する受精卵がありません</div>`; return; }
+  if (!filteredEmbryo.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">該当する受精卵がありません</div>`; return; }
 
   // ドナー×種雄牛でグループ化
   const groups = {};
@@ -14847,7 +14873,7 @@ function renderEmbryo() {
     groups[key].push(e);
   });
 
-  container.innerHTML = groupOrder.map((key, gIdx) => {
+  const cardHtml = groupOrder.map((key, gIdx) => {
     const items = groups[key];
     // グループ全体の合計在庫
     const totalStock = items.reduce((s,e) => s+e.stock, 0);
@@ -14991,7 +15017,37 @@ function renderEmbryo() {
       </div>
       ${lotCards}
     </div>`;
-  }).join('');
+  });
+
+  if (embryoGroupByDonor) {
+    // ドナー牛ごとにまとめる（種雄牛違いのグループを1人のドナーの下に集約）
+    const byDonor = {}; const donorOrder = [];
+    groupOrder.forEach((key, gIdx) => {
+      const donor = groups[key][0].dam || '（ドナー未設定）';
+      if (!byDonor[donor]) { byDonor[donor] = []; donorOrder.push(donor); }
+      byDonor[donor].push(gIdx);
+    });
+    donorOrder.sort((a,b)=>a.localeCompare(b,'ja'));
+    container.innerHTML = donorOrder.map(donor => {
+      const idxs = byDonor[donor];
+      const donorStock = idxs.reduce((s,gi)=>s+groups[groupOrder[gi]].reduce((a,e)=>a+e.stock,0),0);
+      const breed = groups[groupOrder[idxs[0]]][0].breed || '';
+      const bIcon = breed==='褐毛'?'🟥':breed==='黒毛'?'⬛':'';
+      const sires = idxs.map(gi=>groups[groupOrder[gi]][0].sire).filter(Boolean);
+      return `<div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#141414,#0d0d0d);border:1px solid var(--purple);border-radius:10px 10px 0 0;position:sticky;top:0;z-index:2;">
+          <span style="font-size:16px;font-weight:900;color:var(--text);">${bIcon} ${donor}</span>
+          <span style="font-size:11px;color:var(--muted);">種雄牛 ${sires.length}種</span>
+          <span style="margin-left:auto;font-size:20px;font-weight:900;color:var(--purple);">${donorStock}<span style="font-size:10px;color:var(--muted);">本</span></span>
+        </div>
+        <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;padding:8px;">
+          ${idxs.map(gi=>cardHtml[gi]).join('')}
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    container.innerHTML = cardHtml.join('');
+  }
 }
 
 function openAddEmbryo() {
