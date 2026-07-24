@@ -8278,9 +8278,13 @@ function nextDeliveryNo(cb) {
 let calcType = 'ai';
 function setCalcType(t){
   calcType = t;
-  const a=document.getElementById('calc-type-ai'), e=document.getElementById('calc-type-et');
-  if(a){ a.style.background = t==='ai'?'var(--info)':'var(--bg3)'; a.style.color = t==='ai'?'#fff':'var(--muted)'; }
-  if(e){ e.style.background = t==='et'?'var(--purple)':'var(--bg3)'; e.style.color = t==='et'?'#fff':'var(--muted)'; }
+  const map = {ai:'calc-type-ai', et:'calc-type-et', calving:'calc-type-calving'};
+  const col = {ai:'var(--info)', et:'var(--purple)', calving:'var(--accent)'};
+  Object.keys(map).forEach(k=>{
+    const el=document.getElementById(map[k]); if(!el) return;
+    el.style.background = (k===t) ? col[k] : 'var(--bg3)';
+    el.style.color = (k===t) ? '#fff' : 'var(--muted)';
+  });
   runCalc();
 }
 function setCalcToday(){ const el=document.getElementById('calc-date'); if(el){ el.value=today(); runCalc(); } }
@@ -8293,21 +8297,37 @@ function runCalc(){
   if(!el||!out) return;
   if(!el.value) el.value = today();
   const d = el.value;
-  const isEt = calcType==='et';
-  const due = addDays(d, isEt ? 278 : 285);
-  const preg = addDays(d, isEt ? 38 : 45);
-  const heats = [21,42,63].map(n=>addDays(d,n));
   const wd = s => ['日','月','火','水','木','金','土'][new Date(s+'T00:00:00').getDay()];
   const left = s => { const n=diffDays(s, today()); return n===0?'今日':n>0?`あと${n}日`:`${Math.abs(n)}日前`; };
   const row = (label,date,color,note) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px;">
     <span style="font-size:12px;color:var(--muted);">${label}</span>
     <span style="text-align:right;"><span style="font-size:17px;font-weight:900;color:${color};">${fmtDate(date)}(${wd(date)})</span>
     <span style="font-size:10px;color:var(--muted);margin-left:6px;">${note||left(date)}</span></span></div>`;
+
+  if (calcType === 'calving') {
+    const open45 = addDays(d,45), open60 = addDays(d,60);
+    const passed = diffDays(today(), d);   // 分娩からの日数
+    out.innerHTML =
+      row('🐄 分娩後45日（授精開始の目安）', open45, 'var(--accent)')
+      + row('📈 分娩後60日（次回授精の目安）', open60, 'var(--info)')
+      + `<div style="background:var(--bg3);border-radius:8px;padding:9px 10px;display:flex;justify-content:space-between;">
+          <span style="font-size:12px;color:var(--muted);">今日で分娩後</span>
+          <span style="font-size:17px;font-weight:900;color:var(--warn);">${passed>=0?passed:'—'}日</span></div>`
+      + `<div style="font-size:10px;color:var(--muted);margin-top:6px;">分娩後の初回発情はおおむね30〜40日。45日を過ぎて発情が来ない場合は子宮の回復を確認してください。</div>`;
+    return;
+  }
+
+  const isEt = calcType==='et';
+  const due  = addDays(d, isEt ? 278 : 285);
+  const preg = addDays(d, isEt ? 38 : 45);
+  // ETは移植日＝発情の7日後。戻り発情は発情日から21日周期なので、移植日からは14日後
+  const off  = isEt ? -7 : 0;
+  const heats = [21,42,63].map(n=>addDays(d, n + off));
   out.innerHTML =
     row(isEt?'🧬 分娩予定（ET+278日）':'💉 分娩予定（AI+285日）', due, 'var(--accent)')
     + row(`🔬 妊娠鑑定の目安（+${isEt?38:45}日）`, preg, 'var(--warn)')
-    + `<div style="font-size:11px;color:var(--muted);margin:8px 0 4px;">戻り発情（21日周期）— この日に発情が来たら不受胎</div>`
-    + heats.map((h,i)=>row(`${i+1}回目（+${21*(i+1)}日）`, h, 'var(--info)')).join('')
+    + `<div style="font-size:11px;color:var(--muted);margin:8px 0 4px;">戻り発情（21日周期）— この日に発情が来たら不受胎${isEt?'<br><span style="font-size:10px;">※ETは移植日の7日前が発情日なので、移植日から14日後が次の発情</span>':''}</div>`
+    + heats.map((h,i)=>row(`${i+1}回目（${isEt?'移植から+'+(21*(i+1)-7):'+'+21*(i+1)}日）`, h, 'var(--info)')).join('')
     + `<div style="font-size:10px;color:var(--muted);margin-top:4px;">双子の場合の分娩予定は約10日早まります（${fmtDate(addDays(due,-10))}）</div>`;
 }
 // 胚番号 → その胚を移植した結果（妊鑑＋/−）の索引
@@ -18222,8 +18242,9 @@ try {
   <div style="background:var(--card);border:1px solid var(--purple);border-radius:10px;padding:12px;margin-bottom:12px;">
     <div id="calc-body" style="display:block;margin-top:10px;">
       <div style="display:flex;gap:6px;margin-bottom:8px;">
-        <button id="calc-type-ai" onclick="setCalcType('ai')" style="flex:1;padding:12px;font-size:15px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--info);color:#fff;">💉 AI</button>
-        <button id="calc-type-et" onclick="setCalcType('et')" style="flex:1;padding:12px;font-size:15px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🧬 ET</button>
+        <button id="calc-type-ai" onclick="setCalcType('ai')" style="flex:1;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--info);color:#fff;">💉 AI</button>
+        <button id="calc-type-et" onclick="setCalcType('et')" style="flex:1;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🧬 ET</button>
+        <button id="calc-type-calving" onclick="setCalcType('calving')" style="flex:1.2;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🐄 分娩後</button>
       </div>
       <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:8px;">
         <button onclick="shiftCalcDate(-1)" style="width:56px;font-size:22px;font-weight:900;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">−</button>
