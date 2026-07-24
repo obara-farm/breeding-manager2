@@ -1204,7 +1204,7 @@ textarea{resize:vertical;}
         <button id="embfilt-褐毛" onclick="setEmbryoBreed('褐毛')" style="background:var(--bg3);border:none;color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;">🟥 褐毛</button>
         <button id="embfilt-黒毛" onclick="setEmbryoBreed('黒毛')" style="background:var(--bg3);border:none;color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;">⬛ 黒毛</button>
       </div>
-      <button id="emb-group-toggle" onclick="toggleEmbryoGroupByDonor()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;">🐄 ドナー別にまとめる</button>
+      <button id="emb-group-toggle" onclick="toggleEmbryoGroupByDonor()" style="background:var(--purple);border:1px solid var(--purple);color:#fff;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;">🐄 ドナー別にまとめる</button>
     </div>
     <div id="embryo-low-alert" style="display:none;background:#1a0808;border:1px solid var(--danger);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#fca5a5;"></div>
     <div id="embryo-list-container"></div>
@@ -14822,7 +14822,7 @@ function switchSemenTab(tab) {
 
 // ===== 受精卵在庫管理 =====
 let embryoBreedFilter = 'all';
-let embryoGroupByDonor = false;
+let embryoGroupByDonor = true;   // 初期状態でドナー別まとめをオンにする
 function setEmbryoBreed(b){
   embryoBreedFilter = b;
   ['all','褐毛','黒毛'].forEach(x=>{ const el=document.getElementById('embfilt-'+x); if(el){ el.style.background = x===b?'var(--accent)':'var(--bg3)'; el.style.color = x===b?'#fff':'var(--muted)'; }});
@@ -14871,6 +14871,14 @@ function renderEmbryo() {
     const key = (e.dam||'') + '×' + (e.sire||'');
     if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
     groups[key].push(e);
+  });
+  // 品種（褐毛→黒毛→その他）→ドナー名 の順に並べ替え（全品種表示でも品種がまとまるように）
+  const breedRank = b => b==='褐毛'?0 : b==='黒毛'?1 : 2;
+  groupOrder.sort((a,b)=>{
+    const ea=groups[a][0], eb=groups[b][0];
+    const r = breedRank(ea.breed||'') - breedRank(eb.breed||'');
+    if (r) return r;
+    return String(ea.dam||'').localeCompare(String(eb.dam||''),'ja') || String(ea.sire||'').localeCompare(String(eb.sire||''),'ja');
   });
 
   const cardHtml = groupOrder.map((key, gIdx) => {
@@ -15021,21 +15029,33 @@ function renderEmbryo() {
 
   if (embryoGroupByDonor) {
     // ドナー牛ごとにまとめる（種雄牛違いのグループを1人のドナーの下に集約）
-    const byDonor = {}; const donorOrder = [];
+    const byDonor = {}; const donorOrder = []; const donorBreed = {};
     groupOrder.forEach((key, gIdx) => {
       const donor = groups[key][0].dam || '（ドナー未設定）';
-      if (!byDonor[donor]) { byDonor[donor] = []; donorOrder.push(donor); }
+      if (!byDonor[donor]) { byDonor[donor] = []; donorOrder.push(donor); donorBreed[donor] = groups[key][0].breed || ''; }
       byDonor[donor].push(gIdx);
     });
-    donorOrder.sort((a,b)=>a.localeCompare(b,'ja'));
+    // 品種（褐毛→黒毛→その他）→ドナー名 の順
+    donorOrder.sort((a,b)=>{
+      const r = breedRank(donorBreed[a]) - breedRank(donorBreed[b]);
+      return r || a.localeCompare(b,'ja');
+    });
+    let lastBreed = null;
     container.innerHTML = donorOrder.map(donor => {
       const idxs = byDonor[donor];
       const donorStock = idxs.reduce((s,gi)=>s+groups[groupOrder[gi]].reduce((a,e)=>a+e.stock,0),0);
-      const breed = groups[groupOrder[idxs[0]]][0].breed || '';
-      const bIcon = breed==='褐毛'?'🟥':breed==='黒毛'?'⬛':'';
+      const breed = donorBreed[donor];
+      const bIcon = breed==='褐毛'?'🟥':breed==='黒毛'?'⬛':'▫️';
       const sires = idxs.map(gi=>groups[groupOrder[gi]][0].sire).filter(Boolean);
-      return `<div style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#141414,#0d0d0d);border:1px solid var(--purple);border-radius:10px 10px 0 0;position:sticky;top:0;z-index:2;">
+      // 全品種表示のときは品種の変わり目に見出しを入れる
+      let divider = '';
+      if (embryoBreedFilter==='all' && breed !== lastBreed) {
+        lastBreed = breed;
+        const label = breed==='褐毛'?'🟥 褐毛和種':breed==='黒毛'?'⬛ 黒毛和種':'▫️ その他';
+        divider = `<div style="font-size:13px;font-weight:900;color:var(--text);margin:${donor===donorOrder[0]?'0':'18px'} 0 8px;padding-bottom:4px;border-bottom:2px solid ${breed==='褐毛'?'#7f1d1d':breed==='黒毛'?'#374151':'#334155'};">${label}</div>`;
+      }
+      return divider + `<div style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:linear-gradient(135deg,#141414,#0d0d0d);border:1px solid var(--purple);border-radius:10px 10px 0 0;">
           <span style="font-size:16px;font-weight:900;color:var(--text);">${bIcon} ${donor}</span>
           <span style="font-size:11px;color:var(--muted);">種雄牛 ${sires.length}種</span>
           <span style="margin-left:auto;font-size:20px;font-weight:900;color:var(--purple);">${donorStock}<span style="font-size:10px;color:var(--muted);">本</span></span>
