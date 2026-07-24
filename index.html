@@ -5723,10 +5723,13 @@ function renderStats() {
     const donorAI = r._src === 'static'
       ? (staticDonorAIFlags['static_' + r._idx] || false)
       : (edit.donorAI === true || r.donorAI === true);
-    const isET = r.insemType === 'et' || r.s.includes('×');
+    const isET = r.insemType === 'et' || String(r.s||'').includes('×');
     if (!recsByCow[r.t]) recsByCow[r.t] = [];
     const alreadyExists = recsByCow[r.t].some(x => x.date === date && x.isET === isET);
-    if (!alreadyExists) recsByCow[r.t].push({...r, date, donorAI, isET});
+    // 授精簿の編集内容（胚番号・メモ）を反映してから集計する
+    const s = edit.s !== undefined ? edit.s : (r.s || '');
+    const m = edit.m !== undefined ? edit.m : (r.m || '');
+    if (!alreadyExists) recsByCow[r.t].push({...r, date, donorAI, isET, s, m});
   });
 
   Object.entries(recsByCow).forEach(([cowId, recs]) => {
@@ -6317,14 +6320,21 @@ function renderStats() {
       // 牛ごとにET記録を取得して妊鑑結果と対応付け
       const etRecsByCow = {};
       allInsemRecsForDecided.forEach(r => {
-        const isET = r.insemType === 'et' || r.s.includes('×');
+        const ed = insemBookEdits[r._src+'_'+r._idx] || {};
+        const isET = r.insemType === 'et' || String(ed.s!==undefined?ed.s:(r.s||'')).includes('×') || String(r.s||'').includes('×');
         if (!isET) return;
         const donorAI = r._src === 'static'
           ? (staticDonorAIFlags['static_' + r._idx] || false)
-          : !!(insemBookEdits[r._src+'_'+r._idx]||{}).donorAI || !!r.donorAI;
+          : !!ed.donorAI || !!r.donorAI;
         if (donorAI) return;
+        const d = ed.d || r.d;
+        // 受胎率カードと同じ条件で絞る（期間・除外設定・編集内容を反映）
+        if (typeof statsDateFrom !== 'undefined' && (d < statsDateFrom || d > statsDateTo)) return;
+        const s = ed.s !== undefined ? ed.s : (r.s || '');
+        const m = ed.m !== undefined ? ed.m : (r.m || '');
+        if (isEtRecExcluded({date:d, s, m})) return;
         if (!etRecsByCow[r.t]) etRecsByCow[r.t] = [];
-        etRecsByCow[r.t].push(r);
+        etRecsByCow[r.t].push({...r, d, s, m});
       });
       Object.entries(etRecsByCow).forEach(([cowId, etRecs]) => {
         const cow = cows.find(c => c.id === cowId);
