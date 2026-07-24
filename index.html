@@ -8216,11 +8216,17 @@ function getSheet2DetailsForLot(lot) {
 function buildUsedNos(lotItems) {
   const usedArr = lotItems.reduce((acc,e)=>{
     (e.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').forEach(h=>{
-      // 複数の「胚番号:xxxx」をすべて抽出
-      const nos = [...((h.memo||'').matchAll(/胚番号:([\w\-]+)/g))].map(m=>m[1]);
-      if(nos.length) { nos.forEach(no=>acc.push({no, type:h.type, date:h.date})); return; }
-      // R6-0038形式
-      const rns = [...((h.memo||'').matchAll(/[（(](R\d+-\d+)[）)]/g))];
+      const memo = h.memo||'';
+      const found = new Set();
+      // 「胚番号:xxxx」形式
+      [...memo.matchAll(/胚番号:([\w\-]+)/g)].forEach(m=>found.add(m[1]));
+      // 「移植 01L237R8-0004」のように胚番号だけが書かれている形式
+      [...memo.matchAll(/(01L237[A-Za-z0-9\-]+)/g)].forEach(m=>found.add(m[1]));
+      // ロット番号形式（例: 26F22B1-3、25E04B1-1）
+      [...memo.matchAll(/(\d{2}[A-L]\d{2}B\d+-\d+)/g)].forEach(m=>found.add(m[1]));
+      if(found.size) { found.forEach(no=>acc.push({no, type:h.type, date:h.date})); return; }
+      // R6-0038形式（括弧付き）
+      const rns = [...memo.matchAll(/[（(](R\d+-\d+)[）)]/g)];
       rns.forEach(rn=>acc.push({no:'01L237'+rn[1], type:h.type, date:h.date}));
     });
     return acc;
