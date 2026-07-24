@@ -5954,7 +5954,7 @@ function renderStats() {
       // 月別受胎率（AI/ET別）
       const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
       const monthMap = {};
-      monthNames.forEach(m => { monthMap[m] = {ai:{total:0,pos:0}, et:{total:0,pos:0}}; });
+      monthNames.forEach(m => { monthMap[m] = {ai:{total:0,pos:0}, et:{total:0,pos:0}, etFresh:{total:0,pos:0}, etFrozen:{total:0,pos:0}}; });
 
       // 授精簿ベースで集計（基本受胎率と同じrecsByCowを使用）
       Object.entries(recsByCow).forEach(([cowId, recs]) => {
@@ -6011,6 +6011,11 @@ function renderStats() {
             const kind = rec.isET ? 'et' : 'ai';
             monthMap[mLabel][kind].total++;
             if (isPos) monthMap[mLabel][kind].pos++;
+            if (kind === 'et') {   // ETは新鮮／凍結の内訳も持つ
+              const sub = isEmbryoFrozen(rec.s, rec.m) ? 'etFrozen' : 'etFresh';
+              monthMap[mLabel][sub].total++;
+              if (isPos) monthMap[mLabel][sub].pos++;
+            }
           }
 
           if (!rec.isET) {
@@ -6089,22 +6094,32 @@ function renderStats() {
                 </tr>
               </thead>
               <tbody>
-                ${monthNames.map(m => {
+                ${monthNames.map((m,mi) => {
                   const ai = monthMap[m].ai;
                   const et = monthMap[m].et;
+                  const ef = monthMap[m].etFresh, ez = monthMap[m].etFrozen;
                   if (!ai.total && !et.total) return '';
                   const aiRate = ai.total ? Math.round(ai.pos/ai.total*100) : null;
                   const etRate = et.total ? Math.round(et.pos/et.total*100) : null;
                   const col = r => r===null ? 'var(--muted)' : r>=60 ? 'var(--accent)' : r>=40 ? 'var(--warn)' : 'var(--danger)';
+                  const efRate = ef.total ? Math.round(ef.pos/ef.total*100) : null;
+                  const ezRate = ez.total ? Math.round(ez.pos/ez.total*100) : null;
+                  const rowId = 'etsub-'+mi;
+                  const cellsN = 1 + (aiHas?1:0) + (etHas?1:0);
                   return `<tr>
                     <td style="padding:5px 4px;border:1px solid var(--border);font-weight:700;">${m}</td>
                     ${aiHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
                       ${aiRate !== null ? `<span style="font-weight:700;color:${col(aiRate)};">${aiRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${ai.pos}/${ai.total}</span>` : '<span style="color:var(--border);">—</span>'}
                     </td>` : ''}
-                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
-                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;${et.total?'cursor:pointer;':''}" ${et.total?`onclick="var r=document.getElementById('${rowId}');r.style.display=r.style.display==='table-row'?'none':'table-row';"`:''}>
+                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">▼</span>` : '<span style="color:var(--border);">—</span>'}
                     </td>` : ''}
-                  </tr>`;
+                  </tr>
+                  ${et.total ? `<tr id="${rowId}" style="display:none;"><td colspan="${cellsN}" style="padding:6px 8px;border:1px solid var(--border);background:var(--bg3);">
+                    <div style="display:flex;gap:14px;justify-content:center;font-size:11px;">
+                      <span>🌱 新鮮胚 ${efRate!==null?`<b style="color:${col(efRate)};">${efRate}%</b> <span style="color:var(--muted);">${ef.pos}/${ef.total}</span>`:'<span style="color:var(--muted);">記録なし</span>'}</span>
+                      <span>❄️ 凍結胚 ${ezRate!==null?`<b style="color:${col(ezRate)};">${ezRate}%</b> <span style="color:var(--muted);">${ez.pos}/${ez.total}</span>`:'<span style="color:var(--muted);">記録なし</span>'}</span>
+                    </div></td></tr>` : ''}`;
                 }).join('')})()
               </tbody>
             </table>
