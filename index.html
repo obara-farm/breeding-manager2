@@ -16701,6 +16701,8 @@ function setKoubutsuBarMode(m){ koubutsuBarMode = m; renderFattening(); }
 let fatRankWorst = false;
 function setFatRankOrder(w){ fatRankWorst = w; renderFattening(); }
 let fatLivingOnly = false;
+let fatFarmerAdjust = false;   // 種雄牛別ランキングの農家補正
+function toggleFatFarmerAdjust(){ fatFarmerAdjust = !fatFarmerAdjust; renderFattening(); }
 function toggleFatLivingOnly(){ fatLivingOnly = document.getElementById('fat-living-only')?.checked || false; renderFattening(); }
 // パターンごとの重み定義（画面表示にも使う）。keyの'wSexIdx'は性別調整済み枝重
 let FAT_CUSTOM_W = { wSexIdx:50, rateHigh:35, avgYield:15, avgBms:0, rateA3:0 };
@@ -16756,6 +16758,27 @@ function computeCompositeScore(groups) {
       }
     });
     g.score = wsum>0 ? Math.round(score/wsum*10)/10 : null;
+  });
+}
+// 農家補正済みの総合スコア（種雄牛別で使用）。補正済みの各指標(_adj*)を使って偏差値化
+function computeCompositeScoreAdjusted(groups) {
+  const keyMap = { wSexIdx:'_adjWSex', rateHigh:'_adjA4', rateA3:'_adjA3', avgYield:'_adjYield', avgBms:'_adjBms' };
+  const traits = (FAT_SCORE_PATTERNS[fatScorePattern]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:keyMap[t.key]||t.key,w:t.w}));
+  traits.forEach(t => {
+    const vals = groups.map(g=>g[t.key]).filter(v=>typeof v==='number' && !isNaN(v));
+    const m = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+    const sd = vals.length ? Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length) : 0;
+    t.mean = m; t.sd = sd;
+  });
+  groups.forEach(g => {
+    let score = 0, wsum = 0;
+    traits.forEach(t => {
+      const v = g[t.key];
+      if (typeof v==='number' && !isNaN(v) && t.sd>0) {
+        score += (50 + (v - t.mean)/t.sd*10) * t.w; wsum += t.w;
+      }
+    });
+    g.scoreAdj = wsum>0 ? Math.round(score/wsum*10)/10 : null;
   });
 }
 function setFatScorePattern(p){ fatScorePattern=p; renderFattening(); }
@@ -16819,6 +16842,10 @@ header .sub{font-size:11px;opacity:.85;}
 const DATA=__DATA__;
 const OVERALL=__OVERALL__;
 const DAMIDS=__DAMIDS__;
+const COMPARE=__COMPARE__;
+let repMin3=false, repFarmAdj=false;
+function toggleRepMin3(){ repMin3=!repMin3; render(); }
+function toggleRepFarmAdj(){ repFarmAdj=!repFarmAdj; render(); }
 function damIdBadge(name){ if(!name||!DAMIDS)return ''; const info=DAMIDS[String(name).trim()]; if(!info)return '';
   var parts=[]; if(info.id)parts.push('🏷'+info.id); if(info.nationalId)parts.push('<span style="font-family:monospace;">'+info.nationalId+'</span>');
   return parts.length?'<span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:6px;">'+parts.join(' ')+'</span>':''; }
@@ -16882,8 +16909,41 @@ function buildGroups(key){
       rateHigh:rs.length?Math.round((rs.filter(r=>qnum(r.meatGrade)>=4).length)/rs.length*100):0,
       rateA3:rs.length?Math.round(g3/rs.length*100):0};
   });
-  score(groups); return groups;
+  score(groups);
+  // 3頭以上フィルタ
+  if(repMin3) groups=groups.filter(g=>g.count>=3);
+  // 種雄牛別の農家補正スコア（匿名化した農家別データCOMPAREを使う）
+  if(key==='sire' && COMPARE){
+    // 全体平均（この農家の産子）
+    const q3=r=>qnum(r.meatGrade)>=3?100:0, q4=r=>qnum(r.meatGrade)>=4?100:0;
+    const allWd=viewData().map(wDevOf).filter(x=>x!=null);
+    const baseA3=avg(viewData().map(q3))||0, baseA4=avg(viewData().map(q4))||0;
+    const baseW=allWd.length?allWd.reduce((a,b)=>a+b,0)/allWd.length:50;
+    groups.forEach(function(g){
+      const rows=COMPARE[g.name];
+      if(!rows){ g.scoreAdj=g.score; return; }
+      // 各農家平均からの上振れを平均（頭数で加重）
+      let sumA3=0,sumA4=0,sumW=0,nn=0;
+      rows.forEach(function(r){ if(r.base==null)return;
+        sumA3+=(r.a3-r.base)*r.n; sumA4+=(r.a4-r.base)*r.n;
+        if(r.wSexIdx!=null){ sumW+=(r.wSexIdx-50)*r.n; } nn+=r.n; });
+      g._adjA3 = nn?Math.round((baseA3+sumA3/nn)*10)/10:g.rateA3;
+      g._adjA4 = nn?Math.round((baseA4+sumA4/nn)*10)/10:g.rateHigh;
+      g._adjW  = nn?Math.round((baseW+sumW/nn)*10)/10:g.wSexIdx;
+    });
+    // 補正済みスコアを算出
+    scoreAdj(groups);
+  }
+  return groups;
 }
+function scoreAdj(groups){
+  const traits = pat===2 ? [['_adjA4',.35],['_adjW',.20],['avgYield',.20],['avgBms',.15]]
+    : pat===1 ? [['_adjW',.35],['avgYield',.20],['_adjA3',.20],['avgBms',.15],['_adjA4',.10]]
+    : [['_adjW',.40],['_adjA4',.40],['avgYield',.20]];
+  const st=traits.map(function(t){const k=t[0],w=t[1];const vals=groups.map(g=>g[k]).filter(x=>typeof x==='number'&&!isNaN(x));
+    const m=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    const sd=vals.length?Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length):0;return {k:k,w:w,m:m,sd:sd};});
+  groups.forEach(function(g){let s=0,ws=0;st.forEach(function(t){const val=g[t.k];if(typeof val==='number'&&!isNaN(val)&&t.sd>0){s+=(50+(val-t.m)/t.sd*10)*t.w;ws+=t.w;}});g.scoreAdj=ws>0?Math.round(s/ws*10)/10:null;});
 function score(groups){
   const traits = pat===2 ? [['rateHigh',.35],['wSexIdx',.20],['avgYield',.20],['avgBms',.15]]
     : pat===1 ? [['wSexIdx',.35],['avgYield',.20],['rateA3',.20],['avgBms',.15],['rateHigh',.10]]
@@ -16926,9 +16986,14 @@ function offspring(recs){
 function renderRank(){
   const key = view==='sire'?'sire':'dam';
   let groups=buildGroups(key);
-  groups.sort((a,b)=>((b.score||0)-(a.score||0))*(worst?-1:1));
+  const useAdj=(key==='sire'&&repFarmAdj);
+  groups.sort((a,b)=>((useAdj?(b.scoreAdj||0):(b.score||0))-(useAdj?(a.scoreAdj||0):(a.score||0)))*(worst?-1:1));
   const lbl = key==='sire'?'種雄牛':'母牛';
-  document.getElementById('list').innerHTML=(key==='dam'?
+  const toolbar='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
+    +'<button onclick="toggleRepMin3()" style="background:'+(repMin3?'var(--accent)':'var(--bg3)')+';border:1px solid '+(repMin3?'var(--accent)':'var(--border)')+';color:'+(repMin3?'#fff':'var(--muted)')+';font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">📊 3頭以上のみ'+(repMin3?' ON':'')+'</button>'
+    +(key==='sire'?'<button onclick="toggleRepFarmAdj()" style="background:'+(repFarmAdj?'var(--purple)':'var(--bg3)')+';border:1px solid '+(repFarmAdj?'var(--purple)':'var(--border)')+';color:'+(repFarmAdj?'#fff':'var(--muted)')+';font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">⚖️ 農家補正'+(repFarmAdj?' ON':'')+'</button>':'')
+    +'</div>';
+  document.getElementById('list').innerHTML=toolbar+(key==='dam'?
     '<div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">'
     +'<input type="text" id="dam-search" placeholder="🔍 母牛を検索（名前・耳標・個体識別番号）" onkeydown="if(event.key===\\'Enter\\'){event.preventDefault();jumpToDamR();}" style="flex:1;min-width:0;font-size:13px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;">'
     +'<button onclick="jumpToDamR()" style="background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">順位へ</button></div>'
@@ -16937,18 +17002,46 @@ function renderRank(){
     const rc=i===0?(worst?'var(--danger)':'var(--accent)'):i===1?'var(--warn)':'var(--muted)';
     const badge=key==='dam'?(worst?'<span class="badge recip">受け牛候補</span>':(g.score>=52?'<span class="badge donor">ドナー候補</span>':'')):'';
     const di=(key==='dam'&&DAMIDS)?(DAMIDS[String(g.name).trim()]||{}):{};
+    const shownScore=useAdj?g.scoreAdj:g.score;
+    const scoreLbl=useAdj?'⚖️農家補正':'総合スコア';
+    const detailHtml=(key==='sire')?sireFarmCompareHtml(g.name):offspring(g.recs);
     return '<div class="card" id="rcard-'+i+'" data-dam="'+String(g.name).replace(/"/g,'')+'" data-tag="'+(di.id||'')+'" data-nid="'+(di.nationalId||'')+'" data-rank="'+(i+1)+'" onclick="var d=this.querySelector(\\'.detail\\');d.style.display=d.style.display===\\'block\\'?\\'none\\':\\'block\\';">'
       +'<div class="chd"><div class="rk" style="color:'+rc+';">'+(i+1)+'</div>'
-      +'<div class="nm">'+g.name+(key==='dam'?damIdBadge(g.name):'')+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで産子詳細</div></div>'
-      +'<div style="text-align:right;"><div class="sc" style="color:'+(g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)')+';">'+(g.score==null?'—':g.score)+'</div><div style="font-size:9px;color:var(--muted);">総合スコア</div></div></div>'
+      +'<div class="nm">'+g.name+(key==='dam'?damIdBadge(g.name):'')+badge+'<div style="font-size:11px;color:var(--muted);font-weight:400;">'+lbl+' ・ '+g.count+'頭出荷 ・ タップで'+(key==='sire'?'農家別に比較':'産子詳細')+'</div></div>'
+      +'<div style="text-align:right;"><div class="sc" style="color:'+(shownScore>=55?'var(--danger)':shownScore>=45?'var(--warn)':'var(--muted)')+';">'+(shownScore==null?'—':shownScore)+'</div><div style="font-size:9px;color:var(--muted);">'+scoreLbl+'</div></div></div>'
       +'<div class="mgrid">'
       +'<div class="mcell"><b style="color:'+bmsColor(g.avgBms)+';">'+(g.avgBms==null?'—':g.avgBms)+'</b><div>BMS平均</div></div>'
       +'<div class="mcell"><b style="color:var(--info);font-size:'+((g.avgWCast!=null&&g.avgWHeif!=null)?'11':'15')+'px;">'+(function(){var wc=g.avgWCast!=null?Math.round(g.avgWCast):null,wh=g.avgWHeif!=null?Math.round(g.avgWHeif):null;if(wc!=null&&wh!=null)return '♂'+wc+'<br>♀'+wh;if(wc!=null)return '♂'+wc;if(wh!=null)return '♀'+wh;return sizeLabel(g.avgWeight);})()+'</b><div>枝重平均</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+(g.avgYield==null?'—':g.avgYield+'%')+'</b><div>歩留率</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+g.rateA3+'%</b><div>A3以上率</div></div>'
       +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>A4以上率</div></div>'
-      +'</div><div class="detail" onclick="event.stopPropagation()">'+offspring(g.recs)+'</div></div>';
+      +'</div><div class="detail" onclick="event.stopPropagation()">'+detailHtml+'</div></div>';
   }).join('');
+}
+// 種雄牛の農家別比較（匿名化済み。自分以外は農家A/B…）
+function sireFarmCompareHtml(sire){
+  const rows=COMPARE[sire];
+  if(!rows||!rows.length) return '<div style="font-size:11px;color:var(--muted);">農家別の比較データがありません</div>';
+  const own=rows.find(r=>r.isOwn);
+  const th='padding:4px 6px;font-size:9px;color:var(--muted);text-align:center;';
+  const td='padding:5px 6px;font-size:11px;text-align:center;border-bottom:1px solid var(--border);';
+  const lift=r=>{ if(r.base==null)return '—'; const l=r.a3-r.base;
+    return l>0?'<b style="color:var(--accent);">+'+l+'</b>':l<0?'<b style="color:var(--danger);">'+l+'</b>':'±0'; };
+  const body=rows.map(function(r){
+    const bg=r.isOwn?'background:rgba(96,165,250,.12);':'';
+    return '<tr style="'+bg+'">'
+      +'<td style="'+td+'text-align:left;font-weight:'+(r.isOwn?'800':'400')+';">'+r.farm+'</td>'
+      +'<td style="'+td+'">'+r.n+'</td>'
+      +'<td style="'+td+'font-weight:700;color:'+(r.a3>=70?'var(--accent)':r.a3>=50?'var(--warn)':'var(--danger)')+';">'+r.a3+'%</td>'
+      +'<td style="'+td+'">'+r.a4+'%</td>'
+      +'<td style="'+td+'">'+(r.bms==null?'—':r.bms)+'</td>'
+      +'<td style="'+td+'color:var(--muted);">'+r.base+'%</td>'
+      +'<td style="'+td+'">'+lift(r)+'</td></tr>';
+  }).join('');
+  return '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.6;">同じ'+sire+'でも農家の肥育で成績が変わります。<b>農家平均</b>＝その農家の全産子の上物率／<b>種の上振れ</b>＝この種が農家平均をどれだけ上回ったか。（プライバシー保護のため他農家は匿名表示）</div>'
+    +'<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;min-width:420px;"><thead><tr>'
+    +'<th style="'+th+'text-align:left;">農家</th><th style="'+th+'">頭数</th><th style="'+th+'">上物率</th><th style="'+th+'">A4以上</th><th style="'+th+'">BMS</th><th style="'+th+'">農家平均</th><th style="'+th+'">種の上振れ</th>'
+    +'</tr></thead><tbody>'+body+'</tbody></table></div>';
 }
 function myJorateByYear(y){const rs=DATA.filter(r=>r.year===y);if(!rs.length)return null;return Math.round(rs.filter(r=>qnum(r.meatGrade)>=3).length/rs.length*1000)/10;}
 function ovJorateByYear(y){const o=OVERALL[y];if(!o||!o.n)return null;return Math.round((o.b3+o.b4+o.b5)/o.n*1000)/10;}
@@ -17082,6 +17175,51 @@ function exportFarmerReport(){
 }
 // 他農家の在籍牛（レポートの母牛に耳標・個体識別番号を出すため）。農家名は肥育データの表記に合わせる
 const FARM_DAM_IDS = {"長島　正典": {"えりこ":{"id":"N-22","nationalId":"1398824216"},"きくみつ":{"id":"K-48","nationalId":"1626600568"},"みえこ":{"id":"N-28","nationalId":"1383124604"},"たまき":{"id":"N-13","nationalId":"1637926787"},"あみか":{"id":"N-19","nationalId":"1516723933"},"おはる":{"id":"N-32","nationalId":"1602825343"},"たんぽぽ":{"id":"K-51","nationalId":"1417543432"},"かえら":{"id":"B-1","nationalId":"1300370640"},"しげたま":{"id":"K-33","nationalId":"1361037018"},"うめみ":{"id":"N-21","nationalId":"1398824193"},"みくな":{"id":"N-12","nationalId":"1637926770"},"しおみ":{"id":"N-27","nationalId":"1383124598"},"めぐ":{"id":"K-44","nationalId":"1348394288"},"ときこ":{"id":"N-36","nationalId":"1564625807"},"はづき":{"id":"K-43","nationalId":"1489335133"},"まさみ":{"id":"N-2","nationalId":"1400026140"},"はずき":{"id":"N-15","nationalId":"1391523482"},"しずく":{"id":"N-8","nationalId":"1376826379"},"しげふく":{"id":"K-42","nationalId":"1577670979"},"あきこ":{"id":"K-34","nationalId":"1368789323"},"なみみつしげ":{"id":"K-50","nationalId":"1365382497"},"ながと":{"id":"N-24","nationalId":"1398824490"},"くまち390ET":{"id":"K-40","nationalId":"1516746758"},"ゆうか":{"id":"K-46","nationalId":"1506100744"},"ららみ":{"id":"N-20","nationalId":"1398824179"},"第三ふくまる":{"id":"K-49","nationalId":"1395829108"},"はるか":{"id":"N-11","nationalId":"1376826713"},"ふみの":{"id":"N-23","nationalId":"1398824483"},"かがや":{"id":"N-33","nationalId":"1602825633"},"みつまる":{"id":"N-3","nationalId":"1400026157"},"みつよ":{"id":"N-35","nationalId":"1564625661"},"つるみ":{"id":"K-47","nationalId":"1490668916"},"はれまる":{"id":"E-1","nationalId":"1391986379"},"まさつる":{"id":"N-1","nationalId":"1602825510"},"にしき":{"id":"K-37","nationalId":"1529948538"},"ひのしずく":{"id":"K-6","nationalId":"1451046944"},"かいり":{"id":"N-34","nationalId":"1602825640"},"しげみ":{"id":"K-36","nationalId":"1529951781"},"ゆめの":{"id":"N-30","nationalId":"1585725166"},"きくな":{"id":"N-26","nationalId":"1383124567"},"まなか":{"id":"N-17","nationalId":"1516723735"},"あきこ壱":{"id":"K-39","nationalId":"1364565402"},"きみえ":{"id":"N-29","nationalId":"1585725135"},"とみはるET":{"id":"K-45","nationalId":"1366745857"},"みなみ":{"id":"N-6","nationalId":"1376826690"},"いろは":{"id":"E-2","nationalId":"1662669116"},"うらら":{"id":"E-3","nationalId":"1662669154"}}};
+// レポート用：種雄牛ごとの農家別成績を匿名化して用意する（自分以外は農家A/B…）
+function buildSireFarmCompare(targetFarmer){
+  const qn = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
+  const sexOf = r => /去勢/.test(r.sex||'')?'M':/未経|雌/.test(r.sex||'')?'F':'U';
+  // 性別内の枝重平均・SD（性別調整用）
+  const SEXW={};
+  ['M','F','U'].forEach(sx=>{ const v=fatteningRecords.filter(r=>sexOf(r)===sx&&r.weight!=null).map(r=>r.weight);
+    const m=v.length?v.reduce((a,b)=>a+b,0)/v.length:0;
+    const sd=v.length?Math.sqrt(v.reduce((a,b)=>a+(b-m)*(b-m),0)/v.length):1;
+    SEXW[sx]={m,sd:sd||1}; });
+  const wDev = r => r.weight==null?null:50+(r.weight-SEXW[sexOf(r)].m)/SEXW[sexOf(r)].sd*10;
+
+  // 農家ごとの実力（全産子の上物率）で順位付け → 匿名ラベルを割り当て
+  const byFarm={};
+  fatteningRecords.forEach(r=>{ const f=(r.farmer||'').trim(); if(!f)return; (byFarm[f]=byFarm[f]||[]).push(r); });
+  const farmBase={};
+  Object.keys(byFarm).forEach(f=>{ const v=byFarm[f].filter(r=>qn(r)); farmBase[f]=v.length?v.filter(r=>qn(r)>=3).length/v.length*100:0; });
+  const others=Object.keys(byFarm).filter(f=>f!==targetFarmer).sort((a,b)=>farmBase[b]-farmBase[a]);
+  const label={}; label[targetFarmer]='🏠 あなた';
+  others.forEach((f,i)=>{ label[f]='農家'+String.fromCharCode(65+i); });  // A,B,C...（実力順）
+
+  // 種雄牛ごとに農家別集計（匿名ラベルで）
+  const sires=[...new Set(fatteningRecords.map(r=>(r.sire||'').trim()).filter(Boolean))];
+  const out={};
+  sires.forEach(sire=>{
+    const rows=[];
+    Object.keys(byFarm).forEach(f=>{
+      const v=byFarm[f].filter(r=>(r.sire||'').trim()===sire && qn(r));
+      if(!v.length) return;
+      const n=v.length;
+      const wd=v.map(wDev).filter(x=>x!=null);
+      const bl=v.filter(r=>r.bms!=null), yl=v.filter(r=>r.yieldRate!=null);
+      rows.push({
+        farm: label[f], isOwn: f===targetFarmer, base: Math.round(farmBase[f]),
+        n, a3: Math.round(v.filter(r=>qn(r)>=3).length/n*100),
+        a4: Math.round(v.filter(r=>qn(r)>=4).length/n*100),
+        bms: bl.length?Math.round(bl.reduce((s,r)=>s+r.bms,0)/bl.length*10)/10:null,
+        wSexIdx: wd.length?Math.round(wd.reduce((a,b)=>a+b,0)/wd.length*10)/10:null,
+        yield: yl.length?Math.round(yl.reduce((s,r)=>s+r.yieldRate,0)/yl.length*10)/10:null,
+      });
+    });
+    if(rows.length) out[sire]=rows.sort((a,b)=>b.base-a.base);
+  });
+  return out;
+}
 function downloadFarmerHTML(farmer){
   const pick = r => ({
     dam:r.dam||'',sire:r.sire||'',nationalId:r.nationalId||'',sex:r.sex||'',
@@ -17106,7 +17244,7 @@ function downloadFarmerHTML(farmer){
       const nid=(m?m.nationalId:c.nationalId)||'';
       if(!damIds[nm]) damIds[nm]={id:c.id||'',nationalId:nid}; });
   }
-  const html=buildFarmerReportHTML(farmer, recs, overall, damIds);
+  const html=buildFarmerReportHTML(farmer, recs, overall, damIds, buildSireFarmCompare(farmer));
   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -17116,10 +17254,11 @@ function downloadFarmerHTML(farmer){
   const ov=document.getElementById('farmer-export-ov'); if(ov)ov.remove();
   if(typeof toast==='function') toast('「'+farmer+'」のレポートを出力しました');
 }
-function buildFarmerReportHTML(farmer, recs, overall, damIds){
+function buildFarmerReportHTML(farmer, recs, overall, damIds, sireCompare){
   const dataJson=JSON.stringify(recs);
   const overallJson=JSON.stringify(overall||{});
   const damIdsJson=JSON.stringify(damIds||{});
+  const compareJson=JSON.stringify(sireCompare||{});
   const today=new Date().toLocaleDateString('ja-JP');
   const T='<'+'/script>';
   return REPORT_TEMPLATE
@@ -17128,6 +17267,7 @@ function buildFarmerReportHTML(farmer, recs, overall, damIds){
     .replace('__COUNT__', recs.length)
     .replace('__OVERALL__', overallJson)
     .replace('__DAMIDS__', damIdsJson)
+    .replace('__COMPARE__', compareJson)
     .replace('__DATA__', dataJson)
     .replace('__ENDSCRIPT__', T);
 }
@@ -17580,6 +17720,52 @@ function renderFattening() {
   // 総合スコア（偏差値ベース：BMS・枝重・歩留率・A4以上率を標準化して加重平均）
   computeCompositeScore(groups);
 
+  // 農家補正：種雄牛別で、各産子の成績から「その農家の平均」を差し引いて、種そのものの実力を見る
+  // （上位農家が多用する種が上位に来る交絡を除く）
+  if (groupKey==='sire') {
+    // 補正値を絶対値として読めるように、全産子の平均を基準に使う
+    const _q3=r=>/[345]/.test(r.meatGrade||'')?100:0, _q4=r=>/[45]/.test(r.meatGrade||'')?100:0;
+    const _wd=recs.map(wDevOf).filter(x=>x!=null);
+    const _bl=recs.filter(r=>r.bms!=null), _yl=recs.filter(r=>r.yieldRate!=null);
+    var recAvgA3   = recs.length?recs.reduce((s,r)=>s+_q3(r),0)/recs.length:0;
+    var recAvgA4   = recs.length?recs.reduce((s,r)=>s+_q4(r),0)/recs.length:0;
+    var recAvgBms  = _bl.length?_bl.reduce((s,r)=>s+r.bms,0)/_bl.length:0;
+    var recAvgYield= _yl.length?_yl.reduce((s,r)=>s+r.yieldRate,0)/_yl.length:0;
+    // 全産子から農家ごとの平均を出す（この画面のフィルタ後データ recs を母集団にする）
+    const fb = {};   // farmer -> {a3, a4, bms, wSexIdx, yield}
+    const fmap = {};
+    recs.forEach(r=>{ const f=(r.farmer||'').trim()||'(記載なし)'; (fmap[f]=fmap[f]||[]).push(r); });
+    Object.keys(fmap).forEach(f=>{
+      const v=fmap[f]; const n=v.length;
+      const q=r=>/[345]/.test(r.meatGrade||'')?1:0, q4=r=>/[45]/.test(r.meatGrade||'')?1:0;
+      const wd=v.map(wDevOf).filter(x=>x!=null);
+      const bl=v.filter(r=>r.bms!=null), yl=v.filter(r=>r.yieldRate!=null);
+      fb[f]={
+        a3: n?v.reduce((s,r)=>s+q(r),0)/n*100:0,
+        a4: n?v.reduce((s,r)=>s+q4(r),0)/n*100:0,
+        wSexIdx: wd.length?wd.reduce((a,b)=>a+b,0)/wd.length:50,
+        bms: bl.length?bl.reduce((s,r)=>s+r.bms,0)/bl.length:0,
+        yield: yl.length?yl.reduce((s,r)=>s+r.yieldRate,0)/yl.length:0,
+      };
+    });
+    // 各種雄牛グループについて、産子ごとに「農家平均からの差」を平均する
+    groups.forEach(g=>{
+      const rs=g._recs;
+      const adj=(valOf, base)=>{ const arr=rs.map(r=>{
+        const f=(r.farmer||'').trim()||'(記載なし)'; const b=fb[f]; if(!b) return null;
+        const v=valOf(r); return v==null?null:(v-b[base]); }).filter(x=>x!=null);
+        return arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0; };
+      // 全体平均に、その種の農家補正済み上振れを足し戻す（絶対値として読めるように）
+      const baseAll = { a3: g.rateA3, a4: g.rateHigh };   // 基準は全体平均でなく自身の素の値の全体平均で近似
+      g._adjA3   = Math.round((recAvgA3   + adj(r=>/[345]/.test(r.meatGrade||'')?100:0,'a3'))*10)/10;
+      g._adjA4   = Math.round((recAvgA4   + adj(r=>/[45]/.test(r.meatGrade||'')?100:0,'a4'))*10)/10;
+      g._adjWSex = Math.round((50          + adj(wDevOf,'wSexIdx'))*10)/10;
+      g._adjBms  = Math.round((recAvgBms   + adj(r=>r.bms,'bms'))*10)/10;
+      g._adjYield= Math.round((recAvgYield + adj(r=>r.yieldRate,'yield'))*10)/10;
+    });
+    computeCompositeScoreAdjusted(groups);
+  }
+
   // 「3頭以上のみ」：産子（頭数）が3頭に満たないグループを除外（母牛別・種雄牛別で有効）
   if ((groupKey==='dam'||groupKey==='sire') && document.getElementById('fat-min3')?.checked) {
     groups = groups.filter(g => g.count >= 3);
@@ -17638,9 +17824,10 @@ function renderFattening() {
     const sortKey = document.getElementById('fat-detail-sort')?.value || 'score';
     const worst = fatRankWorst;
     const dir = worst ? -1 : 1;
+    const useAdj = (groupKey==='sire') && fatFarmerAdjust;
     groups.sort((a,b) => {
       let d;
-      if (sortKey==='score') d=(b.score||0)-(a.score||0);
+      if (sortKey==='score') d = useAdj ? ((b.scoreAdj||0)-(a.scoreAdj||0)) : ((b.score||0)-(a.score||0));
       else if (sortKey==='bms') d=(b.avgBms||0)-(a.avgBms||0);
       else if (sortKey==='high') d=(b.rateHigh||0)-(a.rateHigh||0);
       else if (sortKey==='yield') d=(b.avgYield||0)-(a.avgYield||0);
@@ -17669,6 +17856,7 @@ function renderFattening() {
           <button onclick="setFatRankOrder(false)" style="background:${!fatRankWorst?'var(--accent)':'var(--bg3)'};border:none;color:${!fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ベスト順</button>
           <button onclick="setFatRankOrder(true)" style="background:${fatRankWorst?'var(--danger)':'var(--bg3)'};border:none;color:${fatRankWorst?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;">ワースト順</button>
         </div>
+        ${groupKey==='sire' ? `<button onclick="toggleFatFarmerAdjust()" style="background:${fatFarmerAdjust?'var(--purple)':'var(--bg3)'};border:1px solid ${fatFarmerAdjust?'var(--purple)':'var(--border)'};color:${fatFarmerAdjust?'#fff':'var(--muted)'};font-size:11px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;">⚖️ 農家補正${fatFarmerAdjust?' ON':''}</button>` : ''}
       </div>
       <div style="font-size:10px;color:var(--muted);margin:-4px 0 10px;">総合スコアの配分【${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).label}】：${(FAT_SCORE_PATTERNS[fatScorePattern]||{}).desc}（同グループ内で偏差値化して加重平均）</div>
       ${groupKey==='dam' ? `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
@@ -17697,8 +17885,8 @@ function renderFattening() {
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:26px;font-weight:900;color:${g.score>=55?'var(--danger)':g.score>=45?'var(--warn)':'var(--muted)'};font-family:'JetBrains Mono',monospace;">${g.score??'—'}</div>
-            <div style="font-size:10px;color:var(--muted);">総合スコア</div>
+            <div style="font-size:26px;font-weight:900;color:${(sireClick&&fatFarmerAdjust?(g.scoreAdj>=55):(g.score>=55))?'var(--danger)':(sireClick&&fatFarmerAdjust?(g.scoreAdj>=45):(g.score>=45))?'var(--warn)':'var(--muted)'};font-family:'JetBrains Mono',monospace;">${(sireClick&&fatFarmerAdjust)?(g.scoreAdj??'—'):(g.score??'—')}</div>
+            <div style="font-size:10px;color:var(--muted);">${(sireClick&&fatFarmerAdjust)?'⚖️農家補正スコア':'総合スコア'}</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;font-size:12px;text-align:center;">
