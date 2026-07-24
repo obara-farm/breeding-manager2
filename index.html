@@ -5618,16 +5618,45 @@ function etDisplayLabel(str, isEt) {
   const pair = embryoDonorSire(s);
   return pair ? `${pair}<span style="opacity:.65;"> ／ ${s}</span>` : s;
 }
+// 胚番号 → 新鮮/凍結（採卵記録が最も確実なのでそこから引く）
+let _embTypeCache = null;
+function embryoTypeOf(no){
+  const key = String(no||'').trim();
+  if (!key) return null;
+  if (!_embTypeCache) {
+    _embTypeCache = {};
+    (typeof collectionRecordsNew!=='undefined'?collectionRecordsNew:[]).forEach(r=>{
+      (r.frozenEmbryos||[]).forEach(e=>{ if(e.no) _embTypeCache[String(e.no).trim()]='frozen'; });
+      (r.freshEmbryos||[]).forEach(e=>{ if(e.embryoNo) _embTypeCache[String(e.embryoNo).trim()]='fresh'; });
+      // 培養胚：凍結処置したものだけ凍結、そのまま移植なら新鮮
+      (r.cultureEmbryos||[]).forEach(e=>{ if(e.embryoNo) _embTypeCache[String(e.embryoNo).trim()] = (e.action==='freeze' ? 'frozen' : 'fresh'); });
+    });
+    // 在庫の個別胚番号（ロットではなく胚番号の完全一致のみ）
+    (typeof embryoInventory!=='undefined'?embryoInventory:[]).forEach(e=>{
+      (e.embryoDetails||[]).forEach(d=>{ const n=String(d.no||'').trim();
+        if(n && !_embTypeCache[n]) _embTypeCache[n] = (e.type==='frozen'?'frozen':'fresh'); });
+    });
+  }
+  return _embTypeCache[key] || null;
+}
 function isEmbryoFrozen(sire, memo) {
   const text = (sire||'') + ' ' + (memo||'');
   if (text.includes('🌱') || text.includes('新鮮')) return false;
   if (text.includes('❄') || text.includes('凍結')) return true;
+  // 胚番号を取り出して採卵記録・在庫と完全一致で照合（同じロットに凍結と新鮮が混在するため）
+  const noAny = (String(sire||'').trim().match(/^[0-9A-Za-z\-]+$/) ? String(sire).trim() : null)
+             || ((memo||'').match(/胚番号:([0-9A-Za-z\-]+)/)||[])[1];
+  if (noAny) {
+    const t = embryoTypeOf(noAny);
+    if (t) return t === 'frozen';
+  }
   // 授精簿s欄の胚番号（01L237R7-xxxx形式）→SHEET2で検索
   const noM = (sire||'').match(/^(01L237[\w\-]+)$/) || (memo||'').match(/胚番号:([\w\-]+)/);
   if (noM) {
     const no = noM[1];
     const lotKey = no.replace(/-\d+$/, '');
-    const inv = embryoInventory.find(e => e.lot === lotKey || (e.embryoDetails||[]).some(d=>d.no===no));
+    const inv = embryoInventory.find(e => (e.embryoDetails||[]).some(d=>d.no===no))
+             || embryoInventory.find(e => e.lot === lotKey);
     if (inv) return inv.type === 'frozen';
     let frozen = true;
     (EMBRYO_SHEET2_DATA||[]).forEach(lot => {
@@ -5665,6 +5694,7 @@ function isEtRecExcluded(rec){
   return isEtRateExcluded(rec.date) || isOldEmbryo(rec.s, rec.m);
 }
 function renderStats() {
+  _embTypeCache = null;   // 新鮮/凍結の判定表を作り直す
   const todayStr = today();
   const container = document.getElementById('stats-container');
 
@@ -8717,6 +8747,7 @@ function renderCollectionTab() {
   var yearFilter = (document.getElementById('collection-search-year')?.value)||'';
   var query = (document.getElementById('collection-search-query')?.value||'').trim().toLowerCase();
   _embResultCache = null;   // 妊鑑結果の索引を作り直す
+  _embTypeCache = null;
   // 採卵記録一覧更新
   const list = document.getElementById('collection-list');
   const empty = document.getElementById('collection-empty');
