@@ -1146,6 +1146,8 @@ textarea{resize:vertical;}
     <label style="height:34px;box-sizing:border-box;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0 10px;white-space:nowrap;">
       <input type="checkbox" id="fat-own-semen" onchange="renderFattening()" style="cursor:pointer;margin:0;">🧊 自家精液</label>
     <label style="height:34px;box-sizing:border-box;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0 10px;white-space:nowrap;">
+      <input type="checkbox" id="fat-min3" onchange="renderFattening()" style="cursor:pointer;margin:0;">📊 3頭以上のみ</label>
+    <label style="height:34px;box-sizing:border-box;font-size:12px;color:var(--text);display:inline-flex;align-items:center;gap:4px;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:0 10px;white-space:nowrap;">
       <input type="checkbox" id="fat-living-only" onchange="toggleFatLivingOnly()" style="cursor:pointer;margin:0;">🐄 現存牛のみ</label>
     <span style="flex-basis:100%;height:0;"></span>
     <button onclick="exportFarmerReport()" style="height:30px;box-sizing:border-box;background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:0 10px;border-radius:6px;cursor:pointer;white-space:nowrap;">📄 農家別レポート出力</button>
@@ -7181,7 +7183,23 @@ function switchTab(name) {
   if (name==='semen') renderSemen();
   if (name==='calves') renderCalves();
   if (name==='retired') renderRetiredList();
-  if (name==='fattening') { updateFatYearFilter(); renderFattening(); }
+  if (name==='fattening') {
+    updateFatYearFilter();
+    // 初回だけプリセット：うちの牛（小原）・母牛別・現存牛のみ
+    const fv=document.getElementById('fat-view');
+    if (fv && !fv.dataset.preset) {
+      fv.dataset.preset='1';
+      fv.value='dam';
+      if (typeof OWN_FARMER!=='undefined') { fatSelectedFarmers=[OWN_FARMER];
+        document.querySelectorAll('.fat-farmer-cb').forEach(c=>{ c.checked = (c.value===OWN_FARMER); });
+        const allcb=document.getElementById('fat-farmer-all'); if(allcb)allcb.checked=false;
+        if (typeof updateFarmerBtnLabel==='function') updateFarmerBtnLabel();
+      }
+      const lo=document.getElementById('fat-living-only'); if(lo){ lo.checked=true; }
+      if (typeof toggleFatLivingOnly==='function') toggleFatLivingOnly();
+    }
+    renderFattening();
+  }
   if (name==='insembook') {
     // 現在の年度を自動選択（1月始まり）
     const now = new Date();
@@ -17562,6 +17580,11 @@ function renderFattening() {
   // 総合スコア（偏差値ベース：BMS・枝重・歩留率・A4以上率を標準化して加重平均）
   computeCompositeScore(groups);
 
+  // 「3頭以上のみ」：産子（頭数）が3頭に満たないグループを除外（母牛別・種雄牛別で有効）
+  if ((groupKey==='dam'||groupKey==='sire') && document.getElementById('fat-min3')?.checked) {
+    groups = groups.filter(g => g.count >= 3);
+  }
+
   // 母牛別で「現存牛のみ」：選択中の農家の在籍牛リストに載っている母牛だけに絞る
   // 小原＝cows（Firebase同期）、他農家＝FARM_DAM_IDS（取込済みの在籍牛一覧）
   if (groupKey==='dam' && typeof fatLivingOnly!=='undefined' && fatLivingOnly) {
@@ -17663,13 +17686,14 @@ function renderFattening() {
     groups.map((g,i) => {
       const rankColor = i===0?'var(--danger)':i===1?'var(--warn)':i===2?'var(--info)':'var(--muted)';
       const clickable = (groupKey==='dam');
+      const sireClick = (groupKey==='sire');
       const cardId = 'fatdam-'+i;
       const _di = groupKey==='dam' ? (damInfoByName(g.name)||{}) : {};
-      return `<div id="fatcard-${i}" data-dam="${(g.name||'').replace(/"/g,'')}" data-tag="${_di.id||''}" data-nid="${_di.nationalId||''}" data-rank="${i+1}" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;${clickable?'cursor:pointer;':''}" ${clickable?`onclick="toggleDamDetail('${cardId}')"`:''}>
+      return `<div id="fatcard-${i}" data-dam="${(g.name||'').replace(/"/g,'')}" data-tag="${_di.id||''}" data-nid="${_di.nationalId||''}" data-rank="${i+1}" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;${(clickable||sireClick)?'cursor:pointer;':''}" ${clickable?`onclick="toggleDamDetail('${cardId}')"`:sireClick?`onclick="toggleSireCompare('${cardId}','${(g.name||'').replace(/'/g,'')}')"`:''}>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
-            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}</div>
+            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}${sireClick?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 農家別に比較</span>':''}</div>
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
           </div>
           <div style="text-align:right;">
@@ -17700,10 +17724,97 @@ function renderFattening() {
           </div>
         </div>
         ${clickable ? `<div id="${cardId}" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;cursor:default;">${renderDamOffspring(g._recs)}</div>` : ''}
+        ${sireClick ? `<div id="${cardId}" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;cursor:default;"></div>` : ''}
         ${g.count >= 3 ? '' : '<div style="font-size:10px;color:var(--muted);margin-top:6px;text-align:center;">※ 3頭未満のため参考値</div>'}
       </div>`;
     }).join('');
   }
+}
+
+// 種雄牛カードを開いて、その種の産子成績を農家別に比較（上位農家 vs 小原）
+function toggleSireCompare(cardId, sireName){
+  const el = document.getElementById(cardId);
+  if (!el) return;
+  if (el.style.display==='block'){ el.style.display='none'; return; }
+  el.style.display='block';
+
+  // フィルタ（品種・年度）は今の画面設定に合わせる。ただし農家は全農家で見る（比較のため）
+  const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
+  let recs = fatteningRecords.filter(r => (r.sire||'').trim() === sireName);
+  if (fatSelectedYears.length>0) recs = recs.filter(r=>fatSelectedYears.includes(r.year));
+  if (breedFilter!=='all') recs = recs.filter(r=>r.breed===breedFilter);
+  const qn = r => (r.meatGrade||'').match(/[1-5]/) ? +(r.meatGrade.match(/[1-5]/)[0]) : (r.grade||0);
+
+  // 農家ごとに集計
+  const byFarm = {};
+  recs.forEach(r=>{ const f=(r.farmer||'').trim()||'(記載なし)';
+    (byFarm[f]=byFarm[f]||[]).push(r); });
+  // 各農家の「その農家全体の上物率」（実力）＝この種に限らない全産子から
+  const farmBase = {};
+  Object.keys(byFarm).forEach(f=>{
+    const all = fatteningRecords.filter(r=>((r.farmer||'').trim()||'(記載なし)')===f && qn(r));
+    farmBase[f] = all.length ? Math.round(all.filter(r=>qn(r)>=3).length/all.length*100) : null;
+  });
+  const rows = Object.keys(byFarm).map(f=>{
+    const v = byFarm[f].filter(r=>qn(r));
+    const n = v.length;
+    const a3 = n?Math.round(v.filter(r=>qn(r)>=3).length/n*100):0;
+    const a4 = n?Math.round(v.filter(r=>qn(r)>=4).length/n*100):0;
+    const bms = v.filter(r=>r.bms!=null); const avgBms = bms.length?(bms.reduce((s,r)=>s+r.bms,0)/bms.length).toFixed(1):'—';
+    // 農家補正：この種の上物率 − その農家の平均上物率（プラスなら種が農家平均を押し上げている）
+    const lift = (farmBase[f]!=null)? a3 - farmBase[f] : null;
+    return {farmer:f, n, a3, a4, avgBms, base:farmBase[f], lift};
+  }).filter(r=>r.n>0).sort((a,b)=>b.n-a.n);
+
+  const own = (typeof OWN_FARMER!=='undefined')?OWN_FARMER:'小原秀樹';
+  // 上位農家＝その農家の実力（base）が高い順
+  const ranked = rows.slice().sort((a,b)=>(b.base??-1)-(a.base??-1));
+  const topFarms = ranked.filter(r=>r.farmer!==own).slice(0,3).map(r=>r.farmer);
+
+  const liftBadge = l => l==null?'<span style="color:var(--muted);">—</span>'
+    : l>0?`<span style="color:var(--accent);font-weight:700;">+${l}</span>`
+    : l<0?`<span style="color:var(--danger);font-weight:700;">${l}</span>`:'±0';
+
+  const rowHtml = r => {
+    const isOwn = r.farmer===own, isTop = topFarms.includes(r.farmer);
+    const bg = isOwn?'rgba(96,165,250,.12)':isTop?'rgba(74,222,128,.08)':'transparent';
+    const tag = isOwn?'<span style="font-size:9px;background:var(--info);color:#fff;padding:1px 5px;border-radius:4px;margin-left:4px;">うち</span>'
+              : isTop?'<span style="font-size:9px;background:var(--accent);color:#000;padding:1px 5px;border-radius:4px;margin-left:4px;">上位農家</span>':'';
+    return `<tr style="background:${bg};">
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);font-weight:${isOwn?'900':'400'};">${r.farmer}${tag}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;">${r.n}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;font-weight:700;color:${r.a3>=70?'var(--accent)':r.a3>=50?'var(--warn)':'var(--danger)'};">${r.a3}%</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;">${r.a4}%</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;">${r.avgBms}</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;color:var(--muted);">${r.base??'—'}%</td>
+      <td style="padding:5px 6px;border-bottom:1px solid var(--border);text-align:center;">${liftBadge(r.lift)}</td>
+    </tr>`;
+  };
+
+  const ownRow = rows.find(r=>r.farmer===own);
+  const topRows = rows.filter(r=>topFarms.includes(r.farmer));
+  // 上位農家の合算上物率
+  const topAll = topRows.reduce((s,r)=>s+r.n,0);
+  const topA3 = topAll?Math.round(topRows.reduce((s,r)=>s+r.a3*r.n,0)/topAll):null;
+
+  el.innerHTML = `
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px;line-height:1.6;">
+      <b>${sireName}</b> の産子を農家別に比較。同じ種でも農家の肥育で成績が変わります。<br>
+      <b>農家平均</b>＝その農家の全産子の上物率（腕の目安）／ <b>種の上振れ</b>＝この種がその農家平均をどれだけ上回ったか（プラスなら種が良い方向に効いている）。
+    </div>
+    ${ownRow ? `<div style="background:rgba(96,165,250,.12);border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;">
+      🏠 <b>小原</b>での${sireName}：${ownRow.n}頭・上物率<b style="color:${ownRow.a3>=70?'var(--accent)':'var(--warn)'};">${ownRow.a3}%</b>（小原の平均${ownRow.base}%に対して ${liftBadge(ownRow.lift)}）
+      ${topA3!=null?`　｜　上位農家の${sireName}：上物率<b>${topA3}%</b>`:''}
+    </div>` : `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">🏠 小原ではこの種の産子出荷がまだありません。上位農家の実績が参考になります。</div>`}
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:440px;">
+      <thead><tr style="color:var(--muted);font-size:10px;">
+        <th style="padding:4px 6px;text-align:left;">農家</th><th style="padding:4px 6px;">頭数</th>
+        <th style="padding:4px 6px;">上物率</th><th style="padding:4px 6px;">A4以上</th>
+        <th style="padding:4px 6px;">BMS</th><th style="padding:4px 6px;">農家平均</th><th style="padding:4px 6px;">種の上振れ</th>
+      </tr></thead>
+      <tbody>${rows.map(rowHtml).join('')}</tbody>
+    </table></div>`;
 }
 
 function setFatView(view, sort) {
