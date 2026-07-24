@@ -5651,6 +5651,15 @@ const ET_RATE_EXCLUDE = [
   { from:'2026-01-01', to:'2026-02-28', label:'R8年1〜2月（融解方法の誤りのため）' },
 ];
 function isEtRateExcluded(d){ return ET_RATE_EXCLUDE.some(x => d >= x.from && d <= x.to); }
+// R6（令和6年）に製造した受精卵は受胎率の集計に含めない
+function isOldEmbryo(sire, memo){
+  const t = (sire||'') + ' ' + (memo||'');
+  return /(^|[^0-9A-Za-z])R6-\d/.test(t) || /01L237R6/.test(t);
+}
+// ETの1件を受胎率集計から外すか（期間除外 or R6胚）
+function isEtRecExcluded(rec){
+  return isEtRateExcluded(rec.date) || isOldEmbryo(rec.s, rec.m);
+}
 function renderStats() {
   const todayStr = today();
   const container = document.getElementById('stats-container');
@@ -5768,7 +5777,7 @@ function renderStats() {
 
       if (rec.isET) {
         // 融解方法の誤りにより受胎率が異常低下した期間はET受胎率の集計から除外
-        if (isEtRateExcluded(rec.date)) { etExcluded++; return; }
+        if (isEtRecExcluded(rec)) { etExcluded++; return; }
         // 授精簿のs欄（胚番号）から凍結/新鮮を判定
         const isFrozen = isEmbryoFrozen(rec.s, rec.m);
         if (result === 'pos') {
@@ -5852,7 +5861,7 @@ function renderStats() {
         </div>
       </div>
       ${etTotal ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;">ET合計: ${etPos} / ${etTotal} 頭（${etRate}%）</div>` : ''}
-      ${etExcluded ? `<div style="font-size:10px;color:var(--warn);margin-top:4px;text-align:center;">※ ${ET_RATE_EXCLUDE.map(x=>x.label).join('・')}の${etExcluded}件は集計から除外</div>` : ''}
+      ${etExcluded ? `<div style="font-size:10px;color:var(--warn);margin-top:4px;text-align:center;">※ ${ET_RATE_EXCLUDE.map(x=>x.label).join('・')}／R6製造の受精卵 の${etExcluded}件は集計から除外</div>` : ''}
       ` : '<div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">妊鑑結果を記録すると受胎率が表示されます</div>'}
     </div>
 
@@ -6002,7 +6011,7 @@ function renderStats() {
           const pregCheckDate = addDays(rec.date, rec.isET ? 38 : 45);
           if (pregCheckDate > todayStr && rec.pregResult === null) return;
           // 融解方法の誤りによる除外期間のETは月別集計にも入れない
-          if (rec.isET && isEtRateExcluded(rec.date)) return;
+          if (rec.isET && isEtRecExcluded(rec)) return;
 
           const isPos = result === 'pos';
           const month = parseInt(rec.date.slice(5,7));
