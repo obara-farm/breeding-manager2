@@ -598,6 +598,10 @@ textarea{resize:vertical;}
         <span class="nav-label">採卵記録</span>
         <span class="grid-nav-badge" id="collection-pending-badge" style="display:none;background:var(--warn);">0</span>
       </div>
+      <div class="grid-nav-btn gnav-purple" id="gnav-calc" onclick="switchTab('calc')">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">発情・分娩計算</span>
+      </div>
     </div>
   </div>
 
@@ -7104,7 +7108,7 @@ function renderCalvingAlerts() {
 
 // ===== TABS =====
 function switchTab(name) {
-  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection'];
+  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection','calc'];
   names.forEach(n => {
     const btn = document.getElementById(`gnav-${n}`);
     if (btn) btn.classList.toggle('active', n===name);
@@ -7124,6 +7128,7 @@ function switchTab(name) {
     if (searchEl && searchEl.value) { searchEl.value = ''; renderInsemBook(); }
   }
   if (name==='stats') renderStats();
+  if (name==='calc') { const el=document.getElementById('calc-date'); if(el&&!el.value) el.value=today(); runCalc(); }
   if (name==='history') renderHistory();
   if (name==='semen') renderSemen();
   if (name==='calves') renderCalves();
@@ -8338,7 +8343,8 @@ function embryoResultIndex(){
       if (!nos.length) return;
       let result = rec.pregResult==='positive' ? 'pos' : rec.pregResult==='negative' ? 'neg' : null;
       if (!result) {
-        const next = recs[i+1];
+        // 同じ日の移植（2卵移植など）は「次の授精」ではないので、日付が進んだ記録だけを次とみなす
+        const next = recs.slice(i+1).find(x => x.date > rec.date);
         const pe = evts.filter(e => (e.type==='preg_positive'||e.type==='preg_negative')
           && e.date >= rec.date && (!next || e.date < next.date)).pop();
         if (pe) result = pe.type==='preg_positive' ? 'pos' : 'neg';
@@ -8787,7 +8793,7 @@ function renderCollectionTab() {
       <div style="margin-top:8px;text-align:right;">
         <button onclick="openDeliveryPicker('${r.id}')" style="background:#0a1520;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">📄 納品書に追加</button>
       </div>
-      ${(frozenCount||freshCount) ? `
+      ${(frozenCount||freshCount||(r.cultureEmbryos||[]).length) ? `
       <div style="margin-top:6px;">
         <button onclick="var d=document.getElementById('emb-${r.id}');d.style.display=d.style.display==='none'?'block':'none';" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;width:100%;">🔬 胚ごとの妊鑑結果（＋/−）</button>
         <div id="emb-${r.id}" style="display:none;margin-top:6px;background:var(--bg3);border-radius:6px;padding:6px 8px;">
@@ -8796,6 +8802,9 @@ function renderCollectionTab() {
             <span style="white-space:nowrap;">${embResultBadge(e.no)}</span></div>`).join('')}
           ${(r.freshEmbryos||[]).map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px;">
             <span style="min-width:0;"><span style="color:var(--accent);">🌱</span> <span style="font-family:'JetBrains Mono',monospace;">${e.embryoNo||'—'}</span>${(e.stage||e.rank)?`<span style="color:var(--muted);font-size:9px;margin-left:4px;">${(e.stage||'')+(e.rank||'')}</span>`:''}</span>
+            <span style="white-space:nowrap;">${embResultBadge(e.embryoNo)}</span></div>`).join('')}
+          ${(r.cultureEmbryos||[]).map(e=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px;">
+            <span style="min-width:0;"><span style="color:var(--purple);">🔬</span> <span style="font-family:'JetBrains Mono',monospace;">${e.embryoNo||'—'}</span><span style="color:var(--muted);font-size:9px;margin-left:4px;">培養${(e.cultureStage||e.stage||'')+(e.cultureRank||e.rank||'')}</span>${e.action?`<span style="color:var(--muted);font-size:9px;margin-left:4px;">${e.action==='freeze'?'凍結':e.action==='transfer'?'移植':e.action==='discard'?'破棄':e.action}</span>`:''}</span>
             <span style="white-space:nowrap;">${embResultBadge(e.embryoNo)}</span></div>`).join('')}
           <div style="font-size:9px;color:var(--muted);margin-top:4px;">＋受胎／−不受胎／妊鑑待ち／未移植（在庫に残っている胚）</div>
         </div>
@@ -18202,13 +18211,16 @@ try {
   </div>
 
   <!-- 採卵記録一覧 -->
-  <!-- 発情・分娩 かんたん計算 -->
+  <div id="collection-list"></div>
+  <div id="collection-empty" style="text-align:center;color:var(--muted);padding:40px;display:none;">採卵記録がありません</div>
+</div>
+
+<!-- 発情・分娩 かんたん計算 -->
+<div class="page" id="page-calc">
+  <div class="section-title">📅 発情・分娩 かんたん計算</div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">AI／ETの日を入れると、戻り発情・妊娠鑑定・分娩予定がすぐ出ます。</div>
   <div style="background:var(--card);border:1px solid var(--purple);border-radius:10px;padding:12px;margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="var d=document.getElementById('calc-body');d.style.display=d.style.display==='none'?'block':'none';if(d.style.display==='block')runCalc();">
-      <div style="font-size:13px;font-weight:700;color:var(--purple);">📅 発情・分娩 かんたん計算</div>
-      <div style="font-size:11px;color:var(--muted);">▼ 開く</div>
-    </div>
-    <div id="calc-body" style="display:none;margin-top:10px;">
+    <div id="calc-body" style="display:block;margin-top:10px;">
       <div style="display:flex;gap:6px;margin-bottom:8px;">
         <button id="calc-type-ai" onclick="setCalcType('ai')" style="flex:1;padding:12px;font-size:15px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--info);color:#fff;">💉 AI</button>
         <button id="calc-type-et" onclick="setCalcType('et')" style="flex:1;padding:12px;font-size:15px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🧬 ET</button>
@@ -18222,9 +18234,8 @@ try {
       <div id="calc-result"></div>
     </div>
   </div>
-  <div id="collection-list"></div>
-  <div id="collection-empty" style="text-align:center;color:var(--muted);padding:40px;display:none;">採卵記録がありません</div>
 </div>
+
 
 <!-- 外部採卵記録モーダル -->
 <div class="modal-overlay" id="modal-external-collection">
