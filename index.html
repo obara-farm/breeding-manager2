@@ -690,6 +690,12 @@ textarea{resize:vertical;}
     <button id="calf-filter-moved" onclick="setCalfFilter('moved')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">移動済み</button>
     <button onclick="goToInsemBookForCalves()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">📄 授精証明書を発行</button>
   </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+    <span style="font-size:11px;color:var(--muted);">🌟 繁殖候補の年度で絞る:</span>
+    <select id="calf-cand-year" onchange="renderCalves()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;">
+      <option value="all">全年度</option>
+    </select>
+  </div>
   <div id="calf-list-container"></div>
   <div class="empty" id="calf-empty" style="display:none;">
     <div class="empty-icon">🐮</div>
@@ -3858,7 +3864,7 @@ function renderPregList() {
   document.getElementById('preg-badge').textContent = pregTasks.length;
   const container = document.getElementById('preg-list-container');
   const empty = document.getElementById('preg-empty');
-  const currentSub = window._pregSubTab || 'waiting';
+  const currentSub = window._pregSubTab || 'calving';
 
   const pregWaiting = pregTasks.map(t => {
     const cow = cows.find(c=>c.id===t.cowId);
@@ -3924,7 +3930,11 @@ function renderPregList() {
     </div>`;
   }).join('') : '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">妊鑑待ちの牛はいません</div>';
 
-  const calvingHTML = Object.keys(monthMap).length ? Object.keys(monthMap).sort().map(ym => {
+  const calvingHTML = Object.keys(monthMap).length ? (
+    `<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <button onclick="printCalvingSchedule()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;">🖨 印刷する</button>
+    </div>` +
+    Object.keys(monthMap).sort().map(ym => {
     const [y,m] = ym.split('-');
     const list = monthMap[ym].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
     return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;">
@@ -3952,11 +3962,64 @@ function renderPregList() {
         </div>`;
       }).join('')}
     </div>`;
-  }).join('') : '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">妊娠中の牛はいません</div>';
+  }).join('')) : '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">妊娠中の牛はいません</div>';
 
   container.innerHTML = tabBar + (currentSub==='waiting' ? waitingHTML : calvingHTML);
 }
 
+function printCalvingSchedule(){
+  const todayStr = today();
+  const dueCows = cows.filter(c=>c.status==='pregnant' && c.dueDate);
+  if(!dueCows.length){ alert('妊娠中の牛がいません'); return; }
+  const monthMap={};
+  dueCows.forEach(cow=>{ const ym=cow.dueDate.slice(0,7); (monthMap[ym]=monthMap[ym]||[]).push(cow); });
+  const rows = Object.keys(monthMap).sort().map(ym=>{
+    const [y,m]=ym.split('-');
+    const list=monthMap[ym].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+    const body=list.map(cow=>{
+      const name=cowDisplayName(cow.id);
+      const daysLeft=diffDays(cow.dueDate,todayStr);
+      const daysLabel=daysLeft<0?`超過${Math.abs(daysLeft)}日`:daysLeft===0?'今日':`あと${daysLeft}日`;
+      const twin=cow.twin?' (双子)':'';
+      const e=[...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(x=>['ai_done','et_done','estrus_ai','estrus_et'].includes(x.type));
+      const memo=e?.memo||'';
+      const sire=memo.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
+      const isEt=e&&['et_done','estrus_et'].includes(e.type);
+      const kind=isEt?'ET':'AI';
+      const sireLabel=sire?(embryoDonorSire(sire)||sire):'';
+      return `<tr>
+        <td class="c">${fmtDate(cow.dueDate)}</td>
+        <td>${cow.id} ${name}${twin}</td>
+        <td class="c">${kind}</td>
+        <td>${sireLabel}</td>
+        <td class="c">${daysLabel}</td>
+        <td class="chk"></td></tr>`;
+    }).join('');
+    return `<h2>${y}年${parseInt(m)}月 （${list.length}頭）</h2>
+      <table><thead><tr><th>分娩予定日</th><th>牛（耳標・名前）</th><th>種別</th><th>種雄牛／ドナー×種</th><th>残り</th><th>分娩✓</th></tr></thead>
+      <tbody>${body}</tbody></table>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>月別お産予定 ${fmtDate(todayStr)}</title>
+    <style>
+      @media print{ @page{ size:A4; margin:12mm; } .noprint{display:none;} }
+      body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#111;padding:16px;}
+      h1{font-size:18px;margin:0 0 4px;} .sub{color:#666;font-size:12px;margin-bottom:14px;}
+      h2{font-size:14px;margin:16px 0 6px;padding:4px 8px;background:#f0e9f7;border-left:4px solid #7c4dcc;}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px;}
+      th,td{border:1px solid #ccc;padding:5px 7px;text-align:left;}
+      th{background:#f5f5f5;font-size:11px;} .c{text-align:center;white-space:nowrap;}
+      .chk{width:44px;} tbody tr:nth-child(even){background:#fafafa;}
+      .btn{background:#7c4dcc;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;}
+    </style></head><body>
+    <button class="btn noprint" onclick="window.print()">🖨 このページを印刷</button>
+    <h1>月別お産予定表</h1>
+    <div class="sub">作成日: ${fmtDate(todayStr)}　／　妊娠中 ${dueCows.length}頭　／　${OWN_FARMER||'小原農場'}</div>
+    ${rows}
+    </body></html>`;
+  const w=window.open('','_blank');
+  if(!w){ alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+  w.document.write(html); w.document.close();
+}
 function recordPreg(cowId, taskId, result) {
   const cow = cows.find(c=>c.id===cowId);
   if (!cow) return;
@@ -7914,6 +7977,17 @@ function updateEtQCells() {
   });
 }
 
+function jumpInsemMonth(ym){
+  const isMobile = window.innerWidth <= 430;
+  const scope = isMobile ? document.getElementById('insembook-mobile') : document.getElementById('insembook-tbody');
+  if (!scope) return;
+  const el = scope.querySelector('[data-month="'+ym+'"]');
+  if (!el) return;
+  el.scrollIntoView({behavior:'smooth', block:'start'});
+  const old = el.style.boxShadow;
+  el.style.transition='box-shadow .3s'; el.style.boxShadow='inset 0 0 0 3px var(--accent)';
+  setTimeout(()=>{ el.style.boxShadow=old||''; }, 2000);
+}
 function renderInsemBook() {
   // 年度オプションを動的生成（現在年度+1〜R5まで）
   const yearSel = document.getElementById('insembook-year');
@@ -7998,7 +8072,7 @@ function renderInsemBook() {
       : showSyncBtn ? '<button onclick="syncOneInsemRecord(\'' + r.d + '\',\'' + r.t + '\',\'' + sireEsc + '\',' + addInv + ')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;">📥' + (addInv ? '💉' : '') + '</button>' : '<span style="font-size:10px;color:var(--muted);">—</span>';
     // 証明書No・No・備考は編集可能
     if (isNew) {
-      return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);outline:1px solid var(--info);">' +
+      return '<tr data-month="'+((_checkD||r.d||'').slice(0,7))+'" style="background:' + bg + ';border-bottom:1px solid var(--border);outline:1px solid var(--info);">' +
         '<td style="padding:2px 3px;"><input type="date" id="ib-d-dynamic' + idx + '" value="' + r.d + '" onchange="saveInsemBookRecord(\'dynamic\',' + idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
         '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + ' <span style="font-size:9px;color:var(--info);">NEW</span></td>' +
         '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
@@ -8054,7 +8128,7 @@ function renderInsemBook() {
     const dispD = edit.d || r.d;
     const dispOp = edit.op !== undefined ? edit.op : (r.op || '');
     const dispDonorAI = staticDonorAIFlags['static_' + r._idx] || (edit.donorAI !== undefined ? edit.donorAI : (r.donorAI || false));
-    return '<tr style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
+    return '<tr data-month="'+((_checkD||r.d||'').slice(0,7))+'" style="background:' + bg + ';border-bottom:1px solid var(--border);">' +
       '<td style="padding:2px 3px;"><input type="date" id="ib-d-' + sid + '" value="' + dispD + '" onchange="saveInsemBookRecord(\'static\',' + r._idx + ')" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:11px;padding:3px 4px;border-radius:4px;width:130px;"></td>' +
       '<td style="padding:7px 6px;font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--accent);font-weight:700;">' + r.t + '</td>' +
       '<td style="padding:7px 6px;font-size:11px;color:var(--muted);">' + cowName + '</td>' +
@@ -8072,7 +8146,18 @@ function renderInsemBook() {
     '</tr>';
   }).join('');
 
-  // スマホ版：アコーディオンカード（430px以下）
+  // 月ジャンプバー：この年度データに含まれる月を並べ、タップでその月の先頭へスクロール
+  const monthbar = document.getElementById('insembook-monthbar');
+  if (monthbar) {
+    const months = [...new Set(data.map(r => ((insemBookEdits[r._src+'_'+r._idx]||{}).d || r.d || '').slice(0,7)).filter(Boolean))].sort();
+    if (months.length > 1) {
+      monthbar.style.display = 'flex';
+      monthbar.innerHTML = '<span style="font-size:10px;color:var(--muted);align-self:center;margin-right:2px;">月へジャンプ:</span>' +
+        months.map(ym => { const [y,m] = ym.split('-');
+          return `<button onclick="jumpInsemMonth('${ym}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;cursor:pointer;">${parseInt(m)}月</button>`;
+        }).join('');
+    } else { monthbar.style.display = 'none'; monthbar.innerHTML = ''; }
+  }
   const isMobile = window.innerWidth <= 430;
   const tableWrap = document.getElementById('insembook-table-wrap');
   const mobileEl  = document.getElementById('insembook-mobile');
@@ -8109,7 +8194,7 @@ function renderInsemBook() {
       const mId    = isNew2 ? 'ib-m-' + idx2        : 'ib-m-'  + sid2;
       const opId   = isNew2 ? 'ib-op-dynamic' + idx2 : 'ib-op-' + sid2;
       return (
-        '<div style="background:var(--card);border:1px solid ' + (isNew2 ? 'var(--info)' : 'var(--border)') + ';border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
+        '<div data-month="'+((dispD2||'').slice(0,7))+'" style="background:var(--card);border:1px solid ' + (isNew2 ? 'var(--info)' : 'var(--border)') + ';border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
           '<div onclick="toggleInsemCard(\'' + uid + '\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--bg2);">' +
             '<div>' +
               '<div style="font-size:13px;font-weight:700;color:var(--text);">' + fmtDate(dispD2) + '　<span style="color:var(--accent);font-family:\'JetBrains Mono\',monospace;">' + r.t + '</span></div>' +
@@ -13994,8 +14079,23 @@ function renderCalves() {
 
   let filtered = calves;
   if (calfFilter === 'pending') filtered = calves.filter(c => c.status === 'active');
-  else if (calfFilter === 'kept') filtered = calves.filter(c => c.status === 'kept');
+  else if (calfFilter === 'kept') filtered = calves.filter(c => c.status === 'kept' || c.isBreedingCandidate);
   else if (calfFilter === 'moved') filtered = calves.filter(c => c.status === 'moved');
+
+  // 繁殖候補の年度セレクタを組み立て（生年の年度＝R◯で分類）
+  const candYearSel = document.getElementById('calf-cand-year');
+  if (candYearSel) {
+    const fy = dob => { if(!dob) return null; const d=new Date(dob+'T00:00:00'); const y=d.getFullYear(); return (d.getMonth()>=3?y:y-1)-2018; };
+    const yrs = [...new Set(calves.filter(c=>c.status==='kept'||c.isBreedingCandidate).map(c=>fy(c.dob)).filter(v=>v!=null))].sort((a,b)=>b-a);
+    const cur = candYearSel.value || 'all';
+    candYearSel.innerHTML = '<option value="all">全年度</option>' + yrs.map(y=>`<option value="R${y}">R${y}（${y+2018}年度）生まれ</option>`).join('');
+    candYearSel.value = yrs.map(y=>'R'+y).includes(cur) ? cur : 'all';
+    // 年度が指定されたら、繁殖候補のうちその年度生まれだけに絞る
+    if (candYearSel.value !== 'all') {
+      const targetFy = parseInt(candYearSel.value.replace('R',''));
+      filtered = filtered.filter(c => (c.status==='kept'||c.isBreedingCandidate) && fy(c.dob)===targetFy);
+    }
+  }
 
   if (calfSearchVal) {
     filtered = filtered.filter(c => {
@@ -14033,7 +14133,7 @@ function renderCalves() {
         : calf.status === 'kept'
         ? `<span style="background:#0a2a0a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">🌟 繁殖候補</span>`
         : calf.status === 'moved'
-        ? `<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">✓ 移動済み</span>`
+        ? `<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;">✓ 移動済み</span>${calf.isBreedingCandidate?'<span style="background:#0a2a0a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:4px;">🌟 繁殖候補</span>':''}`
         : '';
       // フリーマーチン判定：同じ分娩記録の双子に雄がいる雌は保留不可
       const isTwinCalf = calf.memo === '双子' || calves.some(c =>
@@ -14312,13 +14412,18 @@ function confirmDeleteCalf(id) {
 function setCalfStatus(id, status) {
   const calf = calves.find(c=>c.id===id);
   if (!calf) return;
-  // 保留解除 → 個体タブからも削除
+  // 「繁殖候補」は移動しても外れないよう、別フラグとして保持する
+  if (status === 'kept') { calf.isBreedingCandidate = true; }
+  // 移動済みにするとき、繁殖候補だった牛はフラグを残す（statusは移動に変わるが候補印は継続）
+  if (status === 'moved' && calf.status === 'kept') { calf.isBreedingCandidate = true; }
+  // 保留解除（明示的にactiveへ戻す）→ 個体タブからも削除し、候補フラグも解除
   if (calf.status === 'kept' && status === 'active' && calf.earTagId) {
     const cowIdx = cows.findIndex(c => c.id === calf.earTagId && c.isCustom);
     if (cowIdx !== -1) {
       cows.splice(cowIdx, 1);
       tasks = tasks.filter(t => t.cowId !== calf.earTagId);
     }
+    calf.isBreedingCandidate = false;
   }
   calf.status = status;
   save(); renderCalves(); renderCowList();
@@ -18612,6 +18717,7 @@ try {
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
   </div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
+  <div id="insembook-monthbar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;"></div>
   <div style="overflow-x:auto;" id="insembook-table-wrap">
     <table id="insembook-table" style="width:100%;border-collapse:collapse;font-size:12px;min-width:520px;">
       <thead>
