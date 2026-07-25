@@ -4016,9 +4016,18 @@ function printCalvingSchedule(){
     <div class="sub">作成日: ${fmtDate(todayStr)}　／　妊娠中 ${dueCows.length}頭　／　${OWN_FARMER||'小原農場'}</div>
     ${rows}
     </body></html>`;
-  const w=window.open('','_blank');
-  if(!w){ alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
-  w.document.write(html); w.document.close();
+  // Edge等で document.write が空になることがあるため Blob URL で開く
+  try {
+    const blob = new Blob([html], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if(!w){ URL.revokeObjectURL(url); alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  } catch(e){
+    const w=window.open('','_blank');
+    if(!w){ alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+  }
 }
 function recordPreg(cowId, taskId, result) {
   const cow = cows.find(c=>c.id===cowId);
@@ -5665,10 +5674,21 @@ function embryoDonorSire(no) {
   if (!key) return '';
   const clean = n => String(n||'').replace(/\d+\/\d+\s*$/,'').trim();  // 末尾の「5/4」等を除去
   const lotKey = key.replace(/-\d+$/,'');
+  // 0) 採卵記録（collectionRecordsNew）から胚番号の完全一致で引く（最も確実）
+  const CR = (typeof collectionRecordsNew!=='undefined'?collectionRecordsNew:[]);
+  for (const r of CR) {
+    const hit = (r.frozenEmbryos||[]).some(e=>String(e.no||'').trim()===key)
+             || (r.freshEmbryos||[]).some(e=>String(e.embryoNo||'').trim()===key)
+             || (r.cultureEmbryos||[]).some(e=>String(e.embryoNo||'').trim()===key);
+    if (hit && (r.donorId || r.sire)) {
+      const donor = r.donorId ? (cowDisplayName(r.donorId)||r.donorId) : '';
+      return clean([donor, r.sire].filter(Boolean).join('×'));
+    }
+  }
   // 1) 胚在庫から
   let inv = (typeof embryoInventory!=='undefined'?embryoInventory:[]).find(e => (e.embryoDetails||[]).some(d=>d.no===key));
   if (!inv) inv = (typeof embryoInventory!=='undefined'?embryoInventory:[]).find(e => e.lot===lotKey);
-  if (inv && (inv.dam || inv.sire)) return [inv.dam, inv.sire].filter(Boolean).join('×');
+  if (inv && (inv.dam || inv.sire)) return clean([inv.dam, inv.sire].filter(Boolean).join('×'));
   // 2) 採卵シートから（凍結胚はケーン番号→採卵ロットを辿る）
   const S = (typeof EMBRYO_SHEET2_DATA!=='undefined'?EMBRYO_SHEET2_DATA:[]);
   for (const lot of S) {
@@ -16645,6 +16665,7 @@ function importFatteningCSV(input) {
         sire: headers.findIndex(h => h === '父' || h === '父名'),
         dam: headers.findIndex(h => h === '母' || h === '母名'),
         grandsire: headers.findIndex(h => h.includes('祖父') && !h.includes('曽')),
+        greatgrandsire: headers.findIndex(h => h.includes('曽祖父')),
         sex: headers.findIndex(h => h.includes('性別')),
         slaughterDate: headers.findIndex(h => h.includes('屠畜') || h.includes('と畜')),
         dob: headers.findIndex(h => h.includes('生年月日')),
@@ -16688,6 +16709,7 @@ function importFatteningCSV(input) {
           sire: idx.sire >= 0 ? normalizeSireName(cols[idx.sire]?.trim()) : '',
           dam: idx.dam >= 0 ? cols[idx.dam]?.trim() : '',
           grandsire: idx.grandsire >= 0 ? cols[idx.grandsire]?.trim() : '',
+          greatgrandsire: idx.greatgrandsire >= 0 ? cols[idx.greatgrandsire]?.trim() : '',
           sex: idx.sex >= 0 ? cols[idx.sex]?.trim() : '',
           slaughterDate,
           dob: idx.dob >= 0 ? cols[idx.dob]?.trim() : '',
@@ -17686,6 +17708,15 @@ function jumpToDam(){
   hit.style.transition='box-shadow .3s'; hit.style.boxShadow='0 0 0 3px var(--accent)';
   setTimeout(()=>{ hit.style.boxShadow=old||''; }, 2500);
 }
+// 母牛の系統（母の父＝産子から見た祖父、母の祖父＝曽祖父）を産子レコードから求める
+function damMaternalPedigree(recs){
+  if(!recs||!recs.length) return '';
+  const pick = key => { const m={}; recs.forEach(r=>{ const v=(r[key]||'').trim(); if(v)m[v]=(m[v]||0)+1; });
+    const arr=Object.keys(m).sort((a,b)=>m[b]-m[a]); return arr[0]||''; };
+  const msire = pick('grandsire');      // 祖父＝母の父
+  const mgsire = pick('greatgrandsire');// 曽祖父＝母の祖父（無ければ空）
+  return [msire, mgsire].filter(Boolean).join(' × ');
+}
 function renderFattening() {
   _damInfoCache=null;
   { const _n=document.getElementById('fat-living-note'); if(_n)_n.textContent=''; }
@@ -18002,6 +18033,7 @@ function renderFattening() {
           <div style="flex:1;">
             <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}${sireClick?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 農家別に比較</span>':''}</div>
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
+            ${groupKey==='dam' ? (()=>{ const ms=damMaternalPedigree(g._recs); return ms?`<div style="font-size:10px;color:var(--muted);margin-top:1px;">🩸 ${ms}</div>`:''; })() : ''}
           </div>
           <div style="text-align:right;">
             <div style="font-size:26px;font-weight:900;color:${(sireClick&&fatFarmerAdjust?(g.scoreAdj>=55):(g.score>=55))?'var(--danger)':(sireClick&&fatFarmerAdjust?(g.scoreAdj>=45):(g.score>=45))?'var(--warn)':'var(--muted)'};font-family:'JetBrains Mono',monospace;">${(sireClick&&fatFarmerAdjust)?(g.scoreAdj??'—'):(g.score??'—')}</div>
