@@ -16452,6 +16452,19 @@ function clearDraft(formId) {
 }
 
 // ===== 肥育成績管理 =====
+// 種雄牛名の表記ゆれを吸収（全角英数→半角、ローマ数字Ⅰ→I、ノ→の、別名統合）
+const SIRE_ALIAS = {
+  '菊鶴ET':'菊鶴ETI',   // 末尾Ⅰの省略を統合
+};
+function normalizeSireName(s){
+  if(!s) return s;
+  s = String(s).trim();
+  s = s.replace(/Ⅰ/g,'I').replace(/Ⅱ/g,'II').replace(/Ⅲ/g,'III');
+  try { s = s.normalize('NFKC'); } catch(e){}   // ＥＴＩ→ETI、６→6
+  s = s.replace(/ノ/g,'の');
+  if (SIRE_ALIAS[s]) s = SIRE_ALIAS[s];
+  return s;
+}
 let fatteningRecords = JSON.parse(_store.getItem('fatteningRecords') || '[]');
 
 // 既存データの等級が「A」や「3」のみの場合は「A3」形式に修正
@@ -16567,7 +16580,7 @@ function importFatteningCSV(input) {
           breed: selectedBreed,
           nationalId,
           farmer: idx.farmer >= 0 ? cols[idx.farmer]?.trim() : '',
-          sire: idx.sire >= 0 ? cols[idx.sire]?.trim() : '',
+          sire: idx.sire >= 0 ? normalizeSireName(cols[idx.sire]?.trim()) : '',
           dam: idx.dam >= 0 ? cols[idx.dam]?.trim() : '',
           grandsire: idx.grandsire >= 0 ? cols[idx.grandsire]?.trim() : '',
           sex: idx.sex >= 0 ? cols[idx.sex]?.trim() : '',
@@ -17196,13 +17209,13 @@ function buildSireFarmCompare(targetFarmer){
   const label={}; label[targetFarmer]='🏠 あなた';
   others.forEach((f,i)=>{ label[f]='農家'+String.fromCharCode(65+i); });  // A,B,C...（実力順）
 
-  // 種雄牛ごとに農家別集計（匿名ラベルで）
-  const sires=[...new Set(fatteningRecords.map(r=>(r.sire||'').trim()).filter(Boolean))];
+  // 種雄牛ごとに農家別集計（表記ゆれ吸収・匿名ラベルで）
+  const sires=[...new Set(fatteningRecords.map(r=>normalizeSireName((r.sire||'').trim())).filter(Boolean))];
   const out={};
   sires.forEach(sire=>{
     const rows=[];
     Object.keys(byFarm).forEach(f=>{
-      const v=byFarm[f].filter(r=>(r.sire||'').trim()===sire && qn(r));
+      const v=byFarm[f].filter(r=>normalizeSireName((r.sire||'').trim())===sire && qn(r));
       if(!v.length) return;
       const n=v.length;
       const wd=v.map(wDev).filter(x=>x!=null);
@@ -17222,7 +17235,7 @@ function buildSireFarmCompare(targetFarmer){
 }
 function downloadFarmerHTML(farmer){
   const pick = r => ({
-    dam:r.dam||'',sire:r.sire||'',nationalId:r.nationalId||'',sex:r.sex||'',
+    dam:r.dam||'',sire:normalizeSireName(r.sire||''),nationalId:r.nationalId||'',sex:r.sex||'',
     slaughterDate:r.slaughterDate||'',dob:r.dob||'',carcassNo:r.carcassNo||'',
     liveWeight:r.liveWeight,age:r.age,weight:r.weight,unitPrice:r.unitPrice,amount:r.amount,
     yieldGrade:r.yieldGrade||'',meatGrade:r.meatGrade||'',loin:r.loin,baraThick:r.baraThick,
@@ -17673,7 +17686,8 @@ function renderFattening() {
   // グループ集計（共通）
   const map = {};
   recs.forEach(r => {
-    const k = r[groupKey] || '不明';
+    let k = r[groupKey] || '不明';
+    if (groupKey==='sire') k = normalizeSireName(k) || '不明';   // 表記ゆれを吸収
     if (!map[k]) map[k] = [];
     map[k].push(r);
   });
@@ -17928,19 +17942,20 @@ function toggleSireCompare(cardId, sireName){
 
   // フィルタ（品種・年度）は今の画面設定に合わせる。ただし農家は全農家で見る（比較のため）
   const breedFilter = document.getElementById('fat-breed-filter')?.value || 'all';
-  let recs = fatteningRecords.filter(r => (r.sire||'').trim() === sireName);
+  let recs = fatteningRecords.filter(r => normalizeSireName((r.sire||'').trim()) === normalizeSireName(sireName));
   if (fatSelectedYears.length>0) recs = recs.filter(r=>fatSelectedYears.includes(r.year));
   if (breedFilter!=='all') recs = recs.filter(r=>r.breed===breedFilter);
   const qn = r => (r.meatGrade||'').match(/[1-5]/) ? +(r.meatGrade.match(/[1-5]/)[0]) : (r.grade||0);
 
   // 農家ごとに集計
   const byFarm = {};
-  recs.forEach(r=>{ const f=(r.farmer||'').trim()||'(記載なし)';
+  recs.forEach(r=>{ const f=(r.farmer||'').trim();
+    if(!f) return;   // 農業者名が空欄の記録は農家比較から除外
     (byFarm[f]=byFarm[f]||[]).push(r); });
   // 各農家の「その農家全体の上物率」（実力）＝この種に限らない全産子から
   const farmBase = {};
   Object.keys(byFarm).forEach(f=>{
-    const all = fatteningRecords.filter(r=>((r.farmer||'').trim()||'(記載なし)')===f && qn(r));
+    const all = fatteningRecords.filter(r=>(r.farmer||'').trim()===f && qn(r));
     farmBase[f] = all.length ? Math.round(all.filter(r=>qn(r)>=3).length/all.length*100) : null;
   });
   const rows = Object.keys(byFarm).map(f=>{
