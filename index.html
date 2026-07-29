@@ -4921,10 +4921,25 @@ function addEventForCow(cowId, defaultEvent) {
       semenPanel.style.display = 'none';
       embryoPanel.style.display = '';
       const sel = document.getElementById('qr-embryo-select');
+      // ドナー牛ごとにグループ化して見やすくする
+      const byDonor = {};
+      embryoInventory.forEach(e => {
+        let nosArr = (e.embryoDetails||[]).map(d=>d.no||'').filter(Boolean);
+        (typeof collectionRecordsNew!=='undefined'?collectionRecordsNew:[]).forEach(r=>{
+          const nums = [...(r.frozenEmbryos||[]).map(x=>x.no), ...(r.freshEmbryos||[]).map(x=>x.embryoNo), ...(r.cultureEmbryos||[]).map(x=>x.embryoNo)].filter(Boolean);
+          if (r.sire===e.sire && r.donorId && cowDisplayName(r.donorId)===e.dam) nums.forEach(n=>{ if(!nosArr.includes(n)) nosArr.push(n); });
+        });
+        const donor = e.dam || '（ドナー未設定）';
+        (byDonor[donor] = byDonor[donor] || []).push({ e, nos: nosArr.join(',') });
+      });
+      const donorNames = Object.keys(byDonor).sort((a,b)=>a.localeCompare(b,'ja'));
       sel.innerHTML = '<option value="">選択しない</option>' +
-        embryoInventory.map(e => {
-          const nos = (e.embryoDetails||[]).map(d=>d.no||'').filter(Boolean).join(',');
-          return `<option value="${e.id}" data-nos="${nos}">${e.dam?e.dam+'×':''}${e.sire}${e.lot?' ('+e.lot+')':''} ${e.type==='frozen'?'凍結':'新鮮'} — 残${e.stock}本</option>`;
+        donorNames.map(donor => {
+          const items = byDonor[donor].map(({e,nos}) =>
+            `<option value="${e.id}" data-nos="${nos}">${e.dam?e.dam+'×':''}${e.sire}${e.lot?' ('+e.lot+')':''} ${e.type==='frozen'?'凍結':'新鮮'} — 残${e.stock}本</option>`
+          ).join('');
+          const total = byDonor[donor].reduce((s,x)=>s+(x.e.stock||0),0);
+          return `<optgroup label="🐄 ${donor}（計${total}本）">${items}</optgroup>`;
         }).join('');
       document.getElementById('qr-embryo-name-input').value = '';
       document.getElementById('qr-embryo-dam-input').value = '';
@@ -14938,10 +14953,14 @@ function filterQrEmbryoSelect(q) {
     if (!qLower) { opt.style.display = ''; return; }
     const text = opt.textContent.toLowerCase();
     const nos = (opt.dataset.nos || '').toLowerCase();
-    // R6-0042 → r6-0042 / 0042 のどちらでもマッチ
     const match = text.includes(qLower) || nos.includes(qLower) ||
       nos.split(',').some(no => no.endsWith(qLower.replace(/^r\d+-/, '-').replace(/^0+/,'')));
     opt.style.display = match ? '' : 'none';
+  });
+  // optgroup：中に表示中のoptionが1つも無ければグループごと隠す
+  Array.from(sel.querySelectorAll('optgroup')).forEach(g => {
+    const anyVisible = Array.from(g.querySelectorAll('option')).some(o => o.style.display !== 'none');
+    g.style.display = anyVisible ? '' : 'none';
   });
 }
 
