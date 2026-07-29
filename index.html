@@ -3674,8 +3674,8 @@ function renderGrouped(taskList) {
               ${(()=>{
                 const cow2 = cows.find(c=>c.id===t.cowId);
                 const lastAiEt = cow2 && [...(cow2.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
-                const isEt = lastAiEt && ['et_done','estrus_et'].includes(lastAiEt.type);
                 const sireStr = lastAiEt ? (lastAiEt.memo||'').replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
+                const isEt = lastAiEt && (['et_done','estrus_et'].includes(lastAiEt.type) || looksLikeEmbryo(sireStr) || looksLikeEmbryo(lastAiEt.memo));
                 return lastAiEt ? `<div style="font-size:11px;color:var(--info);margin-bottom:4px;">${isEt?'🧬ET':'💉AI'} ${fmtDate(lastAiEt.date)}${sireStr?' — '+etDisplayLabel(sireStr,isEt):''}</div>` : '';
               })()}
               <button ontouchend="event.preventDefault();event.stopPropagation();openCalvingRecord('${t.cowId}')" onclick="openCalvingRecord('${t.cowId}')" class="btn btn-secondary" style="font-size:11px;padding:4px 8px;margin-top:4px;border-color:var(--purple);color:var(--purple);">🍼 分娩日を記録</button>
@@ -3948,7 +3948,7 @@ function renderPregList() {
         const lastAiEt2 = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
         const memo2 = lastAiEt2?.memo||'';
         const sireStr2 = memo2.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo2.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
-        const isEt2 = lastAiEt2&&['et_done','estrus_et'].includes(lastAiEt2.type);
+        const isEt2 = lastAiEt2&&(['et_done','estrus_et'].includes(lastAiEt2.type) || looksLikeEmbryo(sireStr2) || looksLikeEmbryo(memo2));
         const typeStr2 = isEt2?'🧬ET':'💉AI';
         return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);">
           <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -3984,9 +3984,9 @@ function printCalvingSchedule(){
       const e=[...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(x=>['ai_done','et_done','estrus_ai','estrus_et'].includes(x.type));
       const memo=e?.memo||'';
       const sire=memo.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
-      const isEt=e&&['et_done','estrus_et'].includes(e.type);
+      const isEt=e&&(['et_done','estrus_et'].includes(e.type) || looksLikeEmbryo(sire) || looksLikeEmbryo(memo));
       const kind=isEt?'ET':'AI';
-      const sireLabel=sire?(embryoDonorSire(sire)||sire):'';
+      const sireLabel=sire?(isEt?(embryoDonorSire(sire)||sire):sire):'';
       return `<tr>
         <td class="c">${fmtDate(cow.dueDate)}</td>
         <td>${cow.id} ${name}${twin}</td>
@@ -5704,6 +5704,11 @@ function embryoDonorSire(no) {
   return '';
 }
 // 授精簿メモの表示用ラベル（ETならドナー×種雄牛を前に出す）
+// 文字列が胚番号（＝ET）を含むか判定：01L237形式・ロット形式・「胚番号:」・「×」表記
+function looksLikeEmbryo(str){
+  const s = String(str||'');
+  return /01L237[A-Za-z0-9\-]/.test(s) || /\d{2}[A-L]\d{2}B\d+-\d+/.test(s) || /胚番号[:：]/.test(s) || /ドナー[:：]/.test(s) || /×/.test(s);
+}
 function etDisplayLabel(str, isEt) {
   const s = String(str||'').trim();
   if (!isEt || !s) return s;
