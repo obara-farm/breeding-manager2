@@ -5707,9 +5707,24 @@ function embryoDonorSire(no) {
 function etDisplayLabel(str, isEt) {
   const s = String(str||'').trim();
   if (!isEt || !s) return s;
-  if (s.includes('ドナー:') || s.includes('×')) return s;   // 既に分かる表記ならそのまま
-  const pair = embryoDonorSire(s);
-  return pair ? `${pair}<span style="opacity:.65;"> ／ ${s}</span>` : s;
+  // 表記ゆれを吸収して常に「ドナー×種雄牛 ／ 胚番号」の形に統一する
+  // 1) 胚番号を取り出す（ロット形式 or 01L237形式）
+  let embryoNo = '';
+  const m1 = s.match(/(01L237[A-Za-z0-9\-]+)/);
+  const m2 = s.match(/(\d{2}[A-L]\d{2}B\d+-\d+)/);
+  if (m1) embryoNo = m1[1]; else if (m2) embryoNo = m2[1];
+  // 2) 既に「ドナー×種」表記があればそれを使う。なければ胚番号から引く
+  let pair = '';
+  const mx = s.match(/([^\s／\/]+×[^\s／\/]+)/);       // 「にわか×光晴重」
+  const md = s.match(/ドナー[:：]\s*([^\s／\/]+)/);     // 「ドナー:にわか」
+  if (mx) pair = mx[1];
+  else if (embryoNo) pair = embryoDonorSire(embryoNo);
+  if (!pair && md) pair = md[1];                      // ドナーのみでも拾う
+  if (!pair && !embryoNo) return s;                   // 何も取れなければ原文
+  // 3) 組み立て（ドナー×種を前、胚番号を薄く後ろに）
+  if (pair && embryoNo) return `${pair}<span style="opacity:.6;"> ／ ${embryoNo}</span>`;
+  if (pair) return pair;
+  return embryoNo;
 }
 // 胚番号 → 新鮮/凍結（採卵記録が最も確実なのでそこから引く）
 let _embTypeCache = null;
@@ -17708,14 +17723,16 @@ function jumpToDam(){
   hit.style.transition='box-shadow .3s'; hit.style.boxShadow='0 0 0 3px var(--accent)';
   setTimeout(()=>{ hit.style.boxShadow=old||''; }, 2500);
 }
-// 母牛の系統（母の父＝産子から見た祖父、母の祖父＝曽祖父）を産子レコードから求める
+// 母牛の系統（母の父＝産子から見た祖父、母の祖父＝曽祖父）を産子レコードから求める（二代祖まで）
 function damMaternalPedigree(recs){
   if(!recs||!recs.length) return '';
-  const pick = key => { const m={}; recs.forEach(r=>{ const v=(r[key]||'').trim(); if(v)m[v]=(m[v]||0)+1; });
+  const pick = key => { const m={}; recs.forEach(r=>{ const v=normalizeSireName((r[key]||'').trim()); if(v)m[v]=(m[v]||0)+1; });
     const arr=Object.keys(m).sort((a,b)=>m[b]-m[a]); return arr[0]||''; };
   const msire = pick('grandsire');      // 祖父＝母の父
-  const mgsire = pick('greatgrandsire');// 曽祖父＝母の祖父（無ければ空）
-  return [msire, mgsire].filter(Boolean).join(' × ');
+  const mgsire = pick('greatgrandsire');// 曽祖父＝母の祖父
+  if(msire && mgsire) return `母の父 ${msire} ／ 母の祖父 ${mgsire}`;
+  if(msire) return `母の父 ${msire}`;
+  return '';
 }
 function renderFattening() {
   _damInfoCache=null;
