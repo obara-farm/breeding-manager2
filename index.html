@@ -11823,13 +11823,17 @@ function onOtherFarmPick(){
     cowGroup.style.display = 'none';
     cowSel.innerHTML = '<option value="">— 手入力する —</option>';
   }
+  // 登録機関：農家に保存済みがあればそれ、なければデフォルト（日本あか牛登録協会）
+  const orgSel = document.getElementById('ofpick-regorg');
+  if (orgSel) orgSel.value = (f.regOrg && ['日本あか牛登録協会','全国和牛登録協会'].includes(f.regOrg)) ? f.regOrg : '日本あか牛登録協会';
 }
 function confirmOtherFarmCert(){
   const i = document.getElementById('ofpick-farm').value;
   const f = otherFarms[i]; if(!f) return;
   window._etCertFeeder = f.feeder || '';
-  window._etCertRegOrg = f.regOrg || '';
+  window._etCertRegOrg = document.getElementById('ofpick-regorg')?.value || f.regOrg || '日本あか牛登録協会';
   window._etCertRegNo = f.regNo || '';
+  window._etCertBreed = document.getElementById('ofpick-breed')?.value || '褐毛和種';
   // 受け牛
   const cowName = document.getElementById('ofpick-cow').value;
   window._etCertRecipient = null;
@@ -11870,6 +11874,7 @@ function confirmOtherFarmCert(){
         recipientNationalId: rec.nationalId || '',
         donor: donor, sire: cr.sire || '',
         embryoNo: no, embryoType: embType(no),
+        regOrg: window._etCertRegOrg || '', breed: window._etCertBreed || '',
         vet: '小原千佳', vetLicense: '01L237',
         colRecId: cr.id || '',
       });
@@ -11993,12 +11998,14 @@ function editTransferBook(id){
   document.getElementById('tb-e-sire').value=t.sire||'';
   document.getElementById('tb-e-embryo').value=t.embryoNo||'';
   document.getElementById('tb-e-type').value=t.embryoType||'';
+  document.getElementById('tb-e-regorg').value=t.regOrg||'日本あか牛登録協会';
+  document.getElementById('tb-e-breed').value=t.breed||'褐毛和種';
   document.getElementById('tb-e-vet').value=t.vet||'';
   openModal('modal-tb-edit');
 }
 function addTransferBookManual(){
   const id='tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-  transferBook.push({ id, transferDate:'', recordedAt:today(), farmName:'', feeder:'', recipientName:'', recipientNationalId:'', donor:'', sire:'', embryoNo:'', embryoType:'', vet:'小原千佳', vetLicense:'01L237', colRecId:'' });
+  transferBook.push({ id, transferDate:'', recordedAt:today(), farmName:'', feeder:'', recipientName:'', recipientNationalId:'', donor:'', sire:'', embryoNo:'', embryoType:'', regOrg:'日本あか牛登録協会', breed:'褐毛和種', vet:'小原千佳', vetLicense:'01L237', colRecId:'' });
   save();
   editTransferBook(id);
 }
@@ -12013,6 +12020,8 @@ function saveTransferBookEdit(){
   t.sire=document.getElementById('tb-e-sire').value.trim();
   t.embryoNo=document.getElementById('tb-e-embryo').value.trim();
   t.embryoType=document.getElementById('tb-e-type').value;
+  t.regOrg=document.getElementById('tb-e-regorg').value;
+  t.breed=document.getElementById('tb-e-breed').value;
   t.vet=document.getElementById('tb-e-vet').value.trim();
   save(); closeModal('modal-tb-edit'); renderTransferBook();
 }
@@ -12066,7 +12075,7 @@ function printTransferBook(){
 }
 // ===== 授精所の移植簿 ここまで =====
 function printSelectedEtCerts() {
-  window._etCertFeeder = ''; window._etCertRegOrg = ''; window._etCertRegNo = ''; window._etCertRecipient = null;
+  window._etCertFeeder = ''; window._etCertRegOrg = ''; window._etCertRegNo = ''; window._etCertRecipient = null; window._etCertBreed = '';
   const checks = document.querySelectorAll('.et-cert-check:checked');
   if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
 
@@ -12644,6 +12653,7 @@ function buildEtCertHTML(r, certNo) {
   }
   if (window._etCertRegOrg) regOrg = window._etCertRegOrg;
   if (window._etCertRegNo) regNo = window._etCertRegNo;
+  if (window._etCertBreed) cowBreed = window._etCertBreed;
 
   var sireName='',donorName='';
   // r.sが「ドナー×種雄牛」形式の場合
@@ -19289,6 +19299,14 @@ try {
         <select id="tb-e-type" style="font-size:13px;width:100%;"><option value="">—</option><option value="凍結">凍結</option><option value="新鮮">新鮮</option><option value="培養">培養</option></select>
       </div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">登録機関</label>
+        <select id="tb-e-regorg" style="font-size:13px;width:100%;"><option value="日本あか牛登録協会">日本あか牛登録協会</option><option value="全国和牛登録協会">全国和牛登録協会</option></select>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">品種</label>
+        <select id="tb-e-breed" style="font-size:13px;width:100%;"><option value="褐毛和種">褐毛和種</option><option value="黒毛和種">黒毛和種</option><option value="乳×肉">乳×肉</option></select>
+      </div>
+    </div>
     <div class="form-group" style="margin-bottom:12px;"><label style="font-size:11px;">術者</label><input type="text" id="tb-e-vet" style="font-size:13px;"></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;" onclick="saveTransferBookEdit()">保存</button>
@@ -19840,10 +19858,27 @@ try {
     <div id="ofpick-cow-group" class="form-group" style="margin-bottom:12px;display:none;">
       <label>受け牛（在籍牛リストから選択）</label>
       <select id="ofpick-cow" style="width:100%;font-size:13px;"><option value="">— 手入力する —</option></select>
-      <div style="font-size:10px;color:var(--muted);margin-top:4px;">個体識別番号が自動で入ります。リストに無ければ「手入力」を選んで証明書上で記入してください。</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">名前・個体識別番号が自動で入ります。リストに無ければ「手入力」を選んで証明書上で記入してください。</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label>家畜登録機関</label>
+        <select id="ofpick-regorg" style="width:100%;font-size:13px;">
+          <option value="日本あか牛登録協会">日本あか牛登録協会</option>
+          <option value="全国和牛登録協会">全国和牛登録協会</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label>品種</label>
+        <select id="ofpick-breed" style="width:100%;font-size:13px;">
+          <option value="褐毛和種">褐毛和種</option>
+          <option value="黒毛和種">黒毛和種</option>
+          <option value="乳×肉">乳×肉</option>
+        </select>
+      </div>
     </div>
     <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--muted);">
-      証明書には、選んだ農家の <b>住所・氏名・登録機関・登録番号</b> と、選んだ受け牛の <b>名前・個体識別番号</b> が自動で入ります。他の項目（生年月日など）は証明書上で直接記入できます。
+      証明書には、選んだ農家の <b>住所・氏名・登録番号</b>、上で選んだ <b>登録機関・品種</b>、受け牛の <b>名前・個体識別番号</b> が入ります。生年月日など他の項目は証明書上で直接記入できます。
     </div>
     <button class="btn btn-primary" style="width:100%;" onclick="confirmOtherFarmCert()">この内容で証明書を作成</button>
   </div>
