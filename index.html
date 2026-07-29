@@ -598,6 +598,10 @@ textarea{resize:vertical;}
         <span class="nav-label">採卵記録</span>
         <span class="grid-nav-badge" id="collection-pending-badge" style="display:none;background:var(--warn);">0</span>
       </div>
+      <div class="grid-nav-btn gnav-red" id="gnav-transferbook" onclick="switchTab('transferbook')">
+        <span class="nav-icon">📜</span>
+        <span class="nav-label">移植簿</span>
+      </div>
       <div class="grid-nav-btn gnav-purple" id="gnav-calc" onclick="switchTab('calc')">
         <span class="nav-icon">📅</span>
         <span class="nav-label">発情・分娩計算</span>
@@ -2562,6 +2566,7 @@ let insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
 let insemBookEdits = JSON.parse(_store.getItem('insemBookEdits') || '{}'); // 固定データの上書き編集
 let staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}'); // ドナーAIフラグ専用
 let collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]'); // 採卵記録
+let transferBook = JSON.parse(_store.getItem('transferBook') || '[]'); // 授精所の移植簿（他農家への移植・法令記録）
 let donorAIRecords = JSON.parse(_store.getItem('donorAIRecords') || '[]'); // ドナーAI記録
 let pendingEtList = JSON.parse(_store.getItem('pendingEtList') || '[]'); // 翌日移植予定リスト
 
@@ -2582,6 +2587,7 @@ function loadData() {
   insemBookEdits   = JSON.parse(_store.getItem('insemBookEdits') || '{}');
   staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}');
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
+  transferBook      = JSON.parse(_store.getItem('transferBook') || '[]');
   donorAIRecords    = JSON.parse(_store.getItem('donorAIRecords') || '[]');
   pendingEtList    = JSON.parse(_store.getItem('pendingEtList') || '[]');
 
@@ -2739,6 +2745,7 @@ function save() {
     _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
     _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
     _store.setItem('collectionRecordsNew', JSON.stringify(collectionRecordsNew));
+    _store.setItem('transferBook', JSON.stringify(transferBook));
     _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
     _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
     _store.setItem('data_version', String(DATA_VERSION));
@@ -2758,6 +2765,7 @@ function save() {
   _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
   _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
   _store.setItem('collectionRecordsNew', JSON.stringify(collectionRecordsNew));
+  _store.setItem('transferBook', JSON.stringify(transferBook));
   _store.setItem('donorAIRecords', JSON.stringify(donorAIRecords));
   _store.setItem('pendingEtList', JSON.stringify(pendingEtList));
   _store.setItem('data_version', String(DATA_VERSION));
@@ -7311,7 +7319,7 @@ function renderCalvingAlerts() {
 
 // ===== TABS =====
 function switchTab(name) {
-  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection','calc'];
+  const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection','calc','transferbook'];
   names.forEach(n => {
     const btn = document.getElementById(`gnav-${n}`);
     if (btn) btn.classList.toggle('active', n===name);
@@ -7353,6 +7361,7 @@ function switchTab(name) {
     }
     renderFattening();
   }
+  if (name==='transferbook') renderTransferBook();
   if (name==='insembook') {
     // 現在の年度を自動選択（1月始まり）
     const now = new Date();
@@ -11736,37 +11745,48 @@ function toggleAllEtCheck() {
   checks.forEach(c => c.checked = !allChecked);
 }
 
-// 採卵記録の胚から移植証明書を発行（他農家向け）
+// 採卵記録の胚から移植証明書を発行（他農家向け）— チェックボックスで胚を選ぶ
 let _etCertColRec = null;
+let _etCertColSelected = [];
 function openEtCertFromCollection(colRecId){
-  const cr = (collectionRecordsNew||[]).find(r=>r.id===colRecId);
-  if(!cr){ alert('採卵記録が見つかりません'); return; }
-  _etCertColRec = cr;
-  // 胚を1本選ぶ：この採卵の胚番号一覧
-  const embs = [
-    ...(cr.frozenEmbryos||[]).map(e=>({no:e.no, type:'凍結', stage:e.stage, rank:e.rank, cane:e.cane})),
-    ...(cr.freshEmbryos||[]).map(e=>({no:e.embryoNo, type:'新鮮', stage:e.stage, rank:e.rank})),
-    ...(cr.cultureEmbryos||[]).map(e=>({no:e.embryoNo, type:e.action==='freeze'?'凍結':'新鮮', stage:e.cultureStage||e.stage, rank:e.cultureRank||e.rank})),
-  ].filter(e=>e.no);
-  if(!embs.length){ alert('この採卵記録に胚番号がありません'); return; }
-  // 胚選択（1本）
-  let chosen = embs[0].no;
-  if(embs.length>1){
-    const list = embs.map((e,i)=>`${i+1}. ${e.no}（${e.type}${e.stage||''}${e.rank||''}）`).join('\n');
-    const pick = prompt('証明書にする胚を選んでください（番号を入力）:\n'+list, '1');
-    if(pick===null) return;
-    const idx = parseInt(pick)-1;
-    if(idx>=0 && idx<embs.length) chosen = embs[idx].no; else return;
+  const info = _getCollectionEmbryos(colRecId);
+  if(!info.rec){ alert('採卵記録が見つかりません'); return; }
+  _etCertColRec = info.rec;
+  _etCertColSelected = [];
+  const head = document.getElementById('etcert-picker-head');
+  if(head){ const d0=info.items[0]; head.textContent = fmtDate(info.rec.date) + '\u3000' + (d0?d0.dam+' \u00d7 '+d0.sire:'') + '\u3000' + (info.rec.lot||''); }
+  const list = document.getElementById('etcert-picker-list');
+  if(!info.items.length){ list.innerHTML='<div style="padding:12px;color:var(--muted);font-size:12px;">\u80daがありません</div>'; }
+  else {
+    list.innerHTML = info.items.map((d,i)=>{
+      const kindBadge = d.kind==='\u65b0\u9bae' ? '<span style="font-size:9px;color:var(--accent);background:rgba(74,222,128,.15);padding:1px 5px;border-radius:3px;">\ud83c\udf31\u65b0\u9bae</span>'
+        : d.kind==='\u57f9\u990a' ? '<span style="font-size:9px;color:var(--purple);background:rgba(167,139,250,.15);padding:1px 5px;border-radius:3px;">\ud83e\uddeb\u57f9\u990a</span>'
+        : '<span style="font-size:9px;color:var(--info);background:rgba(59,130,246,.15);padding:1px 5px;border-radius:3px;">\u2744\ufe0f\u51cd\u7d50</span>';
+      const sr=(d.stage||'')+(d.rank?'/'+d.rank:'');
+      return '<label style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;">'+
+        '<input type="checkbox" class="etcert-pick-chk" data-no="'+_esc(d.no)+'" style="width:16px;height:16px;">'+
+        kindBadge+
+        '<span style="font-family:\'JetBrains Mono\',monospace;font-size:12px;color:var(--info);min-width:110px;">'+_esc(d.no||'\u2014')+'</span>'+
+        '<span style="font-size:11px;color:var(--muted);min-width:60px;">'+_esc(d.cane||'')+'</span>'+
+        '<span style="font-size:11px;color:var(--text);">'+_esc(sr)+'</span>'+
+      '</label>';
+    }).join('');
   }
-  window._etCertColEmbryoNo = chosen;
-  // 他農家ピッカーを開く（confirmで胚ベースの証明書を作る）
-  _etCertPendingRecords = null;   // 授精簿ベースではないフラグ
+  openModal('modal-etcert-picker');
+}
+function etCertPickerNext(){
+  const chks = [...document.querySelectorAll('.etcert-pick-chk:checked')];
+  if(!chks.length){ alert('\u8a3c\u660e\u66f8\u306b\u3059\u308b\u80da\u3092\u30c1\u30a7\u30c3\u30af\u3057\u3066\u304f\u3060\u3055\u3044'); return; }
+  _etCertColSelected = chks.map(c=>c.dataset.no);
+  closeModal('modal-etcert-picker');
+  _etCertPendingRecords = null;
   const sel = document.getElementById('ofpick-farm');
-  if (!otherFarms.length) { if(confirm('他農家がまだ登録されていません。登録しますか？')) openOtherFarmManage(); return; }
+  if (!otherFarms.length) { if(confirm('\u4ed6\u8fb2\u5bb6\u304c\u307e\u3060\u767b\u9332\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002\u767b\u9332\u3057\u307e\u3059\u304b\uff1f')) openOtherFarmManage(); return; }
   sel.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
   onOtherFarmPick();
   openModal('modal-otherfarm-pick');
 }
+let _etCertPendingRecords = null;
 function printSelectedEtCertsOtherFarm() {
   const checks = document.querySelectorAll('.et-cert-check:checked');
   if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
@@ -11819,19 +11839,45 @@ function confirmOtherFarmCert(){
   }
   closeModal('modal-otherfarm-pick');
   etCertCounter = 16;
-  // 採卵記録ベース（他農家）：合成レコードを作って証明書化
+  // 採卵記録ベース（他農家）：選んだ胚ごとに証明書を作る
   if (_etCertColRec) {
     const cr = _etCertColRec;
-    const donor = cr.donorId ? (cowDisplayName(cr.donorId)||cr.donorId) : (cr.donorName||'');
-    const rec = {
-      t: (window._etCertRecipient ? '__other__' : '__other__'),
-      s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (window._etCertColEmbryoNo||''),
-      n: window._etCertColEmbryoNo || '',
-      d: '',   // 移植日は証明書上で手入力（他農家への移植日は記録していないため）
-      m: '', op: 'TBS',
+    const donor = cr.donorId ? (cowDisplayName(cr.donorId)||cr.donorId) : (cr.donorName||cr.externalCowName||'');
+    const farmObj = otherFarms[document.getElementById('ofpick-farm').value] || {};
+    const rec = window._etCertRecipient || {};
+    const selNos = (_etCertColSelected.length ? _etCertColSelected : ['']);
+    // 胚の凍結/新鮮を判定
+    const embType = no => {
+      if ((cr.frozenEmbryos||[]).some(e=>(e.no||e.embryoNo)===no)) return '凍結';
+      if ((cr.freshEmbryos||[]).some(e=>(e.embryoNo||e.no)===no)) return '新鮮';
+      if ((cr.cultureEmbryos||[]).some(e=>(e.embryoNo||e.no)===no)) return '培養';
+      return '';
     };
-    _etCertColRec = null;
-    openEtCertPreview([rec]);
+    const recs = selNos.map(no => ({
+      t: '__other__',
+      s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (no||''),
+      n: no || '', d: '', m: '', op: 'TBS',
+    }));
+    // 授精所の移植簿に自動記録（誤発行修正のため後で編集・削除可）
+    selNos.forEach(no => {
+      transferBook.push({
+        id: 'tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+        transferDate: '',                         // 移植日は証明書で手入力→後で移植簿でも編集可
+        recordedAt: today(),                      // 記録した日
+        farmName: farmObj.name || '',
+        feeder: farmObj.feeder || '',
+        recipientName: rec.name || '',
+        recipientNationalId: rec.nationalId || '',
+        donor: donor, sire: cr.sire || '',
+        embryoNo: no, embryoType: embType(no),
+        vet: '小原千佳', vetLicense: '01L237',
+        colRecId: cr.id || '',
+      });
+    });
+    save();
+    _etCertColRec = null; _etCertColSelected = [];
+    openEtCertPreview(recs);
+    if (typeof renderTransferBook==='function') renderTransferBook();
     return;
   }
   openEtCertPreview(_etCertPendingRecords || []);
@@ -11896,6 +11942,129 @@ function saveOtherFarmEntry(){
   const pick=document.getElementById('ofpick-farm');
   if(pick) pick.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
 }
+// ===== 授精所の移植簿（他農家）=====
+let _tbView = 'month';
+function setTransferBookView(v){ _tbView=v;
+  document.getElementById('tb-view-month').style.cssText = v==='month'?'background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;':'background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;';
+  document.getElementById('tb-view-farm').style.cssText = v==='farm'?'background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;':'background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;';
+  renderTransferBook();
+}
+function renderTransferBook(){
+  const container = document.getElementById('tb-list-container');
+  const empty = document.getElementById('tb-empty');
+  if (!container) return;
+  if (!transferBook.length){ container.innerHTML=''; if(empty)empty.style.display=''; return; }
+  if(empty) empty.style.display='none';
+  // グループ化キー
+  const groups = {};
+  const keyOf = t => _tbView==='farm' ? (t.farmName||'（農家未設定）') : ((t.transferDate||t.recordedAt||'').slice(0,7)||'（日付未設定）');
+  transferBook.forEach(t=>{ const k=keyOf(t); (groups[k]=groups[k]||[]).push(t); });
+  const keys = Object.keys(groups).sort((a,b)=> _tbView==='farm'?a.localeCompare(b,'ja'):b.localeCompare(a));
+  container.innerHTML = keys.map(k=>{
+    const items = groups[k].sort((a,b)=>(b.transferDate||b.recordedAt||'').localeCompare(a.transferDate||a.recordedAt||''));
+    const label = _tbView==='farm' ? `🏠 ${k}（${items.length}件）`
+      : (()=>{ const [y,m]=k.split('-'); return m?`📅 ${y}年${parseInt(m)}月（${items.length}件）`:`${k}（${items.length}件）`; })();
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--accent);padding:6px 10px;background:var(--bg3);border-radius:8px;margin-bottom:6px;">${label}</div>
+      ${items.map(t=>{
+        const typeBadge = t.embryoType==='凍結'?'❄️凍結':t.embryoType==='新鮮'?'🌱新鮮':t.embryoType==='培養'?'🧫培養':'';
+        return `<div onclick="editTransferBook('${t.id}')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:700;color:var(--text);">${t.transferDate?fmtDate(t.transferDate):'<span style="color:var(--danger);">移植日未入力</span>'}</span>
+            <span style="font-size:11px;color:var(--muted);">${t.farmName||''}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text);margin-top:4px;">受け牛: <b>${t.recipientName||'（手入力）'}</b>${t.recipientNationalId?' <span style="font-family:monospace;color:var(--muted);font-size:11px;">'+t.recipientNationalId+'</span>':''}</div>
+          <div style="font-size:12px;color:var(--info);margin-top:2px;">${t.donor||''}${t.sire?' × '+t.sire:''}${t.embryoNo?' <span style="font-family:monospace;color:var(--muted);">／ '+t.embryoNo+'</span>':''} ${typeBadge}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;">術者: ${t.vet||''}${t.vetLicense?'（'+t.vetLicense+'）':''} ・ タップで編集</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+function editTransferBook(id){
+  const t = transferBook.find(x=>x.id===id); if(!t) return;
+  document.getElementById('tb-edit-id').value=id;
+  document.getElementById('tb-edit-title').textContent='移植記録の編集';
+  document.getElementById('tb-e-date').value=t.transferDate||'';
+  document.getElementById('tb-e-farm').value=t.farmName||'';
+  document.getElementById('tb-e-recip').value=t.recipientName||'';
+  document.getElementById('tb-e-recipid').value=t.recipientNationalId||'';
+  document.getElementById('tb-e-donor').value=t.donor||'';
+  document.getElementById('tb-e-sire').value=t.sire||'';
+  document.getElementById('tb-e-embryo').value=t.embryoNo||'';
+  document.getElementById('tb-e-type').value=t.embryoType||'';
+  document.getElementById('tb-e-vet').value=t.vet||'';
+  openModal('modal-tb-edit');
+}
+function addTransferBookManual(){
+  const id='tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+  transferBook.push({ id, transferDate:'', recordedAt:today(), farmName:'', feeder:'', recipientName:'', recipientNationalId:'', donor:'', sire:'', embryoNo:'', embryoType:'', vet:'小原千佳', vetLicense:'01L237', colRecId:'' });
+  save();
+  editTransferBook(id);
+}
+function saveTransferBookEdit(){
+  const id=document.getElementById('tb-edit-id').value;
+  const t=transferBook.find(x=>x.id===id); if(!t) return;
+  t.transferDate=document.getElementById('tb-e-date').value;
+  t.farmName=document.getElementById('tb-e-farm').value.trim();
+  t.recipientName=document.getElementById('tb-e-recip').value.trim();
+  t.recipientNationalId=document.getElementById('tb-e-recipid').value.trim();
+  t.donor=document.getElementById('tb-e-donor').value.trim();
+  t.sire=document.getElementById('tb-e-sire').value.trim();
+  t.embryoNo=document.getElementById('tb-e-embryo').value.trim();
+  t.embryoType=document.getElementById('tb-e-type').value;
+  t.vet=document.getElementById('tb-e-vet').value.trim();
+  save(); closeModal('modal-tb-edit'); renderTransferBook();
+}
+function deleteTransferBookEntry(){
+  const id=document.getElementById('tb-edit-id').value;
+  if(!confirm('この移植記録を削除しますか？')) return;
+  transferBook = transferBook.filter(x=>x.id!==id);
+  save(); closeModal('modal-tb-edit'); renderTransferBook();
+}
+function printTransferBook(){
+  if(!transferBook.length){ alert('記録がありません'); return; }
+  const todayStr=today();
+  const groups={};
+  transferBook.forEach(t=>{ const k=(t.transferDate||t.recordedAt||'').slice(0,7)||'未設定'; (groups[k]=groups[k]||[]).push(t); });
+  const keys=Object.keys(groups).sort();
+  const rows=keys.map(k=>{
+    const items=groups[k].sort((a,b)=>(a.transferDate||'').localeCompare(b.transferDate||''));
+    const [y,m]=k.split('-');
+    const body=items.map(t=>`<tr>
+      <td class="c">${t.transferDate?fmtDate(t.transferDate):''}</td>
+      <td>${t.farmName||''}</td>
+      <td>${t.recipientName||''} ${t.recipientNationalId||''}</td>
+      <td>${t.donor||''}${t.sire?' × '+t.sire:''}</td>
+      <td class="c">${t.embryoNo||''}</td>
+      <td class="c">${t.embryoType||''}</td>
+      <td>${t.vet||''}</td></tr>`).join('');
+    return `<h2>${m?y+'年'+parseInt(m)+'月':k}（${items.length}件）</h2>
+      <table><thead><tr><th>移植年月日</th><th>受け牛の農家</th><th>受け牛（名前・個体番号）</th><th>ドナー×種雄牛</th><th>胚証明書番号</th><th>区分</th><th>術者</th></tr></thead><tbody>${body}</tbody></table>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>授精所移植簿 ${fmtDate(todayStr)}</title>
+    <style>@media print{@page{size:A4 landscape;margin:10mm;}.noprint{display:none;}}
+    body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#111;padding:14px;}
+    h1{font-size:17px;margin:0 0 4px;}.sub{color:#666;font-size:12px;margin-bottom:12px;}
+    h2{font-size:13px;margin:14px 0 5px;padding:4px 8px;background:#fde8e8;border-left:4px solid #d9534f;}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px;}
+    th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}th{background:#f5f5f5;font-size:10px;}.c{text-align:center;white-space:nowrap;}
+    tbody tr:nth-child(even){background:#fafafa;}
+    .btn{background:#d9534f;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;}</style></head><body>
+    <button class="btn noprint" onclick="window.print()">🖨 このページを印刷</button>
+    <h1>家畜受精卵移植簿</h1>
+    <div class="sub">作成日: ${fmtDate(todayStr)}　／　記録数 ${transferBook.length}件　／　小原家畜診療所（獣医師 小原千佳・免許01L237）</div>
+    ${rows}</body></html>`;
+  const old=document.getElementById('tb-print-frame'); if(old)old.remove();
+  const iframe=document.createElement('iframe'); iframe.id='tb-print-frame';
+  iframe.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentWindow.document; doc.open(); doc.write(html); doc.close();
+  const doPrint=()=>{ try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }catch(e){ const w=window.open('','_blank'); if(w){w.document.write(html);w.document.close();} } };
+  if(iframe.contentWindow.document.readyState==='complete') setTimeout(doPrint,300);
+  else { iframe.onload=()=>setTimeout(doPrint,300); setTimeout(doPrint,800); }
+}
+// ===== 授精所の移植簿 ここまで =====
 function printSelectedEtCerts() {
   window._etCertFeeder = ''; window._etCertRegOrg = ''; window._etCertRegNo = ''; window._etCertRecipient = null;
   const checks = document.querySelectorAll('.et-cert-check:checked');
@@ -19009,7 +19178,6 @@ try {
     <button onclick="printSelectedCerts()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📄 授精証明書を印刷</button>
     <button onclick="toggleAllInsemCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">全選択/解除</button>
     <button onclick="printSelectedEtCerts()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🧬 移植証明書を印刷</button>
-    <button onclick="printSelectedEtCertsOtherFarm()" style="background:#1a0a12;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🧬 他農家へ発行</button>
     <button onclick="toggleAllEtCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">ET全選択/解除</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
@@ -19083,6 +19251,52 @@ try {
 </div>
 
 <!-- 発情・分娩 かんたん計算 -->
+<div class="page" id="page-transferbook">
+  <div class="section-header">
+    <div class="section-title">📜 授精所の移植簿（他農家）</div>
+    <button onclick="printTransferBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">🖨 印刷</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">他農家へ移植した受精卵の記録です。証明書を作成すると自動で記録されます。自分の繁殖データとは分けて保管しています。</div>
+  <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+    <button id="tb-view-month" onclick="setTransferBookView('month')" style="background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">月別</button>
+    <button id="tb-view-farm" onclick="setTransferBookView('farm')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">農家別</button>
+    <button onclick="addTransferBookManual()" style="background:#1a0a12;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;margin-left:auto;">＋ 手動で追加</button>
+  </div>
+  <div id="tb-list-container"></div>
+  <div class="empty" id="tb-empty" style="display:none;">
+    <div class="empty-icon">📜</div><div class="empty-text">まだ記録がありません<br><span style="font-size:12px;">採卵記録から他農家向けの証明書を作ると記録されます</span></div>
+  </div>
+</div>
+
+<!-- 移植簿 編集モーダル -->
+<div class="modal-overlay" id="modal-tb-edit" style="z-index:430;">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title"><span id="tb-edit-title">移植記録の編集</span><button class="modal-close" onclick="closeModal('modal-tb-edit')">✕</button></div>
+    <input type="hidden" id="tb-edit-id">
+    <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">移植年月日</label><input type="date" id="tb-e-date" style="font-size:13px;"></div>
+    <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の農家</label><input type="text" id="tb-e-farm" placeholder="農家名" style="font-size:13px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="tb-e-recip" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">個体識別番号</label><input type="text" id="tb-e-recipid" style="font-size:13px;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">ドナー母牛</label><input type="text" id="tb-e-donor" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">種雄牛</label><input type="text" id="tb-e-sire" style="font-size:13px;"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">胚証明書番号</label><input type="text" id="tb-e-embryo" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">凍結/新鮮</label>
+        <select id="tb-e-type" style="font-size:13px;width:100%;"><option value="">—</option><option value="凍結">凍結</option><option value="新鮮">新鮮</option><option value="培養">培養</option></select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;"><label style="font-size:11px;">術者</label><input type="text" id="tb-e-vet" style="font-size:13px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveTransferBookEdit()">保存</button>
+      <button class="btn btn-secondary" style="flex:0;" onclick="deleteTransferBookEntry()">🗑 削除</button>
+    </div>
+  </div>
+</div>
+
 <div class="page" id="page-calc">
   <div class="section-title">📅 発情・分娩 かんたん計算</div>
   <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">AI／ETの日を入れると、戻り発情・妊娠鑑定・分娩予定がすぐ出ます。</div>
@@ -19601,6 +19815,17 @@ try {
   </div>
 </div>
 
+<!-- 移植証明書：胚選択（チェックボックス） -->
+<div class="modal-overlay" id="modal-etcert-picker" style="z-index:415;">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title"><span>🧬 証明書にする胚を選択</span><button class="modal-close" onclick="closeModal('modal-etcert-picker')">✕</button></div>
+    <div id="etcert-picker-head" style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;"></div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">胚にチェックすると、その胚ごとに証明書が作られます（複数選択可）。</div>
+    <div id="etcert-picker-list" style="border:1px solid var(--border);border-radius:8px;max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
+    <button class="btn btn-primary" style="width:100%;" onclick="etCertPickerNext()">次へ（受け牛の農家を選ぶ）</button>
+  </div>
+</div>
+
 <!-- 他農家 発行ピッカー -->
 <div class="modal-overlay" id="modal-otherfarm-pick" style="z-index:410;">
   <div class="modal" style="max-width:460px;">
@@ -19801,7 +20026,7 @@ function initFirebaseSync() {
       // 　 semenInventory/embryoInventoryはマージ後の値が_storeに入っているため
       // 　 Firebaseの生データで初期化すると差分誤検知が起きる
       const safeKeysForSnapshot = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
-        'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
+        'collectionRecords','collectionRecordsNew','transferBook','etRecords','fatteningRecords',
         'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
         'pendingUseRecords','data_version'];
       safeKeysForSnapshot.forEach(k => {
