@@ -4016,17 +4016,33 @@ function printCalvingSchedule(){
     <div class="sub">作成日: ${fmtDate(todayStr)}　／　妊娠中 ${dueCows.length}頭　／　${OWN_FARMER||'小原農場'}</div>
     ${rows}
     </body></html>`;
-  // Edge等で document.write が空になることがあるため Blob URL で開く
-  try {
-    const blob = new Blob([html], {type:'text/html'});
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    if(!w){ URL.revokeObjectURL(url); alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
-    setTimeout(()=>URL.revokeObjectURL(url), 60000);
-  } catch(e){
-    const w=window.open('','_blank');
-    if(!w){ alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
-    w.document.open(); w.document.write(html); w.document.close();
+  // 非表示iframeに書き込んで印刷（別ウィンドウを開かないのでポップアップブロック・Blank問題を回避）
+  const old = document.getElementById('print-frame');
+  if (old) old.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'print-frame';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  // 描画完了を待ってから印刷
+  const doPrint = () => {
+    try {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } catch(e) {
+      // フォールバック：新規タブ
+      const w = window.open('', '_blank');
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    }
+  };
+  if (iframe.contentWindow.document.readyState === 'complete') {
+    setTimeout(doPrint, 300);
+  } else {
+    iframe.onload = () => setTimeout(doPrint, 300);
+    setTimeout(doPrint, 800);   // onloadが発火しない環境の保険
   }
 }
 function recordPreg(cowId, taskId, result) {
