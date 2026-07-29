@@ -11720,7 +11720,26 @@ function toggleAllEtCheck() {
   checks.forEach(c => c.checked = !allChecked);
 }
 
+// 他農家へ発行：受け牛の飼養者（住所・氏名）を入力してから移植証明書を作る
+function printSelectedEtCertsOtherFarm() {
+  const checks = document.querySelectorAll('.et-cert-check:checked');
+  if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
+  const feeder = prompt('受け牛の飼養者（住所＋氏名または名称）を入力してください。\n例：帯広市○○町1番地　○○牧場', window._etCertFeederLast || '');
+  if (feeder === null) return;        // キャンセル
+  window._etCertFeederLast = feeder;
+  window._etCertFeeder = feeder.trim();
+  const selected = Array.from(checks).map(c => {
+    const src = c.dataset.src, idx = parseInt(c.dataset.idx);
+    if (src === 'dynamic') return insemBookRecords[idx];
+    const base = INSEM_BOOK_DATA[idx]; if (!base) return null;
+    const edit = insemBookEdits[src + '_' + idx] || {};
+    return { ...base, n: edit.n||base.n, q: edit.q||base.q, m: edit.m||base.m, d: edit.d||base.d, op: edit.op||base.op||'' };
+  }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
+  etCertCounter = 16;
+  openEtCertPreview(selected);
+}
 function printSelectedEtCerts() {
+  window._etCertFeeder = '';   // 自分（小原）の飼養者情報を使う
   const checks = document.querySelectorAll('.et-cert-check:checked');
   if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
 
@@ -12533,7 +12552,7 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
       '<tr style="height:11mm;">' +
         '<td style="'+Vc+'font-size:8.5pt;">飼養者の住所及び<br>氏名又は名称</td>' +
-        '<td style="'+V+'">池田町字千代田697番地　小原　秀樹</td>' +
+        '<td style="'+V+'" contenteditable="true">'+(window._etCertFeeder||'池田町字千代田697番地　小原　秀樹')+'</td>' +
       '</tr>' +
 
       '<tr style="height:'+H+';">' +
@@ -18817,6 +18836,7 @@ try {
     <button onclick="printSelectedCerts()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📄 授精証明書を印刷</button>
     <button onclick="toggleAllInsemCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">全選択/解除</button>
     <button onclick="printSelectedEtCerts()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🧬 移植証明書を印刷</button>
+    <button onclick="printSelectedEtCertsOtherFarm()" style="background:#1a0a12;border:1px solid var(--accent);color:var(--accent);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🧬 他農家へ発行</button>
     <button onclick="toggleAllEtCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">ET全選択/解除</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
