@@ -19338,12 +19338,10 @@ try {
     <div class="modal-title"><span id="tb-edit-title">記録の編集</span><button class="modal-close" onclick="closeModal('modal-tb-edit')">✕</button></div>
     <input type="hidden" id="tb-edit-id">
     <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">移植（授精）年月日</label><input type="date" id="tb-e-date" style="font-size:13px;"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">妊娠鑑定</label>
-        <select id="tb-e-preg" style="font-size:13px;width:100%;"><option value="">未実施</option><option value="+">＋（受胎）</option><option value="-">−（不受胎）</option></select>
-      </div>
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">妊鑑日</label><input type="date" id="tb-e-pregdate" style="font-size:13px;"></div>
+    <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">妊娠鑑定の結果</label>
+      <select id="tb-e-preg" style="font-size:13px;width:100%;"><option value="">未実施</option><option value="+">＋（受胎）</option><option value="-">−（不受胎）</option></select>
     </div>
+    <input type="hidden" id="tb-e-pregdate">
     <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の農家</label><input type="text" id="tb-e-farm" placeholder="農家名" style="font-size:13px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="tb-e-recip" style="font-size:13px;"></div>
