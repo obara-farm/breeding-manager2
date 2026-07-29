@@ -17853,9 +17853,19 @@ function renderFattening() {
 
   // グループ集計（共通）
   const map = {};
+  const groupMeta = {};   // グループキー → 表示用の情報
   recs.forEach(r => {
     let k = r[groupKey] || '不明';
     if (groupKey==='sire') k = normalizeSireName(k) || '不明';   // 表記ゆれを吸収
+    if (groupKey==='dam') {
+      // 同名でも「農家・母の父・母の祖父」が違えば別の牛として分ける
+      const name = (r.dam||'不明').trim();
+      const farmer = (r.farmer||'').trim();
+      const msire = normalizeSireName((r.grandsire||'').trim());       // 母の父
+      const mgsire = normalizeSireName((r.greatgrandsire||'').trim()); // 母の祖父
+      k = [name, farmer, msire, mgsire].join('|');
+      if (!groupMeta[k]) groupMeta[k] = { name, farmer, msire, mgsire };
+    }
     if (!map[k]) map[k] = [];
     map[k].push(r);
   });
@@ -17871,7 +17881,9 @@ function renderFattening() {
   });
   // 各レコードの「性別内での枝重偏差値」（50=その性別の平均、大きいほど性別の中で大きい）
   const wDevOf = r => { if(r.weight==null) return null; const st=SEXW[sexOf(r)].w; return st.sd>0 ? 50+(r.weight-st.m)/st.sd*10 : 50; };
-  let groups = Object.entries(map).map(([name, rs]) => {
+  let groups = Object.entries(map).map(([gkey, rs]) => {
+    const meta = groupMeta[gkey];
+    const name = meta ? meta.name : gkey;   // 母牛別は表示名を素の母牛名にする（キーは農家＋血統で分離済み）
     const farmers = [...new Set(rs.map(r=>r.farmer).filter(Boolean))];
     const bmsList = rs.filter(r=>r.bms!==null).map(r=>r.bms);
     const wList = rs.filter(r=>r.weight!==null).map(r=>r.weight);
