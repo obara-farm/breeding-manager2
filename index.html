@@ -9058,7 +9058,8 @@ function renderCollectionTab() {
           : `<div style="color:var(--muted);">${fmtDate(r.aiDate)}</div>`
         }
       </div>` : ''}
-      <div style="margin-top:8px;text-align:right;">
+      <div style="margin-top:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+        <button onclick="openEtCertFromCollection('${r.id}')" style="background:#1a0a12;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">🧬 移植証明書（他農家）</button>
         <button onclick="openDeliveryPicker('${r.id}')" style="background:#0a1520;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">📄 納品書に追加</button>
       </div>
       ${(frozenCount||freshCount||(r.cultureEmbryos||[]).length) ? `
@@ -11735,26 +11736,168 @@ function toggleAllEtCheck() {
   checks.forEach(c => c.checked = !allChecked);
 }
 
-// 他農家へ発行：受け牛の飼養者（住所・氏名）を入力してから移植証明書を作る
+// 採卵記録の胚から移植証明書を発行（他農家向け）
+let _etCertColRec = null;
+function openEtCertFromCollection(colRecId){
+  const cr = (collectionRecordsNew||[]).find(r=>r.id===colRecId);
+  if(!cr){ alert('採卵記録が見つかりません'); return; }
+  _etCertColRec = cr;
+  // 胚を1本選ぶ：この採卵の胚番号一覧
+  const embs = [
+    ...(cr.frozenEmbryos||[]).map(e=>({no:e.no, type:'凍結', stage:e.stage, rank:e.rank, cane:e.cane})),
+    ...(cr.freshEmbryos||[]).map(e=>({no:e.embryoNo, type:'新鮮', stage:e.stage, rank:e.rank})),
+    ...(cr.cultureEmbryos||[]).map(e=>({no:e.embryoNo, type:e.action==='freeze'?'凍結':'新鮮', stage:e.cultureStage||e.stage, rank:e.cultureRank||e.rank})),
+  ].filter(e=>e.no);
+  if(!embs.length){ alert('この採卵記録に胚番号がありません'); return; }
+  // 胚選択（1本）
+  let chosen = embs[0].no;
+  if(embs.length>1){
+    const list = embs.map((e,i)=>`${i+1}. ${e.no}（${e.type}${e.stage||''}${e.rank||''}）`).join('\n');
+    const pick = prompt('証明書にする胚を選んでください（番号を入力）:\n'+list, '1');
+    if(pick===null) return;
+    const idx = parseInt(pick)-1;
+    if(idx>=0 && idx<embs.length) chosen = embs[idx].no; else return;
+  }
+  window._etCertColEmbryoNo = chosen;
+  // 他農家ピッカーを開く（confirmで胚ベースの証明書を作る）
+  _etCertPendingRecords = null;   // 授精簿ベースではないフラグ
+  const sel = document.getElementById('ofpick-farm');
+  if (!otherFarms.length) { if(confirm('他農家がまだ登録されていません。登録しますか？')) openOtherFarmManage(); return; }
+  sel.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
+  onOtherFarmPick();
+  openModal('modal-otherfarm-pick');
+}
 function printSelectedEtCertsOtherFarm() {
   const checks = document.querySelectorAll('.et-cert-check:checked');
   if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
-  const feeder = prompt('受け牛の飼養者（住所＋氏名または名称）を入力してください。\n例：帯広市○○町1番地　○○牧場', window._etCertFeederLast || '');
-  if (feeder === null) return;        // キャンセル
-  window._etCertFeederLast = feeder;
-  window._etCertFeeder = feeder.trim();
-  const selected = Array.from(checks).map(c => {
+  _etCertPendingRecords = Array.from(checks).map(c => {
     const src = c.dataset.src, idx = parseInt(c.dataset.idx);
     if (src === 'dynamic') return insemBookRecords[idx];
     const base = INSEM_BOOK_DATA[idx]; if (!base) return null;
     const edit = insemBookEdits[src + '_' + idx] || {};
     return { ...base, n: edit.n||base.n, q: edit.q||base.q, m: edit.m||base.m, d: edit.d||base.d, op: edit.op||base.op||'' };
   }).filter(Boolean).sort((a,b) => (a.d||'').localeCompare(b.d||''));
+  // ピッカーの農家リストを作る
+  const sel = document.getElementById('ofpick-farm');
+  if (!otherFarms.length) {
+    if (confirm('他農家がまだ登録されていません。登録しますか？')) openOtherFarmManage();
+    return;
+  }
+  sel.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
+  onOtherFarmPick();
+  openModal('modal-otherfarm-pick');
+}
+// 農家を選ぶと、在籍牛リストがあれば受け牛セレクトを出す
+function onOtherFarmPick(){
+  const i = document.getElementById('ofpick-farm').value;
+  const f = otherFarms[i]; if(!f) return;
+  const cowGroup = document.getElementById('ofpick-cow-group');
+  const cowSel = document.getElementById('ofpick-cow');
+  const link = f.linkFarm && FARM_DAM_IDS[f.linkFarm];
+  if (link) {
+    cowGroup.style.display = '';
+    const names = Object.keys(link).sort((a,b)=>a.localeCompare(b,'ja'));
+    cowSel.innerHTML = '<option value="">— 手入力する —</option>' +
+      names.map(nm=>`<option value="${nm}">${nm}（${link[nm].id||''} ${link[nm].nationalId||''}）</option>`).join('');
+  } else {
+    cowGroup.style.display = 'none';
+    cowSel.innerHTML = '<option value="">— 手入力する —</option>';
+  }
+}
+function confirmOtherFarmCert(){
+  const i = document.getElementById('ofpick-farm').value;
+  const f = otherFarms[i]; if(!f) return;
+  window._etCertFeeder = f.feeder || '';
+  window._etCertRegOrg = f.regOrg || '';
+  window._etCertRegNo = f.regNo || '';
+  // 受け牛
+  const cowName = document.getElementById('ofpick-cow').value;
+  window._etCertRecipient = null;
+  if (cowName && f.linkFarm && FARM_DAM_IDS[f.linkFarm] && FARM_DAM_IDS[f.linkFarm][cowName]) {
+    const info = FARM_DAM_IDS[f.linkFarm][cowName];
+    window._etCertRecipient = { name: cowName, nationalId: info.nationalId||'', earTag: info.id||'' };
+  }
+  closeModal('modal-otherfarm-pick');
   etCertCounter = 16;
-  openEtCertPreview(selected);
+  // 採卵記録ベース（他農家）：合成レコードを作って証明書化
+  if (_etCertColRec) {
+    const cr = _etCertColRec;
+    const donor = cr.donorId ? (cowDisplayName(cr.donorId)||cr.donorId) : (cr.donorName||'');
+    const rec = {
+      t: (window._etCertRecipient ? '__other__' : '__other__'),
+      s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (window._etCertColEmbryoNo||''),
+      n: window._etCertColEmbryoNo || '',
+      d: '',   // 移植日は証明書上で手入力（他農家への移植日は記録していないため）
+      m: '', op: 'TBS',
+    };
+    _etCertColRec = null;
+    openEtCertPreview([rec]);
+    return;
+  }
+  openEtCertPreview(_etCertPendingRecords || []);
+}
+// 他農家の登録・編集モーダル
+function openOtherFarmManage(){
+  renderOtherFarmList();
+  // 在籍牛リストと連携できる農家（FARM_DAM_IDSのキー）をセレクトに
+  const linkSel = document.getElementById('ofm-link');
+  linkSel.innerHTML = '<option value="">連携しない</option>' +
+    Object.keys(FARM_DAM_IDS||{}).map(f=>`<option value="${f}">${f}</option>`).join('');
+  clearOtherFarmForm();
+  openModal('modal-otherfarm-manage');
+}
+function renderOtherFarmList(){
+  const el = document.getElementById('ofmanage-list');
+  if (!otherFarms.length) { el.innerHTML = '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px;">登録された農家はありません</div>'; return; }
+  el.innerHTML = otherFarms.map((f,i)=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
+      <div style="min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">${f.name}${f.linkFarm?' <span style="font-size:9px;color:var(--accent);">🔗在籍牛連携</span>':''}</div>
+        <div style="font-size:10px;color:var(--muted);">${f.feeder||''}</div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;">
+        <button onclick="editOtherFarm(${i})" style="background:var(--bg3);border:1px solid var(--border);color:var(--info);font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;">✏</button>
+        <button onclick="deleteOtherFarm(${i})" style="background:var(--bg3);border:1px solid var(--border);color:var(--danger);font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;">🗑</button>
+      </div>
+    </div>`).join('');
+}
+function clearOtherFarmForm(){
+  document.getElementById('ofm-editidx').value='';
+  ['ofm-name','ofm-feeder','ofm-regorg','ofm-regno'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ofm-link').value='';
+}
+function editOtherFarm(i){
+  const f = otherFarms[i]; if(!f) return;
+  document.getElementById('ofm-editidx').value=i;
+  document.getElementById('ofm-name').value=f.name||'';
+  document.getElementById('ofm-feeder').value=f.feeder||'';
+  document.getElementById('ofm-regorg').value=f.regOrg||'';
+  document.getElementById('ofm-regno').value=f.regNo||'';
+  document.getElementById('ofm-link').value=f.linkFarm||'';
+}
+function deleteOtherFarm(i){
+  if(!confirm('この農家を削除しますか？')) return;
+  otherFarms.splice(i,1); saveOtherFarms(); renderOtherFarmList();
+}
+function saveOtherFarmEntry(){
+  const name=document.getElementById('ofm-name').value.trim();
+  if(!name){ alert('農家名を入力してください'); return; }
+  const entry={
+    name,
+    feeder: document.getElementById('ofm-feeder').value.trim(),
+    regOrg: document.getElementById('ofm-regorg').value.trim(),
+    regNo: document.getElementById('ofm-regno').value.trim(),
+    linkFarm: document.getElementById('ofm-link').value,
+  };
+  const idx=document.getElementById('ofm-editidx').value;
+  if(idx!==''){ otherFarms[parseInt(idx)]=entry; } else { otherFarms.push(entry); }
+  saveOtherFarms(); renderOtherFarmList(); clearOtherFarmForm();
+  // ピッカーが開いていれば農家リストを更新
+  const pick=document.getElementById('ofpick-farm');
+  if(pick) pick.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
 }
 function printSelectedEtCerts() {
-  window._etCertFeeder = '';   // 自分（小原）の飼養者情報を使う
+  window._etCertFeeder = ''; window._etCertRegOrg = ''; window._etCertRegNo = ''; window._etCertRecipient = null;
   const checks = document.querySelectorAll('.et-cert-check:checked');
   if (!checks.length) { alert('移植証明書を印刷する行を選択してください（🧬チェックボックス）'); return; }
 
@@ -12324,6 +12467,14 @@ function buildEtCertHTML(r, certNo) {
   if(cowName==='F1' && !cowBreed) cowBreed='肉×乳';  var cowColor   = cow?(cow.color||''):'';
   var regOrg     = cow?(cow.regOrg||''):'';
   var regNo      = cow?(cow.regNo||''):'';
+  // 他農家へ発行：受け牛・登録情報を上書き
+  if (window._etCertRecipient) {
+    cowName = window._etCertRecipient.name || cowName;
+    nationalId = window._etCertRecipient.nationalId ? formatNationalId(window._etCertRecipient.nationalId) : '';
+    dob = '';   // 他農家の生年月日は証明書上で手入力
+  }
+  if (window._etCertRegOrg) regOrg = window._etCertRegOrg;
+  if (window._etCertRegNo) regNo = window._etCertRegNo;
 
   var sireName='',donorName='';
   // r.sが「ドナー×種雄牛」形式の場合
@@ -12576,7 +12727,7 @@ function buildEtCertHTML(r, certNo) {
       '</tr>' +
       '<tr style="height:12mm;">' +
         '<td colspan="2" style="'+Vc+'font-size:9.5pt;">体内受精卵移植年月日</td>' +
-        '<td style="'+V+'font-size:12pt;font-weight:bold;">'+etDateStr+'</td>' +
+        '<td style="'+V+'font-size:12pt;font-weight:bold;" contenteditable="true">'+etDateStr+'</td>' +
       '</tr>' +
     '</table>' +
 
@@ -16684,6 +16835,9 @@ function normalizeSireName(s){
   return s;
 }
 let fatteningRecords = JSON.parse(_store.getItem('fatteningRecords') || '[]');
+// 他農家（移植証明書の受け牛の飼養者）を事前登録
+let otherFarms = JSON.parse(_store.getItem('otherFarms') || '[]');
+function saveOtherFarms(){ _store.setItem('otherFarms', JSON.stringify(otherFarms)); }
 
 // 既存データの等級が「A」や「3」のみの場合は「A3」形式に修正
 (function migrateMeatGrade() {
@@ -19446,6 +19600,51 @@ try {
     <div id="cert-preview-container" style="background:#fff;width:297mm;min-height:210mm;margin:0 auto;box-shadow:0 0 10px rgba(0,0,0,.3);overflow:hidden;"></div>
   </div>
 </div>
+
+<!-- 他農家 発行ピッカー -->
+<div class="modal-overlay" id="modal-otherfarm-pick" style="z-index:410;">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title"><span>🧬 他農家へ移植証明書を発行</span><button class="modal-close" onclick="closeModal('modal-otherfarm-pick')">✕</button></div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>受け牛の飼養者（他農家）</label>
+      <select id="ofpick-farm" onchange="onOtherFarmPick()" style="width:100%;font-size:13px;"></select>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">
+        <span onclick="openOtherFarmManage()" style="color:var(--accent);cursor:pointer;text-decoration:underline;">＋ 農家を登録・編集</span>
+      </div>
+    </div>
+    <div id="ofpick-cow-group" class="form-group" style="margin-bottom:12px;display:none;">
+      <label>受け牛（在籍牛リストから選択）</label>
+      <select id="ofpick-cow" style="width:100%;font-size:13px;"><option value="">— 手入力する —</option></select>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">個体識別番号が自動で入ります。リストに無ければ「手入力」を選んで証明書上で記入してください。</div>
+    </div>
+    <div style="background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:var(--muted);">
+      証明書には、選んだ農家の <b>住所・氏名・登録機関・登録番号</b> と、選んだ受け牛の <b>名前・個体識別番号</b> が自動で入ります。他の項目（生年月日など）は証明書上で直接記入できます。
+    </div>
+    <button class="btn btn-primary" style="width:100%;" onclick="confirmOtherFarmCert()">この内容で証明書を作成</button>
+  </div>
+</div>
+
+<!-- 他農家 登録・編集 -->
+<div class="modal-overlay" id="modal-otherfarm-manage" style="z-index:420;">
+  <div class="modal" style="max-width:460px;">
+    <div class="modal-title"><span>🏠 他農家の登録</span><button class="modal-close" onclick="closeModal('modal-otherfarm-manage')">✕</button></div>
+    <div id="ofmanage-list" style="margin-bottom:14px;"></div>
+    <div style="background:var(--bg3);border-radius:8px;padding:12px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:8px;">農家を追加 / 編集</div>
+      <input type="hidden" id="ofm-editidx" value="">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">農家名（呼び名）</label><input type="text" id="ofm-name" placeholder="例: 長島牧場" style="font-size:12px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">住所＋氏名または名称（飼養者欄に入る文字列）</label><input type="text" id="ofm-feeder" placeholder="例: 帯広市○○町1番地　長島　正典" style="font-size:12px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">家畜登録機関名</label><input type="text" id="ofm-regorg" placeholder="例: 全国和牛登録協会" style="font-size:12px;"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:11px;">登録番号</label><input type="text" id="ofm-regno" placeholder="例: 褐-1234567" style="font-size:12px;"></div>
+      <div class="form-group" style="margin-bottom:10px;"><label style="font-size:11px;">在籍牛リストと連携（受け牛を選べるようにする）</label>
+        <select id="ofm-link" style="font-size:12px;width:100%;"><option value="">連携しない</option></select>
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="saveOtherFarmEntry()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div style="display:none;"></div>
 
 </div><!-- /app-root -->
 
