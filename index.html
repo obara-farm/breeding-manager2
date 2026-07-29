@@ -17555,6 +17555,16 @@ function setHrMode(m){ hrMode=m; renderFattening(); }
 function renderHomerun(recs){
   const qn = r => { const m=String(r.meatGrade||'').match(/[1-5]/); return m?+m[0]:0; };
   const sexOf = r => /去勢/.test(r.sex||'') ? 'M' : /未経|雌|めす/.test(r.sex||'') ? 'F' : 'U';
+  // 「現存牛のみ」がオンなら、在籍している母牛の産子だけに絞る
+  if (typeof fatLivingOnly!=='undefined' && fatLivingOnly) {
+    const living = new Set();
+    const sel = (typeof fatSelectedFarmers!=='undefined' && fatSelectedFarmers.length) ? fatSelectedFarmers : null;
+    const useOwn = !sel || sel.includes(OWN_FARMER);
+    if (useOwn) (typeof cows!=='undefined'?cows:[]).forEach(c=>{ const n=String(c.name||'').trim(); if(n)living.add(n); });
+    const others = sel ? sel.filter(f=>f!==OWN_FARMER) : Object.keys(FARM_DAM_IDS||{});
+    others.forEach(f=>{ const m=(typeof FARM_DAM_IDS!=='undefined')?FARM_DAM_IDS[f]:null; if(m) Object.keys(m).forEach(n=>living.add(n)); });
+    recs = recs.filter(r=>living.has(String(r.dam||'').trim()));
+  }
   let rows = recs.filter(r=>r.weight!=null || r.meatGrade);
   if(!rows.length) return '<div style="text-align:center;color:var(--muted);padding:30px;">データがありません</div>';
   // 性別ごとの平均・SD（枝重・歩留率）。等級は全体で偏差値化
