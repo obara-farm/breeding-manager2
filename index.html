@@ -3946,8 +3946,10 @@ function renderPregList() {
         const daysColor = daysLeft<0?'var(--danger)':daysLeft<=10?'var(--warn)':'var(--muted)';
         const twin = cow.twin ? ' 👯' : '';
         const lastAiEt2 = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
-        const memo2 = lastAiEt2?.memo||'';
-        const sireStr2 = memo2.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo2.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
+        let memo2 = lastAiEt2?.memo||'';
+        // イベントのメモが空なら、授精簿の同牛・同日の記録から胚番号/精液を補う
+        if (lastAiEt2 && !memo2) memo2 = insemMemoFor(cow.id, lastAiEt2.date) || '';
+        const sireStr2 = memo2.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo2.match(/精液:([^\/\n]+)/)?.[1]?.trim()||memo2.trim();
         const isEt2 = lastAiEt2&&(['et_done','estrus_et'].includes(lastAiEt2.type) || looksLikeEmbryo(sireStr2) || looksLikeEmbryo(memo2));
         const typeStr2 = isEt2?'🧬ET':'💉AI';
         return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);">
@@ -3978,11 +3980,10 @@ function printCalvingSchedule(){
     const list=monthMap[ym].sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
     const body=list.map(cow=>{
       const name=cowDisplayName(cow.id);
-      const daysLeft=diffDays(cow.dueDate,todayStr);
-      const daysLabel=daysLeft<0?`超過${Math.abs(daysLeft)}日`:daysLeft===0?'今日':`あと${daysLeft}日`;
       const twin=cow.twin?' (双子)':'';
       const e=[...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(x=>['ai_done','et_done','estrus_ai','estrus_et'].includes(x.type));
-      const memo=e?.memo||'';
+      let memo=e?.memo||'';
+      if(e && !memo) memo=insemMemoFor(cow.id, e.date)||'';
       const sire=memo.match(/胚番号:([^\/\n]+)/)?.[1]?.trim()||memo.match(/精液:([^\/\n]+)/)?.[1]?.trim()||'';
       const isEt=e&&(['et_done','estrus_et'].includes(e.type) || looksLikeEmbryo(sire) || looksLikeEmbryo(memo));
       const kind=isEt?'ET':'AI';
@@ -3992,11 +3993,10 @@ function printCalvingSchedule(){
         <td>${cow.id} ${name}${twin}</td>
         <td class="c">${kind}</td>
         <td>${sireLabel}</td>
-        <td class="c">${daysLabel}</td>
         <td class="chk"></td></tr>`;
     }).join('');
     return `<h2>${y}年${parseInt(m)}月 （${list.length}頭）</h2>
-      <table><thead><tr><th>分娩予定日</th><th>牛（耳標・名前）</th><th>種別</th><th>種雄牛／ドナー×種</th><th>残り</th><th>分娩✓</th></tr></thead>
+      <table><thead><tr><th>分娩予定日</th><th>牛（耳標・名前）</th><th>種別</th><th>種雄牛／ドナー×種</th><th>分娩✓</th></tr></thead>
       <tbody>${body}</tbody></table>`;
   }).join('');
   const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>月別お産予定 ${fmtDate(todayStr)}</title>
@@ -5705,6 +5705,25 @@ function embryoDonorSire(no) {
 }
 // 授精簿メモの表示用ラベル（ETならドナー×種雄牛を前に出す）
 // 文字列が胚番号（＝ET）を含むか判定：01L237形式・ロット形式・「胚番号:」・「×」表記
+// 授精簿から、指定の牛・日付の胚番号（s欄）またはメモ（m欄）を返す。イベントのメモが空のときの補完用
+function insemMemoFor(cowId, date){
+  const all=[
+    ...(typeof INSEM_BOOK_DATA!=='undefined'?INSEM_BOOK_DATA:[]).map((r,i)=>({...r,_src:'static',_idx:i})),
+    ...(typeof insemBookRecords!=='undefined'?insemBookRecords:[]).map((r,i)=>({...r,_src:'dynamic',_idx:i})),
+  ];
+  const hit = all.find(r=>{
+    const ed=(typeof insemBookEdits!=='undefined'?insemBookEdits:{})[r._src+'_'+r._idx]||{};
+    if(ed._deleted) return false;
+    const d=ed.d||r.d;
+    return r.t===cowId && d===date;
+  });
+  if(!hit) return '';
+  const ed=(typeof insemBookEdits!=='undefined'?insemBookEdits:{})[hit._src+'_'+hit._idx]||{};
+  const s=(ed.s!==undefined?ed.s:hit.s)||'';
+  const m=(ed.m!==undefined?ed.m:hit.m)||'';
+  if(s) return '胚番号:'+s;
+  return m;
+}
 function looksLikeEmbryo(str){
   const s = String(str||'');
   return /01L237[A-Za-z0-9\-]/.test(s) || /\d{2}[A-L]\d{2}B\d+-\d+/.test(s) || /胚番号[:：]/.test(s) || /ドナー[:：]/.test(s) || /×/.test(s);
