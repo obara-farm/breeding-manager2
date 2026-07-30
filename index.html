@@ -2509,6 +2509,14 @@ function cycleCowRole(cowId){
   save();
   renderCowList();
 }
+// 成績ベースの提案（💡）をタップで手動マークに確定
+function confirmRoleSuggestion(cowId, role){
+  const cow = cows.find(c => c.id === cowId);
+  if(!cow) return;
+  cow.role = role;
+  save();
+  renderCowList();
+}
 function cowDisplayName(id) {
   if (!id) return '';
   const m = getMasterCow(id);
@@ -4593,6 +4601,15 @@ function renderCowList() {
       : cow.role === 'donor'
       ? '<span style="background:#1f1600;border:1px solid #b45309;color:#fbbf24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;">🟡 ドナー</span>'
       : '';
+    // 手動マークが無い牛にだけ、成績ベースの提案を控えめに出す
+    let roleSuggestBadge = '';
+    if (!cow.role) {
+      const sug = (typeof getRoleSuggestion==='function') ? getRoleSuggestion(cowName) : null;
+      if (sug) {
+        const isDonor = sug.role==='donor';
+        roleSuggestBadge = `<span onclick="event.stopPropagation();confirmRoleSuggestion('${cow.id}','${sug.role}')" title="産子${sug.count}頭の成績（${sug.total}頭中${sug.rank}位）。タップで確定" style="background:transparent;border:1px dashed ${isDonor?'#b45309':'#2563eb'};color:${isDonor?'#fbbf24':'#60a5fa'};font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-left:6px;cursor:pointer;">💡${isDonor?'ドナー向き':'受け牛向き'}</span>`;
+      }
+    }
 
     // 受精回数・履歴（空胎・妊鑑待ちの牛のみ）
     const showInsemHistory = isPregWaiting || cow.status === 'open';
@@ -4624,7 +4641,7 @@ function renderCowList() {
     return `<div class="cow-card" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
-          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
+          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${roleSuggestBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
           ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
         <div style="font-size:12px;text-align:right;">
@@ -17114,6 +17131,7 @@ function saveOtherFarms(){ _store.setItem('otherFarms', JSON.stringify(otherFarm
 
 function saveFattening() {
   try { _store.setItem('fatteningRecords', JSON.stringify(fatteningRecords)); } catch(e) {}
+  if (typeof invalidateRoleSuggestions==='function') invalidateRoleSuggestions();
 }
 
 function selectBreed(breed) {
@@ -17386,6 +17404,64 @@ function normalizeFatCustomW(){
   if(total!==100) FAT_CUSTOM_W[maxK]=Math.max(0,(Number(FAT_CUSTOM_W[maxK])||0)+(100-total));
   renderFattening();
 }
+// ===== 段階2：役割の自動提案（産子の肥育成績ベース）=====
+// 母牛ごとに産子の総合スコアを出し、上位30%=ドナー向き / 下位30%=受け牛向き を提案
+let _roleSuggestCache = null;
+function computeRoleSuggestions() {
+  if (typeof fatteningRecords === 'undefined' || !fatteningRecords.length) return {};
+  // 自分（小原）の産子のみ対象：農家名に小原を含む、または farmer 空
+  const recs = fatteningRecords.filter(r => {
+    const f = (r.farmer||'').trim();
+    return !f || f.includes('小原');
+  });
+  // 母牛名でグループ化（同名別牛の分離はここでは簡易に名前のみ。うちの牛が対象なので実用上は十分）
+  const map = {};
+  recs.forEach(r => {
+    const name = (r.dam||'').trim();
+    if (!name) return;
+    (map[name] = map[name] || []).push(r);
+  });
+  // 各母牛グループの平均指標
+  const groups = Object.entries(map).map(([name, rs]) => {
+    const num = key => { const v = rs.map(key).filter(x=>typeof x==='number'&&!isNaN(x)); return v.length? v.reduce((a,b)=>a+b,0)/v.length : null; };
+    const g4 = rs.filter(r=>r.meatGrade==='A4'||r.meatGrade==='B4').length;
+    const g5 = rs.filter(r=>r.meatGrade==='A5'||r.meatGrade==='B5').length;
+    return { name, count: rs.length,
+      avgBms: num(r=>r.bms), avgYield: num(r=>r.yieldRate), avgWeight: num(r=>r.weight),
+      rateHigh: rs.length ? (g4+g5)/rs.length*100 : 0 };
+  });
+  // 産子3頭以上だけをスコア対象に
+  const scored = groups.filter(g => g.count >= 3);
+  if (scored.length < 3) return {};   // 判定に足るデータが無い
+  // 各指標を偏差値化して総合スコア（BMS・枝重・歩留率・上物率の等加重）
+  const traits = ['avgBms','avgWeight','avgYield','rateHigh'];
+  traits.forEach(key => {
+    const vals = scored.map(g=>g[key]).filter(v=>typeof v==='number'&&!isNaN(v));
+    const m = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+    const sd = vals.length ? Math.sqrt(vals.reduce((a,b)=>a+(b-m)*(b-m),0)/vals.length) : 0;
+    scored.forEach(g => { g['_dev_'+key] = (typeof g[key]==='number'&&!isNaN(g[key])&&sd>0) ? 50+(g[key]-m)/sd*10 : null; });
+  });
+  scored.forEach(g => {
+    const devs = traits.map(k=>g['_dev_'+k]).filter(v=>v!=null);
+    g.score = devs.length ? devs.reduce((a,b)=>a+b,0)/devs.length : null;
+  });
+  const ranked = scored.filter(g=>g.score!=null).sort((a,b)=>b.score-a.score);
+  const n = ranked.length;
+  const topCut = Math.max(1, Math.floor(n*0.3));       // 上位30%
+  const botCut = Math.max(1, Math.floor(n*0.3));       // 下位30%
+  const suggest = {};
+  ranked.forEach((g, i) => {
+    if (i < topCut) suggest[g.name] = { role:'donor', count:g.count, rank:i+1, total:n };
+    else if (i >= n - botCut) suggest[g.name] = { role:'recipient', count:g.count, rank:i+1, total:n };
+  });
+  return suggest;
+}
+function getRoleSuggestion(cowName) {
+  if (_roleSuggestCache === null) _roleSuggestCache = computeRoleSuggestions();
+  return _roleSuggestCache[(cowName||'').trim()] || null;
+}
+function invalidateRoleSuggestions() { _roleSuggestCache = null; }
+
 function computeCompositeScore(groups) {
   const traits = (FAT_SCORE_PATTERNS[fatScorePattern]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:t.key,w:t.w}));
   traits.forEach(t => {
