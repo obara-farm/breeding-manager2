@@ -2517,6 +2517,31 @@ function jumpToCowCard(cowId){
     }
   }, 150);
 }
+// 個体カードから、肥育成績の母牛別ランキングのその牛のカードへ飛ぶ
+function jumpToDamRanking(cowId, cowName){
+  if (typeof switchTab==='function') switchTab('fattening');
+  // 母牛別ビューに切り替え
+  setTimeout(()=>{
+    if (typeof setView==='function') setView('dam');
+    setTimeout(()=>{
+      // fatcard（またはrcard）から data-tag=cowId または data-dam=cowName で一致するカードを探す
+      let cards=[...document.querySelectorAll('[id^="fatcard-"]')];
+      if(!cards.length) cards=[...document.querySelectorAll('[id^="rcard-"]')];
+      const q=(cowName||'').trim();
+      let hit=cards.find(c=>c.dataset.tag===cowId)
+            || cards.find(c=>(c.dataset.dam||'')===q);
+      if(!hit){
+        alert('この牛の産子成績はまだ肥育成績に無いようです（産子が出荷されていない可能性）');
+        return;
+      }
+      hit.scrollIntoView({behavior:'smooth', block:'center'});
+      const old=hit.style.boxShadow;
+      hit.style.transition='box-shadow .3s';
+      hit.style.boxShadow='0 0 0 3px var(--accent)';
+      setTimeout(()=>{ hit.style.boxShadow=old||''; }, 2500);
+    }, 200);
+  }, 120);
+}
 // 繁殖役割を切り替え（無印→受け牛→ドナー→無印）
 function cycleCowRole(cowId){
   const cow = cows.find(c => c.id === cowId);
@@ -4690,6 +4715,7 @@ function renderCowList() {
       <!-- クイックボタン -->
       <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
         <button onclick="cycleCowRole('${cow.id}')" style="background:${cow.role==='recipient'?'#0a1628':cow.role==='donor'?'#1f1600':'var(--bg3)'};border:1px solid ${cow.role==='recipient'?'#2563eb':cow.role==='donor'?'#b45309':'var(--border)'};color:${cow.role==='recipient'?'#60a5fa':cow.role==='donor'?'#fbbf24':'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">${cow.role==='recipient'?'🔵 受け牛':cow.role==='donor'?'🟡 ドナー':'⚪ 役割なし'}</button>
+        <button onclick="jumpToDamRanking('${cow.id}','${(cowName||'').replace(/'/g,'')}')" style="background:#1a1000;border:1px solid var(--warn);color:var(--warn);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">📊 産子成績</button>
         ${cow.status==='open'||cow.status==='program'?`
           <button onclick="quickReg('${cow.id}','cidr_ai_start')" style="background:#0d1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">💉 CIDR開始</button>
         `:''}
