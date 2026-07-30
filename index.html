@@ -2499,6 +2499,24 @@ function getMasterCow(id) {
   if (!id) return null;
   return MASTER_COWS.find(c => c.id.toLowerCase() === String(id).toLowerCase()) || null;
 }
+// 肥育成績の母牛別ランキングから、その母牛の個体カードへ飛ぶ
+function jumpToCowCard(cowId){
+  const cow = cows.find(c => c.id === cowId);
+  if(!cow){ alert('この母牛は現在の個体一覧にいません（廃用・売却などの可能性）'); return; }
+  if (typeof switchTab==='function') switchTab('cows');
+  const sb = document.getElementById('cow-search');
+  if (sb){ sb.value = cowId; renderCowList(); }
+  setTimeout(()=>{
+    const card = document.querySelector('.cow-card[data-cowid="'+cowId+'"]');
+    if(card){
+      card.scrollIntoView({behavior:'smooth', block:'center'});
+      const old = card.style.boxShadow;
+      card.style.transition='box-shadow .3s';
+      card.style.boxShadow='0 0 0 3px var(--accent)';
+      setTimeout(()=>{ card.style.boxShadow=old||''; }, 2500);
+    }
+  }, 150);
+}
 // 繁殖役割を切り替え（無印→受け牛→ドナー→無印）
 function cycleCowRole(cowId){
   const cow = cows.find(c => c.id === cowId);
@@ -4638,7 +4656,7 @@ function renderCowList() {
       </details>`;
     })() : '';
 
-    return `<div class="cow-card" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
+    return `<div class="cow-card" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
           <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${roleSuggestBadge}</div>
@@ -4662,7 +4680,6 @@ function renderCowList() {
       ${lastInsemLabel}
       ${insemHistoryLabel}
       ${cow.memo?`<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin:6px 0;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>`:''}
-      ${cowOffspringHTML(cow, cowName, true)}
       <div class="cow-actions" onclick="event.stopPropagation()">
         <button class="btn btn-secondary" onclick="showCowDetail('${cow.id}')">タイムライン</button>
         <button class="btn btn-warn" onclick="addEventForCow('${cow.id}')">＋ 処置追加</button>
@@ -4691,13 +4708,23 @@ function renderCowList() {
 // 母牛詳細内：この牛の過去産子の肥育成績（fatteningRecordsから名前・耳標で照合）
 function cowOffspringHTML(cow, name, compact){
   if(typeof fatteningRecords==='undefined' || !fatteningRecords.length) return '';
-  // 母牛名（cowの名号）で照合。名前が無ければ耳標/個体識別でも照合
+  // 母牛名（cowの名号）で照合。うちの牛のカードなので小原農場の産子だけに絞る。
+  // 同名別牛（他農家の同名牛）が混ざらないよう、農家＝小原 かつ 母の父が一致するものだけ拾う。
   const cowName=(name||cow.name||'').trim();
   const cowId=(cow.id||'').trim();
+  const myMSire = normalizeSireName((cow.maternalSire||'').trim());   // この母牛の「母の父」
   const recs=fatteningRecords.filter(r=>{
     const dam=String(r.dam||'').trim();
-    if(cowName && dam===cowName) return true;
-    return false;
+    if(!cowName || dam!==cowName) return false;
+    // 農家：小原（自分）の産子のみ。farmer空も自分の分として許容
+    const f=(r.farmer||'').trim();
+    if(f && !f.includes('小原')) return false;
+    // 母の父が分かっている場合は一致必須（同名別牛の切り分け）
+    if(myMSire){
+      const recMSire=normalizeSireName((r.grandsire||'').trim());
+      if(recMSire && recMSire!==myMSire) return false;
+    }
+    return true;
   });
   if(!recs.length){
     if(compact) return '';   // カードでは産子データ無しの牛に空欄を出さない
@@ -18654,7 +18681,7 @@ function renderFattening() {
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <div style="font-size:24px;font-weight:900;font-family:'JetBrains Mono',monospace;color:${rankColor};width:32px;text-align:center;">${i+1}</div>
           <div style="flex:1;">
-            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}${sireClick?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 農家別に比較</span>':''}</div>
+            <div style="font-size:16px;font-weight:900;color:var(--text);">${g.name}${groupKey==='dam'?damIdBadge(g.name):''}${(groupKey==='dam'&&_di.id)?` <span onclick="event.stopPropagation();jumpToCowCard('${_di.id}')" style="font-size:10px;color:var(--info);font-weight:700;cursor:pointer;border:1px solid var(--info);border-radius:4px;padding:1px 6px;margin-left:4px;">→個体カード</span>`:''}${clickable?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 産子詳細</span>':''}${sireClick?' <span style="font-size:11px;color:var(--muted);font-weight:400;">▼ 農家別に比較</span>':''}</div>
             <div style="font-size:11px;color:var(--muted);">${groupLabel} — ${g.count}頭出荷${(groupKey==='dam'&&g.farmers&&g.farmers.length)?' ・ 🏠'+g.farmers.join('/'):''}</div>
             ${groupKey==='dam' ? (()=>{ const ms=damMaternalPedigree(g._recs); return ms?`<div style="font-size:10px;color:var(--muted);margin-top:1px;">🩸 ${ms}</div>`:''; })() : ''}
           </div>
