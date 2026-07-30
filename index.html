@@ -1833,6 +1833,16 @@ textarea{resize:vertical;}
         </div>
       </div>
       <div class="lf-row">
+        <span class="lf-label">繁殖の役割</span>
+        <div class="lf-val">
+          <select id="edit-cow-role">
+            <option value="">AI（無印・自分の子を取る）</option>
+            <option value="recipient">🔵 受け牛（ET受胎させる）</option>
+            <option value="donor">🟡 ドナー（採卵して増やす）</option>
+          </select>
+        </div>
+      </div>
+      <div class="lf-row">
         <span class="lf-label">生年月日</span>
         <div class="lf-val"><input type="date" id="edit-cow-dob"></div>
       </div>
@@ -2488,6 +2498,16 @@ const MASTER_COWS = [{"id":"b91","name":"すずみ","nationalId":"1374266672","d
 function getMasterCow(id) {
   if (!id) return null;
   return MASTER_COWS.find(c => c.id.toLowerCase() === String(id).toLowerCase()) || null;
+}
+// 繁殖役割を切り替え（無印→受け牛→ドナー→無印）
+function cycleCowRole(cowId){
+  const cow = cows.find(c => c.id === cowId);
+  if(!cow) return;
+  const order = ['', 'recipient', 'donor'];
+  const cur = order.indexOf(cow.role || '');
+  cow.role = order[(cur + 1) % order.length];
+  save();
+  renderCowList();
 }
 function cowDisplayName(id) {
   if (!id) return '';
@@ -4567,6 +4587,13 @@ function renderCowList() {
       return `<span style="background:${cfg.bg};border:1px solid ${cfg.border};color:${cfg.color};font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;">${cfg.emoji} ${cow.breed}</span>`;
     })() : '';
 
+    // 繁殖役割バッジ（受け牛／ドナー）
+    const roleBadge = cow.role === 'recipient'
+      ? '<span style="background:#0a1628;border:1px solid #2563eb;color:#60a5fa;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;">🔵 受け牛</span>'
+      : cow.role === 'donor'
+      ? '<span style="background:#1f1600;border:1px solid #b45309;color:#fbbf24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;">🟡 ドナー</span>'
+      : '';
+
     // 受精回数・履歴（空胎・妊鑑待ちの牛のみ）
     const showInsemHistory = isPregWaiting || cow.status === 'open';
     const insemEvents = (cow.events||[]).filter(e =>
@@ -4597,7 +4624,7 @@ function renderCowList() {
     return `<div class="cow-card" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
-          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
+          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
           ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
         <div style="font-size:12px;text-align:right;">
@@ -4626,6 +4653,7 @@ function renderCowList() {
       </div>
       <!-- クイックボタン -->
       <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
+        <button onclick="cycleCowRole('${cow.id}')" style="background:${cow.role==='recipient'?'#0a1628':cow.role==='donor'?'#1f1600':'var(--bg3)'};border:1px solid ${cow.role==='recipient'?'#2563eb':cow.role==='donor'?'#b45309':'var(--border)'};color:${cow.role==='recipient'?'#60a5fa':cow.role==='donor'?'#fbbf24':'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">${cow.role==='recipient'?'🔵 受け牛':cow.role==='donor'?'🟡 ドナー':'⚪ 役割なし'}</button>
         ${cow.status==='open'||cow.status==='program'?`
           <button onclick="quickReg('${cow.id}','cidr_ai_start')" style="background:#0d1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">💉 CIDR開始</button>
         `:''}
@@ -5473,6 +5501,7 @@ function openEditCow(cowId) {
   document.getElementById('edit-cow-duedate').value = cow.dueDate || '';
   document.getElementById('edit-cow-status').value = cow.status || 'open';
   document.getElementById('edit-cow-breed').value = cow.breed || '';
+  document.getElementById('edit-cow-role').value = cow.role || '';
   // 妊娠中パネルの初期表示
   const panel = document.getElementById('edit-pregnant-panel');
   panel.style.display = cow.status === 'pregnant' ? '' : 'none';
@@ -5501,6 +5530,7 @@ function saveEditCow() {
   cow.name       = document.getElementById('edit-cow-name').value.trim() || cow.name;
   cow.lactation  = parseInt(document.getElementById('edit-cow-lactation').value) || cow.lactation;
   cow.breed      = document.getElementById('edit-cow-breed').value;
+  cow.role       = document.getElementById('edit-cow-role').value;
   cow.calvingDate = newCalving  || null;
 
   // 自家耳標の変更処理
