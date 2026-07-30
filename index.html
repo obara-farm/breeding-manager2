@@ -4641,7 +4641,8 @@ function renderCowList() {
     return `<div class="cow-card" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
-          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${roleSuggestBadge}${(cow.sire||cow.maternalSire) ? `<span style="font-size:11px;color:var(--muted);margin-left:8px;font-weight:500;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</span>` : ''}</div>
+          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${roleSuggestBadge}</div>
+          ${(cow.sire||cow.maternalSire) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</div>` : ''}
           ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
         <div style="font-size:12px;text-align:right;">
@@ -4709,16 +4710,28 @@ function cowOffspringHTML(cow, name, compact){
   const ws=recs.filter(r=>r.weight!=null).map(r=>r.weight);
   const avgW=ws.length?Math.round(ws.reduce((a,b)=>a+b,0)/ws.length):null;
   const detailId='cow-off-'+(compact?'card-':'')+cowId.replace(/[^a-zA-Z0-9]/g,'');
+  const a4pct=Math.round(a4/recs.length*100), a3pct=Math.round(a3/recs.length*100);
+  const statBoxes=`<div style="display:flex;gap:10px;margin-top:8px;text-align:center;">
+      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--info);">${avgW||'—'}</div><div style="font-size:9px;color:var(--muted);">平均枝重</div></div>
+      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--warn);">${a4pct}%</div><div style="font-size:9px;color:var(--muted);">A4以上率</div></div>
+      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--accent);">${a3pct}%</div><div style="font-size:9px;color:var(--muted);">A3以上率</div></div>
+    </div>`;
+  if (compact) {
+    // カード：1行に畳んで、タップで数値＋明細を展開
+    return `<div style="margin:6px 0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;" onclick="event.stopPropagation();var d=document.getElementById('${detailId}');d.style.display=d.style.display==='none'?'block':'none';">
+        <span style="font-size:11px;color:var(--muted);">🥩 産子${recs.length}頭 ・ 枝重${avgW||'—'} ・ A4率${a4pct}%</span>
+        <span style="font-size:11px;color:var(--info);">詳細 ▾</span>
+      </div>
+      <div id="${detailId}" style="display:none;margin-top:8px;">${statBoxes}<div style="margin-top:10px;">${renderDamOffspring(recs)}</div></div>
+    </div>`;
+  }
   return `<div style="background:var(--bg3);border:1px solid var(--accent);border-radius:8px;padding:11px 12px;margin-bottom:12px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="var d=document.getElementById('${detailId}');d.style.display=d.style.display==='none'?'block':'none';">
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="event.stopPropagation();var d=document.getElementById('${detailId}');d.style.display=d.style.display==='none'?'block':'none';">
       <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;">🥩 産子の肥育成績（${recs.length}頭）</div>
       <div style="font-size:11px;color:var(--muted);">▼ 詳細</div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:8px;text-align:center;">
-      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--info);">${avgW||'—'}</div><div style="font-size:9px;color:var(--muted);">平均枝重</div></div>
-      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--warn);">${Math.round(a4/recs.length*100)}%</div><div style="font-size:9px;color:var(--muted);">A4以上率</div></div>
-      <div style="flex:1;background:var(--bg2);border-radius:6px;padding:6px;"><div style="font-size:16px;font-weight:900;color:var(--accent);">${Math.round(a3/recs.length*100)}%</div><div style="font-size:9px;color:var(--muted);">A3以上率</div></div>
-    </div>
+    ${statBoxes}
     <div id="${detailId}" style="display:none;margin-top:10px;">${renderDamOffspring(recs)}</div>
   </div>`;
 }
