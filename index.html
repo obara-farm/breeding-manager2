@@ -4661,6 +4661,7 @@ function renderCowList() {
       ${lastInsemLabel}
       ${insemHistoryLabel}
       ${cow.memo?`<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin:6px 0;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>`:''}
+      ${cowOffspringHTML(cow, cowName, true)}
       <div class="cow-actions" onclick="event.stopPropagation()">
         <button class="btn btn-secondary" onclick="showCowDetail('${cow.id}')">タイムライン</button>
         <button class="btn btn-warn" onclick="addEventForCow('${cow.id}')">＋ 処置追加</button>
@@ -4687,7 +4688,7 @@ function renderCowList() {
 }
 
 // 母牛詳細内：この牛の過去産子の肥育成績（fatteningRecordsから名前・耳標で照合）
-function cowOffspringHTML(cow, name){
+function cowOffspringHTML(cow, name, compact){
   if(typeof fatteningRecords==='undefined' || !fatteningRecords.length) return '';
   // 母牛名（cowの名号）で照合。名前が無ければ耳標/個体識別でも照合
   const cowName=(name||cow.name||'').trim();
@@ -4697,14 +4698,17 @@ function cowOffspringHTML(cow, name){
     if(cowName && dam===cowName) return true;
     return false;
   });
-  if(!recs.length) return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+  if(!recs.length){
+    if(compact) return '';   // カードでは産子データ無しの牛に空欄を出さない
+    return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
     <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;">🥩 産子の肥育成績</div>
     <div style="font-size:12px;color:var(--muted);margin-top:4px;">この母牛の産子の肥育成績データはまだありません</div></div>`;
+  }
   const qn=r=>{const m=String(r.meatGrade||'').match(/[1-5]/);return m?+m[0]:0;};
   const a4=recs.filter(r=>qn(r)>=4).length, a3=recs.filter(r=>qn(r)>=3).length;
   const ws=recs.filter(r=>r.weight!=null).map(r=>r.weight);
   const avgW=ws.length?Math.round(ws.reduce((a,b)=>a+b,0)/ws.length):null;
-  const detailId='cow-off-'+cowId.replace(/[^a-zA-Z0-9]/g,'');
+  const detailId='cow-off-'+(compact?'card-':'')+cowId.replace(/[^a-zA-Z0-9]/g,'');
   return `<div style="background:var(--bg3);border:1px solid var(--accent);border-radius:8px;padding:11px 12px;margin-bottom:12px;">
     <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="var d=document.getElementById('${detailId}');d.style.display=d.style.display==='none'?'block':'none';">
       <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;">🥩 産子の肥育成績（${recs.length}頭）</div>
