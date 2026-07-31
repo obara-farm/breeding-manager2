@@ -2499,6 +2499,20 @@ function getMasterCow(id) {
   if (!id) return null;
   return MASTER_COWS.find(c => c.id.toLowerCase() === String(id).toLowerCase()) || null;
 }
+// 個体カードから、コーハイ君DX（交配ツール）にこの母牛の情報を渡して開く
+function openKoubaiForCow(cowId){
+  const cow = cows.find(c => c.id === cowId);
+  if(!cow){ alert('牛が見つかりません'); return; }
+  const dam = cow.name || cow.id;
+  const params = new URLSearchParams();
+  params.set('dam', dam);
+  if (cow.sire) params.set('damsire', cow.sire);
+  if (cow.maternalSire) params.set('damgrandsire', cow.maternalSire);
+  if (cow.nationalId) params.set('nationalId', cow.nationalId);
+  params.set('tag', cow.id);
+  const url = 'https://obara-farm.github.io/kouhaikunDX/?' + params.toString();
+  window.open(url, '_blank');
+}
 // 肥育成績の母牛別ランキングから、その母牛の個体カードへ飛ぶ
 function jumpToCowCard(cowId){
   const cow = cows.find(c => c.id === cowId);
@@ -4716,6 +4730,7 @@ function renderCowList() {
       <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;" onclick="event.stopPropagation()">
         <button onclick="cycleCowRole('${cow.id}')" style="background:${cow.role==='recipient'?'#0a1628':cow.role==='donor'?'#1f1600':'var(--bg3)'};border:1px solid ${cow.role==='recipient'?'#2563eb':cow.role==='donor'?'#b45309':'var(--border)'};color:${cow.role==='recipient'?'#60a5fa':cow.role==='donor'?'#fbbf24':'var(--muted)'};font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">${cow.role==='recipient'?'🔵 受け牛':cow.role==='donor'?'🟡 ドナー':'⚪ 役割なし'}</button>
         <button onclick="jumpToDamRanking('${cow.id}','${(cowName||'').replace(/'/g,'')}')" style="background:#1a1000;border:1px solid var(--warn);color:var(--warn);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">📊 産子成績</button>
+        <button onclick="openKoubaiForCow('${cow.id}')" style="background:#0a1a12;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">🧬 交配を見る</button>
         ${cow.status==='open'||cow.status==='program'?`
           <button onclick="quickReg('${cow.id}','cidr_ai_start')" style="background:#0d1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">💉 CIDR開始</button>
         `:''}
