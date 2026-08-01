@@ -4479,6 +4479,7 @@ function renderCowList() {
       if(isPregWaiting) pregWaitingCount++;
       else statusCount[c.status||'open'] = (statusCount[c.status||'open']||0)+1;
     });
+    const neverCalvedCount = cows.filter(c => (c.lactation||0) === 0).length;
     const statusDef = [
       {key:'all', label:'全て', icon:'', count: cows.length},
       {key:'preg_waiting', label:'妊鑑待ち', icon:'🔬', count: pregWaitingCount},
@@ -4486,6 +4487,7 @@ function renderCowList() {
       {key:'open', label:'空胎', icon:'⭕', count: statusCount['open']||0},
       {key:'program', label:'プログラム中', icon:'📋', count: statusCount['program']||0},
       {key:'fresh', label:'新鮮分娩', icon:'🍼', count: statusCount['fresh']||0},
+      {key:'never_calved', label:'未経産', icon:'🐮', count: neverCalvedCount},
     ].filter(s => s.key==='all' || s.count > 0);
     statusSummaryEl.innerHTML = statusDef.map(s => {
       const active = cowStatusFilter === s.key;
@@ -4503,6 +4505,7 @@ function renderCowList() {
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
       const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
       const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg);
+      if (cowStatusFilter === 'never_calved') return (c.lactation||0) === 0;
       if (cowStatusFilter === 'preg_waiting') return isPregWaiting;
       return !isPregWaiting && c.status === cowStatusFilter;
     });
@@ -4565,14 +4568,7 @@ function renderCowList() {
     const isDonorCow = cow.isDonor || (cow.events||[]).some(e => ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type) && !e._retired);
     const isPregWaiting = !isDonorCow && (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
       (!hasPregResult || hasNewAiAfterNeg);
-    // 未経産で一度も授精していない若い牛：空胎ではなく「授精可能日」を表示
-    const neverBred = !(cow.events||[]).some(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
-    const FIRST_SERVICE_AGE_DAYS = 425;   // 目安：生後約14ヶ月（施設・体格により調整可）
-    const ageDaysNow = cowDob ? diffDays(today(), cowDob) : null;
-    const notYetEligible = cow.status === 'open' && neverBred && ageDaysNow !== null && ageDaysNow < FIRST_SERVICE_AGE_DAYS;
-    const eligibleDate = notYetEligible ? addDays(cowDob, FIRST_SERVICE_AGE_DAYS) : null;
-    const displayStatus = notYetEligible ? `授精可能: ${fmtDate(eligibleDate)}` : isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
-    const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
+    // displayStatus・displayDot は「初回受精時期アラート」の計算後（下記）にまとめて決定する
     // 最終受精・移植情報
     const lastInsemLabel = lastAiEt ? (() => {
       const isEt = ['et_done','estrus_et'].includes(lastAiEt.type) || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test((lastAiEt.memo||'').replace(/^胚番号:/,'').replace(/^精液:/,'').split('／')[0].trim());
@@ -4634,6 +4630,12 @@ function renderCowList() {
     const isFirstInsemAge = !hasEverInsem && ageMonths !== null && ageMonths >= firstInsemMonths
       && cow.status === 'open' && cow.lactation === 0; // 未経産
     const firstInsemDaysOver = isFirstInsemAge ? ageMonths - firstInsemMonths : 0;
+    // まだ授精可能月齢に達していない未経産牛：空胎ではなく「授精可能日」を表示（初回受精時期アラートと同じ基準）
+    const notYetEligible = !hasEverInsem && cow.status === 'open' && cow.lactation === 0 &&
+      ageMonths !== null && ageMonths < firstInsemMonths;
+    const eligibleDate = notYetEligible ? addDays(cowDobForAlert, firstInsemMonths * 30.5) : null;
+    const displayStatus = notYetEligible ? `授精可能: ${fmtDate(eligibleDate)}` : isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
+    const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
 
     // カードスタイル: 分娩後45日超空胎 > 妊鑑陰性放置 > 受精後妊鑑未実施 > 初回受精時期 の優先順
     const cardStyle = isCalvingOverdue
@@ -8106,6 +8108,19 @@ function saveInsemBookRecord(src, idx) {
     }
 
     if (updated) save();
+  }
+  // 自動反映：日付・牛・薬剤が揃った未反映の新規行は、ボタン操作なしで自動的にステータスへ反映する
+  if (src === 'dynamic') {
+    const rec = insemBookRecords[idx];
+    if (rec && rec.d && rec.t && rec.s) {
+      const cow = cows.find(c => c.id === rec.t);
+      const isET = rec.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(rec.s) || /^01L237/.test(rec.s) || rec.s.includes('×');
+      const eventType = isET ? 'et_done' : 'ai_done';
+      const alreadySynced = cow && (cow.events||[]).some(e => e.type === eventType && e.date === rec.d);
+      if (cow && !alreadySynced) {
+        syncOneInsemRecord(rec.d, rec.t, rec.s, false);
+      }
+    }
   }
   // ET行のNo欄を更新（全再描画せず該当セルだけ更新）
   updateEtQCells();
