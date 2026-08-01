@@ -2510,6 +2510,26 @@ function openKoubaiForCow(cowId){
   if (cow.maternalSire) params.set('damgrandsire', cow.maternalSire);
   if (cow.nationalId) params.set('nationalId', cow.nationalId);
   params.set('tag', cow.id);
+  // この母牛の産子の肥育成績（分かる範囲）も一緒に渡す
+  if (typeof fatteningRecords !== 'undefined' && fatteningRecords.length) {
+    const myMSire = normalizeSireName((cow.maternalSire||'').trim());
+    const recs = fatteningRecords.filter(r=>{
+      const rDam = String(r.dam||'').trim();
+      if (!dam || rDam !== dam) return false;
+      const f=(r.farmer||'').trim();
+      if (f && !f.includes('小原')) return false;
+      if (myMSire) { const rms = normalizeSireName((r.grandsire||'').trim()); if (rms && rms !== myMSire) return false; }
+      return true;
+    });
+    if (recs.length) {
+      const ws = recs.map(r=>r.weight).filter(w=>typeof w==='number'&&!isNaN(w));
+      const avgW = ws.length ? Math.round(ws.reduce((a,b)=>a+b,0)/ws.length) : null;
+      const a4 = recs.filter(r=>/^[AB][45]$/.test(r.meatGrade||'')).length;
+      params.set('progCount', recs.length);
+      if (avgW!=null) params.set('progAvgWeight', avgW);
+      params.set('progA4Rate', Math.round(a4/recs.length*100));
+    }
+  }
   const url = 'https://obara-farm.github.io/kouhaikunDX/?' + params.toString();
   window.open(url, '_blank');
 }
@@ -6029,7 +6049,7 @@ function renderStats() {
     const optAll = document.createElement('option');
     optAll.value = 'all'; optAll.textContent = '全期間（R7年度〜）';
     yearSel.appendChild(optAll);
-    yearSel.value = 'all';   // 初期表示はR7年度からの全期間（単年度だと母数が少なく「不明」が目立つため）
+    yearSel.value = 'R' + currentFY;   // 開いたとき最初に見えるのは最新年度。通算で見たい時は「全期間」を選択
     yearSel.dataset.built = '1';
   }
   const selectedYear = yearSel ? yearSel.value : 'all';
@@ -14835,8 +14855,19 @@ function renderCalves() {
         // ET：ドナー牛（種雄牛産） × 受卵牛の父
         const donorStr = calf.donor || '';
         const sireStr = calf.sire && !/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(calf.sire) ? calf.sire : '';
-        // embryoInventoryからドナー・種雄牛を補完
+        // ドナー・種雄牛を補完：まず堅牢な embryoDonorSire()（採卵記録→胚在庫→採卵シートの順）で引く
         let donorFinal = donorStr, sireFinal = sireStr;
+        if (!donorFinal || !sireFinal) {
+          const combo = embryoDonorSire(calf.sire || calf.donor || '');   // 「ドナー×種雄牛」の形で返る
+          if (combo && combo.includes('×')) {
+            const [d, s] = combo.split('×');
+            if (!donorFinal && d) donorFinal = d.trim();
+            if (!sireFinal && s) sireFinal = s.trim();
+          } else if (combo && !donorFinal) {
+            donorFinal = combo.trim();
+          }
+        }
+        // それでも取れなければ、旧来のロット番号一致（保険）
         if (!donorFinal || !sireFinal) {
           const lotKey = (calf.sire||'').replace(/-\d+$/, '');
           const inv = embryoInventory.find(e => e.lot === lotKey || e.sire === calf.sire || e.dam === calf.donor);
