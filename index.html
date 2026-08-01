@@ -736,6 +736,12 @@ textarea{resize:vertical;}
     <!-- 基本情報ブロック -->
     <div class="lf-list">
       <div class="lf-row">
+        <span class="lf-label">📛 名号</span>
+        <div class="lf-val">
+          <input type="text" id="calf-name" placeholder="例: しぐれ" style="font-weight:700;font-size:15px;">
+        </div>
+      </div>
+      <div class="lf-row">
         <span class="lf-label">🏷 耳標</span>
         <div class="lf-val">
           <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;">
@@ -14952,6 +14958,7 @@ function renderCalves() {
           </div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              ${calf.name ? `<span style="font-size:14px;font-weight:700;color:var(--text);">${calf.name}</span>` : ''}
               ${calf.earTagId ? `<span style="font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:700;">${calf.earTagId}</span>` : ''}
               ${calf.nationalId ? `<span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">${String(calf.nationalId).slice(-5).replace(/(\d{4})(\d)$/, '$1-$2')}</span>` : ''}
               <span style="font-size:12px;color:var(--muted);">母: <strong style="color:var(--text);">${calf.damId}${damName?' '+damName:''}</strong>${(()=>{
@@ -15208,7 +15215,7 @@ function promoteCalfToCow(id) {
   if (cows.find(c=>c.id===regId)) return; // すでに登録済み
   cows.push({
     id: regId,
-    name: '',
+    name: calf.name || '',
     nationalId: calf.nationalId || '',
     dob: calf.dob || '',
     lactation: 0,
@@ -15322,6 +15329,7 @@ function rememberCalfNatIdPrefix(el) {
 function openAddCalf() {
   document.getElementById('calf-edit-id').value = '';
   document.getElementById('calf-edit-title').textContent = '🐮 子牛を追加';
+  document.getElementById('calf-name').value = '';
   document.getElementById('calf-dam-name').value = '';
   document.getElementById('calf-dam-id-hidden').value = '';
   document.getElementById('calf-dob').value = today();
@@ -15365,6 +15373,7 @@ function openEditCalfModal(id) {
   if (!calf) return;
   document.getElementById('calf-edit-id').value = id;
   document.getElementById('calf-edit-title').textContent = `🐮 子牛情報を編集`;
+  document.getElementById('calf-name').value = calf.name || '';
   const damNameVal = cowDisplayName(calf.damId) || calf.damId || '';
   document.getElementById('calf-dam-name').value = damNameVal;
   document.getElementById('calf-dam-id-hidden').value = calf.damId || '';
@@ -15446,6 +15455,7 @@ function saveCalf() {
   const id = document.getElementById('calf-edit-id').value;
   const isEtSave = document.getElementById('calf-insem-type').value === 'et';
   const data = {
+    name: document.getElementById('calf-name').value.trim(),
     damId: document.getElementById('calf-dam-id-hidden').value || document.getElementById('calf-dam-name').value.trim(),
     dob: document.getElementById('calf-dob').value,
     sire: document.getElementById('calf-sire').value.trim(),
