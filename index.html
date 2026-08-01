@@ -14624,8 +14624,23 @@ function saveCalvingRecord() {
     }
   }
 
-  // 子牛の「母の父」= 母牛の父（cow.sire）
-  const maternalSire = cow?.sire || '';
+  // 子牛の「母の父」「母の祖父」：
+  // ・AI産仔（自分の子）なら、生んだ牛（cow）自身の系統
+  // ・ET産仔なら、生んだのは受け牛でも遺伝上の母はドナー牛なので、ドナー牛の系統を使う
+  let maternalSire = cow?.sire || '';
+  let maternalGrandSire = cow?.maternalSire || '';
+  if (insemType === 'et' && donor) {
+    // ドナー牛を在籍牛から名前で探して、その牛自身の父・母の父を系統として使う
+    const donorCow = cows.find(c => cowDisplayName(c.id) === donor);
+    if (donorCow) {
+      maternalSire = donorCow.sire || '';
+      maternalGrandSire = donorCow.maternalSire || '';
+    } else {
+      // ドナー牛が在籍牛に見つからない場合、受け牛の系統を誤って使わないよう空にする
+      maternalSire = '';
+      maternalGrandSire = '';
+    }
+  }
 
   // 大きさ（大/中/小）
   // sizeLabel3は上で定義済み
@@ -14637,9 +14652,6 @@ function saveCalvingRecord() {
     coat, sex, weight: sizeLabel3, memo, twin: isTwin,
   };
   calvingRecords.push(rec);
-
-  // 子牛の「母の父」= 母牛の父、「母の母の父」= 母牛の母の父
-  const maternalGrandSire = cow?.maternalSire || '';
 
   // 死産判定（メモに「死産」が含まれる場合）
   const isStillbirthRecord = memo.includes('死産');
