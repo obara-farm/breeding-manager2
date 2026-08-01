@@ -738,14 +738,14 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">🏷 耳標</span>
         <div class="lf-val">
-          <input type="text" id="calf-id" placeholder="例: r25" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;">
+          <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;">
         </div>
       </div>
       <div class="lf-row">
         <span class="lf-label" style="width:auto;margin-right:6px;">🔢 個体識別</span>
         <div class="lf-val" style="flex-direction:column;align-items:flex-end;gap:2px;">
           <div class="lf-natid">
-            <input type="tel" id="calf-national-id-a" placeholder="" maxlength="5" oninput="natidAutoTab(this,'calf-national-id-b',5)">
+            <input type="tel" id="calf-national-id-a" placeholder="" maxlength="5" oninput="natidAutoTab(this,'calf-national-id-b',5);rememberCalfNatIdPrefix(this)">
             <span class="lf-natid-sep">-</span>
             <input type="tel" id="calf-national-id-b" placeholder="" maxlength="4" oninput="natidAutoTab(this,'calf-national-id-c',4)" onkeydown="natidBackTab(event,'calf-national-id-a')">
             <span class="lf-natid-sep">-</span>
@@ -757,7 +757,7 @@ textarea{resize:vertical;}
       </div>
       <div class="lf-row">
         <span class="lf-label">生年月日</span>
-        <div class="lf-val"><input type="date" id="calf-dob"></div>
+        <div class="lf-val"><input type="date" id="calf-dob" onchange="onCalfDobChangeUpdatePrefix()"></div>
       </div>
       <div class="lf-row">
         <span class="lf-label">性別</span>
@@ -15302,6 +15302,11 @@ function clearCalfSize() {
   });
 }
 
+// 個体識別番号の上5桁（上番）を入力し直したら、次回用に記憶する
+function rememberCalfNatIdPrefix(el) {
+  const v = (el.value || '').replace(/\D/g, '');
+  if (v.length === 5) _store.setItem('lastCalfNatIdPrefix', v);
+}
 function openAddCalf() {
   document.getElementById('calf-edit-id').value = '';
   document.getElementById('calf-edit-title').textContent = '🐮 子牛を追加';
@@ -15314,10 +15319,31 @@ function openAddCalf() {
   document.getElementById('calf-sex').value = '';
   document.getElementById('calf-breed').value = '黒毛';
   clearCalfSize();
-  document.getElementById('calf-id').value = '';
+  // 仮耳標：生年の年プレフィックス（例: 26-c）まで自動入力。数字部分だけ打てばいい
+  document.getElementById('calf-id').value = calfIdYearPrefix(document.getElementById('calf-dob').value);
   clearNatId('calf-national-id');
+  // 個体識別番号の上5桁（上番）：前回入力した値を記憶して自動で入れる
+  const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
+  if (lastNatPrefix) document.getElementById('calf-national-id-a').value = lastNatPrefix;
   document.getElementById('calf-memo').value = '';
   openModal('modal-calf-edit');
+}
+// 生年月日から「YY-c」形式の仮耳標プレフィックスを作る（西暦下2桁）
+function calfIdYearPrefix(dobStr) {
+  const d = dobStr ? new Date(dobStr + 'T00:00:00') : new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  return yy + '-c';
+}
+// 生年月日を変更したとき、仮耳標がまだ何も追記されていなければプレフィックスだけ更新する
+function onCalfDobChangeUpdatePrefix() {
+  const idField = document.getElementById('calf-id');
+  const dob = document.getElementById('calf-dob').value;
+  if (!idField) return;
+  const cur = idField.value;
+  // 「YY-c」だけ（数字未入力）の状態なら、新しい年のプレフィックスに差し替える
+  if (/^\d{2}-c$/.test(cur) || !cur) {
+    idField.value = calfIdYearPrefix(dob);
+  }
 }
 
 function openEditCalf(id) { openEditCalfModal(id); }
@@ -15343,6 +15369,11 @@ function openEditCalfModal(id) {
   }
   document.getElementById('calf-id').value = calf.earTagId || '';
   setNatId('calf-national-id', calf.nationalId || '');
+  // 個体識別番号がまだ未入力の子牛は、前回使った上番を候補として入れておく
+  if (!calf.nationalId) {
+    const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
+    if (lastNatPrefix) document.getElementById('calf-national-id-a').value = lastNatPrefix;
+  }
   document.getElementById('calf-memo').value = calf.memo || '';
   // ETの自動判定（insemTypeがetか、sireがロット番号形式か、donorがある場合）
   const isEtCalf2 = calf.insemType === 'et' || calf.donor ||
@@ -15418,6 +15449,23 @@ function saveCalf() {
     insemType: document.getElementById('calf-insem-type').value,
     insemDate: document.getElementById('calf-insem-date').value || null,
   };
+  // 仮の耳標番号（例: c53）が、過去に使われた別の個体と重複していないか確認する
+  // （子牛が個体タブに登録されるとき earTagId がそのまま個体IDになるため、重複すると別牛のデータと混ざる危険がある）
+  if (data.earTagId) {
+    const dupCow = cows.find(c => c.id === data.earTagId && c.id !== id);
+    const dupCalf = calves.find(c => c.earTagId === data.earTagId && c.id !== id);
+    if (dupCow || dupCalf) {
+      const dupName = dupCow ? cowDisplayName(dupCow.id) : (dupCalf.sire ? `${dupCalf.sire}の子` : '別の子牛');
+      const dupYear = dupCow ? (dupCow.dob||'') : (dupCalf.dob||'');
+      const ok = confirm(
+        `⚠ 耳標「${data.earTagId}」は既に使われています（${dupName}${dupYear?'　'+fmtDate(dupYear):''}）。\n` +
+        `このまま同じ番号で登録すると、個体タブに登録したときにデータが混ざるおそれがあります。\n\n` +
+        `番号を変える（例: 年を頭に付けて「${new Date(data.dob||today()).getFullYear().toString().slice(-2)}-${data.earTagId}」）ことをおすすめします。\n\n` +
+        `このまま「${data.earTagId}」で登録しますか？`
+      );
+      if (!ok) return;
+    }
+  }
   if (id) {
     const calf = calves.find(c=>c.id===id);
     if (calf) Object.assign(calf, data);
