@@ -4565,7 +4565,13 @@ function renderCowList() {
     const isDonorCow = cow.isDonor || (cow.events||[]).some(e => ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type) && !e._retired);
     const isPregWaiting = !isDonorCow && (cow.status === 'open' || cow.status === 'program') && lastAiEt &&
       (!hasPregResult || hasNewAiAfterNeg);
-    const displayStatus = isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
+    // 未経産で一度も授精していない若い牛：空胎ではなく「授精可能日」を表示
+    const neverBred = !(cow.events||[]).some(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+    const FIRST_SERVICE_AGE_DAYS = 425;   // 目安：生後約14ヶ月（施設・体格により調整可）
+    const ageDaysNow = cowDob ? diffDays(today(), cowDob) : null;
+    const notYetEligible = cow.status === 'open' && neverBred && ageDaysNow !== null && ageDaysNow < FIRST_SERVICE_AGE_DAYS;
+    const eligibleDate = notYetEligible ? addDays(cowDob, FIRST_SERVICE_AGE_DAYS) : null;
+    const displayStatus = notYetEligible ? `授精可能: ${fmtDate(eligibleDate)}` : isPregWaiting ? '妊鑑待ち' : (statusLabel[cow.status]||cow.status);
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
     // 最終受精・移植情報
     const lastInsemLabel = lastAiEt ? (() => {
@@ -6555,7 +6561,17 @@ function renderStats() {
       const buildSireMap = (calvesForBreed) => {
         const sireMap = {};
         calvesForBreed.forEach(c => {
-          const key = c.sire || '（種雄牛未記録）';
+          // ET産仔は c.sire に胚番号が入っていることがあるので、実際の種雄牛名に解決する
+          let key = c.sire || '（種雄牛未記録）';
+          if (key !== '（種雄牛未記録）' && typeof looksLikeEmbryo === 'function' && looksLikeEmbryo(key)) {
+            const combo = embryoDonorSire(key);   // 「ドナー×種雄牛」の形で返る
+            if (combo && combo.includes('×')) {
+              const sireName = combo.split('×')[1]?.trim();
+              if (sireName) key = sireName;
+            } else if (c.sire2 || c.actualSire) {
+              key = c.sire2 || c.actualSire;
+            }
+          }
           if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
           const rec = calvingRecords.find(r => r.id === c.calvingRecordId);
 
@@ -6771,8 +6787,13 @@ function renderStats() {
           decidedFromEvents.push({ pregResult: result, embryoType: isFrozen ? 'frozen' : 'fresh', stage });
         });
       });
-      // etRecordsも追加（古いデータとの互換性）
-      const decidedOld = etRecords.filter(r => r.pregResult === 'positive' || r.pregResult === 'negative');
+      // etRecordsも追加（古いデータとの互換性）※ 期間・除外条件（R8年1〜2月融解ミス／R6製造胚）を新データと同様に適用する
+      const decidedOld = etRecords.filter(r => {
+        if (r.pregResult !== 'positive' && r.pregResult !== 'negative') return false;
+        if (typeof statsDateFrom !== 'undefined' && (r.date < statsDateFrom || r.date > statsDateTo)) return false;
+        if (isEtRecExcluded({date:r.date, s:r.sire||'', m:(r.embryoId||'')+' '+(r.memo||'')})) return false;
+        return true;
+      });
       const decided = [...decidedFromEvents, ...decidedOld];
       if (!decided.length) return `
         <div class="stats-card">
