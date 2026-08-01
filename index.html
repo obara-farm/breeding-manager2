@@ -5870,6 +5870,24 @@ function embryoDonorSire(no) {
   if (l2 && l2.name) return clean(l2.name);
   return '';
 }
+// 胚番号から、採卵記録・胚在庫・採卵シートを辿ってステージ（CM/EB/BL/EX/MO等）を引く
+function embryoStageOf(no) {
+  if (!no) return '';
+  const key = String(no).trim().split(/[\s　／/]/)[0];
+  if (!key) return '';
+  const CR = (typeof collectionRecordsNew!=='undefined'?collectionRecordsNew:[]);
+  for (const r of CR) {
+    const f1=(r.frozenEmbryos||[]).find(e=>String(e.no||'').trim()===key);
+    if (f1 && f1.stage) return f1.stage;
+    const f2=(r.freshEmbryos||[]).find(e=>String(e.embryoNo||'').trim()===key);
+    if (f2 && (f2.stage||f2.cultureStage)) return f2.stage||f2.cultureStage;
+    const f3=(r.cultureEmbryos||[]).find(e=>String(e.embryoNo||'').trim()===key);
+    if (f3 && (f3.cultureStage||f3.stage)) return f3.cultureStage||f3.stage;
+  }
+  const inv = (typeof embryoInventory!=='undefined'?embryoInventory:[]).find(e => (e.embryoDetails||[]).some(d=>d.no===key));
+  if (inv) { const d=(inv.embryoDetails||[]).find(x=>x.no===key); if(d && d.stage) return d.stage; }
+  return '';
+}
 // 授精簿メモの表示用ラベル（ETならドナー×種雄牛を前に出す）
 // 文字列が胚番号（＝ET）を含むか判定：01L237形式・ロット形式・「胚番号:」・「×」表記
 // 授精簿から、指定の牛・日付の胚番号（s欄）またはメモ（m欄）を返す。イベントのメモが空のときの補完用
@@ -6009,9 +6027,9 @@ function renderStats() {
       yearSel.appendChild(opt);
     }
     const optAll = document.createElement('option');
-    optAll.value = 'all'; optAll.textContent = '全期間';
+    optAll.value = 'all'; optAll.textContent = '全期間（R7年度〜）';
     yearSel.appendChild(optAll);
-    yearSel.value = 'R' + currentFY;   // 初期表示は最新年度
+    yearSel.value = 'all';   // 初期表示はR7年度からの全期間（単年度だと母数が少なく「不明」が目立つため）
     yearSel.dataset.built = '1';
   }
   const selectedYear = yearSel ? yearSel.value : 'all';
@@ -6513,47 +6531,51 @@ function renderStats() {
           </div>
         </div>`;
 
-      // 種雄牛ごとに集計
-      const sireMap = {};
-      validCalves.forEach(c => {
-        const key = c.sire || '（種雄牛未記録）';
-        if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
-        const rec = calvingRecords.find(r => r.id === c.calvingRecordId);
+      // 種雄牛ごとに集計（褐毛／黒毛を分けて別々に集計する）
+      const buildSireMap = (calvesForBreed) => {
+        const sireMap = {};
+        calvesForBreed.forEach(c => {
+          const key = c.sire || '（種雄牛未記録）';
+          if (!sireMap[key]) sireMap[key] = { recs: [], sizes: [], timings: {早産:0,正常:0,遅産:0,不明:0}, weights: [] };
+          const rec = calvingRecords.find(r => r.id === c.calvingRecordId);
 
-        // birthTimingの決定：calvingRecord → 授精履歴から推定 の順
-        let birthTiming = rec?.birthTiming || null;
-        if (!birthTiming && c.dob) {
-          // 母牛の授精イベントから分娩予定日を推定
-          const dam = cows.find(cow => cow.id === c.damId);
-          if (dam) {
-            const evts = (dam.events || []).filter(e =>
-              ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && e.date <= c.dob
-            ).sort((a,b) => b.date.localeCompare(a.date));
-            if (evts.length) {
-              const lastInsem = evts[0];
-              const estimatedDue = addDays(lastInsem.date, lastInsem.type.includes('et') ? 278 : 285);
-              const diff = diffDays(c.dob, estimatedDue); // 分娩日 - 予定日
-              birthTiming = diff <= -10 ? '早産' : diff >= 10 ? '遅産' : '正常';
+          let birthTiming = rec?.birthTiming || null;
+          if (!birthTiming && c.dob) {
+            const dam = cows.find(cow => cow.id === c.damId);
+            if (dam) {
+              const evts = (dam.events || []).filter(e =>
+                ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && e.date <= c.dob
+              ).sort((a,b) => b.date.localeCompare(a.date));
+              if (evts.length) {
+                const lastInsem = evts[0];
+                const estimatedDue = addDays(lastInsem.date, lastInsem.type.includes('et') ? 278 : 285);
+                const diff = diffDays(c.dob, estimatedDue);
+                birthTiming = diff <= -10 ? '早産' : diff >= 10 ? '遅産' : '正常';
+              }
             }
           }
-        }
-        birthTiming = birthTiming || '不明';
+          birthTiming = birthTiming || '不明';
 
-        const pseudoRec = {
-          sire: key,
-          sizeScore: rec?.sizeScore ?? null,
-          birthTiming,
-          weight: rec?.weight ?? null,
-        };
-        sireMap[key].recs.push(pseudoRec);
-        if (pseudoRec.sizeScore) sireMap[key].sizes.push(pseudoRec.sizeScore);
-        if (pseudoRec.birthTiming && pseudoRec.birthTiming !== '不明') {
-          sireMap[key].timings[pseudoRec.birthTiming] = (sireMap[key].timings[pseudoRec.birthTiming]||0) + 1;
-        } else {
-          sireMap[key].timings['不明'] = (sireMap[key].timings['不明']||0) + 1;
-        }
-        if (pseudoRec.weight) sireMap[key].weights.push(pseudoRec.weight);
-      });
+          const pseudoRec = {
+            sire: key,
+            sizeScore: rec?.sizeScore ?? null,
+            birthTiming,
+            weight: rec?.weight ?? null,
+          };
+          sireMap[key].recs.push(pseudoRec);
+          if (pseudoRec.sizeScore) sireMap[key].sizes.push(pseudoRec.sizeScore);
+          if (pseudoRec.birthTiming && pseudoRec.birthTiming !== '不明') {
+            sireMap[key].timings[pseudoRec.birthTiming] = (sireMap[key].timings[pseudoRec.birthTiming]||0) + 1;
+          } else {
+            sireMap[key].timings['不明'] = (sireMap[key].timings['不明']||0) + 1;
+          }
+          if (pseudoRec.weight) sireMap[key].weights.push(pseudoRec.weight);
+        });
+        return sireMap;
+      };
+      const kashigeCalves = validCalves.filter(c => (c.breed||'')==='褐毛');
+      const kurogeCalves  = validCalves.filter(c => (c.breed||'')==='黒毛');
+      const otherCalves   = validCalves.filter(c => !['褐毛','黒毛'].includes(c.breed||''));
 
       const sizeLabel = s => {
         if (s === undefined || s === null) return '—';
@@ -6579,7 +6601,7 @@ function renderStats() {
       };
 
       const sireSearchQ = (document.getElementById('sire-search')?.value || '').trim();
-      const rows = Object.entries(sireMap)
+      const buildRows = (sireMap) => Object.entries(sireMap)
         .filter(([name]) => !sireSearchQ || name.includes(sireSearchQ))
         .sort((a,b) => b[1].recs.length - a[1].recs.length)
         .map(([name, d]) => {
@@ -6610,11 +6632,48 @@ function renderStats() {
             </div>`;
         }).join('');
 
-      // 全体集計（validCalvesのcalvingRecordから集計）
-      const allSizes = validCalves.map(c => calvingRecords.find(r=>r.id===c.calvingRecordId)?.sizeScore).filter(Boolean);
-      const overallAvg = allSizes.length ? (allSizes.reduce((a,b)=>a+b,0)/allSizes.length).toFixed(1) : null;
-      const allTimings = {早産:0,正常:0,遅産:0};
-      validCalves.forEach(c=>{ const r=calvingRecords.find(x=>x.id===c.calvingRecordId); if(r?.birthTiming && allTimings[r.birthTiming]!==undefined) allTimings[r.birthTiming]++; });
+      // 品種ごとの全体集計
+      const breedSummary = (calvesForBreed) => {
+        const sizes = calvesForBreed.map(c => calvingRecords.find(r=>r.id===c.calvingRecordId)?.sizeScore).filter(Boolean);
+        const avg = sizes.length ? (sizes.reduce((a,b)=>a+b,0)/sizes.length).toFixed(1) : null;
+        const timings = {早産:0,正常:0,遅産:0};
+        calvesForBreed.forEach(c=>{ const r=calvingRecords.find(x=>x.id===c.calvingRecordId); if(r?.birthTiming && timings[r.birthTiming]!==undefined) timings[r.birthTiming]++; });
+        if (!avg) return '';
+        return `
+          <div style="background:linear-gradient(135deg,#0d2a1a,#1a2a1a);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px;">
+            <div style="font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px;">全体集計</div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div><span style="color:var(--muted);font-size:12px;">平均体格: </span>${sizeLabel(parseFloat(avg))}</div>
+              <div><span style="color:var(--muted);font-size:12px;">早産: </span><span style="color:var(--info);font-weight:700;">${timings.早産}頭</span></div>
+              <div><span style="color:var(--muted);font-size:12px;">正常: </span><span style="color:var(--accent);font-weight:700;">${timings.正常}頭</span></div>
+              <div><span style="color:var(--muted);font-size:12px;">遅産: </span><span style="color:var(--warn);font-weight:700;">${timings.遅産}頭</span></div>
+            </div>
+          </div>`;
+      };
+
+      const breedSection = (label, icon, calvesForBreed) => {
+        if (!calvesForBreed.length) return '';
+        const sireMap = buildSireMap(calvesForBreed);
+        const rows = buildRows(sireMap);
+        if (!rows) return '';   // 検索でこの品種に該当なし
+        return `
+          <div style="font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px;margin:16px 0 8px;">${icon} ${label}（${calvesForBreed.length}頭分）</div>
+          ${breedSummary(calvesForBreed)}
+          ${rows}`;
+      };
+
+      const sectionsHtml = [
+        breedSection('褐毛和種', '🟥', kashigeCalves),
+        breedSection('黒毛和種', '⬛', kurogeCalves),
+        breedSection('品種未設定', '❔', otherCalves),
+      ].filter(Boolean).join('<div style="height:1px;background:var(--border);margin:14px 0;"></div>');
+
+      if (!sectionsHtml) return `
+        <div class="stats-card">
+          <div class="stats-title">🐄 種雄牛別産仔分析</div>
+          <input type="text" id="sire-search" placeholder="🔍 種雄牛名で検索..." oninput="renderStats()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;margin-bottom:12px;outline:none;">
+          <div style="color:var(--muted);font-size:13px;text-align:center;padding:10px;">該当する産仔データがありません</div>
+        </div>`;
 
       return `
         <div class="stats-card">
@@ -6623,17 +6682,7 @@ function renderStats() {
             <span style="font-size:11px;font-weight:500;color:var(--muted);">全${validCalves.length}頭分</span>
           </div>
           <input type="text" id="sire-search" placeholder="🔍 種雄牛名で検索..." oninput="renderStats()" style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:8px 12px;margin-bottom:12px;outline:none;">
-          ${overallAvg ? `
-            <div style="background:linear-gradient(135deg,#0d2a1a,#1a2a1a);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px;">
-              <div style="font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px;margin-bottom:8px;">全体集計</div>
-              <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                <div><span style="color:var(--muted);font-size:12px;">平均体格: </span>${sizeLabel(parseFloat(overallAvg))}</div>
-                <div><span style="color:var(--muted);font-size:12px;">早産: </span><span style="color:var(--info);font-weight:700;">${allTimings.早産}頭</span></div>
-                <div><span style="color:var(--muted);font-size:12px;">正常: </span><span style="color:var(--accent);font-weight:700;">${allTimings.正常}頭</span></div>
-                <div><span style="color:var(--muted);font-size:12px;">遅産: </span><span style="color:var(--warn);font-weight:700;">${allTimings.遅産}頭</span></div>
-              </div>
-            </div>` : ''}
-          ${rows}
+          ${sectionsHtml}
         </div>`;
     })()}
 
@@ -6691,8 +6740,14 @@ function renderStats() {
           else if (nextRec) result = 'negative';
           if (!result) return;
           const isFrozen = isEmbryoFrozen(rec.s, rec.m);
-          const stageM = (rec.s||'').match(/\b(CM|EB|BL|EX|MO)\b/) || (rec.m||'').match(/\b(CM|EB|BL|EX|MO)\b/);
-          const stage = stageM ? stageM[1] : '不明';
+          // 胚番号（s欄優先、無ければm欄）からステージを引く。取れなければ文字列中の直書きステージコードを拾う
+          const embNo = looksLikeEmbryo(rec.s) ? rec.s : (looksLikeEmbryo(rec.m) ? rec.m : (rec.s || rec.m));
+          const embNoKey = String(embNo||'').match(/01L237[A-Za-z0-9\-]+|\d{2}[A-L]\d{2}B\d+-\d+/);
+          let stage = embNoKey ? embryoStageOf(embNoKey[0]) : '';
+          if (!stage) {
+            const stageM = (rec.s||'').match(/\b(CM|EB|BL|EX|MO)\b/) || (rec.m||'').match(/\b(CM|EB|BL|EX|MO)\b/);
+            stage = stageM ? stageM[1] : '不明';
+          }
           decidedFromEvents.push({ pregResult: result, embryoType: isFrozen ? 'frozen' : 'fresh', stage });
         });
       });
@@ -14874,15 +14929,20 @@ function renderCalves() {
           ${calf.status === 'active' ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="moved" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">✓ 移動済みにする</button>
           ` : ''}
-          ${calf.status === 'kept' ? `
+          ${(calf.status === 'kept' || calf.isBreedingCandidate) ? `
             ${cows.some(c=>c.id===calf.earTagId)
               ? `<button class="calf-action-btn" data-calfid="${calf.id}" data-action="demote" style="background:#0d2a1a;border:2px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">✅ 個体タブ登録済み（解除）</button>`
               : calf.nationalId
                 ? `<button class="calf-action-btn" data-calfid="${calf.id}" data-action="promote" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">🐄 個体タブに登録</button>`
                 : `<button class="calf-action-btn" data-calfid="${calf.id}" data-action="editnat" style="background:#1a0d00;border:2px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">⚠ 個体識別番号を入力してから登録</button>`
             }
+          ` : ''}
+          ${calf.status === 'kept' ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="moved" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">✓ 移動済みにする</button>
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="active" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">保留を解除</button>
+          ` : ''}
+          ${calf.status === 'moved' && calf.isBreedingCandidate ? `
+            <button class="calf-action-btn" data-calfid="${calf.id}" data-action="active" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">🌟 繁殖候補を解除</button>
           ` : ''}
           ${calf.status === 'moved' ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="active" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">↩ 移動済みを取り消す</button>
@@ -15045,6 +15105,13 @@ function setCalfStatus(id, status) {
       tasks = tasks.filter(t => t.cowId !== calf.earTagId);
     }
     calf.isBreedingCandidate = false;
+  }
+  // 移動済み＋繁殖候補フラグの牛を「候補解除」する場合（個体タブ登録の有無はそのまま）
+  if (calf.status === 'moved' && calf.isBreedingCandidate && status === 'active') {
+    calf.isBreedingCandidate = false;
+    calf.status = 'moved';   // 移動済みという状態自体は維持し、候補フラグだけ外す
+    save(); renderCalves(); renderCowList();
+    return;
   }
   calf.status = status;
   save(); renderCalves(); renderCowList();
