@@ -17704,6 +17704,8 @@ function saveOtherFarms(){ _store.setItem('otherFarms', JSON.stringify(otherFarm
 function saveFattening() {
   try { _store.setItem('fatteningRecords', JSON.stringify(fatteningRecords)); } catch(e) {}
   if (typeof invalidateRoleSuggestions==='function') invalidateRoleSuggestions();
+  // Firebaseにも同期する（ローカル保存だけだと同期で古いデータに上書きされるため）
+  if (typeof save === 'function') save();
 }
 
 function selectBreed(breed) {
@@ -18319,7 +18321,7 @@ function renderRank(){
       +'<div class="mcell"><b style="color:'+bmsColor(g.avgBms)+';">'+(g.avgBms==null?'—':g.avgBms)+'</b><div>BMS平均</div></div>'
       +'<div class="mcell"><b style="color:var(--info);font-size:'+((g.avgWCast!=null&&g.avgWHeif!=null)?'11':'15')+'px;">'+(function(){var wc=g.avgWCast!=null?Math.round(g.avgWCast):null,wh=g.avgWHeif!=null?Math.round(g.avgWHeif):null;if(wc!=null&&wh!=null)return '♂'+wc+'<br>♀'+wh;if(wc!=null)return '♂'+wc;if(wh!=null)return '♀'+wh;return sizeLabel(g.avgWeight);})()+'</b><div>枝重平均</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+(g.avgYield==null?'—':g.avgYield+'%')+'</b><div>歩留率</div></div>'
-      +'<div class="mcell"><b style="color:var(--accent);">'+g.rateA3+'%</b><div>A3以上率</div></div>'
+      +'<div class="mcell"><b style="color:var(--accent);">'+(g.isKuroge?g.rateBms11:g.rateA3)+'%</b><div>'+(g.isKuroge?'BMS11以上率':'A3以上率')+'</div></div>'
       +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>'+(g.isKuroge?'A5以上率':'A4以上率')+'</div></div>'
       +'</div><div class="detail" onclick="event.stopPropagation()">'+detailHtml+'</div></div>';
   }).join('');
@@ -19004,13 +19006,25 @@ function renderFattening() {
     let k = r[groupKey] || '不明';
     if (groupKey==='sire') k = normalizeSireName(k) || '不明';   // 表記ゆれを吸収
     if (groupKey==='dam') {
-      // 同名でも「農家・母の父・母の祖父」が違えば別の牛として分ける
       const name = (r.dam||'不明').trim();
       const farmer = (r.farmer||'').trim();
       const msire = normalizeSireName((r.grandsire||'').trim());       // 母の父
       const mgsire = normalizeSireName((r.greatgrandsire||'').trim()); // 母の祖父
-      k = [name, farmer, msire, mgsire].join('|');
-      if (!groupMeta[k]) groupMeta[k] = { name, farmer, msire, mgsire };
+      if (r.breed === '黒毛') {
+        // 黒毛は自分の牛だけなので、同名なら同じ牛として統合する
+        // （データ形式によって母の祖父が入らないため、系統でグループを分けない）
+        k = [name, farmer].join('|');
+        if (!groupMeta[k]) groupMeta[k] = { name, farmer, msire, mgsire };
+        else {
+          // 系統は分かっている記録の値を採用（空欄のレコードで上書きしない）
+          if (!groupMeta[k].msire && msire) groupMeta[k].msire = msire;
+          if (!groupMeta[k].mgsire && mgsire) groupMeta[k].mgsire = mgsire;
+        }
+      } else {
+        // 褐毛は他農家のデータも混ざるため、同名でも「農家・母の父・母の祖父」が違えば別の牛として分ける
+        k = [name, farmer, msire, mgsire].join('|');
+        if (!groupMeta[k]) groupMeta[k] = { name, farmer, msire, mgsire };
+      }
     }
     if (!map[k]) map[k] = [];
     map[k].push(r);
@@ -19244,12 +19258,12 @@ function renderFattening() {
             <div style="font-size:10px;color:var(--muted);">歩留率平均</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
-            <div style="font-weight:700;color:var(--accent);">${g.rateA3}%</div>
-            <div style="font-size:10px;color:var(--muted);">A3以上率</div>
+            <div style="font-weight:700;color:var(--accent);">${g.isKuroge ? g.rateBms11+'%' : g.rateA3+'%'}</div>
+            <div style="font-size:10px;color:var(--muted);">${g.isKuroge ? 'BMS11以上率' : 'A3以上率'}</div>
           </div>
           <div style="background:var(--bg3);border-radius:6px;padding:6px 4px;">
             <div style="font-weight:700;color:var(--warn);">${g.rateHigh}%</div>
-            <div style="font-size:10px;color:var(--muted);">A4以上率</div>
+            <div style="font-size:10px;color:var(--muted);">${g.isKuroge ? 'A5以上率' : 'A4以上率'}</div>
           </div>
         </div>
         ${clickable ? `<div id="${cardId}" onclick="event.stopPropagation()" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;cursor:default;">${renderDamOffspring(g._recs)}</div>` : ''}
