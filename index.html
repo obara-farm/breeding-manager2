@@ -12675,13 +12675,18 @@ function renderTransferBook(){
             if (t.pregResult === '+' || t.pregResult === '-') return '';   // 結果が出ていれば予定は出さない
             const d45 = addDays(t.transferDate, 45), d60 = addDays(t.transferDate, 60);
             const l45 = diffDays(d45, today()), l60 = diffDays(d60, today());
-            const chip = (label, d, left) => {
+            const chip = (label, d, left, baseCol) => {
               const done = left < 0;
               const soon = left >= 0 && left <= 3;
-              const col = done ? 'var(--muted)' : soon ? 'var(--warn)' : 'var(--info)';
-              return `<span style="font-size:10px;color:${col};border:1px solid ${col};border-radius:4px;padding:1px 6px;margin-right:5px;white-space:nowrap;">${label} ${fmtDateShort(d)}${left>0?`（あと${left}日）`:left===0?'（本日）':'（経過）'}</span>`;
+              const col = done ? 'var(--muted)' : soon ? 'var(--warn)' : (baseCol || 'var(--info)');
+              return `<span style="font-size:10px;color:${col};border:1px solid ${col};border-radius:4px;padding:1px 6px;margin-right:5px;white-space:nowrap;display:inline-block;margin-bottom:3px;">${label} ${fmtDateShort(d)}${left>0?`（あと${left}日）`:left===0?'（本日）':'（経過）'}</span>`;
             };
-            return `<div style="margin-top:5px;">🔬 ${chip('1回目', d45, l45)}${chip('2回目', d60, l60)}</div>`;
+            // 戻り発情：受胎していなければ21日周期で発情が回帰する
+            const e1 = addDays(t.transferDate, 21), e2 = addDays(t.transferDate, 42);
+            const le1 = diffDays(e1, today()), le2 = diffDays(e2, today());
+            return `<div style="margin-top:5px;">🔬 ${chip('妊鑑1回目', d45, l45)}${chip('妊鑑2回目', d60, l60)}</div>
+              <div style="margin-top:2px;">🔄 ${chip('戻り発情', e1, le1, 'var(--purple)')}${chip('2回目', e2, le2, 'var(--purple)')}
+              <span style="font-size:9px;color:var(--muted);">発情が来たら不受胎の可能性</span></div>`;
           })()}
           <div style="font-size:10px;color:var(--muted);margin-top:2px;">術者: ${t.vet||''}${t.vetLicense?'（'+t.vetLicense+'）':''} ・ タップで編集</div>
         </div>`;
@@ -18993,7 +18998,11 @@ function renderKoubutsu(recs, allRecs){
       mAvgPts.push(v==null ? null : [mxOf(m), myOf(v), v, list.length]);
     }
     const mAvgPath = mAvgPts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
-    const mAvgDots = mAvgPts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--text)"><title>全農家平均 ${p[3]}頭：${p[2]}%</title></circle>`).join('');
+    const mAvgDots = mAvgPts.map((p,pi)=>{
+      if (!p) return '';
+      const mm = pi + 1;
+      return `<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="var(--text)" style="cursor:pointer;" onclick="showMonthDetail('${y}',${mm},'')"><title>全農家 ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`;
+    }).join('');
 
     // 農家ごとの線（年度推移グラフと同じ配色・同じ考え方）
     let mFarmerLines='', mLegend='';
@@ -19007,9 +19016,14 @@ function renderKoubutsu(recs, allRecs){
       }
       const path = pts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
       const single = farmerList.length===1;
+      // 点をタップするとその月の明細を開く
       if (path) mFarmerLines += `<path d="${path}" fill="none" stroke="${col}" stroke-width="${single?2.5:1.5}" opacity="0.9"/>`
-        + pts.filter(Boolean).map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="${single?3:2}" fill="${col}"><title>${f} ${p[3]}頭：${p[2]}%</title></circle>`
-          + (single?`<text x="${p[0]}" y="${p[1]-6}" font-size="8" fill="${col}" text-anchor="middle" font-weight="700">${p[2]}</text>`:'')).join('');
+        + pts.map((p,pi)=>{
+            if (!p) return '';
+            const mm = pi + 1;
+            return `<circle cx="${p[0]}" cy="${p[1]}" r="${single?5:4}" fill="${col}" style="cursor:pointer;" onclick="showMonthDetail('${y}',${mm},'${String(f).replace(/'/g,"\\'")}')"><title>${f} ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`
+              + (single?`<text x="${p[0]}" y="${p[1]-8}" font-size="8" fill="${col}" text-anchor="middle" font-weight="700">${p[2]}</text>`:'');
+          }).join('');
       const fname = f===OWN_FARMER?'🏠小原':f;
       mLegend += `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:12px;height:3px;background:${col};display:inline-block;border-radius:2px;"></span>${fname}</span>`;
     });
@@ -19026,6 +19040,7 @@ function renderKoubutsu(recs, allRecs){
         <path d="${mAvgPath}" fill="none" stroke="var(--text)" stroke-width="2.5"/>${mAvgDots}
       </svg>
       <div style="margin-top:8px;line-height:1.8;">${mLegend}</div>
+      <div id="month-detail-box" style="margin-top:10px;"></div>
     </div>`;
   })();
   return lineChart + monthlyChart + barChart;
@@ -19147,6 +19162,30 @@ function renderHomerun(recs){
         + (s!==100 ? `<button onclick="normalizeHrW()" style="background:var(--accent);border:none;color:#fff;font-size:10px;font-weight:700;padding:4px 8px;border-radius:5px;cursor:pointer;">100%に揃える</button>` : ''); })()}
     </div>` : ''}`;
   return note + cards;
+}
+// 月別グラフの点をタップしたとき、その月の枝肉成績の明細を表示する
+function showMonthDetail(year, month, farmer){
+  const box = document.getElementById('month-detail-box');
+  if (!box) return;
+  const breedFilter = document.getElementById('fat-breed-filter')?.value || '褐毛';
+  const mm = String(month).padStart(2,'0');
+  let list = fatteningRecords.filter(r =>
+    String(r.year) === String(year) &&
+    r.slaughterDate && String(r.slaughterDate).slice(5,7) === mm &&
+    r.breed === breedFilter);
+  if (farmer) list = list.filter(r => r.farmer === farmer);
+  else if (fatSelectedFarmers.length) list = list.filter(r => fatSelectedFarmers.includes(r.farmer));
+  if (!list.length) { box.innerHTML = '<div style="font-size:11px;color:var(--muted);">この月のデータがありません</div>'; return; }
+  list.sort((a,b)=>(a.slaughterDate||'').localeCompare(b.slaughterDate||''));
+  const who = farmer ? (farmer === OWN_FARMER ? '🏠小原' : farmer) : '全農家';
+  box.innerHTML = `<div style="border-top:1px solid var(--border);padding-top:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <div style="font-size:12px;font-weight:700;color:var(--accent);">📋 R${parseInt(year)-2018}年${month}月 ${who}（${list.length}頭）</div>
+        <button onclick="document.getElementById('month-detail-box').innerHTML=''" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:5px;cursor:pointer;">✕ 閉じる</button>
+      </div>
+      ${renderDamOffspring(list)}
+    </div>`;
+  box.scrollIntoView({behavior:'smooth', block:'nearest'});
 }
 function renderDamOffspring(recs){
   if(!recs||!recs.length) return '<div style="font-size:11px;color:var(--muted);">産子データなし</div>';
