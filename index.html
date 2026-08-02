@@ -4775,7 +4775,7 @@ function renderCowList() {
         <div style="font-size:12px;text-align:right;">
           <span class="cow-status-dot ${displayDot}"></span>${displayStatus}
           ${cow.twin ? ' <span style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;">👯 双子注意</span>' : ''}
-          ${cow.lactation?` ／ ${cow.lactation}産`:''}
+          ${cow.lactation?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${cow.lactation}産</div>`:''}
         </div>
       </div>
       <div class="cow-info-grid">
@@ -4783,6 +4783,18 @@ function renderCowList() {
         <div>直近: <strong>${cowTasks.length?fmtDate(cowTasks.sort((a,b)=>a.date.localeCompare(b.date))[0].date):'なし'}</strong></div>
         ${cow.calvingDate?`<div>分娩日: <strong>${fmtDate(cow.calvingDate)}</strong></div>`:''}
         ${cow.dueDate && cow.status==='pregnant'?`<div>分娩予定: <strong style="color:var(--purple)">${fmtDate(cow.dueDate)}</strong></div>`:''}
+        ${(() => {
+          // 妊娠鑑定をいつ行ったか（授精後何日目に見たか）を表示。早期妊鑑だったかが後から分かるように
+          if (cow.status !== 'pregnant') return '';
+          const pos = (cow.events||[]).filter(e => e.type === 'preg_positive')
+            .sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+          if (!pos) return '';
+          const ins = (cow.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
+            && (e.date||'') <= (pos.date||'')).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+          const dAfter = ins ? diffDays(pos.date, ins.date) : null;
+          const early = dAfter !== null && dAfter < 40;
+          return `<div>妊鑑日: <strong style="color:${early?'var(--warn)':'var(--text)'}">${fmtDate(pos.date)}</strong>${dAfter!==null?`<span style="font-size:10px;color:${early?'var(--warn)':'var(--muted)'};">（授精後${dAfter}日${early?'・早期':''}）</span>`:''}</div>`;
+        })()}
         ${openDays!==null&&cow.status==='open'&&!isPregWaiting?`<div>空胎日数: <strong style="color:${openDays>90?'var(--danger)':openDays>60?'var(--warn)':'var(--text)'}">${openDays}日</strong></div>`:''}
         ${nextEstrusLabel}
       </div>
@@ -6329,9 +6341,15 @@ function renderStats() {
     const fys = Object.keys(byFy).map(Number).sort((a,b) => b - a);
     if (!fys.length) return '';
 
+    const latest = byFy[fys[0]];
     return `
     <div class="stats-card">
-      <div class="stats-title">🐮 産子・死亡集計（暦年別）</div>
+      <div class="stats-title" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"
+           onclick="var d=document.getElementById('birthdeath-body');d.style.display=d.style.display==='none'?'block':'none';this.querySelector('.bd-arrow').textContent=d.style.display==='none'?'▶':'▼';">
+        <span>🐮 産子・死亡集計（暦年別）</span>
+        <span style="font-size:11px;font-weight:400;color:var(--muted);">${fys[0]}年 ♂${latest.male} ♀${latest.female} 死亡${latest.dead} <span class="bd-arrow">▶</span></span>
+      </div>
+      <div id="birthdeath-body" style="display:none;margin-top:10px;">
       ${fys.map(fy => {
         const g = byFy[fy];
         const deathRate = g.total ? Math.round(g.dead / g.total * 100) : 0;
@@ -6359,6 +6377,7 @@ function renderStats() {
         </div>`;
       }).join('')}
       <div style="font-size:10px;color:var(--muted);">※ 集計は暦年（1月〜12月）。死亡には死産を含みます。</div>
+      </div>
     </div>`;
   })();
 
@@ -15229,6 +15248,19 @@ function updateCalvesBadge() {
   else { badge.style.display = 'none'; }
 }
 
+// 子牛の日齢表示をタップすると月齢に切り替える
+function toggleCalfAgeUnit(el){
+  const days = parseInt(el.dataset.days) || 0;
+  if (el.dataset.mode === 'd') {
+    const m = Math.floor(days / 30.4);
+    const rem = days - Math.round(m * 30.4);
+    el.textContent = m >= 1 ? `${m}ヶ月${rem > 0 ? rem + '日' : ''}` : `${days}日`;
+    el.dataset.mode = 'm';
+  } else {
+    el.textContent = `${days}日`;
+    el.dataset.mode = 'd';
+  }
+}
 function renderCalves() {
   updateCalvesBadge();
   const todayStr = today();
@@ -15396,7 +15428,7 @@ function renderCalves() {
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-              ${calf.dob ? fmtDate(calf.dob) : '—'}${ageDays !== null ? ` (生後<strong style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'}">${ageDays}日</strong>)` : ''}
+              ${calf.dob ? fmtDate(calf.dob) : '—'}${ageDays !== null ? ` (生後<strong onclick="event.stopPropagation();toggleCalfAgeUnit(this)" data-days="${ageDays}" data-mode="d" style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'};cursor:pointer;border-bottom:1px dotted currentColor;">${ageDays}日</strong>)` : ''}
               ${isOverdue ? ' <span style="color:var(--warn);font-weight:700;">⚠️ 移動検討</span>' : ''}
             </div>
           </div>
@@ -18049,14 +18081,27 @@ function updateFatYearFilter() {
     fmenu.innerHTML =
       '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:4px;">'
       + '<input type="checkbox" id="fat-farmer-all" onchange="onFarmerAllToggle(this)" '+(fatSelectedFarmers.length===0?'checked':'')+'> 全農家</label>'
+      + '<div onclick="selectActiveFarmers()" style="padding:5px 6px;font-size:12px;color:var(--info);cursor:pointer;border-bottom:1px solid var(--border);margin-bottom:4px;font-weight:700;">▶ 現役の生産者だけ</div>'
       + '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--accent);cursor:pointer;font-weight:700;">'
       + '<input type="checkbox" class="fat-farmer-cb" value="小原秀樹" onchange="onFarmerToggle()" '+(fatSelectedFarmers.includes('小原秀樹')?'checked':'')+'> 🏠 うちの牛（小原）</label>'
-      + farmers.map(f=>'<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:var(--text);cursor:pointer;">'
-        + '<input type="checkbox" class="fat-farmer-cb" value="'+f.replace(/"/g,'&quot;')+'" onchange="onFarmerToggle()" '+(fatSelectedFarmers.includes(f)?'checked':'')+'> '+f+'</label>').join('');
+      + farmers.map(f=>{
+          const active = ACTIVE_FARMERS.some(a=>f.includes(a));
+          return '<label style="display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12px;color:'+(active?'var(--text)':'var(--muted)')+';cursor:pointer;">'
+          + '<input type="checkbox" class="fat-farmer-cb" value="'+f.replace(/"/g,'&quot;')+'" onchange="onFarmerToggle()" '+(fatSelectedFarmers.includes(f)?'checked':'')+'> '+f+(active?'':' <span style="font-size:9px;">(廃業)</span>')+'</label>';
+        }).join('');
   }
   updateFarmerBtnLabel();
 }
 let fatSelectedFarmers = []; // 空=全農家
+// 現役の生産者（廃業した神谷・坂東などを除く）
+const ACTIVE_FARMERS = ['小原','朝川','長島','市川','太田','納'];
+function selectActiveFarmers(){
+  const all = [...new Set(fatteningRecords.map(r=>r.farmer).filter(Boolean))];
+  fatSelectedFarmers = all.filter(f => ACTIVE_FARMERS.some(a => f.includes(a)));
+  document.querySelectorAll('.fat-farmer-cb').forEach(c => { c.checked = fatSelectedFarmers.includes(c.value); });
+  const allcb = document.getElementById('fat-farmer-all'); if (allcb) allcb.checked = false;
+  updateFarmerBtnLabel(); renderFattening();
+}
 function toggleFarmerMenu(e){ e.stopPropagation(); const m=document.getElementById('fat-farmer-menu'); m.style.display = m.style.display==='none'?'block':'none'; }
 function onFarmerAllToggle(cb){ if(cb.checked){ fatSelectedFarmers=[]; } document.querySelectorAll('.fat-farmer-cb').forEach(c=>c.checked=false); updateFarmerBtnLabel(); renderFattening(); }
 function onFarmerToggle(){ fatSelectedFarmers=[...document.querySelectorAll('.fat-farmer-cb:checked')].map(c=>c.value);
@@ -18535,8 +18580,42 @@ function renderKoubutsu(){
   const svg='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;">'+grid+xlab
     +line(ovJorateByYear,'var(--muted)',2,false)
     +line(myJorateByYear,'var(--accent)',2.5,true)+'</svg>';
-  const lineCard='<div class="gcard"><div class="gtitle">📈 上物率(A3以上)の推移 — <span style="color:var(--accent);">自分</span> vs <span style="color:var(--muted);">全農家平均</span></div>'+svg
-    +'<div style="margin-top:6px;font-size:10px;"><span style="color:var(--accent);font-weight:700;">━ 自分（'+"__FARMER__"+'）</span>　<span style="color:var(--muted);">━ 全農家平均</span></div></div>';
+  // 月別の細かい推移（年度をタップで展開）
+  var monthlyCard=(function(){
+    var yrs=[...new Set(DATA.map(function(r){return r.year;}).filter(Boolean))].sort();
+    if(!yrs.length) return '';
+    var secs=yrs.map(function(y){
+      var rs=DATA.filter(function(r){return r.year===y && r.slaughterDate;});
+      if(!rs.length) return '';
+      var byM={};
+      rs.forEach(function(r){var m=String(r.slaughterDate).slice(5,7); if(m){(byM[m]=byM[m]||[]).push(r);}});
+      var ms=Object.keys(byM).sort();
+      if(!ms.length) return '';
+      var bars=ms.map(function(m){
+        var list=byM[m];
+        var rate=Math.round(list.filter(function(r){return qnum(r.meatGrade)>=3;}).length/list.length*1000)/10;
+        var a4=Math.round(list.filter(function(r){return qnum(r.meatGrade)>=4;}).length/list.length*1000)/10;
+        var col=rate>=90?'var(--accent)':rate>=70?'var(--warn)':'var(--danger)';
+        return '<div style=\"display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px;\">'
+          +'<span style=\"width:34px;color:var(--muted);flex:none;\">'+parseInt(m)+'\u6708</span>'
+          +'<div style=\"flex:1;background:var(--bg2);border-radius:3px;height:16px;position:relative;overflow:hidden;\">'
+          +'<div style=\"width:'+rate+'%;background:'+col+';height:100%;\"></div>'
+          +'<span style=\"position:absolute;left:4px;top:0;line-height:16px;font-size:9px;color:#fff;font-weight:700;\">'+rate+'%</span></div>'
+          +'<span style=\"width:86px;text-align:right;color:var(--muted);flex:none;\">'+list.length+'\u982d / A4\u2191'+a4+'%</span></div>';
+      }).join('');
+      var sid='mtrend-'+y;
+      return '<div style=\"margin-bottom:6px;\">'
+        +'<div onclick=\"var d=document.getElementById(&quot;'+sid+'&quot;);d.style.display=d.style.display===&quot;none&quot;?&quot;block&quot;:&quot;none&quot;;\" style=\"cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);padding:5px 8px;background:var(--bg3);border-radius:6px;\">'
+        +yrLabel(y)+'\uff08'+rs.length+'\u982d\uff09\u25bc</div>'
+        +'<div id=\"'+sid+'\" style=\"display:none;padding:8px 4px 2px;\">'+bars+'</div></div>';
+    }).filter(Boolean).join('');
+    if(!secs) return '';
+    return '<div class=\"gcard\"><div class=\"gtitle\">\ud83d\udcc5 \u6708\u5225\u306e\u4e0a\u7269\u7387(A3\u4ee5\u4e0a)</div>'
+      +'<div style=\"font-size:10px;color:var(--muted);margin-bottom:8px;\">\u5e74\u5ea6\u3092\u30bf\u30c3\u30d7\u3059\u308b\u3068\u6708\u3054\u3068\u306e\u63a8\u79fb\u304c\u958b\u304d\u307e\u3059\u3002\u51fa\u8377\u304c\u5c11\u306a\u3044\u6708\u306f\u7387\u304c\u632f\u308c\u3084\u3059\u3044\u306e\u3067\u982d\u6570\u3068\u5408\u308f\u305b\u3066\u898b\u3066\u304f\u3060\u3055\u3044\u3002</div>'
+      +secs+'</div>';
+  })();
+  const lineCard='<div class=\"gcard\"><div class=\"gtitle\">\ud83d\udcc8 \u4e0a\u7269\u7387(A3\u4ee5\u4e0a)\u306e\u63a8\u79fb \u2014 <span style=\"color:var(--accent);\">\u81ea\u5206</span> vs <span style=\"color:var(--muted);\">\u5168\u8fb2\u5bb6\u5e73\u5747</span></div>'+svg
+    +'<div style=\"margin-top:6px;font-size:10px;\"><span style=\"color:var(--accent);font-weight:700;\">\u2501 \u81ea\u5206\uff08'+"__FARMER__"+'\uff09</span>\u3000<span style=\"color:var(--muted);\">\u2501 \u5168\u8fb2\u5bb6\u5e73\u5747</span></div></div>'+monthlyCard;
   // 年度チップ
   const chips='<div class="ymenu">'+years.map(y=>'<span class="ychip '+(selYears.includes(y)?'on':(selYears.length?'':'on'))+'" onclick="toggleYear(\\''+y+'\\')">'+yrLabel(y)+'</span>').join('')+'</div>';
   // 内訳 積み上げ（年度別・自分vs全体）
