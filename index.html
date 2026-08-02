@@ -17943,8 +17943,8 @@ let fatFarmerAdjust = false;   // 種雄牛別ランキングの農家補正
 function toggleFatFarmerAdjust(){ fatFarmerAdjust = !fatFarmerAdjust; renderFattening(); }
 function toggleFatLivingOnly(){ fatLivingOnly = document.getElementById('fat-living-only')?.checked || false; renderFattening(); }
 // パターンごとの重み定義（画面表示にも使う）。keyの'wSexIdx'は性別調整済み枝重
-let FAT_CUSTOM_W = { wSexIdx:50, rateHigh:35, avgYield:15, avgBms:0, rateA3:0 };
-const FAT_TRAIT_LABELS = { wSexIdx:'枝重', rateHigh:'A4以上率', rateA3:'A3以上率', avgYield:'歩留率', avgBms:'BMS' };
+let FAT_CUSTOM_W = { wSexIdx:50, rateHigh:35, avgYield:15, avgBms:0, rateA3:0, rateBms11:0 };
+const FAT_TRAIT_LABELS = { wSexIdx:'枝重', rateHigh:'上物率', rateA3:'A3以上率', avgYield:'歩留率', avgBms:'BMS', rateBms11:'BMS11以上率' };
 function customTraits(){
   const out=[]; let sum=0;
   for(const k in FAT_CUSTOM_W){ const v=Number(FAT_CUSTOM_W[k])||0; if(v>0){ out.push({key:k,w:v}); sum+=v; } }
@@ -17964,6 +17964,8 @@ const FAT_SCORE_PATTERNS = {
        traits:[{key:'wSexIdx',w:0.35},{key:'avgYield',w:0.20},{key:'rateA3',w:0.20},{key:'avgBms',w:0.15},{key:'rateHigh',w:0.10}] },
   2: { label:'A4以上重視', desc:'A4以上率35%・枝重20%・歩留率20%・BMS15%（枝重は雌雄別評価）',
        traits:[{key:'rateHigh',w:0.35},{key:'wSexIdx',w:0.20},{key:'avgYield',w:0.20},{key:'avgBms',w:0.15}] },
+  9: { label:'黒毛（BMS重視）', desc:'BMS30%・BMS11以上率30%・A5以上率20%・枝重10%・歩留率10%（黒毛用）',
+       traits:[{key:'avgBms',w:0.30},{key:'rateBms11',w:0.30},{key:'rateHigh',w:0.20},{key:'wSexIdx',w:0.10},{key:'avgYield',w:0.10}] },
   0: { label:'カスタム', get desc(){ return customDesc()+'（枝重は雌雄別評価）'; }, get traits(){ return customTraits(); } },
 };
 function setFatCustomW(key,val){ FAT_CUSTOM_W[key]=Math.max(0,Number(val)||0); fatScorePattern=0; renderFattening(); }
@@ -18037,7 +18039,10 @@ function getRoleSuggestion(cowName) {
 function invalidateRoleSuggestions() { _roleSuggestCache = null; }
 
 function computeCompositeScore(groups) {
-  const traits = (FAT_SCORE_PATTERNS[fatScorePattern]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:t.key,w:t.w}));
+  // 黒毛のデータを見ているときは、黒毛用の基準（BMS重視・A5以上率）を自動で使う
+  const kurogeMajority = groups.length && groups.filter(g=>g.isKuroge).length > groups.length/2;
+  const patKey = (kurogeMajority && fatScorePattern !== 0) ? 9 : fatScorePattern;
+  const traits = (FAT_SCORE_PATTERNS[patKey]||FAT_SCORE_PATTERNS[3]).traits.map(t=>({key:t.key,w:t.w}));
   traits.forEach(t => {
     const vals = groups.map(g=>g[t.key]).filter(v=>typeof v==='number' && !isNaN(v));
     const m = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
@@ -18199,10 +18204,15 @@ function buildGroups(key){
     const wh=rs.filter(r=>sexOf(r)==='F'&&r.weight!=null).map(r=>r.weight);
     const g3=rs.filter(r=>qnum(r.meatGrade)>=3).length;
     const wd=rs.map(wDevOf).filter(v=>v!=null);
+    // 上物率は品種で基準が違う：褐毛はA4以上、黒毛はA5以上
+    const isKuroge = rs.length && rs.filter(r=>r.breed==='黒毛').length > rs.length/2;
+    const highMin = isKuroge ? 5 : 4;
     return {name:name,count:rs.length,recs:rs,avgBms:avg(bl),avgWeight:avg(wl),avgYield:avg(yl),
       avgWCast:avg(wc),avgWHeif:avg(wh),
       wSexIdx: wd.length? wd.reduce((a,b)=>a+b,0)/wd.length : null,
-      rateHigh:rs.length?Math.round((rs.filter(r=>qnum(r.meatGrade)>=4).length)/rs.length*100):0,
+      isKuroge: isKuroge,
+      rateHigh:rs.length?Math.round((rs.filter(r=>qnum(r.meatGrade)>=highMin).length)/rs.length*100):0,
+      rateBms11:rs.length?Math.round((rs.filter(r=>(r.bms||0)>=11).length)/rs.length*100):0,
       rateA3:rs.length?Math.round(g3/rs.length*100):0};
   });
   score(groups);
@@ -18310,7 +18320,7 @@ function renderRank(){
       +'<div class="mcell"><b style="color:var(--info);font-size:'+((g.avgWCast!=null&&g.avgWHeif!=null)?'11':'15')+'px;">'+(function(){var wc=g.avgWCast!=null?Math.round(g.avgWCast):null,wh=g.avgWHeif!=null?Math.round(g.avgWHeif):null;if(wc!=null&&wh!=null)return '♂'+wc+'<br>♀'+wh;if(wc!=null)return '♂'+wc;if(wh!=null)return '♀'+wh;return sizeLabel(g.avgWeight);})()+'</b><div>枝重平均</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+(g.avgYield==null?'—':g.avgYield+'%')+'</b><div>歩留率</div></div>'
       +'<div class="mcell"><b style="color:var(--accent);">'+g.rateA3+'%</b><div>A3以上率</div></div>'
-      +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>A4以上率</div></div>'
+      +'<div class="mcell"><b style="color:var(--warn);">'+g.rateHigh+'%</b><div>'+(g.isKuroge?'A5以上率':'A4以上率')+'</div></div>'
       +'</div><div class="detail" onclick="event.stopPropagation()">'+detailHtml+'</div></div>';
   }).join('');
 }
