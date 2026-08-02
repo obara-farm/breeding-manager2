@@ -15518,21 +15518,11 @@ function openEditCalfModal(id) {
   }
   // 仮耳標がまだ無い子牛（分娩記録から自動生成された子牛など）は、年プレフィックスだけ自動で入れておく
   document.getElementById('calf-id').value = calf.earTagId || calfIdYearPrefix(calf.dob);
-  const natRaw = (calf.nationalId || '').replace(/\D/g, '');
-  const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
-  if (natRaw.length >= 10) {
-    // 正しい10桁：そのまま3分割して表示
-    setNatId('calf-national-id', natRaw);
-  } else if (natRaw.length > 0) {
-    // 上番が欠けた短い番号（例:「4031」「40122」）：下桁として扱い、上番は記憶した値を補う
-    const b = natRaw.slice(0, 4);
-    const c2 = natRaw.length > 4 ? natRaw.slice(4, 5) : '';
-    document.getElementById('calf-national-id-a').value = lastNatPrefix;
-    document.getElementById('calf-national-id-b').value = b;
-    document.getElementById('calf-national-id-c').value = c2;
-  } else {
-    // 未入力：上番だけ候補として入れておく
-    setNatId('calf-national-id', '');
+  // 保存されている値をそのまま表示する（桁の組み替えはしない）
+  setNatId('calf-national-id', calf.nationalId || '');
+  // 個体識別番号がまだ未入力の子牛にだけ、前回の上番を候補として入れる
+  if (!calf.nationalId) {
+    const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
     if (lastNatPrefix) document.getElementById('calf-national-id-a').value = lastNatPrefix;
   }
   document.getElementById('calf-memo').value = calf.memo || '';
