@@ -18988,7 +18988,10 @@ function renderKoubutsu(recs, allRecs){
     const mxOf = m => mL + mPlotW*(m-1)/11;
     const myOf = v => mT + mPlotH*(1 - v/100);
     const mGrid = [0,25,50,75,100].map(g=>`<line x1="${mL}" y1="${myOf(g)}" x2="${MW-mR}" y2="${myOf(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${mL-4}" y="${myOf(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
-    const mXlab = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<text x="${mxOf(m)}" y="${MH-mB+14}" font-size="8" fill="var(--muted)" text-anchor="middle">${m}</text>`).join('');
+    const mXlab = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>{
+      const act = `showMonthDetail('${y}',${m},'')`;
+      return `<text x="${mxOf(m)}" y="${MH-mB+14}" font-size="9" fill="var(--info)" text-anchor="middle" style="cursor:pointer;text-decoration:underline;" ontouchend="event.preventDefault();${act}" onclick="${act}">${m}</text>`;
+    }).join('');
 
     // 全農家平均（この年度）
     const mAvgPts = [];
@@ -19001,7 +19004,9 @@ function renderKoubutsu(recs, allRecs){
     const mAvgDots = mAvgPts.map((p,pi)=>{
       if (!p) return '';
       const mm = pi + 1;
-      return `<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="var(--text)" style="cursor:pointer;" onclick="showMonthDetail('${y}',${mm},'')"><title>全農家 ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`;
+      const act = `showMonthDetail('${y}',${mm},'')`;
+      return `<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="var(--text)" pointer-events="none"/>`
+        + `<circle cx="${p[0]}" cy="${p[1]}" r="12" fill="transparent" style="cursor:pointer;" ontouchend="event.preventDefault();${act}" onclick="${act}"><title>全農家 ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`;
     }).join('');
 
     // 農家ごとの線（年度推移グラフと同じ配色・同じ考え方）
@@ -19021,8 +19026,12 @@ function renderKoubutsu(recs, allRecs){
         + pts.map((p,pi)=>{
             if (!p) return '';
             const mm = pi + 1;
-            return `<circle cx="${p[0]}" cy="${p[1]}" r="${single?5:4}" fill="${col}" style="cursor:pointer;" onclick="showMonthDetail('${y}',${mm},'${String(f).replace(/'/g,"\\'")}')"><title>${f} ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`
-              + (single?`<text x="${p[0]}" y="${p[1]-8}" font-size="8" fill="${col}" text-anchor="middle" font-weight="700">${p[2]}</text>`:'');
+            const fEsc = String(f).replace(/'/g,"\\'");
+            const act = `showMonthDetail('${y}',${mm},'${fEsc}')`;
+            // 見える点＋透明な大きい円（タップ判定を広げるため）
+            return `<circle cx="${p[0]}" cy="${p[1]}" r="${single?4:3}" fill="${col}" pointer-events="none"/>`
+              + `<circle cx="${p[0]}" cy="${p[1]}" r="12" fill="transparent" style="cursor:pointer;" ontouchend="event.preventDefault();${act}" onclick="${act}"><title>${f} ${mm}月 ${p[3]}頭：${p[2]}%（タップで明細）</title></circle>`
+              + (single?`<text x="${p[0]}" y="${p[1]-8}" font-size="8" fill="${col}" text-anchor="middle" font-weight="700" pointer-events="none">${p[2]}</text>`:'');
           }).join('');
       const fname = f===OWN_FARMER?'🏠小原':f;
       mLegend += `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:12px;height:3px;background:${col};display:inline-block;border-radius:2px;"></span>${fname}</span>`;
@@ -19034,7 +19043,7 @@ function renderKoubutsu(recs, allRecs){
         <div style="font-size:13px;font-weight:700;color:var(--text);">📅 ${yrLabel(y)}年 月別の上物率（A3以上）</div>
         <button onclick="setKoubutsuMonthYear('${y}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:5px;cursor:pointer;">✕ 閉じる</button>
       </div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">横軸＝出荷月。年度推移グラフの年度をタップすると切り替わります。点にふれると頭数が出ます</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">横軸＝出荷月。<b style="color:var(--info);">点または月の数字をタップ</b>すると、その月の枝肉成績の明細が下に出ます</div>
       <svg viewBox="0 0 ${MW} ${MH}" style="width:100%;height:auto;">
         ${mGrid}${mXlab}${mFarmerLines}
         <path d="${mAvgPath}" fill="none" stroke="var(--text)" stroke-width="2.5"/>${mAvgDots}
