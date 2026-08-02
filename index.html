@@ -4775,7 +4775,7 @@ function renderCowList() {
         <div style="font-size:12px;text-align:right;">
           <span class="cow-status-dot ${displayDot}"></span>${displayStatus}
           ${cow.twin ? ' <span style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;">👯 双子注意</span>' : ''}
-          ${cow.lactation?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${cow.lactation}産</div>`:''}
+          ${cow.lactation?` ／ ${cow.lactation}産`:''}
         </div>
       </div>
       <div class="cow-info-grid">
@@ -4783,18 +4783,6 @@ function renderCowList() {
         <div>直近: <strong>${cowTasks.length?fmtDate(cowTasks.sort((a,b)=>a.date.localeCompare(b.date))[0].date):'なし'}</strong></div>
         ${cow.calvingDate?`<div>分娩日: <strong>${fmtDate(cow.calvingDate)}</strong></div>`:''}
         ${cow.dueDate && cow.status==='pregnant'?`<div>分娩予定: <strong style="color:var(--purple)">${fmtDate(cow.dueDate)}</strong></div>`:''}
-        ${(() => {
-          // 妊娠鑑定をいつ行ったか（授精後何日目に見たか）を表示。早期妊鑑だったかが後から分かるように
-          if (cow.status !== 'pregnant') return '';
-          const pos = (cow.events||[]).filter(e => e.type === 'preg_positive')
-            .sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-          if (!pos) return '';
-          const ins = (cow.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)
-            && (e.date||'') <= (pos.date||'')).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-          const dAfter = ins ? diffDays(pos.date, ins.date) : null;
-          const early = dAfter !== null && dAfter < 40;
-          return `<div>妊鑑日: <strong style="color:${early?'var(--warn)':'var(--text)'}">${fmtDate(pos.date)}</strong>${dAfter!==null?`<span style="font-size:10px;color:${early?'var(--warn)':'var(--muted)'};">（授精後${dAfter}日${early?'・早期':''}）</span>`:''}</div>`;
-        })()}
         ${openDays!==null&&cow.status==='open'&&!isPregWaiting?`<div>空胎日数: <strong style="color:${openDays>90?'var(--danger)':openDays>60?'var(--warn)':'var(--text)'}">${openDays}日</strong></div>`:''}
         ${nextEstrusLabel}
       </div>
@@ -8522,9 +8510,18 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   }
   // 結果あり→ボタンで表示
   if (hasResult) {
-    return `<div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+    // 実際に妊鑑した日と、授精から何日目だったかを併記（早期妊鑑が後から分かるように）
+    const actualDate = pregEvFromEvents?.date || null;
+    const dAfter = actualDate ? diffDays(actualDate, date) : null;
+    const early = dAfter !== null && dAfter < 40;
+    const noteHtml = actualDate
+      ? `<div style="font-size:9px;color:${early?'var(--warn)':'var(--muted)'};margin-top:2px;">${fmtDateShort(actualDate)}${dAfter!==null?`・${dAfter}日目${early?' ⚠早期':''}`:''}</div>`
+      : '';
+    return `<div style="display:flex;flex-direction:column;align-items:center;">
+      <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
       <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
       <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
+      </div>${noteHtml}
     </div>`;
   }
   // 次のAI記録がある→自動陰性ボタン
@@ -15428,7 +15425,7 @@ function renderCalves() {
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
-              ${calf.dob ? fmtDate(calf.dob) : '—'}${ageDays !== null ? ` (生後<strong onclick="event.stopPropagation();toggleCalfAgeUnit(this)" data-days="${ageDays}" data-mode="d" style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'};cursor:pointer;border-bottom:1px dotted currentColor;">${ageDays}日</strong>)` : ''}
+              ${calf.dob ? fmtDate(calf.dob) : '—'}${ageDays !== null ? ` (生後<strong ontouchend="event.preventDefault();event.stopPropagation();toggleCalfAgeUnit(this)" onclick="event.stopPropagation();toggleCalfAgeUnit(this)" data-days="${ageDays}" data-mode="d" style="color:${isOverdue?'var(--warn)':isNear?'#ca8a04':'var(--text)'};cursor:pointer;border-bottom:1px dotted currentColor;padding:2px 4px;-webkit-tap-highlight-color:rgba(255,255,255,.2);">${ageDays}日</strong>)` : ''}
               ${isOverdue ? ' <span style="color:var(--warn);font-weight:700;">⚠️ 移動検討</span>' : ''}
             </div>
           </div>
@@ -18922,7 +18919,47 @@ function renderKoubutsu(recs, allRecs){
       ${stacks}
     </div>`;
 
-  return lineChart + barChart;
+  // 📅 月別の上物率（年度をタップで展開）
+  const monthlyChart = (() => {
+    const yrs = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort((a,b)=>b-a);
+    if (!yrs.length) return '';
+    const secs = yrs.map(y => {
+      const rs = recs.filter(r => r.year === y && r.slaughterDate);
+      if (!rs.length) return '';
+      const byM = {};
+      rs.forEach(r => { const m = String(r.slaughterDate).slice(5,7); if (m) (byM[m] = byM[m] || []).push(r); });
+      const ms = Object.keys(byM).sort();
+      if (!ms.length) return '';
+      const bars = ms.map(m => {
+        const list = byM[m];
+        const rate = Math.round(list.filter(r=>qnum(r)>=3).length/list.length*1000)/10;
+        const a4 = Math.round(list.filter(r=>qnum(r)>=4).length/list.length*1000)/10;
+        const col = rate>=90?'var(--accent)':rate>=70?'var(--warn)':'var(--danger)';
+        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px;">
+          <span style="width:34px;color:var(--muted);flex:none;">${parseInt(m)}月</span>
+          <div style="flex:1;background:var(--bg2);border-radius:3px;height:16px;position:relative;overflow:hidden;">
+            <div style="width:${rate}%;background:${col};height:100%;"></div>
+            <span style="position:absolute;left:4px;top:0;line-height:16px;font-size:9px;color:#fff;font-weight:700;">${rate}%</span>
+          </div>
+          <span style="width:88px;text-align:right;color:var(--muted);flex:none;">${list.length}頭 / A4↑${a4}%</span>
+        </div>`;
+      }).join('');
+      const sid = 'mtrend-app-' + y;
+      return `<div style="margin-bottom:6px;">
+        <div onclick="var d=document.getElementById('${sid}');d.style.display=d.style.display==='none'?'block':'none';"
+             style="cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);padding:6px 8px;background:var(--bg3);border-radius:6px;">
+          ${yrLabel(y)}年（${rs.length}頭）▼
+        </div>
+        <div id="${sid}" style="display:none;padding:8px 4px 2px;">${bars}</div>
+      </div>`;
+    }).filter(Boolean).join('');
+    if (!secs) return '';
+    return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">📅 月別の上物率(A3以上)</div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">年度をタップすると月ごとの推移が開きます。出荷が少ない月は率が振れやすいので頭数と合わせて見てください。</div>
+      ${secs}</div>`;
+  })();
+  return lineChart + barChart + monthlyChart;
 }
 // 母牛カードクリックで産子詳細を展開
 function toggleDamDetail(id){ const el=document.getElementById(id); if(!el)return; el.style.display = el.style.display==='none'?'block':'none'; }
