@@ -3753,7 +3753,8 @@ function renderGrouped(taskList) {
       ${allTasks.map((t,i) => {
         const name = cowDisplayName(t.cowId);
         const isChecked = t.done || !!t.pregResult;
-        const hasRecipBtn = !t.done && (
+        // 受卵牛の登録ボタン：CIDR挿入タスクを完了した後でも、あとから受け牛を追加できるよう done でも表示する
+        const hasRecipBtn = (
           (t.action.includes('受卵牛') && t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与')) ||
           t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)' ||
           (t.etRecipients && t.etRecipients.length > 0 && t.action.includes('CIDR') && !t.action.includes('抜去'))
@@ -5249,10 +5250,22 @@ function openRecipientModal(donorCowId, cidrDate) {
   document.getElementById('recipient-cidr-date').value = cidrDate;
   document.getElementById('recipient-protocol').value = isTakahashi ? 'takahashi' : 'standard';
   document.getElementById('recipient-title').textContent = `🐄 受卵牛を登録 — ${donorCowId} ${donorName}`;
+  // 既に登録済みの受け牛を表示（あとから追加するときに重複を避けるため）
+  const cidrTaskExisting = tasks.find(t => t.cowId === donorCowId && t.date === cidrDate &&
+    (t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与') || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'));
+  const already = (cidrTaskExisting && cidrTaskExisting.etRecipients) ? cidrTaskExisting.etRecipients : [];
+  const alreadyHtml = already.length
+    ? `<div style="margin-top:6px;padding:6px 8px;background:var(--bg3);border-radius:6px;font-size:11px;">
+         <span style="color:var(--info);font-weight:700;">登録済みの受卵牛（${already.length}頭）：</span>
+         ${already.map(r => `${r} ${cowDisplayName(r)||''}`).join('、')}
+         <div style="color:var(--muted);margin-top:2px;">追加したい牛だけ下に入力してください。</div>
+       </div>`
+    : '';
   document.getElementById('recipient-donor-info').innerHTML =
     `ドナー牛: <strong style="font-family:'JetBrains Mono',monospace">${donorCowId}</strong> <strong style="color:var(--danger)">${donorName}</strong><br>
      受卵牛CIDR挿入日: <strong style="color:var(--warn)">${fmtDate(cidrDate)}</strong><br>
-     <span style="font-size:11px;color:var(--muted);">${isTakahashi?'【高橋式】':''}採卵予定の受け牛を入力してください。ET実施日まで自動でスケジュールが生成されます。</span>`;
+     <span style="font-size:11px;color:var(--muted);">${isTakahashi?'【高橋式】':''}採卵予定の受け牛を入力してください。ET実施日まで自動でスケジュールが生成されます。</span>
+     ${alreadyHtml}`;
   document.getElementById('recipient-rows').innerHTML = '';
   recipientRowCount = 0;
   addRecipientRow();
@@ -5345,8 +5358,8 @@ function saveRecipients() {
     });
   });
 
-  // ドナーのCIDR挿入タスクのみにetRecipientsを記録
-  const cidrTask = tasks.find(t => t.cowId === donorId && !t.done && t.date === cidrDate &&
+  // ドナーのCIDR挿入タスクのみにetRecipientsを記録（完了済みでも追記できるようにする）
+  const cidrTask = tasks.find(t => t.cowId === donorId && t.date === cidrDate &&
     (t.action.includes('CIDR') && !t.action.includes('抜去') && !t.action.includes('PG投与') || t.action === '【受卵牛】CIDR挿入 ＋ E2(1ml) ＋ PG(2ml)'));
   if (cidrTask) {
     if (!cidrTask.etRecipients) cidrTask.etRecipients = [];
