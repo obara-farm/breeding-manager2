@@ -8517,11 +8517,13 @@ function getPregCellHtml(cowId, date, isDonorAI) {
     const noteHtml = actualDate
       ? `<div style="font-size:9px;color:${early?'var(--warn)':'var(--muted)'};margin-top:2px;">${fmtDateShort(actualDate)}${dAfter!==null?`・${dAfter}日目${early?' ⚠早期':''}`:''}</div>`
       : '';
+    // 再妊鑑ボタン：今日の日付で結果を上書きし、最終妊鑑日を更新する
+    const recheckHtml = `<button ontouchend="event.preventDefault();event.stopPropagation();recheckPreg('${cowId}','${date}')" onclick="event.stopPropagation();recheckPreg('${cowId}','${date}')" style="background:var(--bg3);border:1px solid var(--info);color:var(--info);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;cursor:pointer;margin-top:3px;-webkit-tap-highlight-color:rgba(0,0,0,0);">🔄 再妊鑑</button>`;
     return `<div style="display:flex;flex-direction:column;align-items:center;">
       <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
       <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','positive',this,'${date}')" style="background:${isPos?'#14532d':'var(--bg3)'};border:1px solid ${isPos?'#22c55e':'var(--border)'};color:${isPos?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✓陽性</button>
       <button ontouchstart="event.preventDefault();event.stopPropagation();recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" onclick="recordPregFromInsemBook('${cowId}','${pregDate}','negative',this,'${date}')" style="background:${isNeg?'#7f1d1d':'var(--bg3)'};border:1px solid ${isNeg?'#ef4444':'var(--border)'};color:${isNeg?'#fff':'var(--muted)'};font-size:10px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">✗陰性</button>
-      </div>${noteHtml}
+      </div>${noteHtml}${recheckHtml}
     </div>`;
   }
   // 次のAI記録がある→自動陰性ボタン
@@ -8544,15 +8546,37 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   </div>`;
 }
 
+// 🔄 再妊鑑：日付を指定して結果を記録し直す（早期妊鑑のあとに再確認したときに最終妊鑑日を更新する）
+function recheckPreg(cowId, insemDate) {
+  const cow = cows.find(c => c.id === cowId);
+  if (!cow) return;
+  const prev = (cow.events||[]).filter(e =>
+    (e.type==='preg_positive'||e.type==='preg_negative') && e.insemDate === insemDate)
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+  const d = prompt(
+    `${cowDisplayName(cowId)||cowId} の再妊鑑\n授精日: ${fmtDate(insemDate)}` +
+    (prev ? `\n前回の妊鑑: ${fmtDate(prev.date)}（${prev.type==='preg_positive'?'陽性':'陰性'}）` : '') +
+    `\n\n再妊鑑した日を入力してください（YYYY-MM-DD）`, today());
+  if (!d) return;
+  const dd = d.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dd)) { alert('日付は YYYY-MM-DD の形式で入力してください'); return; }
+  const res = confirm('結果は陽性でしたか？\n\nOK＝✓陽性　／　キャンセル＝✗陰性') ? 'positive' : 'negative';
+  recordPregFromInsemBook(cowId, dd, res, null, insemDate);
+}
 function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) return;
   const eventType = result === 'positive' ? 'preg_positive' : 'preg_negative';
   cow.events = cow.events || [];
-  // 同日の既存妊鑑結果を削除して上書き
-  cow.events = cow.events.filter(e =>
-    !((e.type === 'preg_positive' || e.type === 'preg_negative') && e.date === date)
-  );
+  // 同じ授精に対する既存の妊鑑結果を削除して上書きする
+  // （同日だけでなく同じ授精日に紐づくものを消すことで、再妊鑑したときに日付が更新される）
+  const insemKey = aiDate || date;
+  cow.events = cow.events.filter(e => {
+    if (e.type !== 'preg_positive' && e.type !== 'preg_negative') return true;
+    if (e.insemDate && e.insemDate === insemKey) return false;   // 同じ授精の結果は置き換え
+    if (!e.insemDate && e.date === date) return false;           // 旧データ（insemDateなし）は同日で判定
+    return true;
+  });
   cow.events.push({ type: eventType, date, memo: '', insemDate: aiDate || date });
   // 授精簿レコードのpregResultを直接更新
   const allRecsForUpdate = [...INSEM_BOOK_DATA, ...insemBookRecords];
@@ -8904,6 +8928,8 @@ function renderInsemBook() {
             '<input id="' + mId + '" value="' + dispM2.replace(/"/g,'&quot;') + '" onchange="' + onSave + '" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
             '<div style="margin-bottom:10px;"><div style="font-size:10px;color:var(--muted);margin-bottom:3px;">術者</div>' +
             '<input id="' + opId + '" value="' + (dispOp2||'').replace(/"/g,'&quot;') + '" onchange="' + onSave + '" placeholder="術者" style="width:100%;box-sizing:border-box;background:var(--bg);border:1px solid var(--warn);color:var(--warn);font-size:13px;padding:6px 8px;border-radius:6px;"></div>' +
+            '<div style="margin-bottom:10px;"><div style="font-size:10px;color:var(--accent);margin-bottom:4px;font-weight:700;">🔬 妊娠鑑定</div>' +
+            getPregCellHtml(r.t, dispD2, r.donorAI||false) + '</div>' +
             '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
               syncBtn2 +
               '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="insem-cert-check" data-idx="' + r._idx + '" data-src="' + r._src + '" style="width:16px;height:16px;"><span style="font-size:12px;color:var(--purple);">📄 授精証</span></label>' +
@@ -18919,45 +18945,44 @@ function renderKoubutsu(recs, allRecs){
       ${stacks}
     </div>`;
 
-  // 📅 月別の上物率（年度をタップで展開）
+  // 📅 月別の上物率（折れ線グラフ・年度ごとに色分け）
   const monthlyChart = (() => {
-    const yrs = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort((a,b)=>b-a);
+    const yrs = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort();
     if (!yrs.length) return '';
-    const secs = yrs.map(y => {
+    // 年度ごとに 1〜12月の上物率と頭数を集計
+    const series = yrs.map((y, yi) => {
       const rs = recs.filter(r => r.year === y && r.slaughterDate);
-      if (!rs.length) return '';
-      const byM = {};
-      rs.forEach(r => { const m = String(r.slaughterDate).slice(5,7); if (m) (byM[m] = byM[m] || []).push(r); });
-      const ms = Object.keys(byM).sort();
-      if (!ms.length) return '';
-      const bars = ms.map(m => {
-        const list = byM[m];
-        const rate = Math.round(list.filter(r=>qnum(r)>=3).length/list.length*1000)/10;
-        const a4 = Math.round(list.filter(r=>qnum(r)>=4).length/list.length*1000)/10;
-        const col = rate>=90?'var(--accent)':rate>=70?'var(--warn)':'var(--danger)';
-        return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:11px;">
-          <span style="width:34px;color:var(--muted);flex:none;">${parseInt(m)}月</span>
-          <div style="flex:1;background:var(--bg2);border-radius:3px;height:16px;position:relative;overflow:hidden;">
-            <div style="width:${rate}%;background:${col};height:100%;"></div>
-            <span style="position:absolute;left:4px;top:0;line-height:16px;font-size:9px;color:#fff;font-weight:700;">${rate}%</span>
-          </div>
-          <span style="width:88px;text-align:right;color:var(--muted);flex:none;">${list.length}頭 / A4↑${a4}%</span>
-        </div>`;
-      }).join('');
-      const sid = 'mtrend-app-' + y;
-      return `<div style="margin-bottom:6px;">
-        <div onclick="var d=document.getElementById('${sid}');d.style.display=d.style.display==='none'?'block':'none';"
-             style="cursor:pointer;font-size:12px;font-weight:700;color:var(--accent);padding:6px 8px;background:var(--bg3);border-radius:6px;">
-          ${yrLabel(y)}年（${rs.length}頭）▼
-        </div>
-        <div id="${sid}" style="display:none;padding:8px 4px 2px;">${bars}</div>
-      </div>`;
-    }).filter(Boolean).join('');
-    if (!secs) return '';
+      const pts = [];
+      for (let m = 1; m <= 12; m++) {
+        const mm = String(m).padStart(2,'0');
+        const list = rs.filter(r => String(r.slaughterDate).slice(5,7) === mm);
+        pts.push(list.length ? { m, rate: Math.round(list.filter(r=>qnum(r)>=3).length/list.length*1000)/10, n: list.length } : null);
+      }
+      return { year: y, pts, col: palette[yi % palette.length], total: rs.length };
+    }).filter(s2 => s2.pts.some(Boolean));
+    if (!series.length) return '';
+
+    const MW=360, MH=200, mL=30, mR=10, mT=12, mB=24;
+    const mPlotW=MW-mL-mR, mPlotH=MH-mT-mB;
+    const mx = m => mL + mPlotW*(m-1)/11;
+    const my = v => mT + mPlotH*(1 - v/100);
+    const mGrid = [0,25,50,75,100].map(g=>`<line x1="${mL}" y1="${my(g)}" x2="${MW-mR}" y2="${my(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${mL-4}" y="${my(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
+    const mXlab = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<text x="${mx(m)}" y="${MH-mB+14}" font-size="8" fill="var(--muted)" text-anchor="middle">${m}</text>`).join('');
+    const paths = series.map(s2 => {
+      // 欠測月は線を分断せず、データのある点だけ結ぶ
+      const valid = s2.pts.filter(Boolean);
+      if (!valid.length) return '';
+      const d = valid.map((p,i)=>(i===0?'M':'L')+mx(p.m)+' '+my(p.rate)).join(' ');
+      const dots = valid.map(p=>`<circle cx="${mx(p.m)}" cy="${my(p.rate)}" r="2.5" fill="${s2.col}"><title>${yrLabel(s2.year)}年${p.m}月：${p.rate}%（${p.n}頭）</title></circle>`).join('');
+      return `<path d="${d}" fill="none" stroke="${s2.col}" stroke-width="2"/>${dots}`;
+    }).join('');
+    const legend = series.map(s2=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;margin-right:10px;"><span style="width:14px;height:2px;background:${s2.col};display:inline-block;"></span><span style="color:var(--text);">${yrLabel(s2.year)}年</span><span style="color:var(--muted);">(${s2.total}頭)</span></span>`).join('');
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px;">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">📅 月別の上物率(A3以上)</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">年度をタップすると月ごとの推移が開きます。出荷が少ない月は率が振れやすいので頭数と合わせて見てください。</div>
-      ${secs}</div>`;
+      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">横軸＝出荷月。年度ごとに線を分けています。点をタップすると頭数が出ます（出荷が少ない月は率が振れやすい点に注意）。</div>
+      <svg viewBox="0 0 ${MW} ${MH}" style="width:100%;height:auto;">${mGrid}${mXlab}${paths}</svg>
+      <div style="margin-top:6px;">${legend}</div>
+    </div>`;
   })();
   return lineChart + barChart + monthlyChart;
 }
