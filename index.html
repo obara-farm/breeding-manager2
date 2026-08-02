@@ -15277,7 +15277,8 @@ function toggleCalfAgeUnit(el){
   if (el.dataset.mode === 'd') {
     const m = Math.floor(days / 30.4);
     const rem = days - Math.round(m * 30.4);
-    el.textContent = m >= 1 ? `${m}ヶ月${rem > 0 ? rem + '日' : ''}` : `${days}日`;
+    // 0ヶ月でも「0ヶ月2日」と出して、タップで切り替わったことが分かるようにする
+    el.textContent = `${m}ヶ月${rem}日`;
     el.dataset.mode = 'm';
   } else {
     el.textContent = `${days}日`;
@@ -18168,6 +18169,12 @@ function fmtVal(v, unit='') { return v !== null ? v+unit : '—'; }
 // パターン2（A4以上重視）: A4以上率35% 枝重20% 歩留率20% BMS15%
 let fatScorePattern = 3;
 let koubutsuBarMode = 'farmer';
+// 📅 月別推移で表示する年度（上物率グラフの年度ラベルをタップして切り替える）
+let koubutsuMonthYear = null;
+function setKoubutsuMonthYear(y){
+  koubutsuMonthYear = (String(koubutsuMonthYear) === String(y)) ? null : y;
+  renderFattening();
+}
 function setKoubutsuBarMode(m){ koubutsuBarMode = m; renderFattening(); }
 let fatRankWorst = false;
 function setFatRankOrder(w){ fatRankWorst = w; renderFattening(); }
@@ -18863,7 +18870,7 @@ function renderKoubutsu(recs, allRecs){
   const xOf = i => padL + (years.length<=1? plotW/2 : plotW*i/(years.length-1));
   const yOf = v => padT + plotH*(1 - v/100);
   const gridY = [0,25,50,75,100].map(g=>`<line x1="${padL}" y1="${yOf(g)}" x2="${W-padR}" y2="${yOf(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${padL-4}" y="${yOf(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
-  const xLabels = years.map((y,i)=>`<text x="${xOf(i)}" y="${H-padB+14}" font-size="9" fill="var(--muted)" text-anchor="middle">${yrLabel(y)}</text>`).join('');
+  const xLabels = years.map((y,i)=>`<text x="${xOf(i)}" y="${H-padB+14}" font-size="${koubutsuMonthYear===y?11:9}" font-weight="${koubutsuMonthYear===y?'800':'400'}" fill="${koubutsuMonthYear===y?'var(--accent)':'var(--info)'}" text-anchor="middle" style="cursor:pointer;text-decoration:underline;" onclick="setKoubutsuMonthYear('${y}')">${yrLabel(y)}</text>`).join('');
   // 全農家平均（allRecsから）
   const avgPts = years.map((y,i)=>{ const v=jorate(allRecs.filter(r=>r.year===y)); return v==null?null:[xOf(i),yOf(v),v,y]; });
   const avgPath = avgPts.filter(Boolean).map((p,i)=>(i===0?'M':'L')+p[0]+' '+p[1]).join(' ');
@@ -18945,43 +18952,56 @@ function renderKoubutsu(recs, allRecs){
       ${stacks}
     </div>`;
 
-  // 📅 月別の上物率（折れ線グラフ・年度ごとに色分け）
+  // 📅 選択した年度の月別推移（上のグラフで年度をタップすると切り替わる）
   const monthlyChart = (() => {
-    const yrs = [...new Set(recs.map(r=>r.year).filter(Boolean))].sort();
-    if (!yrs.length) return '';
-    // 年度ごとに 1〜12月の上物率と頭数を集計
-    const series = yrs.map((y, yi) => {
-      const rs = recs.filter(r => r.year === y && r.slaughterDate);
-      const pts = [];
-      for (let m = 1; m <= 12; m++) {
-        const mm = String(m).padStart(2,'0');
-        const list = rs.filter(r => String(r.slaughterDate).slice(5,7) === mm);
-        pts.push(list.length ? { m, rate: Math.round(list.filter(r=>qnum(r)>=3).length/list.length*1000)/10, n: list.length } : null);
-      }
-      return { year: y, pts, col: palette[yi % palette.length], total: rs.length };
-    }).filter(s2 => s2.pts.some(Boolean));
-    if (!series.length) return '';
-
-    const MW=360, MH=200, mL=30, mR=10, mT=12, mB=24;
+    const y = koubutsuMonthYear || years[years.length-1];
+    if (!y) return '';
+    const rs = recs.filter(r => String(r.year) === String(y) && r.slaughterDate);
+    if (!rs.length) return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);">📅 ${yrLabel(y)}年の月別推移</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;">この年度の出荷データがありません。上のグラフの年度をタップして切り替えられます。</div></div>`;
+    // 1〜12月の上物率・A4以上率・頭数
+    const pts = [];
+    for (let m = 1; m <= 12; m++) {
+      const mm = String(m).padStart(2,'0');
+      const list = rs.filter(r => String(r.slaughterDate).slice(5,7) === mm);
+      pts.push(list.length ? {
+        m, n: list.length,
+        rate: Math.round(list.filter(r=>qnum(r)>=3).length/list.length*1000)/10,
+        a4:   Math.round(list.filter(r=>qnum(r)>=4).length/list.length*1000)/10,
+      } : null);
+    }
+    const MW=360, MH=210, mL=30, mR=10, mT=12, mB=34;
     const mPlotW=MW-mL-mR, mPlotH=MH-mT-mB;
     const mx = m => mL + mPlotW*(m-1)/11;
     const my = v => mT + mPlotH*(1 - v/100);
-    const mGrid = [0,25,50,75,100].map(g=>`<line x1="${mL}" y1="${my(g)}" x2="${MW-mR}" y2="${my(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${mL-4}" y="${my(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
-    const mXlab = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<text x="${mx(m)}" y="${MH-mB+14}" font-size="8" fill="var(--muted)" text-anchor="middle">${m}</text>`).join('');
-    const paths = series.map(s2 => {
-      // 欠測月は線を分断せず、データのある点だけ結ぶ
-      const valid = s2.pts.filter(Boolean);
-      if (!valid.length) return '';
-      const d = valid.map((p,i)=>(i===0?'M':'L')+mx(p.m)+' '+my(p.rate)).join(' ');
-      const dots = valid.map(p=>`<circle cx="${mx(p.m)}" cy="${my(p.rate)}" r="2.5" fill="${s2.col}"><title>${yrLabel(s2.year)}年${p.m}月：${p.rate}%（${p.n}頭）</title></circle>`).join('');
-      return `<path d="${d}" fill="none" stroke="${s2.col}" stroke-width="2"/>${dots}`;
+    const grid = [0,25,50,75,100].map(g=>`<line x1="${mL}" y1="${my(g)}" x2="${MW-mR}" y2="${my(g)}" stroke="var(--border)" stroke-width="0.5"/><text x="${mL-4}" y="${my(g)+3}" font-size="8" fill="var(--muted)" text-anchor="end">${g}</text>`).join('');
+    // 月ラベル＋頭数
+    const xlab = [1,2,3,4,5,6,7,8,9,10,11,12].map(m=>{
+      const p = pts[m-1];
+      return `<text x="${mx(m)}" y="${MH-mB+13}" font-size="8" fill="var(--muted)" text-anchor="middle">${m}</text>`
+        + (p?`<text x="${mx(m)}" y="${MH-mB+23}" font-size="7" fill="var(--muted)" text-anchor="middle">${p.n}頭</text>`:'');
     }).join('');
-    const legend = series.map(s2=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;margin-right:10px;"><span style="width:14px;height:2px;background:${s2.col};display:inline-block;"></span><span style="color:var(--text);">${yrLabel(s2.year)}年</span><span style="color:var(--muted);">(${s2.total}頭)</span></span>`).join('');
+    const mkLine = (key, col, w) => {
+      const valid = pts.filter(Boolean);
+      if (!valid.length) return '';
+      const d = valid.map((p,i)=>(i===0?'M':'L')+mx(p.m)+' '+my(p[key])).join(' ');
+      const dots = valid.map(p=>`<circle cx="${mx(p.m)}" cy="${my(p[key])}" r="3" fill="${col}"><title>${p.m}月：${p[key]}%（${p.n}頭）</title></circle>`).join('');
+      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w}"/>${dots}`;
+    };
+    const total = rs.length;
+    const yrRate = Math.round(rs.filter(r=>qnum(r)>=3).length/total*1000)/10;
     return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;">📅 月別の上物率(A3以上)</div>
-      <div style="font-size:10px;color:var(--muted);margin-bottom:8px;">横軸＝出荷月。年度ごとに線を分けています。点をタップすると頭数が出ます（出荷が少ない月は率が振れやすい点に注意）。</div>
-      <svg viewBox="0 0 ${MW} ${MH}" style="width:100%;height:auto;">${mGrid}${mXlab}${paths}</svg>
-      <div style="margin-top:6px;">${legend}</div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">📅 ${yrLabel(y)}年の月別推移</div>
+        <div style="font-size:11px;color:var(--muted);">年間 ${total}頭・上物率 <b style="color:var(--accent);">${yrRate}%</b></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin:4px 0 8px;">上のグラフの年度（R7など）をタップすると、その年の1〜12月の推移に切り替わります。</div>
+      <svg viewBox="0 0 ${MW} ${MH}" style="width:100%;height:auto;">${grid}${xlab}${mkLine('rate','var(--accent)',2.5)}${mkLine('a4','var(--warn)',2)}</svg>
+      <div style="margin-top:6px;font-size:10px;">
+        <span style="color:var(--accent);font-weight:700;">━ A3以上率</span>　
+        <span style="color:var(--warn);font-weight:700;">━ A4以上率</span>
+      </div>
     </div>`;
   })();
   return lineChart + barChart + monthlyChart;
