@@ -6104,8 +6104,14 @@ function isOldEmbryo(sire, memo){
   return /(^|[^0-9A-Za-z])R6-\d/.test(t) || /01L237R6/.test(t);
 }
 // ETの1件を受胎率集計から外すか（期間除外 or R6胚）
+// 自分以外が生産した受精卵（他所産）は受胎率の集計に含めない
+// 自家生産の胚番号は「01L237…」「25E04B1-1」形式。採卵所番号（例: NB26F-000018）は外部産とみなす
+function isExternalEmbryo(sire, memo){
+  const t = (sire||'') + ' ' + (memo||'');
+  return /NB\d{2}[A-Z]?-\d+/i.test(t);
+}
 function isEtRecExcluded(rec){
-  return isEtRateExcluded(rec.date) || isOldEmbryo(rec.s, rec.m);
+  return isEtRateExcluded(rec.date) || isOldEmbryo(rec.s, rec.m) || isExternalEmbryo(rec.s, rec.m);
 }
 function renderStats() {
   _embTypeCache = null;   // 新鮮/凍結の判定表を作り直す
@@ -7182,9 +7188,33 @@ function openDeleteTask(taskId) {
     document.getElementById('del-task-all-confirm').style.display = '';
   };
   document.getElementById('del-task-all-exec').onclick = () => {
+    // 未完了タスクを削除
     tasks = tasks.filter(t => !(t.cowId === cowId && !t.done));
+    // 受け牛の紐付け（etRecipients）は完了済みタスクに残るため、それも解除する。
+    // 解除しないと、プログラムを組み直したときに前回の受け牛が復活してしまう
+    const linkedRecipients = new Set();
+    tasks.forEach(t => {
+      if (t.cowId === cowId && t.etRecipients && t.etRecipients.length) {
+        t.etRecipients.forEach(r => linkedRecipients.add(r));
+        delete t.etRecipients;
+      }
+    });
     const cow = cows.find(c => c.id === cowId);
-    if (cow) cow.status = 'open';
+    if (cow) {
+      cow.status = 'open';
+      delete cow.donorStartDate;
+    }
+    // 紐付いていた受け牛の未完了タスクも一緒に片付ける
+    if (linkedRecipients.size) {
+      const names = [...linkedRecipients].map(r => `${r} ${cowDisplayName(r)||''}`).join('、');
+      if (confirm(`この牛には受け牛（${names}）が紐付いています。\n受け牛の未完了予定も一緒に削除しますか？`)) {
+        linkedRecipients.forEach(r => {
+          tasks = tasks.filter(t => !(t.cowId === r && !t.done));
+          const rc = cows.find(c => c.id === r);
+          if (rc) rc.status = 'open';
+        });
+      }
+    }
     save(); closeModal('modal-delete-task'); renderAll();
   };
   openModal('modal-delete-task');
