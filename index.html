@@ -746,16 +746,16 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">🏷 耳標</span>
         <div class="lf-val">
-          <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;" onblur="onCalfIdBlur(this)">
+          <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;" onfocus="onCalfIdFocus(this)" onblur="onCalfIdBlur(this)">
         </div>
       </div>
       <div class="lf-row">
         <span class="lf-label" style="width:auto;margin-right:6px;">🔢 個体識別</span>
         <div class="lf-val" style="flex-direction:column;align-items:flex-end;gap:2px;">
           <div class="lf-natid">
-            <input type="tel" id="calf-national-id-a" placeholder="" maxlength="5" oninput="natidAutoTab(this,'calf-national-id-b',5);rememberCalfNatIdPrefix(this)">
+            <input type="tel" id="calf-national-id-a" placeholder="" maxlength="5" oninput="natidAutoTab(this,'calf-national-id-b',5);rememberCalfNatIdPrefix(this)" onfocus="onNatIdPrefixFocus(this)">
             <span class="lf-natid-sep">-</span>
-            <input type="tel" id="calf-national-id-b" placeholder="" maxlength="4" oninput="natidAutoTab(this,'calf-national-id-c',4)" onkeydown="natidBackTab(event,'calf-national-id-a')">
+            <input type="tel" id="calf-national-id-b" placeholder="" maxlength="4" oninput="natidAutoTab(this,'calf-national-id-c',4)" onkeydown="natidBackTab(event,'calf-national-id-a')" onfocus="ensureNatIdPrefix()">
             <span class="lf-natid-sep">-</span>
             <input type="tel" id="calf-national-id-c" placeholder="" maxlength="1" onkeydown="natidBackTab(event,'calf-national-id-b')">
             <button type="button" class="lf-natid-clr" onclick="clearNatId('calf-national-id')">✕</button>
@@ -15403,6 +15403,22 @@ function clearCalfSize() {
 }
 
 // 個体識別番号の上5桁（上番）を入力し直したら、次回用に記憶する
+// 上番欄をタップした時、空なら前回の上番を自動で入れる（連番が続く限り同じ上番が使われる）
+function onNatIdPrefixFocus(el) {
+  if (!el.value.trim()) {
+    const last = _store.getItem('lastCalfNatIdPrefix') || '';
+    if (last) el.value = last;
+  }
+  setTimeout(() => { const n = el.value.length; el.setSelectionRange(n, n); }, 0);
+}
+// 中央の欄から入力を始めた場合も、上番が空なら埋めておく
+function ensureNatIdPrefix() {
+  const a = document.getElementById('calf-national-id-a');
+  if (a && !a.value.trim()) {
+    const last = _store.getItem('lastCalfNatIdPrefix') || '';
+    if (last) a.value = last;
+  }
+}
 function rememberCalfNatIdPrefix(el) {
   const v = (el.value || '').replace(/\D/g, '');
   if (v.length === 5) _store.setItem('lastCalfNatIdPrefix', v);
@@ -15437,6 +15453,15 @@ function calfIdYearPrefix(dobStr) {
 }
 // 生年月日を変更したとき、仮耳標がまだ何も追記されていなければプレフィックスだけ更新する
 // 耳標欄に数字だけ（例:「27」）が入力されたら、年プレフィックスを自動で前に付ける
+// 耳標欄をタップした時点で「26-c」まで自動で入れて、番号だけ打てばいい状態にする
+function onCalfIdFocus(el) {
+  if (!el.value.trim()) {
+    const dob = document.getElementById('calf-dob').value;
+    el.value = calfIdYearPrefix(dob);
+  }
+  // カーソルを末尾に置く
+  setTimeout(() => { const n = el.value.length; el.setSelectionRange(n, n); }, 0);
+}
 function onCalfIdBlur(el) {
   const v = el.value.trim();
   if (/^\d+$/.test(v)) {
