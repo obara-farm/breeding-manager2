@@ -626,6 +626,8 @@ textarea{resize:vertical;}
   </div>
   <!-- 分娩後未受精アラート -->
   <div id="calving-alerts"></div>
+  <!-- 共励会 出品牛強化月間バナー -->
+  <div id="kyoreikai-alert"></div>
   <!-- 分娩前10日アラート -->
   <div id="precalving-alerts"></div>
   <div id="today-tasks-container"></div>
@@ -744,7 +746,7 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">🏷 耳標</span>
         <div class="lf-val">
-          <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;">
+          <input type="text" id="calf-id" placeholder="例: 26-c53" style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;" onblur="onCalfIdBlur(this)">
         </div>
       </div>
       <div class="lf-row">
@@ -7477,7 +7479,68 @@ function applyFixPreg(result) {
 }
 
 // ===== CALVING ALERT (分娩後45日超・未受精) =====
+// 🏆 共励会（毎年10月・出品月齢24〜25ヶ月）出品牛強化月間バナー
+// 今AI/ETすると10月の共励会に出品できる月齢になる期間なら、今日のタスク画面にバナーを出す
+function renderKyoreikaiAlert() {
+  const container = document.getElementById('kyoreikai-alert');
+  if (!container) return;
+  const monthsBeforeDate = (dateStr, months) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setMonth(d.getMonth() - months);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  const nowStr = today();
+  const y = new Date().getFullYear();
+  const thisOct = `${y}-10-01`;
+  const compDates = (thisOct >= nowStr) ? [thisOct, `${y+1}-10-01`, `${y+2}-10-01`] : [`${y+1}-10-01`, `${y+2}-10-01`, `${y+3}-10-01`];
+
+  let hit = null;
+  let upcoming = null;   // まだ始まっていないが、1ヶ月以内に始まる強化月間
+  for (const compDate of compDates) {
+    const birthStart = monthsBeforeDate(compDate, 25);
+    const birthEnd = monthsBeforeDate(compDate, 24);
+    const aiStart = addDays(birthStart, -285), aiEnd = addDays(birthEnd, -285);
+    const etStart = addDays(birthStart, -278), etEnd = addDays(birthEnd, -278);
+    if (nowStr >= aiStart && nowStr <= aiEnd) { hit = {compDate, mode:'AI', start: aiStart, end: aiEnd}; break; }
+    if (nowStr >= etStart && nowStr <= etEnd) { hit = {compDate, mode:'ET', start: etStart, end: etEnd}; break; }
+    // まだ始まっていない窓のうち、開始が30日以内に迫っているものを「予告」候補にする
+    [{mode:'AI', start:aiStart, end:aiEnd}, {mode:'ET', start:etStart, end:etEnd}].forEach(w => {
+      if (w.start > nowStr && diffDays(w.start, nowStr) <= 30) {
+        if (!upcoming || w.start < upcoming.start) upcoming = {compDate, ...w};
+      }
+    });
+  }
+  if (!hit && !upcoming) { container.innerHTML = ''; return; }
+  if (hit) {
+    const compYear = hit.compDate.slice(0,4);
+    container.innerHTML = `
+      <div style="background:linear-gradient(135deg,#2a1a00,#1a1200);border:2px solid var(--warn);border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--warn);letter-spacing:1px;">
+          🏆 共励会 出品牛 強化月間
+        </div>
+        <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.6;">
+          今${hit.mode==='AI'?'AI（人工授精）':'ET（胚移植）'}すると、<strong style="color:var(--accent2);">${compYear}年10月の共励会</strong>に出品できる月齢（24〜25ヶ月）で生まれます。<br>
+          <span style="color:var(--muted);">この時期の目安は ${fmtDate(hit.end)} まで。</span>
+        </div>
+      </div>`;
+    return;
+  }
+  // 予告バナー（強化月間の開始が30日以内に迫っている）
+  const compYear = upcoming.compDate.slice(0,4);
+  const daysLeft = diffDays(upcoming.start, nowStr);
+  container.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1a1a2a,#12121a);border:2px dashed var(--info);border-radius:12px;padding:12px 14px;margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--info);letter-spacing:1px;">
+        📅 まもなく共励会 出品牛 強化月間
+      </div>
+      <div style="font-size:12px;color:var(--text);margin-top:6px;line-height:1.6;">
+        あと${daysLeft}日（${fmtDate(upcoming.start)}〜）で、${upcoming.mode==='AI'?'AI（人工授精）':'ET（胚移植）'}すると<strong style="color:var(--accent2);">${compYear}年10月の共励会</strong>に間に合う時期になります。
+      </div>
+    </div>`;
+}
+
 function renderCalvingAlerts() {
+  renderKyoreikaiAlert();
   const todayStr = today();
 
   // 分娩後45日超・未受精アラート
@@ -14396,6 +14459,15 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
           } else {
             document.getElementById('cr-sire').value = embryoRawLot;
             document.getElementById('cr-donor').value = '';
+            // 在庫に見つからない場合も、確実な照合（採卵記録→採卵シート）を試す
+            if (typeof embryoDonorSire === 'function') {
+              const combo = embryoDonorSire(embryoRawLot);
+              if (combo && combo.includes('×')) {
+                const [d, s] = combo.split('×');
+                if (d && d.trim()) document.getElementById('cr-donor').value = d.trim();
+                if (s && s.trim()) document.getElementById('cr-sire').value = s.trim();
+              }
+            }
           }
         } else {
           document.getElementById('cr-sire').value = embryoRawLot;
@@ -14404,6 +14476,15 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
           if (embryoMatch) {
             document.getElementById('cr-embryo-select').value = embryoMatch.id;
             if (embryoMatch.dam) document.getElementById('cr-donor').value = embryoMatch.dam;
+          }
+        }
+        // ここまでの照合で見つからなければ、証明書等で使っている確実な照合（採卵記録→胚在庫→採卵シートの順）を試す
+        if (!document.getElementById('cr-donor').value && typeof embryoDonorSire === 'function') {
+          const combo = embryoDonorSire(embryoRawLot);
+          if (combo && combo.includes('×')) {
+            const [d, s] = combo.split('×');
+            if (d && d.trim()) document.getElementById('cr-donor').value = d.trim();
+            if (s && s.trim() && !document.getElementById('cr-sire').value) document.getElementById('cr-sire').value = s.trim();
           }
         }
       }
@@ -15355,6 +15436,14 @@ function calfIdYearPrefix(dobStr) {
   return yy + '-c';
 }
 // 生年月日を変更したとき、仮耳標がまだ何も追記されていなければプレフィックスだけ更新する
+// 耳標欄に数字だけ（例:「27」）が入力されたら、年プレフィックスを自動で前に付ける
+function onCalfIdBlur(el) {
+  const v = el.value.trim();
+  if (/^\d+$/.test(v)) {
+    const dob = document.getElementById('calf-dob').value;
+    el.value = calfIdYearPrefix(dob) + v;
+  }
+}
 function onCalfDobChangeUpdatePrefix() {
   const idField = document.getElementById('calf-id');
   const dob = document.getElementById('calf-dob').value;
@@ -15388,7 +15477,8 @@ function openEditCalfModal(id) {
   } else {
     clearCalfSize();
   }
-  document.getElementById('calf-id').value = calf.earTagId || '';
+  // 仮耳標がまだ無い子牛（分娩記録から自動生成された子牛など）は、年プレフィックスだけ自動で入れておく
+  document.getElementById('calf-id').value = calf.earTagId || calfIdYearPrefix(calf.dob);
   setNatId('calf-national-id', calf.nationalId || '');
   // 個体識別番号がまだ未入力の子牛は、前回使った上番を候補として入れておく
   if (!calf.nationalId) {
@@ -15465,7 +15555,8 @@ function saveCalf() {
     sex: document.getElementById('calf-sex').value,
     breed: document.getElementById('calf-breed').value,
     weight: document.getElementById('calf-weight').value || null,
-    earTagId: document.getElementById('calf-id').value.trim(),
+    // 「26-c」のように年プレフィックスだけで番号が未入力のまま保存されるのを防ぐ
+    earTagId: /^\d{2}-c$/.test(document.getElementById('calf-id').value.trim()) ? '' : document.getElementById('calf-id').value.trim(),
     nationalId: getNatId('calf-national-id'),
     memo: document.getElementById('calf-memo').value.trim(),
     insemType: document.getElementById('calf-insem-type').value,
