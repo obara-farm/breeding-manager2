@@ -1762,6 +1762,14 @@ textarea{resize:vertical;}
         </div>
       </div>
       <button class="btn btn-secondary" id="del-task-all-btn" style="width:100%;border-color:var(--danger);color:var(--danger);">この牛の未完了予定をすべて削除</button>
+      <div id="del-task-reset-confirm" style="display:none;background:#1a0808;border:2px solid var(--danger);border-radius:8px;padding:10px 12px;">
+        <div style="font-size:12px;color:#fca5a5;margin-bottom:10px;">⚠ <span id="del-task-reset-count"></span>件（完了済みを含む）を削除して、このプログラムを最初からやり直せる状態にします。<br>受け牛の予定も一緒に消します。本当によろしいですか？</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('del-task-reset-confirm').style.display='none'">やめる</button>
+          <button class="btn btn-danger" id="del-task-reset-exec" style="flex:1;">リセットする</button>
+        </div>
+      </div>
+      <button class="btn btn-secondary" id="del-task-reset-btn" style="width:100%;border-color:var(--danger);color:var(--danger);">🔄 このプログラムを完全リセット（完了済みも削除）</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-delete-task')" style="width:100%;">キャンセル</button>
     </div>
   </div>
@@ -7192,6 +7200,7 @@ function openDeleteTask(taskId) {
   const pendingCount = tasks.filter(t => t.cowId === cowId && !t.done).length;
   document.getElementById('del-task-all-count').textContent = pendingCount;
   document.getElementById('del-task-all-confirm').style.display = 'none';
+  document.getElementById('del-task-reset-confirm').style.display = 'none';
 
   document.getElementById('del-task-one-btn').onclick = () => {
     tasks = tasks.filter(t => t.id !== taskId);
@@ -7229,6 +7238,53 @@ function openDeleteTask(taskId) {
       }
     }
     save(); closeModal('modal-delete-task'); renderAll();
+  };
+  // 🔄 完全リセット：このプログラム分を完了済みも含めて削除し、最初から組み直せる状態にする
+  // 過去の別プログラムを消さないよう、「CIDR挿入から次のCIDR挿入の直前まで」をひとまとまりとする
+  const findProgramScope = () => {
+    const isStart = t => t.action.includes('CIDR挿入');
+    const mine = tasks.filter(t => t.cowId === cowId).sort((a,b)=>
+      (a.date||'').localeCompare(b.date||'') || (a.id||'').localeCompare(b.id||''));
+    const idx = mine.findIndex(t => t.id === taskId);
+    if (idx < 0) return [task];
+    // 対象タスク以前で直近のCIDR挿入を探す（プログラムの開始点）
+    let s = idx;
+    while (s > 0 && !isStart(mine[s])) s--;
+    // 開始点の次のCIDR挿入の直前まで
+    let e = s;
+    while (e + 1 < mine.length && !isStart(mine[e+1])) e++;
+    return mine.slice(s, e + 1);
+  };
+  document.getElementById('del-task-reset-btn').onclick = () => {
+    const scope = findProgramScope();
+    // 紐付いている受け牛も数に含める
+    const recips = new Set();
+    scope.forEach(t => (t.etRecipients||[]).forEach(r => recips.add(r)));
+    const from = scope[0].date, to = scope[scope.length-1].date;
+    let recipCount = 0;
+    recips.forEach(r => { recipCount += tasks.filter(t => t.cowId === r && t.date >= from && t.date <= to).length; });
+    document.getElementById('del-task-reset-count').textContent = scope.length + recipCount;
+    document.getElementById('del-task-reset-confirm').style.display = '';
+  };
+  document.getElementById('del-task-reset-exec').onclick = () => {
+    const scope = findProgramScope();
+    const scopeIds = new Set(scope.map(t => t.id));
+    const recips = new Set();
+    scope.forEach(t => (t.etRecipients||[]).forEach(r => recips.add(r)));
+    const from = scope[0].date, to = scope[scope.length-1].date;
+    const before = tasks.length;
+    // ドナー（この牛）のプログラム分を削除
+    tasks = tasks.filter(t => !scopeIds.has(t.id));
+    // 紐付いていた受け牛の同期間のタスクも削除
+    recips.forEach(r => {
+      tasks = tasks.filter(t => !(t.cowId === r && t.date >= from && t.date <= to));
+      const rc = cows.find(c => c.id === r);
+      if (rc) { rc.status = 'open'; delete rc.donorStartDate; }
+    });
+    const cow = cows.find(c => c.id === cowId);
+    if (cow) { cow.status = 'open'; delete cow.donorStartDate; }
+    save(); closeModal('modal-delete-task'); renderAll();
+    alert(`${before - tasks.length}件を削除しました。\nこのプログラムを最初から組み直せます。`);
   };
   openModal('modal-delete-task');
 }
@@ -9045,8 +9101,10 @@ function nextDeliveryNo(cb) {
 let calcType = 'ai';
 function setCalcType(t){
   calcType = t;
-  const map = {ai:'calc-type-ai', et:'calc-type-et', calving:'calc-type-calving'};
-  const col = {ai:'var(--info)', et:'var(--purple)', calving:'var(--accent)'};
+  const map = {ai:'calc-type-ai', et:'calc-type-et', calving:'calc-type-calving',
+               saran_from:'calc-type-saran-from', saran_to:'calc-type-saran-to'};
+  const col = {ai:'var(--info)', et:'var(--purple)', calving:'var(--accent)',
+               saran_from:'var(--danger)', saran_to:'var(--warn)'};
   Object.keys(map).forEach(k=>{
     const el=document.getElementById(map[k]); if(!el) return;
     el.style.background = (k===t) ? col[k] : 'var(--bg3)';
@@ -9070,6 +9128,42 @@ function runCalc(){
     <span style="font-size:12px;color:var(--muted);">${label}</span>
     <span style="text-align:right;"><span style="font-size:17px;font-weight:900;color:${color};">${fmtDate(date)}(${wd(date)})</span>
     <span style="font-size:10px;color:var(--muted);margin-left:6px;">${note||left(date)}</span></span></div>`;
+
+  // 🥚 高橋式 採卵プログラムの日程計算
+  // 高橋式：D0=受卵牛CIDR挿入 → D3 ドナーCIDR挿入 → … → D19 採卵
+  if (calcType === 'saran_from' || calcType === 'saran_to') {
+    const isFrom = calcType === 'saran_from';
+    // isFrom: dが採卵日 → D0を逆算 ／ isTo: dがD0（プログラム開始日）
+    const d0 = isFrom ? addDays(d, -19) : d;
+    const saran = addDays(d0, 19);
+    const steps = [
+      {day:0,  label:'① 受卵牛 CIDR挿入 ＋ E2 ＋ PG', color:'var(--purple)'},
+      {day:3,  label:'② ドナー CIDR挿入', color:'var(--purple)'},
+      {day:4,  label:'③ ドナー オバホルモン 0.5ml', color:'var(--purple)'},
+      {day:8,  label:'④ ドナー アントリン', color:'var(--info)'},
+      {day:9,  label:'⑤ 受卵牛 PG ＋ CIDR抜去（夕）', color:'var(--warn)'},
+      {day:10, label:'⑥ ドナー CIDR抜去 ＋ ジノプロスト（朝）', color:'var(--warn)'},
+      {day:11, label:'⑦ 受卵牛 発情確認（1回目・夕）', color:'var(--accent)'},
+      {day:12, label:'⑧ ドナー 発情 ＋ AI ＋ コンセラール', color:'var(--accent)'},
+      {day:13, label:'⑨ ドナー 人工授精（2回目・午前）', color:'var(--accent)'},
+      {day:19, label:'★ 採卵 ＋ 受卵牛 胚移植', color:'var(--danger)'},
+    ];
+    const startPast = diffDays(today(), d0);   // 開始日が過去なら正の値
+    out.innerHTML =
+      `<div style="background:linear-gradient(135deg,#1a0a2a,#12081a);border:2px solid ${isFrom?'var(--danger)':'var(--warn)'};border-radius:10px;padding:12px;margin-bottom:10px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">${isFrom?'この日に採卵するには':'この日に開始した場合'}</div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;">
+          <span style="font-size:12px;color:var(--muted);">${isFrom?'プログラム開始日（D0）':'採卵日（D19）'}</span>
+          <span style="font-size:22px;font-weight:900;color:${isFrom?'var(--danger)':'var(--warn)'};">${fmtDate(isFrom?d0:saran)}(${wd(isFrom?d0:saran)})</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px;">${isFrom
+          ? (startPast > 0 ? `⚠ 開始日は${startPast}日前です。この日程では間に合いません` : startPast === 0 ? '今日から開始すれば間に合います' : `あと${Math.abs(startPast)}日で開始`)
+          : `採卵まで ${left(saran)}`}</div>
+      </div>`
+      + steps.map(s => row(s.label, addDays(d0, s.day), s.color, `D${s.day}`)).join('')
+      + `<div style="font-size:10px;color:var(--muted);margin-top:6px;">高橋式：D0＝受卵牛のCIDR挿入日を起点、D19が採卵日です。受卵牛はドナーと同じD0から同期を始めます。</div>`;
+    return;
+  }
 
   if (calcType === 'calving') {
     const open45 = addDays(d,45), open60 = addDays(d,60);
@@ -9552,6 +9646,23 @@ function renderCollectionTab() {
         </div>
       </div>
       <div style="font-size:12px;color:var(--accent);font-weight:700;">${donorName} × ${r.sire||''}</div>
+      ${(() => {
+        // 次回いつから採卵できるか（この採卵が、このドナーの最新の採卵である場合だけ表示）
+        if (!r.donorId) return '';
+        const laterSame = collectionRecordsNew.some(x => x.donorId === r.donorId && (x.date||'') > (r.date||''));
+        if (laterSame) return '';   // もっと新しい採卵があるので、この記録では出さない
+        const INTERVAL = 60;        // 採卵間隔の目安：約2か月
+        const nextOk = addDays(r.date, INTERVAL);
+        const leftDays = diffDays(nextOk, today());
+        const startD0 = addDays(nextOk, -19);          // 高橋式D0（採卵の19日前）
+        const startLeft = diffDays(startD0, today());
+        const ready = leftDays <= 0;
+        return `<div style="margin-top:6px;background:${ready?'#0d2a1a':'var(--bg3)'};border:1px solid ${ready?'var(--accent2)':'var(--border)'};border-radius:6px;padding:7px 9px;font-size:11px;">
+          <span style="color:${ready?'var(--accent)':'var(--muted)'};font-weight:700;">🥚 次回採卵</span>
+          <span style="color:var(--text);margin-left:6px;">${ready ? '今すぐ可能' : `${fmtDate(nextOk)} から（あと${leftDays}日）`}</span>
+          <div style="color:var(--muted);margin-top:3px;">プログラム開始（D0）の目安：<b style="color:${startLeft<=0?'var(--warn)':'var(--text)'};">${fmtDate(startD0)}</b>${startLeft>0?`（あと${startLeft}日）`:'（開始可能）'}</div>
+        </div>`;
+      })()}
       <div style="display:flex;gap:12px;margin-top:6px;font-size:11px;color:var(--muted);flex-wrap:wrap;">
         <span>回収: ${r.recovered||0}卵</span>
         <span>変性: ${r.degenerate||0}</span><span>未受精: ${r.unfertilized||0}</span>
@@ -20140,6 +20251,10 @@ try {
         <button id="calc-type-ai" onclick="setCalcType('ai')" style="flex:1;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--info);color:#fff;">💉 AI</button>
         <button id="calc-type-et" onclick="setCalcType('et')" style="flex:1;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🧬 ET</button>
         <button id="calc-type-calving" onclick="setCalcType('calving')" style="flex:1.2;padding:12px 4px;font-size:14px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🐄 分娩後</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <button id="calc-type-saran-from" onclick="setCalcType('saran_from')" style="flex:1;padding:12px 4px;font-size:13px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">🥚 この日に採卵するには</button>
+        <button id="calc-type-saran-to" onclick="setCalcType('saran_to')" style="flex:1;padding:12px 4px;font-size:13px;font-weight:800;border:none;border-radius:8px;cursor:pointer;background:var(--bg3);color:var(--muted);">📅 この日に開始したら</button>
       </div>
       <div style="display:flex;gap:6px;align-items:stretch;margin-bottom:8px;">
         <button onclick="shiftCalcDate(-1)" style="width:56px;font-size:22px;font-weight:900;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;cursor:pointer;">−</button>
