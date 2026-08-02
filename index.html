@@ -15435,7 +15435,7 @@ function ensureNatIdPrefix() {
 }
 function rememberCalfNatIdPrefix(el) {
   const v = (el.value || '').replace(/\D/g, '');
-  if (v.length === 5) _store.setItem('lastCalfNatIdPrefix', v);
+  if (v.length === 5) { _store.setItem('lastCalfNatIdPrefix', v); save(); }
 }
 function openAddCalf() {
   document.getElementById('calf-edit-id').value = '';
@@ -20669,7 +20669,7 @@ function initFirebaseSync() {
       const safeKeysForSnapshot = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
         'collectionRecords','collectionRecordsNew','transferBook','etRecords','fatteningRecords',
         'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-        'pendingUseRecords','data_version'];
+        'pendingUseRecords','lastCalfNatIdPrefix','data_version'];
       safeKeysForSnapshot.forEach(k => {
         const v = _store.getItem(k);
         if (v !== null) _lastSentSnapshot[k] = v;
@@ -20809,7 +20809,7 @@ function saveToFirebase() {
     const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
       'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
       'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-      'pendingUseRecords','data_version'];
+      'pendingUseRecords','lastCalfNatIdPrefix','data_version'];
     // 変更があったキーのみupdate()で差分送信
     const updates = {};
     let hasChanges = false;
