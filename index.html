@@ -14711,6 +14711,20 @@ function saveCalvingRecord() {
     }
   }
 
+  // ET産仔で、種雄牛欄に胚番号が入ったままの場合は、ここで「ドナー×種雄牛」に分解する
+  // （胚番号をそのまま父として保存すると血統が壊れるため）
+  if (insemType === 'et' && typeof embryoDonorSire === 'function') {
+    const looksEmbryo = /^01L237|^\d{2}[A-L]\d{2}B\d+/.test(sire || '');
+    if (looksEmbryo || !donor) {
+      const combo = embryoDonorSire(sire || '');
+      if (combo && combo.includes('×')) {
+        const [d, s] = combo.split('×').map(x => x.trim());
+        if (looksEmbryo && s) sire = s;      // 父＝種雄牛に置き換え
+        if (!donor && d) donor = d;          // ドナー＝血統上の母
+      }
+    }
+  }
+
   // 子牛の「母の父」「母の祖父」：
   // ・AI産仔（自分の子）なら、生んだ牛（cow）自身の系統
   // ・ET産仔なら、生んだのは受け牛でも遺伝上の母はドナー牛なので、ドナー牛の系統を使う
@@ -15504,10 +15518,21 @@ function openEditCalfModal(id) {
   }
   // 仮耳標がまだ無い子牛（分娩記録から自動生成された子牛など）は、年プレフィックスだけ自動で入れておく
   document.getElementById('calf-id').value = calf.earTagId || calfIdYearPrefix(calf.dob);
-  setNatId('calf-national-id', calf.nationalId || '');
-  // 個体識別番号がまだ未入力の子牛は、前回使った上番を候補として入れておく
-  if (!calf.nationalId) {
-    const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
+  const natRaw = (calf.nationalId || '').replace(/\D/g, '');
+  const lastNatPrefix = _store.getItem('lastCalfNatIdPrefix') || '';
+  if (natRaw.length >= 10) {
+    // 正しい10桁：そのまま3分割して表示
+    setNatId('calf-national-id', natRaw);
+  } else if (natRaw.length > 0) {
+    // 上番が欠けた短い番号（例:「4031」「40122」）：下桁として扱い、上番は記憶した値を補う
+    const b = natRaw.slice(0, 4);
+    const c2 = natRaw.length > 4 ? natRaw.slice(4, 5) : '';
+    document.getElementById('calf-national-id-a').value = lastNatPrefix;
+    document.getElementById('calf-national-id-b').value = b;
+    document.getElementById('calf-national-id-c').value = c2;
+  } else {
+    // 未入力：上番だけ候補として入れておく
+    setNatId('calf-national-id', '');
     if (lastNatPrefix) document.getElementById('calf-national-id-a').value = lastNatPrefix;
   }
   document.getElementById('calf-memo').value = calf.memo || '';
