@@ -17983,6 +17983,12 @@ function selectBreed(breed) {
   }
 }
 
+// 屠畜日などの日付から「月」を取り出す（2026-01-14 / 2026/1/14 どちらでも動く）
+function monthOfDate(s){
+  if (!s) return 0;
+  const m = String(s).match(/^\s*\d{4}[-/.](\d{1,2})/);
+  return m ? parseInt(m[1]) : 0;
+}
 // 日付文字列を YYYY/MM/DD に正規化（重複判定用）
 function normDate(s) {
   if (!s) return '';
@@ -18999,7 +19005,7 @@ function renderKoubutsu(recs, allRecs){
     if (!y) return '';   // 年度がタップされていないときは表示しない
     const rsAll = allRecs.filter(r => String(r.year) === String(y) && r.slaughterDate);
     const rsSel = recs.filter(r => String(r.year) === String(y) && r.slaughterDate);
-    const monthOf = r => parseInt(String(r.slaughterDate).slice(5,7)) || 0;
+    const monthOf = r => monthOfDate(r.slaughterDate);
     if (!rsSel.length && !rsAll.length) {
       // 選んだ品種にデータが無い場合、別品種にデータがあれば教える
       const bf = document.getElementById('fat-breed-filter')?.value || '褐毛';
@@ -19212,7 +19218,7 @@ function showMonthDetail(year, month, farmer){
   const mm = String(month).padStart(2,'0');
   let list = fatteningRecords.filter(r =>
     String(r.year) === String(year) &&
-    r.slaughterDate && String(r.slaughterDate).slice(5,7) === mm &&
+    monthOfDate(r.slaughterDate) === Number(month) &&
     r.breed === breedFilter);
   // 農家の絞り込み：点をタップした農家、無指定なら画面で選択中の農家のみ
   if (farmer) list = list.filter(r => r.farmer === farmer);
@@ -19220,7 +19226,7 @@ function showMonthDetail(year, month, farmer){
   if (!list.length) {
     const bf2 = breedFilter;
     const other = bf2 === '褐毛' ? '黒毛' : '褐毛';
-    const otherN = fatteningRecords.filter(r => String(r.year)===String(year) && r.slaughterDate && String(r.slaughterDate).slice(5,7)===mm && r.breed===other).length;
+    const otherN = fatteningRecords.filter(r => String(r.year)===String(year) && monthOfDate(r.slaughterDate)===Number(month) && r.breed===other).length;
     box.innerHTML = `<div style="border-top:1px solid var(--border);padding-top:8px;">
       <div style="font-size:12px;color:var(--warn);font-weight:700;">📋 R${parseInt(year)-2018}年${month}月：${bf2}和種の出荷はありません</div>
       ${otherN ? `<div style="font-size:11px;color:var(--info);margin-top:4px;">${other}和種なら${otherN}頭あります。品種を切り替えてください。</div>` : ''}
