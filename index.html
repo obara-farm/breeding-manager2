@@ -1546,7 +1546,7 @@ textarea{resize:vertical;}
       </div>
       <div class="form-group">
         <label>品種</label>
-        <select id="semen-breed">
+        <select id="semen-breed" onchange="autoFillSemenRegOrg()">
           <option value="黒毛">⬛ 黒毛和種</option>
           <option value="褐毛">🟥 褐毛和種</option>
           <option value="その他">その他</option>
@@ -1838,7 +1838,7 @@ textarea{resize:vertical;}
       <div class="lf-row">
         <span class="lf-label">品種</span>
         <div class="lf-val">
-          <select id="edit-cow-breed">
+          <select id="edit-cow-breed" onchange="autoFillRegOrg()">
             <option value="">未設定</option>
             <option value="黒毛">⬛ 黒毛和種</option>
             <option value="褐毛">🟥 褐毛和種</option>
@@ -5755,7 +5755,7 @@ function openEditCow(cowId) {
   document.getElementById('edit-cow-sire').value = cow.sire || '';
   document.getElementById('edit-cow-dam').value = cow.dam || '';
   document.getElementById('edit-cow-maternal-sire').value = cow.maternalSire || '';
-  document.getElementById('edit-cow-reg-org').value = cow.regOrg || '';
+  document.getElementById('edit-cow-reg-org').value = cow.regOrg || regOrgByBreed(cow.breed);
   document.getElementById('edit-cow-reg-no').value = cow.regNo || '';
   openModal('modal-edit-cow');
 }
@@ -12902,6 +12902,8 @@ function buildEggCertHTML(colRec, embryo) {
     return s;
   })() : '';
   var donorRegOrg = donorCow ? (donorCow.regOrg||'') : '';
+  // 登録機関が未設定ならドナー牛の品種から補う
+  if(!donorRegOrg && typeof regOrgByBreed==='function') donorRegOrg = regOrgByBreed(donorCow?donorCow.breed:'');
   var donorRegNo = donorCow ? (donorCow.regNo||'') : '';
   var donorBreed = donorCow ? (donorCow.breed==='黒毛'?'黒毛和種':donorCow.breed==='褐毛'?'褐毛和種':(donorCow.breed||'')) : '';
   var sire = colRec.sire||'';
@@ -12910,6 +12912,8 @@ function buildEggCertHTML(colRec, embryo) {
   var sireRegOrg = si?(si.regOrg||''):'';
   var sireRegNo = si?(si.regNo||''):'';
   var sireBreed = si?(si.breed==='黒毛'?'黒毛和種':si.breed==='褐毛'?'褐毛和種':(si.breed||'')):'';
+  // 登録機関が未設定なら品種から補う
+  if(!sireRegOrg && typeof regOrgByBreed==='function') sireRegOrg = regOrgByBreed(si?si.breed:'');
   var sireGrade = (embryo && embryo._grade) ? embryo._grade : (si?(si.grade||''):'');
   var collectDate = colRec.date||colRec.collectionDate||'';
   var collectDateJP = fmtDateJP(collectDate);
@@ -13414,6 +13418,31 @@ function initCollectionSearchYear() {
   sel.value = 'R'+(new Date().getFullYear()-2018);
 }
 
+// 種雄牛：品種を選んだとき、登録機関が空なら自動で入れる
+function autoFillSemenRegOrg(){
+  const b = document.getElementById('semen-breed')?.value;
+  const el = document.getElementById('semen-reg-org');
+  if (el && !el.value.trim()) {
+    const org = regOrgByBreed(b);
+    if (org) el.value = org;
+  }
+}
+// 品種を選んだとき、登録機関が空なら自動で入れる
+function autoFillRegOrg(){
+  const b = document.getElementById('edit-cow-breed')?.value;
+  const el = document.getElementById('edit-cow-reg-org');
+  if (el && !el.value.trim()) {
+    const org = regOrgByBreed(b);
+    if (org) el.value = org;
+  }
+}
+// 品種から家畜登録機関を判定する（褐毛＝日本あか牛登録協会／黒毛＝全国和牛登録協会）
+function regOrgByBreed(breed){
+  const b = String(breed||'');
+  if (b.includes('褐毛') || b.includes('あか')) return '日本あか牛登録協会';
+  if (b.includes('黒毛')) return '全国和牛登録協会';
+  return '';
+}
 function buildEtCertHTML(r, certNo) {
   var cow = cows.find(function(c){ return c.id===r.t; });
   var cowName    = cow?(cow.name||''):'';
@@ -13424,6 +13453,8 @@ function buildEtCertHTML(r, certNo) {
   if(cowName==='F1' && !cowBreed) cowBreed='肉×乳';  var cowColor   = cow?(cow.color||''):'';
   var regOrg     = cow?(cow.regOrg||''):'';
   var regNo      = cow?(cow.regNo||''):'';
+  // 登録機関が未設定なら品種から補う（褐毛＝日本あか牛登録協会／黒毛＝全国和牛登録協会）
+  if(!regOrg) regOrg = regOrgByBreed(cow?cow.breed:'');
   // 他農家へ発行：受け牛・登録情報を上書き
   if (window._etCertRecipient) {
     cowName = window._etCertRecipient.name || cowName;
@@ -13530,6 +13561,9 @@ function buildEtCertHTML(r, certNo) {
   var donorRegOrg=dc?(dc.regOrg||''):'';
   var donorRegNo =dc?(dc.regNo||''):'';
   var donorBreed =dc?(dc.breed==='褐毛'?'褐毛和種':dc.breed==='黒毛'?'黒毛和種':(dc.breed||'')):'';
+  // 登録機関が未設定なら品種から補う（褐毛＝日本あか牛登録協会／黒毛＝全国和牛登録協会）
+  if(!sireRegOrg)  sireRegOrg  = regOrgByBreed(si?si.breed:'');
+  if(!donorRegOrg) donorRegOrg = regOrgByBreed(dc?dc.breed:'');
 
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
   var collectDate='',aiDate='',stage='',rank='';
@@ -17698,7 +17732,7 @@ function openEditSemen(id) {
   document.getElementById('semen-location').value = s.location || '';
   document.getElementById('semen-memo').value = s.memo || '';
   document.getElementById('semen-sire-cert').value = s.sireCert || '';
-  document.getElementById('semen-reg-org').value = s.regOrg || '';
+  document.getElementById('semen-reg-org').value = s.regOrg || regOrgByBreed(s.breed);
   document.getElementById('semen-reg-no').value = s.regNo || '';
   openModal('modal-semen-edit');
 }
