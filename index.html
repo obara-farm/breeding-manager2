@@ -19000,9 +19000,20 @@ function renderKoubutsu(recs, allRecs){
     const rsAll = allRecs.filter(r => String(r.year) === String(y) && r.slaughterDate);
     const rsSel = recs.filter(r => String(r.year) === String(y) && r.slaughterDate);
     const monthOf = r => parseInt(String(r.slaughterDate).slice(5,7)) || 0;
-    if (!rsSel.length && !rsAll.length) return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:12px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);">📅 ${yrLabel(y)}年 月別の上物率（A3以上）</div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px;">この年度の出荷データがありません。</div></div>`;
+    if (!rsSel.length && !rsAll.length) {
+      // 選んだ品種にデータが無い場合、別品種にデータがあれば教える
+      const bf = document.getElementById('fat-breed-filter')?.value || '褐毛';
+      const other = bf === '褐毛' ? '黒毛' : '褐毛';
+      const otherN = fatteningRecords.filter(r => String(r.year) === String(y) && r.slaughterDate && r.breed === other).length;
+      return `<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);">📅 ${yrLabel(y)}年 月別の上物率（A3以上）</div>
+        <button onclick="setKoubutsuMonthYear('${y}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:10px;padding:3px 8px;border-radius:5px;cursor:pointer;flex:none;">✕ 閉じる</button>
+      </div>
+      <div style="font-size:12px;color:var(--warn);margin-top:8px;">この年度の${bf}和種の出荷はありません。</div>
+      ${otherN ? `<div style="font-size:11px;color:var(--info);margin-top:4px;">${other}和種なら${otherN}頭あります。上の品種を「${other}和種」に切り替えてください。</div>` : ''}
+      </div>`;
+    }
 
     const MW=360, MH=220, mL=30, mR=10, mT=14, mB=32;
     const mPlotW=MW-mL-mR, mPlotH=MH-mT-mB;
@@ -19206,7 +19217,17 @@ function showMonthDetail(year, month, farmer){
   // 農家の絞り込み：点をタップした農家、無指定なら画面で選択中の農家のみ
   if (farmer) list = list.filter(r => r.farmer === farmer);
   else if (fatSelectedFarmers.length) list = list.filter(r => fatSelectedFarmers.includes(r.farmer));
-  if (!list.length) { box.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:8px;">この月・この農家のデータがありません</div>'; return; }
+  if (!list.length) {
+    const bf2 = breedFilter;
+    const other = bf2 === '褐毛' ? '黒毛' : '褐毛';
+    const otherN = fatteningRecords.filter(r => String(r.year)===String(year) && r.slaughterDate && String(r.slaughterDate).slice(5,7)===mm && r.breed===other).length;
+    box.innerHTML = `<div style="border-top:1px solid var(--border);padding-top:8px;">
+      <div style="font-size:12px;color:var(--warn);font-weight:700;">📋 R${parseInt(year)-2018}年${month}月：${bf2}和種の出荷はありません</div>
+      ${otherN ? `<div style="font-size:11px;color:var(--info);margin-top:4px;">${other}和種なら${otherN}頭あります。品種を切り替えてください。</div>` : ''}
+    </div>`;
+    box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    return;
+  }
   list.sort((a,b)=>(a.slaughterDate||'').localeCompare(b.slaughterDate||''));
   const who = farmer
     ? (farmer === OWN_FARMER ? '🏠小原' : farmer)
