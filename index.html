@@ -18980,9 +18980,20 @@ function renderKoubutsu(recs, allRecs){
       if(!stacks) stacks = mkStack('全体', recs, true);
     }
   } else {
-    // 農家別：全体＋各農家
-    stacks = mkStack('全体', recs, true);
-    if (farmerList.length>1) farmerList.forEach(f=>{ stacks += mkStack(f===OWN_FARMER?'🏠 小原（うち）':f, recs.filter(r=>r.farmer===f), false); });
+    // 農家別：選択中の農家（＋比較用の全農家平均）
+    if (farmerList.length === 1) {
+      // 1農家だけ選択：その農家名で表示し、全農家平均と比べられるようにする
+      const f = farmerList[0];
+      stacks = mkStack(f === OWN_FARMER ? '🏠 小原（うち）' : f, recs, false)
+             + mkStack('全農家', allRecs, true);
+    } else if (farmerList.length > 1) {
+      // 複数選択：選択分の合計＋農家ごと
+      stacks = mkStack('選択した農家の合計', recs, true);
+      farmerList.forEach(f => { stacks += mkStack(f === OWN_FARMER ? '🏠 小原（うち）' : f, recs.filter(r=>r.farmer===f), false); });
+    } else {
+      // 無選択（全農家）
+      stacks = mkStack('全農家', recs, true);
+    }
   }
   const legendB = buckets.map(b=>`<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--text);margin-right:8px;"><span style="width:10px;height:10px;background:${b.col};display:inline-block;border-radius:2px;"></span>${b.label}</span>`).join('');
   const barChart = `
