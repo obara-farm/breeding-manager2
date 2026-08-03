@@ -15129,17 +15129,21 @@ function saveCalvingRecord() {
     }
   }
 
+  let embryoNoFromSire = '';   // 種雄牛欄に入っていた胚番号を退避する
   // ET産仔で、種雄牛欄に胚番号が入ったままの場合は、ここで「ドナー×種雄牛」に分解する
   // （胚番号をそのまま父として保存すると血統が壊れるため）
+  // 番号の形式は採卵所や体外受精でまちまちなので、決め打ちのパターンでは判定せず、
+  // 「照合して血統が引けたか」で胚番号かどうかを判断する
   if (insemType === 'et' && typeof embryoDonorSire === 'function') {
-    const looksEmbryo = /^01L237|^\d{2}[A-L]\d{2}B\d+/.test(sire || '');
-    if (looksEmbryo || !donor) {
-      const combo = embryoDonorSire(sire || '');
-      if (combo && combo.includes('×')) {
-        const [d, s] = combo.split('×').map(x => x.trim());
-        if (looksEmbryo && s) sire = s;      // 父＝種雄牛に置き換え
-        if (!donor && d) donor = d;          // ドナー＝血統上の母
+    const combo = embryoDonorSire(sire || '');
+    if (combo && combo.includes('×')) {
+      const [d, s] = combo.split('×').map(x => x.trim());
+      // 引けた種雄牛が今の値と違う＝今入っているのは胚番号なので置き換える
+      if (s && s !== sire) {
+        embryoNoFromSire = sire;   // 胚番号として退避
+        sire = s;
       }
+      if (!donor && d) donor = d;  // ドナー＝血統上の母
     }
   }
 
@@ -15175,11 +15179,13 @@ function saveCalvingRecord() {
   // 死産判定（メモに「死産」が含まれる場合）
   const isStillbirthRecord = memo.includes('死産');
 
-  // ET時の胚番号を取得（cr-sireが胚番号形式なら最優先）
+  // ET時の胚番号を取得（種雄牛欄から分解した胚番号を最優先）
   let embryoNo = '';
   if (insemType === 'et') {
     const crSire = document.getElementById('cr-sire').value.trim();
-    if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(crSire)) {
+    if (embryoNoFromSire) {
+      embryoNo = embryoNoFromSire;
+    } else if (/^\d{2}[A-L]\d{2}B\d+-\d+$/.test(crSire)) {
       embryoNo = crSire;
     } else {
       const embryoSelId2 = document.getElementById('cr-embryo-select').value;
