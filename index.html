@@ -691,7 +691,7 @@ textarea{resize:vertical;}
     <button id="calf-filter-kept" onclick="setCalfFilter('kept')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🌟 保留（繁殖候補）</button>
     <button id="calf-filter-moved" onclick="setCalfFilter('moved')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">移動済み</button>
     <button onclick="goToInsemBookForCalves()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">📄 授精証明書を発行</button>
-    <button onclick="exportCalvesCSV()" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">📥 CSVで出力</button>
+    <button onclick="printCalvesList()" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🖨 リストを印刷</button>
   </div>
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
     <span style="font-size:11px;color:var(--muted);">🌟 繁殖候補の年度で絞る:</span>
@@ -15403,9 +15403,9 @@ function toggleCalfAgeUnit(el){
     el.dataset.mode = 'd';
   }
 }
-// 📥 子牛リストをCSVで出力（分娩予定表と同じ考え方の項目）
-function exportCalvesCSV(){
-  // 画面のフィルター（全て／移動待ち／保留／移動済み・検索・繁殖候補の年度）をそのまま反映する
+// 🖨 子牛リストを印刷（分娩予定表と同じA4形式）
+function printCalvesList(){
+  // 画面のフィルター（全て／移動待ち／保留／移動済み・検索）をそのまま反映する
   let list = calves.slice();
   if (calfFilter === 'pending') list = list.filter(c => c.status === 'active');
   else if (calfFilter === 'kept') list = list.filter(c => c.status === 'kept' || c.isBreedingCandidate);
@@ -15415,46 +15415,84 @@ function exportCalvesCSV(){
     String(c.earTagId||'').replace(/[-\s]/g,'').includes(q) ||
     String(c.nationalId||'').replace(/[-\s]/g,'').includes(q) ||
     String(c.name||'').includes(q));
-  if (!list.length) { alert('出力する子牛がいません'); return; }
-  list.sort((a,b)=>(b.dob||'').localeCompare(a.dob||''));
+  if (!list.length) { alert('印刷する子牛がいません'); return; }
 
-  const cols = ['生年月日','耳標','個体識別番号','性別','品種','母牛','種別',
-                '種雄牛／ドナー×種','胚番号','母の父','母の祖父','状態','繁殖候補','生時体重','死亡日','備考'];
-  const esc = v => {
-    const s = (v==null?'':String(v));
-    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
-  };
-  const rows = list.map(c => {
-    const isEt = !!(c.donor || c.embryoNo);
-    const sireLabel = isEt
-      ? ((c.donor && c.sire) ? `${c.donor}×${c.sire}` : (c.donor || c.sire || ''))
-      : (c.sire || '');
-    const status = c.deathDate ? '死亡'
-      : c.status === 'moved' ? '移動済み'
-      : (c.status === 'kept' || c.isBreedingCandidate) ? '保留（繁殖候補）'
-      : '移動待ち';
-    // 繁殖候補には印を付けて分かるようにする
-    const cand = (c.status === 'kept' || c.isBreedingCandidate) ? '🌟保留' : '';
-    return [
-      c.dob||'', c.earTagId||'', c.nationalId||'',
-      c.sex||'', c.breed||'',
-      c.damId ? `${c.damId} ${cowDisplayName(c.damId)||''}`.trim() : '',
-      isEt ? 'ET' : 'AI',
-      sireLabel, c.embryoNo||'', c.maternalSire||'', c.maternalGrandSire||'',
-      status, cand, c.weight||'', c.deathDate||'', c.memo||''
-    ].map(esc).join(',');
-  });
-  // Excelで文字化けしないようBOM付きUTF-8
-  const csv = '\uFEFF' + cols.join(',') + '\n' + rows.join('\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `子牛リスト_${today()}.csv`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const todayStr = today();
+  const filterLabel = calfFilter === 'pending' ? '移動待ち'
+    : calfFilter === 'kept' ? '保留（繁殖候補）'
+    : calfFilter === 'moved' ? '移動済み' : '全て';
+
+  // 生月ごとにまとめる（分娩予定表と同じ考え方）
+  const monthMap = {};
+  list.forEach(c => { const ym = (c.dob||'不明').slice(0,7); (monthMap[ym] = monthMap[ym]||[]).push(c); });
+  const rows = Object.keys(monthMap).sort((a,b)=>b.localeCompare(a)).map(ym => {
+    const [y,m] = ym.split('-');
+    const arr = monthMap[ym].sort((a,b)=>(a.dob||'').localeCompare(b.dob||''));
+    const body = arr.map(c => {
+      const isEt = !!(c.donor || c.embryoNo);
+      const sireLabel = isEt
+        ? ((c.donor && c.sire) ? `${c.donor}×${c.sire}` : (c.donor || c.sire || ''))
+        : (c.sire || '');
+      const cand = (c.status === 'kept' || c.isBreedingCandidate) ? '🌟' : '';
+      const dam = c.damId ? `${c.damId} ${cowDisplayName(c.damId)||''}`.trim() : '';
+      const dead = c.deathDate ? `<span style="color:#c00;">†${fmtDate(c.deathDate)}</span>` : '';
+      return `<tr>
+        <td class="c">${c.dob?fmtDate(c.dob):'—'}</td>
+        <td class="c">${c.earTagId||''}</td>
+        <td class="c">${c.nationalId||''}</td>
+        <td class="c">${c.sex||''}</td>
+        <td class="c">${c.breed||''}</td>
+        <td>${dam}</td>
+        <td class="c">${isEt?'ET':'AI'}</td>
+        <td>${sireLabel}</td>
+        <td class="c">${c.maternalSire||''}</td>
+        <td class="c">${c.maternalGrandSire||''}</td>
+        <td class="c">${cand}</td>
+        <td class="c">${dead}</td>
+      </tr>`;
+    }).join('');
+    const title = ym === '不明' ? '生年月日 未設定' : `${y}年${parseInt(m)}月`;
+    return `<h2>${title}（${arr.length}頭）</h2>
+      <table><thead><tr>
+        <th>生年月日</th><th>耳標</th><th>個体識別番号</th><th>性別</th><th>品種</th>
+        <th>母牛</th><th>種別</th><th>種雄牛／ドナー×種</th><th>母の父</th><th>母の祖父</th>
+        <th>候補</th><th>死亡</th>
+      </tr></thead><tbody>${body}</tbody></table>`;
+  }).join('');
+
   const candN = list.filter(c => c.status==='kept' || c.isBreedingCandidate).length;
-  alert(`${list.length}頭を出力しました（うち繁殖候補 ${candN}頭）`);
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>子牛リスト ${fmtDate(todayStr)}</title>
+    <style>
+      @media print{ @page{size:A4 landscape;margin:10mm;} .noprint{display:none;} }
+      body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#111;padding:14px;}
+      h1{font-size:17px;margin:0 0 4px;} .sub{color:#666;font-size:12px;margin-bottom:12px;}
+      h2{font-size:14px;margin:14px 0 6px;padding:4px 8px;background:#e9f7ef;border-left:4px solid #2e9e63;}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px;}
+      th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}
+      th{background:#f5f5f5;font-size:10px;} .c{text-align:center;white-space:nowrap;}
+      tbody tr:nth-child(even){background:#fafafa;}
+      .btn{background:#2e9e63;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;}
+    </style></head><body>
+    <button class="btn noprint" onclick="window.print()">🖨 このページを印刷</button>
+    <h1>子牛リスト</h1>
+    <div class="sub">作成日: ${fmtDate(todayStr)}　／　${filterLabel}　${list.length}頭（うち🌟繁殖候補 ${candN}頭）　／　${OWN_FARMER||'小原農場'}</div>
+    ${rows}
+    </body></html>`;
+
+  const old = document.getElementById('calves-print-frame');
+  if (old) old.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'calves-print-frame';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  const doPrint = () => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+    catch(e) { const w = window.open('', '_blank'); if (w) { w.document.open(); w.document.write(html); w.document.close(); } }
+  };
+  if (iframe.contentWindow.document.readyState === 'complete') setTimeout(doPrint, 300);
+  else { iframe.onload = () => setTimeout(doPrint, 300); setTimeout(doPrint, 800); }
 }
 function renderCalves() {
   updateCalvesBadge();
