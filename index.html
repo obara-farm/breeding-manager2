@@ -13442,8 +13442,13 @@ function buildEtCertHTML(r, certNo) {
 
   // 胚番号または授精簿の情報からembryo/collection情報を補完
   var embryoNo=(r.n&&r.n.trim())?r.n.trim():'';
-  // r.sが胚番号形式（01L237R7-0003など）の場合もembryoNoとして扱う
-  if(!embryoNo && r.s && /^01L237/.test(r.s)) embryoNo = r.s;
+  // r.sが胚番号の場合もembryoNoとして扱う。
+  // 番号の形式は採卵所や体外受精でまちまちなので、パターンで決め打ちせず
+  // 「照合して血統が引けるか」で胚番号かどうかを判断する
+  if(!embryoNo && r.s && !r.s.includes('×')){
+    if(/^01L237/.test(r.s)) embryoNo = r.s;
+    else if(typeof embryoDonorSire === 'function' && (embryoDonorSire(r.s)||'').includes('×')) embryoNo = r.s;
+  }
   // r.sからロット番号と連番を取得（25J09B1-1 → lot=25J09B1, seq=1）
   var isLotFormat = /^\d{2}[A-L]\d{2}B\d/.test(r.s||'');
   var lotKey = isLotFormat ? (r.s||'').replace(/-\d+$/, '') : '';
@@ -13489,6 +13494,17 @@ function buildEtCertHTML(r, certNo) {
   if(!donorName) {
     var donorM = (r.m||'').match(/ドナー:([^\s\/]+)/);
     if(donorM) donorName = donorM[1];
+  }
+
+  // ここまでで引けない場合、胚番号から確実に照合する（採卵記録→胚在庫→採卵シートの順）
+  // 採卵所や体外受精で番号形式がまちまちでも、登録があれば血統が引ける
+  if((!donorName || !sireName) && typeof embryoDonorSire === 'function'){
+    var comboRef = embryoDonorSire(r.s || r.n || '');
+    if(comboRef && comboRef.indexOf('×') >= 0){
+      var pRef = comboRef.split('×');
+      if(!donorName) donorName = (pRef[0]||'').trim();
+      if(!sireName)  sireName  = (pRef[1]||'').trim();
+    }
   }
 
   // collectionRecordsからロット番号を取得（invRefがない場合も）
