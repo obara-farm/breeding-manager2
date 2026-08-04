@@ -12890,17 +12890,21 @@ function printIsolated(containerId, title, opts){
   const o = opts || {};
   const size = o.size || 'A4 landscape';
   const pageSel = o.pageSelector || ':scope > div';
+  const pages = Array.from(el.querySelectorAll(pageSel));
   const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${title}</title>
     <style>
       @page { size: ${size}; margin: ${o.margin || '8mm'}; }
       html,body{margin:0;padding:0;background:#fff;color:#000;}
       body{font-family:'Hiragino Mincho ProN','MS Mincho','Yu Mincho',serif;}
-      .pg{ page-break-after: always; break-after: page; }
+      /* 1枚ずつ改ページ。中身の元の幅・高さ指定（mm指定）はそのまま活かす */
+      .pg{ page-break-after: always; break-after: page; overflow:hidden; }
       .pg:last-child{ page-break-after: auto; break-after: auto; }
+      .pg > *{ box-shadow:none !important; }
       img{max-width:100%;}
     </style></head><body>${
-      Array.from(el.querySelectorAll(pageSel)).map(d=>`<div class="pg">${d.innerHTML}</div>`).join('')
-      || `<div class="pg">${el.innerHTML}</div>`
+      pages.length
+        ? pages.map(d=>`<div class="pg">${d.outerHTML}</div>`).join('')
+        : `<div class="pg">${el.innerHTML}</div>`
     }</body></html>`;
   const oldF = document.getElementById('iso-print-frame');
   if (oldF) oldF.remove();
@@ -12918,7 +12922,11 @@ function printIsolated(containerId, title, opts){
   if (iframe.contentWindow.document.readyState === 'complete') setTimeout(doPrint, 500);
   else { iframe.onload = () => setTimeout(doPrint, 500); setTimeout(doPrint, 1200); }
 }
-function printCertPreview(){ printIsolated('cert-preview-container', '証明書', {size:'A4 landscape'}); }
+function printCertPreview(){
+  // 証明書は幅297mm（A4横の全幅）で、内側に余白を持っているためページ余白は0にする
+  // 余白を取ると幅が足りず、はみ出した分が次のページに送られてしまう
+  printIsolated('cert-preview-container', '証明書', {size:'A4 landscape', margin:'0'});
+}
 function openEtCertPreview(records) {
   var modal = document.getElementById('modal-cert-preview');
   if (!modal) return;
@@ -13358,7 +13366,7 @@ function printManualEggCerts() {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'0', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
@@ -13430,7 +13438,7 @@ function printSelectedEggCerts() {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'0', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
