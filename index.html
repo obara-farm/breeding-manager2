@@ -12927,14 +12927,45 @@ function printCertPreview(){
   // 余白を取ると幅が足りず、はみ出した分が次のページに送られてしまう
   printIsolated('cert-preview-container', '証明書', {size:'A4 landscape', margin:'0'});
 }
+// 証明書の発行オプション（体外受精胚か／他所の獣医師か）を反映して作り直す
+function applyCertOptions(){
+  const ivf = document.getElementById('cert-ivf-toggle')?.checked;
+  window._etCertIvf = ivf ? true : null;   // null＝胚番号から自動判定
+  const useExt = document.getElementById('cert-extvet-toggle')?.checked;
+  const txt = (document.getElementById('cert-extvet-input')?.value || '').trim();
+  window._etCertVet = (useExt && txt) ? txt.replace(/\n/g, '<br>') : null;
+  if (_lastCertRecords) {
+    const container = document.getElementById('cert-preview-container');
+    let n = 16;
+    container.innerHTML = _lastCertRecords.map(r => buildEtCertHTML(r, n++)).join('');
+  }
+}
+function toggleExtVetInput(){
+  const on = document.getElementById('cert-extvet-toggle')?.checked;
+  const el = document.getElementById('cert-extvet-input');
+  if (el) { el.style.display = on ? '' : 'none'; if (on) el.focus(); }
+  applyCertOptions();
+}
+let _lastCertRecords = null;
 function openEtCertPreview(records) {
   var modal = document.getElementById('modal-cert-preview');
   if (!modal) return;
+  _lastCertRecords = records;
+  // 開くたびにオプションは初期化する（前回の他所獣医師などを引きずらないため）
+  window._etCertIvf = null;
+  window._etCertVet = null;
+  const ivfCb = document.getElementById('cert-ivf-toggle'); if (ivfCb) ivfCb.checked = false;
+  const extCb = document.getElementById('cert-extvet-toggle'); if (extCb) extCb.checked = false;
+  const extIn = document.getElementById('cert-extvet-input'); if (extIn) { extIn.value = ''; extIn.style.display = 'none'; }
   var container = document.getElementById('cert-preview-container');
   container.innerHTML = records.map(function(r) {
     var certNo = etCertCounter++;
     return buildEtCertHTML(r, certNo);
   }).join('');
+  // 胚番号から体外受精胚と判定できた場合はチェックを入れておく
+  if (ivfCb && records.some(r => /IVF|OPU/i.test(String(r.s||'')+' '+String(r.n||'')+' '+String(r.m||'')))) {
+    ivfCb.checked = true;
+  }
   modal.classList.add('open');
 }
 
@@ -13612,6 +13643,11 @@ function buildEtCertHTML(r, certNo) {
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
   var collectDate='',aiDate='',stage='',rank='';
   var embryoType = isFreshEmbryo ? '新鮮' : '凍結';
+  // 体外受精（OPU）胚かどうか。胚番号にIVF/OPUが含まれていれば自動判定、
+  // 発行時に指定があればそちらを優先する（体内胚とは記載する項目名が変わるため）
+  var isIvfCert = (window._etCertIvf !== undefined && window._etCertIvf !== null)
+    ? !!window._etCertIvf
+    : /IVF|OPU/i.test(String(embryoNo2 || r.s || r.n || '') + ' ' + String(r.m || ''));
   var semenCertNoFromCol = '';
 
   if(embryoNo2){
@@ -13834,11 +13870,11 @@ function buildEtCertHTML(r, certNo) {
         '<td colspan="3" style="'+V+'" contenteditable="true">'+semenCertNoFromCol+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'white-space:nowrap;">精液注入年月日</td>' +
+        '<td style="'+Vc+'white-space:nowrap;">'+(isIvfCert?'体外受精年月日':'精液注入年月日')+'</td>' +
         '<td colspan="3" style="'+V+'" contenteditable="true">'+aiDate+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
-        '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">体内受精卵採取月日</td>' +
+        '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">'+(isIvfCert?'体外受精卵検査年月日':'体内受精卵採取月日')+'</td>' +
         '<td colspan="3" style="'+V+'" contenteditable="true">'+collectDate+'</td>' +
       '</tr>' +
 
@@ -13848,10 +13884,12 @@ function buildEtCertHTML(r, certNo) {
         '<td colspan="3" style="'+V+'">池田町千代田　小原　秀樹</td>' +
       '</tr>' +
 
-      // 獣医師
+      // 獣医師（自分で生産していない受精卵の場合は採卵した獣医師を手入力できるようにする）
       '<tr style="height:15mm;">' +
         '<td colspan="2" style="'+Vc+'font-size:8.5pt;">獣医師の登録番号<br>住所及び氏名</td>' +
-        '<td colspan="3" style="'+V+'font-size:9pt;line-height:1.6;">〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳</td>' +
+        '<td colspan="3" style="'+V+'font-size:9pt;line-height:1.6;" contenteditable="true">'+
+          (window._etCertVet || '〒083-0042<br>北海道中川郡池田町字千代田697番地<br>獣 60937　　小原　千佳')+
+        '</td>' +
       '</tr>' +
 
       // ステージ・ランク（右下・謎列なし）
@@ -21309,7 +21347,20 @@ try {
         <button class="modal-close" onclick="closeModal('modal-cert-preview')">✕</button>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">証明書番号は各証明書内で直接入力できます。入力後に印刷してください。</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">証明書番号は各証明書内で直接入力できます。入力後に印刷してください。</div>
+    <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer;">
+        <input type="checkbox" id="cert-ivf-toggle" onchange="applyCertOptions()">
+        🧪 体外受精（OPU）胚として発行
+      </label>
+      <span style="font-size:10px;color:var(--muted);">※ 項目名が「体外受精年月日」「体外受精卵検査年月日」に変わります</span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text);cursor:pointer;">
+        <input type="checkbox" id="cert-extvet-toggle" onchange="toggleExtVetInput()">
+        🩺 他所で採卵した胚（獣医師を手入力）
+      </label>
+      <input type="text" id="cert-extvet-input" placeholder="例: 〒000-0000　○○市○○　○○家畜診療所　獣 00000　○○ ○○" 
+             oninput="applyCertOptions()" style="display:none;flex:1;min-width:260px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px;">
+    </div>
     <div id="cert-preview-container" style="background:#fff;width:297mm;min-height:210mm;margin:0 auto;box-shadow:0 0 10px rgba(0,0,0,.3);overflow:hidden;"></div>
   </div>
 </div>
