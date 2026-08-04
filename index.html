@@ -9592,10 +9592,9 @@ function _renderDelivAndPrint(no) {
   _doDelivPrint();
 }
 function _doDelivPrint() {
-  document.body.classList.add('printing-delivery');
-  window.print();
+  // 画面全体ではなく納品書だけを独立して印刷する（Macでの白紙・大量ページ対策）
+  printIsolated('delivery-print-area', '納品書', {size:'A4 portrait', margin:'8mm'});
   setTimeout(function(){
-    document.body.classList.remove('printing-delivery');
     // 印刷後、カートを空にするか確認
     setTimeout(function(){
       if (_deliveryCart.length && confirm('印刷しました。納品書カートを空にしますか？')) {
@@ -12882,6 +12881,44 @@ function printSelectedEtCerts() {
   openEtCertPreview(selected);
 }
 
+// 🖨 証明書の印刷（Mac対策）
+// 画面全体を印刷対象にするとブラウザによって白紙や大量ページになるため、
+// 証明書の中身だけを取り出して独立したページとして印刷する
+function printIsolated(containerId, title, opts){
+  const el = document.getElementById(containerId);
+  if (!el || !el.innerHTML.trim()) { alert('印刷する内容がありません'); return; }
+  const o = opts || {};
+  const size = o.size || 'A4 landscape';
+  const pageSel = o.pageSelector || ':scope > div';
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+      @page { size: ${size}; margin: ${o.margin || '8mm'}; }
+      html,body{margin:0;padding:0;background:#fff;color:#000;}
+      body{font-family:'Hiragino Mincho ProN','MS Mincho','Yu Mincho',serif;}
+      .pg{ page-break-after: always; break-after: page; }
+      .pg:last-child{ page-break-after: auto; break-after: auto; }
+      img{max-width:100%;}
+    </style></head><body>${
+      Array.from(el.querySelectorAll(pageSel)).map(d=>`<div class="pg">${d.innerHTML}</div>`).join('')
+      || `<div class="pg">${el.innerHTML}</div>`
+    }</body></html>`;
+  const oldF = document.getElementById('iso-print-frame');
+  if (oldF) oldF.remove();
+  const iframe = document.createElement('iframe');
+  iframe.id = 'iso-print-frame';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  const doPrint = () => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
+    catch(e) { const w = window.open('', '_blank'); if (w) { w.document.open(); w.document.write(html); w.document.close(); } }
+  };
+  // Macは描画に時間がかかることがあるので少し長めに待つ
+  if (iframe.contentWindow.document.readyState === 'complete') setTimeout(doPrint, 500);
+  else { iframe.onload = () => setTimeout(doPrint, 500); setTimeout(doPrint, 1200); }
+}
+function printCertPreview(){ printIsolated('cert-preview-container', '証明書', {size:'A4 landscape'}); }
 function openEtCertPreview(records) {
   var modal = document.getElementById('modal-cert-preview');
   if (!modal) return;
@@ -13320,10 +13357,9 @@ function printManualEggCerts() {
     styleEl.id = 'egg-cert-print-style';
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
-    document.body.classList.add('printing-egg-cert');
-    window.print();
+    // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
-      document.body.classList.remove('printing-egg-cert');
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
     }, 1000);
@@ -13393,10 +13429,9 @@ function printSelectedEggCerts() {
     styleEl.id = 'egg-cert-print-style';
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
-    document.body.classList.add('printing-egg-cert');
-    window.print();
+    // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
-      document.body.classList.remove('printing-egg-cert');
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
     }, 1000);
@@ -21262,7 +21297,7 @@ try {
     <div class="modal-title">
       <span>📄 授精証明書プレビュー</span>
       <div style="display:flex;gap:8px;">
-        <button onclick="window.print()" style="background:var(--purple);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer;">🖨 印刷</button>
+        <button onclick="printCertPreview()" style="background:var(--purple);border:none;color:#fff;font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;cursor:pointer;">🖨 印刷</button>
         <button class="modal-close" onclick="closeModal('modal-cert-preview')">✕</button>
       </div>
     </div>
