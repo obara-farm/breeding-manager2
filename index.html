@@ -4185,11 +4185,19 @@ function printCalvingSchedule(){
     ${rows}
     </body></html>`;
   // 非表示iframeに書き込んで印刷（別ウィンドウを開かないのでポップアップブロック・Blank問題を回避）
+  // Safariは非表示iframeからの印刷が不安定なので、実ウィンドウを開いて印刷する
+  if (/^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent)) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+    return;
+  }
   const old = document.getElementById('print-frame');
   if (old) old.remove();
   const iframe = document.createElement('iframe');
   iframe.id = 'print-frame';
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;';
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open();
@@ -12845,7 +12853,7 @@ function printTransferBook(){
     ${rows}</body></html>`;
   const old=document.getElementById('tb-print-frame'); if(old)old.remove();
   const iframe=document.createElement('iframe'); iframe.id='tb-print-frame';
-  iframe.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.style.cssText='position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;';
   document.body.appendChild(iframe);
   const doc=iframe.contentWindow.document; doc.open(); doc.write(html); doc.close();
   const doPrint=()=>{ try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }catch(e){ const w=window.open('','_blank'); if(w){w.document.write(html);w.document.close();} } };
@@ -12891,26 +12899,46 @@ function printIsolated(containerId, title, opts){
   const size = o.size || 'A4 landscape';
   const pageSel = o.pageSelector || ':scope > div';
   const pages = Array.from(el.querySelectorAll(pageSel));
-  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>${title}</title>
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${title}</title>
     <style>
       @page { size: ${size}; margin: ${o.margin || '8mm'}; }
-      html,body{margin:0;padding:0;background:#fff;color:#000;}
+      html,body{margin:0;padding:0;background:#fff;color:#000;
+        -webkit-print-color-adjust:exact; print-color-adjust:exact;}
       body{font-family:'Hiragino Mincho ProN','MS Mincho','Yu Mincho',serif;}
       /* 1枚ずつ改ページ。中身の元の幅・高さ指定（mm指定）はそのまま活かす */
       .pg{ page-break-after: always; break-after: page; overflow:hidden; }
       .pg:last-child{ page-break-after: auto; break-after: auto; }
       .pg > *{ box-shadow:none !important; }
+      /* Safari対策：用紙幅を超えた分は縮めて1枚に収める */
+      @media print {
+        .pg{ width:${o.pageWidth || '297mm'}; max-width:${o.pageWidth || '297mm'}; }
+        .pg > *{ transform-origin: top left; }
+      }
       img{max-width:100%;}
     </style></head><body>${
       pages.length
         ? pages.map(d=>`<div class="pg">${d.outerHTML}</div>`).join('')
         : `<div class="pg">${el.innerHTML}</div>`
     }</body></html>`;
+  // Safariは非表示iframeからの印刷が不安定（白紙・ページ崩れ）なので、実ウィンドウを開いて印刷する
+  const isSafari = /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent);
+  if (isSafari) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    w.document.open();
+    w.document.write(html + `<script>
+      window.onload = function(){ setTimeout(function(){ window.focus(); window.print(); }, 600); };
+    <\/script>`);
+    w.document.close();
+    return;
+  }
   const oldF = document.getElementById('iso-print-frame');
   if (oldF) oldF.remove();
   const iframe = document.createElement('iframe');
   iframe.id = 'iso-print-frame';
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;';
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open(); doc.write(html); doc.close();
@@ -15560,11 +15588,19 @@ function printCalvesList(){
     ${rows}
     </body></html>`;
 
+  // Safari対応：実ウィンドウを開いて印刷する
+  if (/^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent)) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+    return;
+  }
   const old = document.getElementById('calves-print-frame');
   if (old) old.remove();
   const iframe = document.createElement('iframe');
   iframe.id = 'calves-print-frame';
-  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;';
   document.body.appendChild(iframe);
   const doc = iframe.contentWindow.document;
   doc.open(); doc.write(html); doc.close();
