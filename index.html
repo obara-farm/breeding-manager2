@@ -8356,17 +8356,8 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // memoから術者を抽出（operatorArgが直接渡された場合はそちらを優先）
   const opMatch = (memo||'').match(/術者:([^／\s]+)/);
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
-  // 授精証明書No自動採番（2025/11/05以降・術者なし・AI記録のみ）
+  // 授精簿No：自動採番は廃止。常に空欄で追加し、手入力してもらう。
   let certQ = '';
-  const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
-  if (date > '2025-11-05' && !op && !isETForCert) {
-    const allQ = insemBookRecords
-      .filter(r => r.insemType !== 'et' && !(r.s && (r.s.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s))))
-      .map(r => parseInt(r.q))
-      .filter(n => !isNaN(n) && n >= 587 && n < 10000);
-    const maxQ = allQ.length > 0 ? Math.max(...allQ) : 586;
-    certQ = String(maxQ + 1);
-  }
   // memoから精液名・術者・胚番号を除いた備考部分のみ抽出
   const memoClean = (memo||'').split('／')
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
@@ -8378,13 +8369,8 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   // count>1の場合は追加分も登録
   if (count && count > 1) {
     for (let i = 1; i < count; i++) {
-      let certQ2 = '';
-      if (date > '2025-11-05' && !op) {
-        const allQ2 = insemBookRecords.map(r => parseInt(r.q)).filter(n => !isNaN(n) && n >= 587 && n < 10000);
-        const maxQ2 = allQ2.length > 0 ? Math.max(...allQ2) : 586;
-        certQ2 = String(maxQ2 + 1);
-      }
-      insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: certQ2, m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
+      // No：自動採番は廃止。空欄で追加し、手入力してもらう。
+      insemBookRecords.push({ d: date, t: cowId, c: cowName, s: sire, n: '', q: '', m: memoClean, op, y: year, _new: true, donorAI: isDonorAI||false, insemType: type });
     }
   }
 }
@@ -8411,12 +8397,15 @@ function saveInsemBookRecord(src, idx) {
     insemBookEdits[key].m = (document.getElementById('ib-m-' + src + idx)?.value || '').trim();
     insemBookEdits[key].op = (document.getElementById('ib-op-' + recD + '-' + recT)?.value || '').trim();
   }
+  // ★どの欄を編集した場合でも、必ずここで保存（Firebase同期含む）を実行する。
+  // 以前はtriggerField引数を呼び出し元が渡していなかったため、在庫連動が発生しないケースで
+  // 編集内容が保存・同期されないことがあった（Noの同期不具合の原因）。
+  save();
   // op欄・d欄変更時のみ在庫処理を実行（m欄やn欄のみの変更では在庫不要）
   // ただし新規レコード（_new:true）の初回保存時は在庫処理を実行
   const triggerField = arguments[2] || 'unknown';
   const isNewRec = src === 'dynamic' && insemBookRecords[idx]?._new;
   if (!isNewRec && (triggerField === 'm' || triggerField === 'n' || triggerField === 'q')) {
-    save();
     return;
   }
   const recForInv = src === 'dynamic' ? insemBookRecords[idx] : (() => {
