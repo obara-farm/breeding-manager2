@@ -8358,6 +8358,8 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
   const op = operatorArg || (opMatch ? opMatch[1].trim() : '');
   // 授精簿No：自動採番は廃止。常に空欄で追加し、手入力してもらう。
   let certQ = '';
+  // ET記録かどうかの判定（finalMemoの胚番号自動セットに使用）
+  const isETForCert = type === 'et' || (sire && (sire.includes('×') || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(sire)));
   // memoから精液名・術者・胚番号を除いた備考部分のみ抽出
   const memoClean = (memo||'').split('／')
     .filter(p => !p.startsWith('精液:') && !p.startsWith('胚番号:') && !p.startsWith('術者:'))
