@@ -5569,7 +5569,8 @@ function submitQuickReg() {
     if (NEW_BREEDING.includes(event)) {
       const cowW = cows.find(c => c.id === cowId);
       if (cowW) {
-        const evs = (cowW.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type))
+        // ドナーAI（採卵目的）は妊娠鑑定の対象外なので除外する
+        const evs = (cowW.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && !e.donorAI)
           .sort((a,b) => (b.date||'').localeCompare(a.date||''));
         const lastInsem = evs[0];
         if (lastInsem && lastInsem.date < date) {
