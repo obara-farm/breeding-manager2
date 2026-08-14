@@ -5569,8 +5569,17 @@ function submitQuickReg() {
     if (NEW_BREEDING.includes(event)) {
       const cowW = cows.find(c => c.id === cowId);
       if (cowW) {
-        // ドナーAI（採卵目的）は妊娠鑑定の対象外なので除外する
-        const evs = (cowW.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && !e.donorAI)
+        // 直近の授精・処置関連イベント全体（ドナーAI・採卵プログラム開始等も含む）の中で最新のものを見る。
+        // ドナーAI（過剰排卵処置）が実施できている＝その時点で妊娠していなかった証拠なので、
+        // それより古い通常AIの結果を心配する必要はない。
+        const ALL_BREEDING_EVENTS = ['ai_done','et_done','estrus_ai','estrus_et',
+                                      'donor_et_pretreat_start','donor_et_takahashi_start','cidr_ai_start'];
+        const allEvs = (cowW.events||[]).filter(e => ALL_BREEDING_EVENTS.includes(e.type))
+          .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+        const mostRecentEv = allEvs[0];
+        const isRecentDonorRelated = mostRecentEv && (mostRecentEv.donorAI || mostRecentEv.type.startsWith('donor_'));
+        const evs = isRecentDonorRelated ? [] :
+          (cowW.events||[]).filter(e => ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && !e.donorAI)
           .sort((a,b) => (b.date||'').localeCompare(a.date||''));
         const lastInsem = evs[0];
         if (lastInsem && lastInsem.date < date) {
