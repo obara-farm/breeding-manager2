@@ -12271,6 +12271,11 @@ function toggleDonorAIFlag(src, idx) {
       }
     } else {
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= date));
+      const cow3 = cows.find(c => c.id === cowId);
+      if (cow3) {
+        const ev3 = (cow3.events||[]).find(e => e.type === 'ai_done' && e.date === date && !e.donorAI);
+        if (ev3) ev3.donorAI = true;
+      }
     }
     save(); renderInsemBook(); renderAll();
     return;
@@ -12307,9 +12312,13 @@ function toggleDonorAIFlag(src, idx) {
       }
     }
   } else {
-    // ONにした場合：妊鑑タスクを削除
+    // ONにした場合：妊鑑タスクを削除 + 対応するcow.eventsのdonorAIフラグもON
     tasks = tasks.filter(t => !(t.cowId===rec.t && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= rec.d));
-
+    const cow2 = cows.find(c => c.id === rec.t);
+    if (cow2) {
+      const ev2 = (cow2.events||[]).find(e => e.type === 'ai_done' && e.date === rec.d && !e.donorAI);
+      if (ev2) ev2.donorAI = true;
+    }
   }
   save();
   renderInsemBook();
