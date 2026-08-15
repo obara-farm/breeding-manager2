@@ -669,6 +669,9 @@ textarea{resize:vertical;}
       <option value="open_desc">空胎日数↓長い順</option>
     </select>
   </div>
+  <div style="margin-bottom:12px;">
+    <button id="cow-age-filter-btn" onclick="toggleCowAgeFilter()" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🐮 24ヶ月齢未満のみ</button>
+  </div>
   <div id="cow-list-container"></div>
   <div class="empty" id="cow-empty" style="display:none;">
     <div class="empty-icon">🐄</div><div class="empty-text">個体が登録されていません</div>
@@ -4419,6 +4422,11 @@ function onTwinCheckChange(cowId, baseDueDate) {
 // 品種フィルター
 let cowBreedFilter = 'all';
 let cowStatusFilter = 'all';
+let cowAgeFilter = false; // true: 24ヶ月齢未満のみ表示
+function toggleCowAgeFilter() {
+  cowAgeFilter = !cowAgeFilter;
+  renderCowList();
+}
 
 function setCowBreedFilter(breed) {
   cowBreedFilter = breed;
@@ -4578,6 +4586,17 @@ function renderCowList() {
     });
   }
 
+  // 24ヶ月齢未満フィルター適用
+  if (cowAgeFilter) {
+    filtered = filtered.filter(c => {
+      const m = getMasterCow(c.id);
+      const dob = (m ? m.dob : c.dob) || null;
+      if (!dob) return false;
+      const ageMonths = Math.floor(diffDays(todayStr, dob) / 30.5);
+      return ageMonths < 24;
+    });
+  }
+
   // ソート
   const getDob = c => { const m = getMasterCow(c.id); return (m ? m.dob : c.dob) || '9999-99-99'; };
   if (sortKey === 'age_asc')    filtered.sort((a,b) => getDob(b).localeCompare(getDob(a))); // 若い=生年月日が新しい
@@ -4592,6 +4611,12 @@ function renderCowList() {
   }
 
   document.getElementById('cow-count').textContent = `${filtered.length}頭`;
+  const ageBtn = document.getElementById('cow-age-filter-btn');
+  if (ageBtn) {
+    ageBtn.style.background = cowAgeFilter ? 'var(--accent2)' : 'var(--bg3)';
+    ageBtn.style.color = cowAgeFilter ? '#000' : 'var(--muted)';
+    ageBtn.style.border = cowAgeFilter ? 'none' : '1px solid var(--border)';
+  }
 
   const container = document.getElementById('cow-list-container');
   const empty = document.getElementById('cow-empty');
