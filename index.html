@@ -9345,7 +9345,7 @@ function embryoResultIndex(){
           && e.date >= rec.date && (!next || e.date < next.date)).pop();
         if (pe) result = pe.type==='preg_positive' ? 'pos' : 'neg';
         else if (next) result = 'neg';           // 次の授精があれば不受胎
-        else if (cow && (cow.status==='pregnant'||cow.calvingDate)) result = 'pos';
+        else if (cow && (cow.status==='pregnant' || (cow.calvingDate && cow.calvingDate >= rec.date))) result = 'pos';
       }
       nos.forEach(no=>{ if(!idx[no]) idx[no] = {result, date: rec.date, cowId}; });
     });
@@ -15683,7 +15683,7 @@ function renderCalves() {
   }
 
   // 移動待ちアラート
-  const overdueCount = calves.filter(c => c.status==='active' && c.dob && diffDays(todayStr, c.dob)>=120).length;
+  const overdueCount = calves.filter(c => c.status==='active' && !c.deathDate && c.dob && diffDays(todayStr, c.dob)>=120).length;
   const alertEl = document.getElementById('calf-move-alert');
   if (overdueCount) {
     alertEl.style.display = '';
@@ -15699,8 +15699,8 @@ function renderCalves() {
     .sort((a,b) => (b.dob||'').localeCompare(a.dob||''))
     .map(calf => {
       const ageDays = calf.dob ? diffDays(todayStr, calf.dob) : null;
-      const isOverdue = calf.status === 'active' && ageDays !== null && ageDays >= 120;
-      const isNear = calf.status === 'active' && ageDays !== null && ageDays >= 100 && ageDays < 120;
+      const isOverdue = calf.status === 'active' && !calf.deathDate && ageDays !== null && ageDays >= 120;
+      const isNear = calf.status === 'active' && !calf.deathDate && ageDays !== null && ageDays >= 100 && ageDays < 120;
       const damName = cowDisplayName(calf.damId) || '';
       const bc = breedColor[calf.breed] || {bg:'var(--bg3)',border:'var(--border)',color:'var(--muted)'};
       const statusBadge = calf.deathDate
@@ -15836,10 +15836,10 @@ function renderCalves() {
           ${isEtFemale && calf.status === 'active' && !isFreemartin ? `<div style="font-size:11px;color:var(--purple);margin-bottom:8px;">🧬 ET産仔の雌牛です — 繁殖候補の保留を検討してください</div>` : ''}
           ${isFreemartin ? `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">⚠️ 異性双子（フリーマーチン）のため繁殖候補には登録できません</div>` : ''}
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          ${(calf.status === 'active' || calf.status === 'moved') && canKeep ? `
+          ${(calf.status === 'active' || calf.status === 'moved') && canKeep && !calf.deathDate ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="keep" style="background:#0a2a0a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">🌟 繁殖候補として保留</button>
           ` : ''}
-          ${calf.status === 'active' ? `
+          ${calf.status === 'active' && !calf.deathDate ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="moved" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">✓ 移動済みにする</button>
           ` : ''}
           ${(calf.status === 'kept' || calf.isBreedingCandidate) ? `
@@ -15850,7 +15850,7 @@ function renderCalves() {
                 : `<button class="calf-action-btn" data-calfid="${calf.id}" data-action="editnat" style="background:#1a0d00;border:2px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:6px;cursor:pointer;">⚠ 個体識別番号を入力してから登録</button>`
             }
           ` : ''}
-          ${calf.status === 'kept' ? `
+          ${calf.status === 'kept' && !calf.deathDate ? `
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="moved" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">✓ 移動済みにする</button>
             <button class="calf-action-btn" data-calfid="${calf.id}" data-action="active" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">保留を解除</button>
           ` : ''}
@@ -21768,6 +21768,21 @@ function initFirebaseSync() {
                 if (!merged[ek]) merged[ek] = ev;
                 else merged[ek] = {...merged[ek], ...ev};
               });
+              _store.setItem(k, JSON.stringify(merged));
+              _lastSentSnapshot[k] = JSON.stringify(merged);
+            } catch(e) {
+              _store.setItem(k, rv);
+            }
+            return;
+          }
+          // fatteningRecordsは配列丸ごと上書きだと後から追加した成績が消えるため、常にマージ（和集合）する
+          if (k === 'fatteningRecords') {
+            try {
+              const remoteRecs = JSON.parse(rv);
+              const localRecs = JSON.parse(_store.getItem(k) || '[]');
+              const keyOf = r => (r.nationalId||'') + '_' + normDate(r.slaughterDate||'');
+              const remoteKeys = new Set(remoteRecs.map(keyOf));
+              const merged = [...remoteRecs, ...localRecs.filter(lr => !remoteKeys.has(keyOf(lr)))];
               _store.setItem(k, JSON.stringify(merged));
               _lastSentSnapshot[k] = JSON.stringify(merged);
             } catch(e) {
