@@ -13135,12 +13135,11 @@ function buildEggCertHTML(colRec, embryo) {
     '</table></div>';
 }
 
-function buildEggCertBackHTML(debugLabel) {
+function buildEggCertBackHTML() {
   var bd='border:0.5px solid #000;';
   var V=bd+'vertical-align:middle;padding:1.5mm 2mm;font-size:7pt;';
   var Vc=bd+'vertical-align:middle;text-align:center;padding:1mm 2mm;font-size:7pt;font-weight:bold;background:#f0f0f0;';
-  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:2mm 3mm;box-sizing:border-box;width:100%;height:100%;overflow:hidden;position:relative;">' +
-    (debugLabel ? '<div style="position:absolute;top:1mm;right:2mm;font-size:14pt;font-weight:bold;color:red;">'+debugLabel+'</div>' : '') +
+  return '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;background:#fff;color:#000;padding:2mm 3mm;box-sizing:border-box;width:100%;height:100%;overflow:hidden;">' +
     '<div style="text-align:center;font-weight:bold;border-bottom:0.5px solid #000;padding-bottom:1mm;margin-bottom:2mm;font-size:8pt;">（裏　面）</div>' +
     '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;">' +
       '<colgroup><col style="width:50%"><col style="width:50%"></colgroup>' +
@@ -13172,7 +13171,6 @@ function buildEggCertBackHTML(debugLabel) {
 
 // 🛒 卵証明書カート
 var eggCertCart = []; // [{colRecId, embryoIdx, embryoNo, cane, stage, rank, lot}]
-var eggCertBackMode = 'rotate'; // 'rotate' | 'none' | 'swap' | 'swap_rotate'（表裏位置合わせテスト用）
 
 function printEggCertsFromModal() {
   var colRecId = document.getElementById('collection-edit-id').value;
@@ -13427,37 +13425,29 @@ function printManualEggCerts() {
   var container = document.getElementById('egg-cert-print-container');
   var empty = '<td style="width:105mm;writing-mode:horizontal-tb;"></td>';
   container.innerHTML = pages.map(function(page){
-    var posLabel = function(n){ return '<div style="position:absolute;top:1mm;left:2mm;font-size:14pt;font-weight:bold;color:blue;z-index:20;">'+n+'</div>'; };
-    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;">' +
+    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
         '<tr style="height:148.5mm;">' +
-          (page[0]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;position:relative;">'+posLabel('①')+page[0]+'</td>':empty) +
-          (page[1]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;position:relative;">'+posLabel('②')+page[1]+'</td>':empty) +
+          (page[0]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[0]+'</td>':empty) +
+          (page[1]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[1]+'</td>':empty) +
         '</tr>' +
         '<tr style="height:148.5mm;">' +
-          (page[2]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;position:relative;">'+posLabel('③')+page[2]+'</td>':empty) +
-          (page[3]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;position:relative;">'+posLabel('④')+page[3]+'</td>':empty) +
+          (page[2]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[2]+'</td>':empty) +
+          (page[3]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[3]+'</td>':empty) +
         '</tr>' +
       '</table></div>';
-    var mode = eggCertBackMode;
-    var doSwap = (mode === 'swap' || mode === 'swap_rotate');
-    var doRotate = (mode === 'rotate' || mode === 'swap_rotate');
-    var order = doSwap ? [2,3,0,1] : [0,1,2,3];
-    var labels = ['①の裏','②の裏','③の裏','④の裏'];
-    var backTransform = doRotate ? 'transform:rotate(180deg);transform-origin:center center;' : '';
-    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;'+backTransform+'">' +
+    var backCellRotated = '<td style="width:105mm;height:148.5mm;padding:0;overflow:hidden;box-sizing:border-box;"><div style="width:105mm;height:148.5mm;padding:3mm;box-sizing:border-box;transform:rotate(180deg);transform-origin:center center;">'+buildEggCertBackHTML()+'</div></td>';
+    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
         '<tr style="height:148.5mm;">' +
-          (page[order[0]]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertBackHTML(labels[order[0]])+'</td>':empty) +
-          (page[order[1]]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertBackHTML(labels[order[1]])+'</td>':empty) +
+          (page[2]?backCellRotated:empty) + (page[3]?backCellRotated:empty) +
         '</tr>' +
         '<tr style="height:148.5mm;">' +
-          (page[order[2]]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertBackHTML(labels[order[2]])+'</td>':empty) +
-          (page[order[3]]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertBackHTML(labels[order[3]])+'</td>':empty) +
+          (page[0]?backCellRotated:empty) + (page[1]?backCellRotated:empty) +
         '</tr>' +
       '</table></div>';
     return frontPage + backPage;
@@ -13499,41 +13489,34 @@ function printSelectedEggCerts() {
 
   var container = document.getElementById('egg-cert-print-container');
   container.innerHTML = pages.map(function(page){
-    var empty = '<td style="width:105mm;writing-mode:horizontal-tb;"></td>';
-    var cell = function(x,label){ return '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;writing-mode:horizontal-tb;position:relative;"><div style="position:absolute;top:1mm;left:2mm;font-size:14pt;font-weight:bold;color:blue;z-index:20;">'+label+'</div>'+buildEggCertHTML(x.colRec, x.embryo)+'</td>'; };
-    var backCell = function(label){ return '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;writing-mode:horizontal-tb;">'+buildEggCertBackHTML(label)+'</td>'; };
+    var cell = function(x){ return '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;writing-mode:horizontal-tb;">'+buildEggCertHTML(x.colRec, x.embryo)+'</td>'; };
+    // 裏面マスは個別に180度回転させて配置する（ページ全体の回転はしない）
+    var backCellRotated = '<td style="width:105mm;height:148.5mm;padding:0;overflow:hidden;box-sizing:border-box;writing-mode:horizontal-tb;"><div style="width:105mm;height:148.5mm;padding:3mm;box-sizing:border-box;transform:rotate(180deg);transform-origin:center center;">'+buildEggCertBackHTML()+'</div></td>';
 
     // 表面ページ
-    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;writing-mode:horizontal-tb;">' +
+    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
         '<tr style="height:148.5mm;">' +
-          (page[0]?cell(page[0],'①'):empty) + (page[1]?cell(page[1],'②'):empty) +
+          (page[0]?cell(page[0]):empty) + (page[1]?cell(page[1]):empty) +
         '</tr>' +
         '<tr style="height:148.5mm;">' +
-          (page[2]?cell(page[2],'③'):empty) + (page[3]?cell(page[3],'④'):empty) +
+          (page[2]?cell(page[2]):empty) + (page[3]?cell(page[3]):empty) +
         '</tr>' +
       '</table></div>';
 
-    // 裏面ページ：表裏位置合わせテスト用にモード切替可能
-    // rotate=ページ全体180度回転／none=回転なし／swap=上下行入替のみ／swap_rotate=上下行入替+180度回転
-    var mode = eggCertBackMode;
-    var doSwap = (mode === 'swap' || mode === 'swap_rotate');
-    var doRotate = (mode === 'rotate' || mode === 'swap_rotate');
-    // 通常順: [0,1,2,3]（左上,右上,左下,右下）。swapなら上下行を入替: [2,3,0,1]
-    var order = doSwap ? [2,3,0,1] : [0,1,2,3];
-    var labels = ['①の裏','②の裏','③の裏','④の裏'];
-    var backTransform = doRotate ? 'transform:rotate(180deg);transform-origin:center center;' : '';
-    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;writing-mode:horizontal-tb;'+backTransform+'">' +
+    // 裏面ページ（短辺とじ：上下の行だけ入れ替え。ページ全体は回転させず、マスごとに180度回転）
+    // 表: 左上=0,右上=1,左下=2,右下=3 → 裏: 左上=2の裏,右上=3の裏,左下=0の裏,右下=1の裏
+    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
         '<tr style="height:148.5mm;">' +
-          (page[order[0]]?backCell(labels[order[0]]):empty) + (page[order[1]]?backCell(labels[order[1]]):empty) +
+          (page[2]?backCellRotated:empty) + (page[3]?backCellRotated:empty) +
         '</tr>' +
         '<tr style="height:148.5mm;">' +
-          (page[order[2]]?backCell(labels[order[2]]):empty) + (page[order[3]]?backCell(labels[order[3]]):empty) +
+          (page[0]?backCellRotated:empty) + (page[1]?backCellRotated:empty) +
         '</tr>' +
       '</table></div>';
 
@@ -21292,12 +21275,6 @@ try {
       <button onclick="clearEggCart()" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:5px 10px;border-radius:6px;cursor:pointer;">🗑 カートを空にする</button>
       <button onclick="openManualEggCert()" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">✏ 手入力で印刷</button>
       <span id="egg-cert-select-count" style="font-size:12px;color:var(--muted);"></span>
-      <select id="egg-cert-back-mode" onchange="eggCertBackMode=this.value;" style="font-size:11px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;">
-        <option value="rotate">裏面: 180度回転（現行）</option>
-        <option value="none">裏面: 回転なし</option>
-        <option value="swap">裏面: 上下入替のみ</option>
-        <option value="swap_rotate">裏面: 上下入替＋180度回転</option>
-      </select>
     </div>
     <div id="egg-cert-list" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
