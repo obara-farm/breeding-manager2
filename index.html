@@ -13144,8 +13144,8 @@ function buildEggCertBackHTML() {
     '<table style="width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:2mm;">' +
       '<colgroup><col style="width:50%"><col style="width:50%"></colgroup>' +
       '<tr>' +
-        '<td style="'+Vc+'">譲渡者の住所、氏名又は名称及び<br>譲渡をした年月日</td>' +
-        '<td style="'+Vc+'">譲受者の住所、氏名又は名称及び<br>譲受けをした年月日</td>' +
+        '<td style="'+Vc+'">譲渡者の住所、氏名又は名称<span style="white-space:nowrap;">及び</span><br>譲渡をした年月日</td>' +
+        '<td style="'+Vc+'">譲受者の住所、氏名又は名称<span style="white-space:nowrap;">及び</span><br>譲受けをした年月日</td>' +
       '</tr>' +
       '<tr>' +
         '<td style="'+V+'vertical-align:top;">北海道中川郡池田町字千代田697<br>小原家畜人工授精所<br>　　　年　　月　　日</td>' +
@@ -13425,7 +13425,7 @@ function printManualEggCerts() {
   var container = document.getElementById('egg-cert-print-container');
   var empty = '<td style="width:105mm;writing-mode:horizontal-tb;"></td>';
   container.innerHTML = pages.map(function(page){
-    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;">' +
+    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
@@ -13438,7 +13438,7 @@ function printManualEggCerts() {
           (page[3]?'<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[3]+'</td>':empty) +
         '</tr>' +
       '</table></div>';
-    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;transform:rotate(180deg);transform-origin:center center;">' +
+    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;transform:rotate(180deg);transform-origin:center center;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
@@ -13495,7 +13495,7 @@ function printSelectedEggCerts() {
     var backCell = '<td style="width:105mm;height:148.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;writing-mode:horizontal-tb;">'+buildEggCertBackHTML()+'</td>';
 
     // 表面ページ
-    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;">' +
+    var frontPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;writing-mode:horizontal-tb;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
@@ -13509,7 +13509,7 @@ function printSelectedEggCerts() {
 
     // 裏面ページ（短辺とじ：上下反転）
     // 表: 左上=0,右上=1,左下=2,右下=3 → 裏: 左上=2の裏,右上=3の裏,左下=0の裏,右下=1の裏
-    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;transform:rotate(180deg);transform-origin:center center;">' +
+    var backPage = '<div class="egg-cert-page" style="width:210mm;height:297mm;position:relative;box-sizing:border-box;padding:3mm;background:#fff;writing-mode:horizontal-tb;transform:rotate(180deg);transform-origin:center center;">' +
       '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
       '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
