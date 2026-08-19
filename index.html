@@ -13429,18 +13429,9 @@ function printManualEggCerts(side) {
   container.innerHTML = pages.map(function(page){
     var out = '';
     if (side === 'both' || side === 'front') {
-      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;position:relative;box-sizing:border-box;background:#fff;overflow:hidden;">' +
+      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;margin:5mm 5mm 5mm 5mm;position:relative;box-sizing:border-box;background:#fff;overflow:hidden;">' +
         '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
         '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-
         '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
           '<tr style="height:143.5mm;">' +
             (page[0]?'<td style="width:100mm;height:143.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+page[0]+'</td>':empty) +
@@ -13453,20 +13444,12 @@ function printManualEggCerts(side) {
         '</table></div>';
     }
     if (side === 'both' || side === 'back') {
-      // 手動両面印刷（表を印刷→用紙を手でひっくり返して裏を印刷）用に、回転・入替なしのシンプルな配置にする
+      // 手動両面印刷（表を印刷→用紙を手でひっくり返して裏を印刷）用。
+      // 表は左寄せ5mmで配置しているので、裏は逆に右寄せ5mmにして、紙を左右反転した時にぴったり重なるようにする
       var backCell = function(label){ return '<td style="width:100mm;height:143.5mm;padding:3mm;vertical-align:top;overflow:hidden;box-sizing:border-box;">'+buildEggCertBackHTML(label)+'</td>'; };
-      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;position:relative;box-sizing:border-box;background:#fff;overflow:hidden;">' +
+      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;margin:5mm 5mm 5mm auto;position:relative;box-sizing:border-box;background:#fff;overflow:hidden;">' +
         '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
         '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-
         '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;">' +
           '<tr style="height:143.5mm;">' +
             (page[1]?backCell('②'):empty) + (page[0]?backCell('①'):empty) +
@@ -13485,7 +13468,7 @@ function printManualEggCerts(side) {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'0', pageSelector:'.egg-cert-page', pageWidth:'210mm'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
@@ -13523,18 +13506,9 @@ function printSelectedEggCerts(side) {
 
     var out = '';
     if (side === 'both' || side === 'front') {
-      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;overflow:hidden;">' +
+      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;margin:5mm 5mm 5mm 5mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;overflow:hidden;">' +
         '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
         '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-
         '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
           '<tr style="height:143.5mm;">' +
             (page[0]?cell(page[0]):empty) + (page[1]?cell(page[1]):empty) +
@@ -13545,18 +13519,9 @@ function printSelectedEggCerts(side) {
         '</table></div>';
     }
     if (side === 'both' || side === 'back') {
-      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;overflow:hidden;">' +
+      out += '<div class="egg-cert-page" style="width:200mm;height:287mm;margin:5mm 5mm 5mm auto;position:relative;box-sizing:border-box;background:#fff;writing-mode:horizontal-tb;overflow:hidden;">' +
         '<div style="position:absolute;top:50%;left:0;right:0;height:0;border-top:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
         '<div style="position:absolute;left:50%;top:0;bottom:0;width:0;border-left:0.5px dashed #999;pointer-events:none;z-index:10;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:5mm;height:0;border-top:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;top:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;left:3mm;width:0;height:5mm;border-left:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:5mm;height:0;border-bottom:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-      '<div style="position:absolute;bottom:3mm;right:3mm;width:0;height:5mm;border-right:0.7px solid #000;pointer-events:none;z-index:11;"></div>' +
-
         '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed;writing-mode:horizontal-tb;">' +
           '<tr style="height:143.5mm;">' +
             (page[1]?backCell('②'):empty) + (page[0]?backCell('①'):empty) +
@@ -13577,7 +13542,7 @@ function printSelectedEggCerts(side) {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'0', pageSelector:'.egg-cert-page', pageWidth:'210mm'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
