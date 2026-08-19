@@ -9806,6 +9806,7 @@ function renderCollectionTab() {
       <div style="margin-top:8px;text-align:right;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">
         <button onclick="openEtCertFromCollection('${r.id}')" style="background:#1a0a12;border:1px solid var(--accent);color:var(--accent);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">🧬 移植証明書（他農家）</button>
         <button onclick="openDeliveryPicker('${r.id}')" style="background:#0a1520;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">📄 納品書に追加</button>
+        <button onclick="printThawInstructions()" style="background:#0a1a20;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 12px;border-radius:6px;cursor:pointer;">🧊 融解方法を印刷</button>
       </div>
       ${(frozenCount||freshCount||(r.cultureEmbryos||[]).length) ? `
       <div style="margin-top:6px;">
@@ -13134,6 +13135,34 @@ function buildEggCertHTML(colRec, embryo) {
       '<tr style="height:'+H+';"><td colspan="2" style="'+Vc+'">ランク</td><td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td></tr>' +
     '</table></div>';
 }
+
+function printThawInstructions() {
+  var html = '<div style="font-family:\'MS Mincho\',\'游明朝\',serif;color:#000;padding:15mm 18mm;box-sizing:border-box;width:100%;height:100%;">' +
+    '<div style="text-align:center;font-size:16pt;font-weight:bold;margin-bottom:12mm;">凍結体外受精卵の融解について</div>' +
+    '<div style="text-align:right;font-size:11pt;line-height:1.8;margin-bottom:14mm;">小原家畜診療所</div>' +
+    '<div style="font-size:12pt;margin-bottom:8mm;"><strong>1，凍結方法</strong><br><span style="margin-left:6mm;">ダイレクト法</span></div>' +
+    '<div style="font-size:12pt;line-height:2.1;margin-bottom:10mm;">' +
+      '<strong>2，融解方法</strong><br>' +
+      '<span style="margin-left:6mm;">① ストローをボンベから取り出し、空気中（室温）に10秒間保持します。</span><br>' +
+      '<span style="margin-left:6mm;">② 30℃±0.5℃のお湯に30秒〜50秒以内浸します。</span><br>' +
+      '<span style="margin-left:6mm;">③ 清潔なペーパータオルで水気をふき取ってください。</span><br>' +
+      '<span style="margin-left:6mm;">④ ストローからロッドを外し移植器に装填し、速やかに移植を行ってください。</span>' +
+    '</div>' +
+    '<div style="font-size:12pt;line-height:2.1;">' +
+      '<strong>注意点</strong><br>' +
+      '<span>・作業は一本ずつ行ってください。</span><br>' +
+      '<span>・融解中はストローをお湯の中でゆっくりと動かし、温度が均一になるようにしてください。</span><br>' +
+      '<span>・融解から移植までは3分未満で行ってください。</span>' +
+    '</div>' +
+  '</div>';
+  var container = document.getElementById('egg-cert-print-container');
+  container.innerHTML = html;
+  closeModal('modal-egg-cert-preview');
+  setTimeout(function(){
+    printIsolated('egg-cert-print-container', '凍結体外受精卵の融解について', {size:'A4 portrait', margin:'10mm'});
+  }, 50);
+}
+
 
 function buildEggCertBackHTML(debugLabel) {
   var bd='border:0.5px solid #000;';
