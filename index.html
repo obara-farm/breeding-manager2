@@ -13485,7 +13485,7 @@ function printManualEggCerts(side) {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page', pageWidth:'200mm'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
@@ -13577,7 +13577,7 @@ function printSelectedEggCerts(side) {
     styleEl.textContent = '@page { size: A4 portrait; margin: 5mm; }';
     document.head.appendChild(styleEl);
     // 画面全体ではなく証明書だけを独立して印刷する（Macでの白紙・大量ページ対策）
-    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page', pageWidth:'200mm'});
+    printIsolated('egg-cert-print-container', '受精卵証明書', {size:'A4 portrait', margin:'5mm', pageSelector:'.egg-cert-page'});
     setTimeout(function(){
       var el = document.getElementById('egg-cert-print-style');
       if(el) el.remove();
