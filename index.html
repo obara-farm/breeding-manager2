@@ -11721,12 +11721,17 @@ function saveCollection() {
           sire: sire||'', dam: cowDisplayName(donorId)||donorId, lot: lot||date,
           type: 'frozen', breed: cows.find(c=>c.id===donorId)?.breed||'黒毛', stage: fe.stage||'',
           stock: 0, alertThreshold: 2, noAlert: false,
-          collectionDate: date, history: [],
+          collectionDate: date, history: [], embryoDetails: [],
         };
         embryoInventory.push(invItem);
       }
+      // 新鮮胚のまま採番されていた番号（ロット-連番形式）ではなく、
+      // 凍結胚として正式な番号（01L237RX-XXXX形式）を新たに採番する
+      const newFrozenNo = generateFrozenEmbryoNo(date);
+      if (!invItem.embryoDetails) invItem.embryoDetails = [];
+      invItem.embryoDetails.push({ no: newFrozenNo, cane: '', stage: fe.stage||'', rank: fe.rank||'', frozen:true, fresh:false });
       invItem.stock += 1;
-      invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${embryoNo}` });
+      invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${newFrozenNo}（旧胚番号:${embryoNo}）` });
     }
   });
 
@@ -11899,6 +11904,26 @@ function _processFreshEtNow(rec, fe, embryoNo, date, embryoTypeLabel, embryoNo2,
     );
     if (etTask) { etTask.done = true; etTask.doneAt = new Date().toISOString(); }
   }
+}
+
+function generateFrozenEmbryoNo(dateStr) {
+  const d = new Date(dateStr);
+  const fiscalYear = d.getFullYear() - 2018;
+  const yearLabel = `R${fiscalYear}`;
+  let maxNo = 0;
+  embryoInventory.forEach(inv => {
+    (inv.embryoDetails||[]).forEach(ed => {
+      const m = ed.no && ed.no.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    });
+  });
+  (collectionRecordsNew||[]).forEach(rec => {
+    (rec.frozenEmbryos||[]).forEach(fe => {
+      const m = fe.no && fe.no.match(/01L237R(\d+)-(\d+)/);
+      if (m && 'R'+m[1] === yearLabel) maxNo = Math.max(maxNo, parseInt(m[2]));
+    });
+  });
+  return `01L237${yearLabel}-${String(maxNo + 1).padStart(4,'0')}`;
 }
 
 function _processFreshToFreeze(rec, fe, embryoNo, date, lot) {
@@ -12102,8 +12127,11 @@ function freezePendingEmbryo(idx) {
   }
   invItem.stock += 1;
   if (!invItem.embryoDetails) invItem.embryoDetails = [];
-  invItem.embryoDetails.push({ no: e.embryoNo, cane, stage: e.stage||'', rank, frozen:true, fresh:false });
-  invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${e.embryoNo} ケーン:${cane}` });
+  // 新鮮胚のまま採番されていた番号（ロット-連番形式）ではなく、
+  // 凍結胚として正式な番号（01L237RX-XXXX形式）を新たに採番する
+  const newFrozenNo = generateFrozenEmbryoNo(date);
+  invItem.embryoDetails.push({ no: newFrozenNo, cane, stage: e.stage||'', rank, frozen:true, fresh:false });
+  invItem.history.push({ date, type:'selfcollect', count:1, memo:`新鮮→凍結変換 ${newFrozenNo} ケーン:${cane}（旧胚番号:${e.embryoNo}）` });
   pendingEtList.splice(idx, 1);
   save();
   renderCollectionTab();
