@@ -12651,6 +12651,7 @@ function confirmOtherFarmCert(){
       t: '__other__',
       s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (no||''),
       n: no || '', d: '', m: '', op: 'TBS',
+      _embryoType: embType(no), // 凍結/新鮮/培養の判定結果をそのまま証明書生成に渡す（再推測させない）
     }));
     // 授精所の移植簿に自動記録（誤発行修正のため後で編集・削除可）
     selNos.forEach(no => {
@@ -13784,6 +13785,12 @@ function buildEtCertHTML(r, certNo) {
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
   var collectDate='',aiDate='',stage='',rank='';
   var embryoType = isFreshEmbryo ? '新鮮' : '凍結';
+  // 呼び出し元（採卵記録からの発行など）が既に正確な種別を判定済みの場合はそれを優先し、以降の推測で上書きしない
+  var embryoTypeConfirmed = false;
+  if (r._embryoType === '凍結' || r._embryoType === '新鮮') {
+    embryoType = r._embryoType;
+    embryoTypeConfirmed = true;
+  }
   // 体外受精（OPU）胚かどうか。胚番号にIVF/OPUが含まれていれば自動判定、
   // 発行時に指定があればそちらを優先する（体内胚とは記載する項目名が変わるため）
   var isIvfCert = (window._etCertIvf !== undefined && window._etCertIvf !== null)
@@ -13794,7 +13801,7 @@ function buildEtCertHTML(r, certNo) {
   if(embryoNo2){
     embryoInventory.forEach(function(inv){
       (inv.embryoDetails||[]).forEach(function(ed){
-        if(ed.no===embryoNo2){stage=ed.stage||'';rank=ed.rank||'';embryoType=ed.frozen?'凍結':'新鮮';}
+        if(ed.no===embryoNo2){stage=ed.stage||'';rank=ed.rank||''; if(!embryoTypeConfirmed) embryoType=ed.frozen?'凍結':'新鮮';}
       });
     });
   }
@@ -13821,13 +13828,13 @@ function buildEtCertHTML(r, certNo) {
     if(edTarget) {
       if(!stage) stage=edTarget.stage||'';
       if(!rank) rank=edTarget.rank||'';
-      embryoType = edTarget.frozen ? '凍結' : '新鮮';
-    } else if(invRef) {
+      if(!embryoTypeConfirmed) embryoType = edTarget.frozen ? '凍結' : '新鮮';
+    } else if(invRef && !embryoTypeConfirmed) {
       embryoType = invRef.type === 'frozen' ? '凍結' : '新鮮';
     }
   }
   // invRefが確定している場合はembryoTypeを上書き（edTargetがない場合）
-  if(invRef && !embryoNo2 && stage === '') {
+  if(invRef && !embryoNo2 && stage === '' && !embryoTypeConfirmed) {
     embryoType = invRef.type === 'frozen' ? '凍結' : '新鮮';
   }
 
