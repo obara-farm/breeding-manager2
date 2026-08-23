@@ -13101,7 +13101,7 @@ function buildEggCertHTML(colRec, embryo) {
   var aiDates = (colRec.aiDates||[]);
   var semenCertNos = aiDates.map(function(ai){
     var nos = [];
-    // INSEM_BOOK_DATAから全件取得（insemBookEditsのn欄も参照。donorAIフラグの有無は問わない）
+    // INSEM_BOOK_DATAから全件取得（insemBookEditsのn欄が精液証明書番号）
     for(var i=0; i<INSEM_BOOK_DATA.length; i++){
       var r = INSEM_BOOK_DATA[i];
       if(r.d===ai.date && r.t===colRec.donorId){
@@ -13110,7 +13110,7 @@ function buildEggCertHTML(colRec, embryo) {
         if(n) nos.push(n);
       }
     }
-    // insemBookRecordsから全件取得（donorAIフラグの有無は問わない。日付・ドナーIDが一致すれば採卵に使われたAIとみなす）
+    // insemBookRecordsから全件取得（nが精液証明書番号）
     insemBookRecords.forEach(function(r){
       if(r.d===ai.date && r.t===colRec.donorId){
         if(r.n && !nos.includes(r.n)) nos.push(r.n);
