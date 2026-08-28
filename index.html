@@ -3981,11 +3981,17 @@ function toggleTask(id) {
   if (task.done) {
     task.doneAt = new Date().toISOString();
 
-    // AI実施タスクをチェック → 45日後に妊鑑タスクを自動追加
+    // AI実施タスクをチェック → 実施記録モーダルを開く（実体のない記録を裏で作らないようにする）
     if (task.action === '人工授精（AI）' || task.action === '発情確認・AI実施') {
-      const cow = cows.find(c=>c.id===task.cowId);
-      if (cow) { cow.events = cow.events||[]; cow.events.push({ type:'ai_done', date:task.date, memo:task.memo||'' }); }
-      _addPregTask(task.cowId, task.date, 'AI', null);
+      task.done = false; // 実際の登録が完了するまでは未完了のまま
+      task.doneAt = null;
+      save();
+      renderAll();
+      addEventForCow(task.cowId, 'ai_done');
+      document.getElementById('qr-date').value = task.date;
+      if (document.getElementById('qr-memo')) document.getElementById('qr-memo').value = task.memo || '';
+      if (typeof onQrDateChange === 'function') onQrDateChange();
+      return;
     }
 
     // ET実施タスクをチェック → ET詳細記録モーダルを開く
@@ -12654,7 +12660,13 @@ function confirmOtherFarmCert(){
       _embryoType: embType(no), // 凍結/新鮮/培養の判定結果をそのまま証明書生成に渡す（再推測させない）
     }));
     // 授精所の移植簿に自動記録（誤発行修正のため後で編集・削除可）
+    // ただし、既に通常の授精簿（自農場）にその胚のET記録がある場合は、外部（他農家）への
+    // 重複記録にはならないようスキップする
     selNos.forEach(no => {
+      const alreadyOwnFarm = insemBookRecords.some(r =>
+        r.insemType === 'et' && ((r.s||'').includes(no) || (r.m||'').includes(no))
+      );
+      if (alreadyOwnFarm) return;
       transferBook.push({
         id: 'tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
         transferDate: moveDate || '',             // ピッカーで入れた移植日
