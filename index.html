@@ -8385,7 +8385,9 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
       ...insemBookRecords
     ];
     const sireFromMemo = (memo.match(/精液:([^／\s]+)/) || [])[1]?.trim() || '';
-    if (all.some(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date && (!sireFromMemo || r.s === sireFromMemo))) return;
+    const dupMatch = all.find(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date && (!sireFromMemo || r.s === sireFromMemo));
+    console.log('【デバッグ】addInsemBookRecord重複チェック', {cowId, date, memo, sireFromMemo, dupMatch});
+    if (dupMatch) return;
   } else {
     // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
     const embryoNoMatch = memo.match(/胚番号:([^\s]+)/);
@@ -8569,9 +8571,11 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   const isNeg = bookPregResult === 'negative' || pregEvFromEvents?.type === 'preg_negative';
   const pregDate = pregEvFromEvents?.date || addDays(date, 45);
   const hasResult = isPos || isNeg;
-  // 次のAI記録を確認（自動陰性表示用）
+  // 次のAI記録を確認（自動陰性表示用）。ただし2日以内の次のAIは「同一発情周期内の連続種付け」
+  // （例：当日＋翌日の2回種付けプロトコル）とみなし、自動陰性判定の対象にしない
   const allRecsForNext = [...INSEM_BOOK_DATA, ...insemBookRecords];
-  const nextDate = allRecsForNext.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d))[0]?.d || null;
+  const nextDateRaw = allRecsForNext.filter(r => r.t === cowId && r.d > date && !r.donorAI).sort((a,b) => a.d.localeCompare(b.d))[0]?.d || null;
+  const nextDate = (nextDateRaw && diffDays(date, nextDateRaw) <= 2) ? null : nextDateRaw;
 
   // 分娩済みなら最優先で表示（授精日から270〜300日以内の分娩のみ対象）
   if (cow.calvingDate) {
