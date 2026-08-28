@@ -8386,7 +8386,6 @@ function addInsemBookRecord(cowId, date, memo, type, isDonorAI, count, operatorA
     ];
     const sireFromMemo = (memo.match(/精液:([^／\s]+)/) || [])[1]?.trim() || '';
     const dupMatch = all.find(r => r.t?.toLowerCase() === cowId?.toLowerCase() && r.d === date && (!sireFromMemo || r.s === sireFromMemo));
-    console.log('【デバッグ】addInsemBookRecord重複チェック', {cowId, date, memo, sireFromMemo, dupMatch});
     if (dupMatch) return;
   } else {
     // ET記録：insemBookRecordsのみチェック（同日同牛同胚番号の重複防止）
