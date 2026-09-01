@@ -3549,12 +3549,14 @@ function registerEvent() {
         cow.dueDate = dueDate;
         tasks = tasks.filter(t=>!(t.cowId===cowId&&t.action==='🏠 産室移動'));
         tasks.push({id:Math.random().toString(36).slice(2),cowId,date:addDays(dueDate,-10),action:'🏠 産室移動',detail:`分娩予定日（${fmtDate(dueDate)}）の10日前`,color:'#a78bfa',priority:'high',done:false,timeOfDay:''});
-        // 早期妊鑑（移植後40日より前）の場合は、確実を期して60日後に再妊鑑タスクを立てる
+        // 早期妊鑑（移植後40日より前）の場合は、確実を期して「授精日相当」の60日目に再妊鑑タスクを立てる
+        // 受精卵は基本的にDay7（採卵・授精から7日後に移植）のため、移植日から7日引いた日を授精日とみなす
         {
           const daysAtCheckET = diffDays(todayStr, implDate);
           if (daysAtCheckET < 40) {
-            tasks.push({id:Math.random().toString(36).slice(2), cowId, date: addDays(implDate, 60),
-              action:'🔬 再妊娠鑑定', detail:`早期妊鑑（移植後${daysAtCheckET}日）のため60日目に再確認`,
+            const conceptualInsemDate = addDays(implDate, -7);
+            tasks.push({id:Math.random().toString(36).slice(2), cowId, date: addDays(conceptualInsemDate, 60),
+              action:'🔬 再妊娠鑑定', detail:`早期妊鑑（移植後${daysAtCheckET}日）のため授精後60日目に再確認`,
               color:'#f59e0b', priority:'high', done:false, timeOfDay:'', insemDate: implDate});
           }
         }
