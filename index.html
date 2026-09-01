@@ -3983,6 +3983,18 @@ function toggleTask(id) {
 
     // AI実施タスクをチェック → 実施記録モーダルを開く（実体のない記録を裏で作らないようにする）
     if (task.action === '人工授精（AI）' || task.action === '発情確認・AI実施') {
+      const cowForAiCheck = cows.find(c => c.id === task.cowId);
+      const alreadyRegistered = cowForAiCheck && (cowForAiCheck.events||[]).some(e =>
+        e.type === 'ai_done' && e.date === task.date
+      );
+      if (alreadyRegistered) {
+        // 既に種付けタブ等から登録済みなら、フォームを開かずそのままタスクを完了にする
+        task.done = true;
+        task.doneAt = today();
+        save();
+        renderAll();
+        return;
+      }
       task.done = false; // 実際の登録が完了するまでは未完了のまま
       task.doneAt = null;
       save();
