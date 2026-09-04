@@ -8607,13 +8607,15 @@ function getPregCellHtml(cowId, date, isDonorAI) {
     // 実際に妊鑑した日と、授精から何日目だったかを併記（早期妊鑑が後から分かるように）
     const actualDate = pregEvFromEvents?.date || null;
     const dAfter = actualDate ? diffDays(actualDate, date) : null;
-    const early = dAfter !== null && dAfter < 40;
+    const isEarlyCheck = dAfter !== null && dAfter < 40;
     const noteHtml = actualDate
-      ? `<div style="font-size:9px;color:${early?'var(--warn)':'var(--muted)'};margin-top:2px;white-space:nowrap;">${fmtDateShort(actualDate)}${dAfter!==null?`・${dAfter}日目`:''}</div>`
+      ? `<div style="font-size:9px;color:${isEarlyCheck?'var(--warn)':'var(--muted)'};margin-top:2px;white-space:nowrap;">${fmtDateShort(actualDate)}${dAfter!==null?`・${dAfter}日目`:''}</div>`
       : '';
-    // 再妊鑑ボタンは早期妊鑑（40日より前に見たもの）にだけ出す
+    // 再妊鑑ボタンは早期妊鑑（40日より前に見たもの）で、かつ対応する60日再妊鑑タスクがまだ残っている場合にだけ出す
+    const openRecheckTask = tasks.find(t => t.cowId === cowId && !t.done && t.action.includes('再妊娠鑑定') && t.insemDate === date);
+    const early = isEarlyCheck && !!openRecheckTask;
     const recheckHtml = early
-      ? `<button ontouchend="event.preventDefault();event.stopPropagation();recheckPreg('${cowId}','${date}')" onclick="event.stopPropagation();recheckPreg('${cowId}','${date}')" style="background:#2a1a00;border:1px solid var(--warn);color:var(--warn);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;cursor:pointer;margin-top:3px;white-space:nowrap;-webkit-tap-highlight-color:rgba(0,0,0,0);">⚠早期・再妊鑑</button>`
+      ? `<button ontouchend="event.preventDefault();event.stopPropagation();recheckPreg('${cowId}','${date}')" onclick="event.stopPropagation();recheckPreg('${cowId}','${date}')" style="background:#2a1a00;border:1px solid var(--warn);color:var(--warn);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;cursor:pointer;margin-top:3px;white-space:nowrap;-webkit-tap-highlight-color:rgba(0,0,0,0);">⚠早期・再妊鑑</button><div style="font-size:8px;color:var(--warn);margin-top:1px;white-space:nowrap;">${fmtDateShort(openRecheckTask.date)}に60日鑑定</div>`
       : '';
     return `<div style="display:flex;flex-direction:column;align-items:center;">
       <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
@@ -9777,7 +9779,54 @@ function renderCollectionTab() {
   }
 
   if(!sorted.length){ list.innerHTML = carryoverHTML || '<div style="text-align:center;color:var(--muted);padding:30px;">該当する採卵記録が見つかりません</div>'; return; }
-  list.innerHTML = _deliveryCartBarHtml() + sorted.map(r => {
+
+  // ===== 採卵実績サマリー =====
+  var summaryRecs = sorted.filter(function(r){ return !r.isExternal; });
+  var sumCount = summaryRecs.length;
+  var sumDonors = new Set(summaryRecs.map(function(r){ return r.donorId; })).size;
+  var sumRecovered = summaryRecs.reduce(function(s,r){ return s+(r.recovered||0); }, 0);
+  var sumA = summaryRecs.reduce(function(s,r){ return s+(r.gradeA||0); }, 0);
+  var sumB = summaryRecs.reduce(function(s,r){ return s+(r.gradeB||0); }, 0);
+  var sumUsable = sumA + sumB;
+  var avgRecovered = sumCount ? Math.round(sumRecovered/sumCount*10)/10 : 0;
+  var avgA = sumCount ? Math.round(sumA/sumCount*10)/10 : 0;
+  var avgB = sumCount ? Math.round(sumB/sumCount*10)/10 : 0;
+  var pctA = sumUsable ? Math.round(sumA/sumUsable*100) : 0;
+  var pctB = sumUsable ? Math.round(sumB/sumUsable*100) : 0;
+  var summaryHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;">' +
+    '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">📊 採卵実績サマリー' + (yearFilter ? '（'+yearFilter+'）' : '（全期間）') + '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">' +
+      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
+        '<div style="font-size:22px;font-weight:900;color:var(--info);font-family:monospace;">'+sumCount+'</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">採卵回数</div>' +
+      '</div>' +
+      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
+        '<div style="font-size:22px;font-weight:900;color:var(--info);font-family:monospace;">'+sumDonors+'</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">ドナー頭数（実頭数）</div>' +
+      '</div>' +
+      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
+        '<div style="font-size:22px;font-weight:900;color:var(--text);font-family:monospace;">'+sumRecovered+'</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">総回収数</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+      '<div style="background:var(--bg3);border-radius:8px;padding:10px;">' +
+        '<div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px;">Aランク胚</div>' +
+        '<div style="font-size:18px;font-weight:900;color:var(--accent);font-family:monospace;">'+sumA+'個</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px;">平均 '+avgA+'個／回 ・ 有効胚の'+pctA+'%</div>' +
+      '</div>' +
+      '<div style="background:var(--bg3);border-radius:8px;padding:10px;">' +
+        '<div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">Bランク胚</div>' +
+        '<div style="font-size:18px;font-weight:900;color:var(--purple);font-family:monospace;">'+sumB+'個</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px;">平均 '+avgB+'個／回 ・ 有効胚の'+pctB+'%</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">' +
+      '有効胚（A+B）合計: '+sumUsable+'個　／　平均回収（A+B）: '+(sumCount?Math.round(sumUsable/sumCount*10)/10:0)+'個／回　／　全回収平均: '+avgRecovered+'個／回' +
+    '</div>' +
+  '</div>';
+
+  list.innerHTML = _deliveryCartBarHtml() + summaryHTML + carryoverHTML + sorted.map(r => {
     const donorName = r.isExternal
       ? `🚗 ${r.externalFarmer||''} ${r.externalCowName||''}`
       : (cowDisplayName(r.donorId)||r.donorId||r.donorName||'');
