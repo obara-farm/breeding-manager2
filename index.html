@@ -9785,54 +9785,197 @@ function renderCollectionTab() {
   var sumCount = summaryRecs.length;
   var sumDonors = new Set(summaryRecs.map(function(r){ return r.donorId; })).size;
   var sumRecovered = summaryRecs.reduce(function(s,r){ return s+(r.recovered||0); }, 0);
-  // gradeA/gradeBは採卵登録時に集計済みの値（培養胚のランクも含む）
   var sumA = summaryRecs.reduce(function(s,r){ return s+(r.gradeA||0); }, 0);
   var sumB = summaryRecs.reduce(function(s,r){ return s+(r.gradeB||0); }, 0);
-  // 培養胚のランクが別集計になっている場合も合算する
-  summaryRecs.forEach(function(r){
-    (r.cultureEmbryos||[]).forEach(function(e){
-      var rank = e.cultureRank||e.rank||'';
-      // gradeA/gradeBに既に含まれていない場合のみ加算（二重計上防止のため採卵記録のgradeA/Bを信頼する）
-    });
-  });
   var sumUsable = sumA + sumB;
-  var avgRecovered = sumCount ? Math.round(sumRecovered/sumCount*10)/10 : 0;
-  var avgA = sumCount ? Math.round(sumA/sumCount*10)/10 : 0;
-  var avgB = sumCount ? Math.round(sumB/sumCount*10)/10 : 0;
-  var pctA = sumUsable ? Math.round(sumA/sumUsable*100) : 0;
-  var pctB = sumUsable ? Math.round(sumB/sumUsable*100) : 0;
-  var summaryHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;">' +
-    '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px;">📊 採卵実績サマリー' + (yearFilter ? '（'+yearFilter+'）' : '（全期間）') + '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;">' +
-      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
-        '<div style="font-size:22px;font-weight:900;color:var(--info);font-family:monospace;">'+sumCount+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">採卵回数</div>' +
-      '</div>' +
-      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
-        '<div style="font-size:22px;font-weight:900;color:var(--info);font-family:monospace;">'+sumDonors+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">ドナー頭数（実頭数）</div>' +
-      '</div>' +
-      '<div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center;">' +
-        '<div style="font-size:22px;font-weight:900;color:var(--text);font-family:monospace;">'+sumRecovered+'</div>' +
-        '<div style="font-size:10px;color:var(--muted);margin-top:2px;">総回収数</div>' +
-      '</div>' +
-    '</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-      '<div style="background:var(--bg3);border-radius:8px;padding:10px;">' +
-        '<div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:4px;">Aランク胚</div>' +
-        '<div style="font-size:18px;font-weight:900;color:var(--accent);font-family:monospace;">'+sumA+'個</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px;">平均 '+avgA+'個／回 ・ 有効胚の'+pctA+'%</div>' +
-      '</div>' +
-      '<div style="background:var(--bg3);border-radius:8px;padding:10px;">' +
-        '<div style="font-size:11px;color:var(--purple);font-weight:700;margin-bottom:4px;">Bランク胚</div>' +
-        '<div style="font-size:18px;font-weight:900;color:var(--purple);font-family:monospace;">'+sumB+'個</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px;">平均 '+avgB+'個／回 ・ 有効胚の'+pctB+'%</div>' +
-      '</div>' +
-    '</div>' +
-    '<div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">' +
-      '有効胚（A+B）合計: '+sumUsable+'個　／　平均回収（A+B）: '+(sumCount?Math.round(sumUsable/sumCount*10)/10:0)+'個／回　／　全回収平均: '+avgRecovered+'個／回' +
-    '</div>' +
-  '</div>';
+  var sumDegen = summaryRecs.reduce(function(s,r){ return s+(r.degenerate||0); }, 0);
+  var sumUnfert = summaryRecs.reduce(function(s,r){ return s+(r.unfertilized||0); }, 0);
+
+  function colMedian(arr) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function(a,b){return a-b;});
+    var m = Math.floor(s.length/2);
+    return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2*10)/10;
+  }
+  function colAvg(arr) { return arr.length ? Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length*10)/10 : 0; }
+  function colPct(a,b) { return b ? Math.round(a/b*100) : 0; }
+
+  var recoveredArr = summaryRecs.map(function(r){return r.recovered||0;});
+  var usableArr = summaryRecs.map(function(r){return (r.gradeA||0)+(r.gradeB||0);});
+  var aArr = summaryRecs.map(function(r){return r.gradeA||0;});
+  var bArr = summaryRecs.map(function(r){return r.gradeB||0;});
+  var degenArr = summaryRecs.map(function(r){return r.degenerate||0;});
+  var unfertArr = summaryRecs.map(function(r){return r.unfertilized||0;});
+
+  var bestRec = summaryRecs.reduce(function(b,r){ return (r.gradeA||0)+(r.gradeB||0) > (b.gradeA||0)+(b.gradeB||0) ? r : b; }, summaryRecs[0]);
+  var worstRec = summaryRecs.reduce(function(b,r){ return (r.gradeA||0)+(r.gradeB||0) < (b.gradeA||0)+(b.gradeB||0) ? r : b; }, summaryRecs[0]);
+
+  var donorMap = {};
+  summaryRecs.forEach(function(r){
+    var id = r.donorId;
+    if (!donorMap[id]) donorMap[id] = {name:cowDisplayName(id)||id, count:0, recovered:0, usable:0, a:0, b:0};
+    donorMap[id].count++;
+    donorMap[id].recovered += (r.recovered||0);
+    donorMap[id].a += (r.gradeA||0);
+    donorMap[id].b += (r.gradeB||0);
+    donorMap[id].usable += (r.gradeA||0)+(r.gradeB||0);
+  });
+  var donorRanking = Object.values(donorMap).sort(function(a,b){ return b.usable-a.usable; });
+
+  var monthMap2 = {};
+  summaryRecs.forEach(function(r){
+    var ym = (r.date||'').slice(0,7);
+    if (!ym) return;
+    if (!monthMap2[ym]) monthMap2[ym] = {count:0, recovered:0, usable:0, a:0, b:0};
+    monthMap2[ym].count++;
+    monthMap2[ym].recovered += (r.recovered||0);
+    monthMap2[ym].a += (r.gradeA||0);
+    monthMap2[ym].b += (r.gradeB||0);
+    monthMap2[ym].usable += (r.gradeA||0)+(r.gradeB||0);
+  });
+  var months2 = Object.keys(monthMap2).sort();
+  var maxUsablePerMonth = months2.length ? Math.max.apply(null, months2.map(function(m){return monthMap2[m].usable;})) : 1;
+
+  var summaryHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;">'
+    + '<div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:4px;">&#x1F4CA; &#x63A1;&#x5375;&#x5B9F;&#x7E3E;&#x30B5;&#x30DE;&#x30EA;&#x30FC;' + (yearFilter ? '&#xFF08;'+yearFilter+'&#xFF09;' : '&#xFF08;&#x5168;&#x671F;&#x9593;&#xFF09;') + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">&#x63A1;&#x5375;&#x56DE;&#x6570;: '+sumCount+'&#x56DE;&#x3000;&#xFF0F;&#x3000;&#x30C9;&#x30CA;&#x30FC;&#x982D;&#x6570;&#xFF08;&#x5B9F;&#x982D;&#x6570;&#xFF09;: '+sumDonors+'&#x982D;</div>'
+    + '<div style="background:var(--bg3);border-radius:8px;overflow:hidden;margin-bottom:12px;">'
+      + '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">'
+        + '<thead>'
+          + '<tr style="background:var(--bg2);color:var(--muted);font-size:10px;">'
+            + '<th style="padding:7px 10px;text-align:left;font-weight:600;"></th>'
+            + '<th style="padding:7px 6px;text-align:right;font-weight:600;">&#x5408;&#x8A08;</th>'
+            + '<th style="padding:7px 6px;text-align:right;font-weight:600;">&#x5E73;&#x5747;/&#x56DE;</th>'
+            + '<th style="padding:7px 6px;text-align:right;font-weight:600;">&#x4E2D;&#x592E;&#x5024;/&#x56DE;</th>'
+            + '<th style="padding:7px 6px;text-align:right;font-weight:600;">&#x7DCF;&#x56DE;&#x53CE;&#x6BD4;</th>'
+            + '<th style="padding:7px 6px;text-align:right;font-weight:600;">&#x6709;&#x52B9;&#x6BD4;</th>'
+          + '</tr>'
+        + '</thead>'
+        + '<tbody>'
+          + '<tr style="border-top:1px solid var(--border);font-weight:700;">'
+            + '<td style="padding:8px 10px;color:var(--text);">&#x7DCF;&#x56DE;&#x53CE;</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--text);">'+sumRecovered+'&#x500B;</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">'+colAvg(recoveredArr)+'</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">'+colMedian(recoveredArr)+'</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">100%</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">&#x2014;</td>'
+          + '</tr>'
+          + '<tr style="border-top:1px solid var(--border);font-weight:700;background:rgba(255,255,255,0.03);">'
+            + '<td style="padding:8px 10px;color:var(--accent);">&#x251C; &#x6709;&#x52B9;&#x80DA;&#xFF08;A+B&#xFF09;</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--accent);">'+sumUsable+'&#x500B;</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">'+colAvg(usableArr)+'</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">'+colMedian(usableArr)+'</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--accent);">'+colPct(sumUsable,sumRecovered)+'%</td>'
+            + '<td style="padding:8px 6px;text-align:right;color:var(--muted);">100%</td>'
+          + '</tr>'
+          + '<tr style="border-top:1px solid var(--border);">'
+            + '<td style="padding:7px 10px;padding-left:22px;color:var(--accent);">&#x2502; &#x251C; A&#x30E9;&#x30F3;&#x30AF;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--accent);">'+sumA+'&#x500B;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colAvg(aArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colMedian(aArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colPct(sumA,sumRecovered)+'%</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--accent);">'+colPct(sumA,sumUsable)+'%</td>'
+          + '</tr>'
+          + '<tr style="border-top:1px solid var(--border);">'
+            + '<td style="padding:7px 10px;padding-left:22px;color:var(--purple);">&#x2502; &#x2514; B&#x30E9;&#x30F3;&#x30AF;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--purple);">'+sumB+'&#x500B;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colAvg(bArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colMedian(bArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colPct(sumB,sumRecovered)+'%</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--purple);">'+colPct(sumB,sumUsable)+'%</td>'
+          + '</tr>'
+          + '<tr style="border-top:1px solid var(--border);">'
+            + '<td style="padding:7px 10px;color:var(--warn);">&#x251C; &#x5909;&#x6027;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--warn);">'+sumDegen+'&#x500B;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colAvg(degenArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colMedian(degenArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colPct(sumDegen,sumRecovered)+'%</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">&#x2014;</td>'
+          + '</tr>'
+          + '<tr style="border-top:1px solid var(--border);">'
+            + '<td style="padding:7px 10px;color:var(--muted);">&#x2514; &#x672A;&#x53D7;&#x7CBE;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+sumUnfert+'&#x500B;</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colAvg(unfertArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colMedian(unfertArr)+'</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+colPct(sumUnfert,sumRecovered)+'%</td>'
+            + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">&#x2014;</td>'
+          + '</tr>'
+        + '</tbody>'
+      + '</table>'
+      + '<div style="font-size:10px;color:var(--muted);padding:6px 10px;border-top:1px solid var(--border);">&#x203B; &#x7DCF;&#x56DE;&#x53CE;&#x6BD4; = &#x7DCF;&#x56DE;&#x53CE;'+sumRecovered+'&#x500B;&#x4E2D;&#x306E;&#x5272;&#x5408;&#x3000;&#xFF0F;&#x3000;&#x6709;&#x52B9;&#x6BD4; = &#x6709;&#x52B9;&#x80DA;'+sumUsable+'&#x500B;&#x4E2D;&#x306E;&#x5272;&#x5408;</div>'
+    + '</div>'
+    + (bestRec && worstRec ? (
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+          + '<div style="background:var(--bg3);border-left:3px solid var(--accent);border-radius:6px;padding:10px;">'
+            + '<div style="font-size:10px;color:var(--accent);font-weight:700;margin-bottom:4px;">&#x1F3C6; &#x6700;&#x9AD8;&#x56DE;&#xFF08;&#x6709;&#x52B9;&#x80DA;&#x6570;&#xFF09;</div>'
+            + '<div style="font-size:11px;color:var(--text);font-weight:700;">'+fmtDate(bestRec.date)+'</div>'
+            + '<div style="font-size:11px;color:var(--muted);">'+(cowDisplayName(bestRec.donorId)||bestRec.donorId)+' \xd7 '+(bestRec.sire||'')+'</div>'
+            + '<div style="font-size:14px;font-weight:900;color:var(--accent);margin-top:3px;">&#x6709;&#x52B9;'+((bestRec.gradeA||0)+(bestRec.gradeB||0))+'&#x500B;&#xFF08;A'+(bestRec.gradeA||0)+' B'+(bestRec.gradeB||0)+'&#xFF09;</div>'
+          + '</div>'
+          + '<div style="background:var(--bg3);border-left:3px solid var(--danger);border-radius:6px;padding:10px;">'
+            + '<div style="font-size:10px;color:var(--danger);font-weight:700;margin-bottom:4px;">&#x1F4C9; &#x6700;&#x4F4E;&#x56DE;&#xFF08;&#x6709;&#x52B9;&#x80DA;&#x6570;&#xFF09;</div>'
+            + '<div style="font-size:11px;color:var(--text);font-weight:700;">'+fmtDate(worstRec.date)+'</div>'
+            + '<div style="font-size:11px;color:var(--muted);">'+(cowDisplayName(worstRec.donorId)||worstRec.donorId)+' \xd7 '+(worstRec.sire||'')+'</div>'
+            + '<div style="font-size:14px;font-weight:900;color:var(--danger);margin-top:3px;">&#x6709;&#x52B9;'+((worstRec.gradeA||0)+(worstRec.gradeB||0))+'&#x500B;&#xFF08;A'+(worstRec.gradeA||0)+' B'+(worstRec.gradeB||0)+'&#xFF09;</div>'
+          + '</div>'
+        + '</div>'
+      ) : '')
+    + '<div style="margin-bottom:12px;">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">&#x1F404; &#x30C9;&#x30CA;&#x30FC;&#x5225;&#x6210;&#x7E3E;</div>'
+      + '<div style="background:var(--bg3);border-radius:8px;overflow:hidden;">'
+        + '<table style="width:100%;border-collapse:collapse;font-size:11px;">'
+          + '<thead>'
+            + '<tr style="background:var(--bg2);color:var(--muted);font-size:10px;">'
+              + '<th style="padding:6px 10px;text-align:left;">&#x30C9;&#x30CA;&#x30FC;</th>'
+              + '<th style="padding:6px 6px;text-align:right;">&#x56DE;&#x6570;</th>'
+              + '<th style="padding:6px 6px;text-align:right;">&#x6709;&#x52B9;&#x8A08;</th>'
+              + '<th style="padding:6px 6px;text-align:right;">&#x5E73;&#x5747;/&#x56DE;</th>'
+              + '<th style="padding:6px 6px;text-align:right;">A&#x7387;</th>'
+            + '</tr>'
+          + '</thead>'
+          + '<tbody>'
+            + donorRanking.map(function(d,i){
+                var aRate = d.usable ? Math.round(d.a/d.usable*100) : 0;
+                return '<tr style="border-top:1px solid var(--border);">'
+                  + '<td style="padding:7px 10px;color:var(--text);font-weight:'+(i===0?'700':'400')+';">'+d.name+'</td>'
+                  + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+d.count+'&#x56DE;</td>'
+                  + '<td style="padding:7px 6px;text-align:right;color:var(--accent);font-weight:700;">'+d.usable+'&#x500B;</td>'
+                  + '<td style="padding:7px 6px;text-align:right;color:var(--muted);">'+(d.count?Math.round(d.usable/d.count*10)/10:0)+'</td>'
+                  + '<td style="padding:7px 6px;text-align:right;color:'+(aRate>=60?'var(--accent)':aRate>=40?'var(--warn)':'var(--muted)')+';">'+aRate+'%</td>'
+                + '</tr>';
+              }).join('')
+          + '</tbody>'
+        + '</table>'
+      + '</div>'
+    + '</div>'
+    + (months2.length > 1 ? (
+        '<div>'
+          + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;">&#x1F4C5; &#x6708;&#x5225;&#x63A8;&#x79FB;&#xFF08;&#x6709;&#x52B9;&#x80DA;&#x6570;&#xFF09;</div>'
+          + '<div style="background:var(--bg3);border-radius:8px;padding:12px;">'
+            + months2.map(function(ym){
+                var d = monthMap2[ym];
+                var barW = maxUsablePerMonth ? Math.round(d.usable/maxUsablePerMonth*100) : 0;
+                var aW = d.usable ? Math.round(d.a/d.usable*barW) : 0;
+                var bW = barW - aW;
+                return '<div style="margin-bottom:8px;">'
+                  + '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px;">'
+                    + '<span style="font-weight:700;color:var(--text);">'+ym.slice(0,4)+'&#x5E74;'+parseInt(ym.slice(5))+'&#x6708;'+(d.count>1?' ('+d.count+'&#x56DE;)':'')+'</span>'
+                    + '<span>&#x6709;&#x52B9; <b style="color:var(--accent);">'+d.usable+'&#x500B;</b>&#xFF08;A'+d.a+' B'+d.b+'&#xFF09;&#x3000;&#x56DE;&#x53CE;'+d.recovered+'&#x500B;</span>'
+                  + '</div>'
+                  + '<div style="display:flex;height:14px;border-radius:4px;overflow:hidden;background:var(--bg2);">'
+                    + '<div style="width:'+aW+'%;background:var(--accent);"></div>'
+                    + '<div style="width:'+bW+'%;background:var(--purple);"></div>'
+                  + '</div>'
+                + '</div>';
+              }).join('')
+            + '<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--muted);">'
+              + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;margin-right:3px;vertical-align:middle;"></span>A&#x30E9;&#x30F3;&#x30AF;</span>'
+              + '<span><span style="display:inline-block;width:10px;height:10px;background:var(--purple);border-radius:2px;margin-right:3px;vertical-align:middle;"></span>B&#x30E9;&#x30F3;&#x30AF;</span>'
+            + '</div>'
+          + '</div>'
+        + '</div>'
+      ) : '')
+    + '</div>';
 
   list.innerHTML = _deliveryCartBarHtml() + summaryHTML + carryoverHTML + sorted.map(r => {
     const donorName = r.isExternal
