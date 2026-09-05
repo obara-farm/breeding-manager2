@@ -12899,7 +12899,8 @@ function confirmOtherFarmCert(){
         recipientNationalId: rec.nationalId || '',
         recipientDob: rec.dob || dobVal || '',
         donor: donor, sire: cr.sire || '',
-        embryoNo: no, embryoType: embType(no),
+        embryoNo: no,  // 凍結胚の正式番号はそのまま保存（pikerのdata-noから来る値が完全な番号のはず）
+        embryoType: embType(no),
         regOrg: window._etCertRegOrg || '', breed: window._etCertBreed || '',
         pregResult: '', pregDate: '',
         vet: '小原千佳', vetLicense: '01L237',
@@ -14070,7 +14071,11 @@ function buildEtCertHTML(r, certNo) {
   if(embryoNo2){
     embryoInventory.forEach(function(inv){
       (inv.embryoDetails||[]).forEach(function(ed){
-        if(ed.no===embryoNo2){stage=ed.stage||'';rank=ed.rank||''; if(!embryoTypeConfirmed) embryoType=ed.frozen?'凍結':'新鮮';}
+        if(ed.no===embryoNo2){
+          if(!stage) stage=ed.stage||'';
+          if(!rank) rank=ed.rank||'';
+          if(!embryoTypeConfirmed) embryoType=ed.frozen?'凍結':'新鮮';
+        }
       });
     });
   }
@@ -14153,10 +14158,11 @@ function buildEtCertHTML(r, certNo) {
     }
   } else if(embryoNoForCert) {
     // lotKeyが特定できない場合のフォールバック。
-    // 新鮮胚の番号（ロット-連番形式）には01L237-の接頭辞が付いていないことがあるため補う
     if(embryoType === '新鮮' && !/^01L237/.test(embryoNoForCert)) {
+      // 新鮮胚の番号（ロット-連番形式）には01L237-の接頭辞が付いていないことがあるため補う
       embryoCertStr = '01L237-' + embryoNoForCert;
     } else {
+      // 凍結胚の正式番号（01L237RX-XXXX形式）はそのまま使用
       embryoCertStr = embryoNoForCert;
     }
   }
@@ -14167,13 +14173,13 @@ function buildEtCertHTML(r, certNo) {
   var L =bd+'vertical-align:middle;text-align:center;padding:3px 3px;font-size:9pt;';
   var H ='10mm';
 
-  // ステージ・ランク：在庫データがあれば自動、なければ手入力
+  // ステージ・ランク：在庫データがあれば自動、なければinputで手入力
   var stageCell = stage
     ? '<td colspan="3" style="'+V+'font-weight:bold;">'+stage+'</td>'
-    : '<td colspan="3" style="'+V+'" contenteditable="true"></td>';
+    : '<td colspan="3" style="'+V+'padding:1px 3px;"><input type="text" placeholder="例: BL" style="width:100%;border:none;outline:none;font-size:10pt;background:transparent;"></td>';
   var rankCell = rank
     ? '<td colspan="3" style="'+V+'font-weight:bold;">'+rank+'</td>'
-    : '<td colspan="3" style="'+V+'" contenteditable="true"></td>';
+    : '<td colspan="3" style="'+V+'padding:1px 3px;"><input type="text" placeholder="例: A" style="width:100%;border:none;outline:none;font-size:10pt;background:transparent;"></td>';
 
   var embryoNo = embryoNo2; // 証明書本体ではembryo2を使用
 
