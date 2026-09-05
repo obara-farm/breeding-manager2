@@ -9836,9 +9836,12 @@ function renderCollectionTab() {
   var months2 = Object.keys(monthMap2).sort();
   var maxUsablePerMonth = months2.length ? Math.max.apply(null, months2.map(function(m){return monthMap2[m].usable;})) : 1;
 
-  var summaryHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;">'
-    + '<div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:4px;">&#x1F4CA; &#x63A1;&#x5375;&#x5B9F;&#x7E3E;&#x30B5;&#x30DE;&#x30EA;&#x30FC;' + (yearFilter ? '&#xFF08;'+yearFilter+'&#xFF09;' : '&#xFF08;&#x5168;&#x671F;&#x9593;&#xFF09;') + '</div>'
-    + '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">&#x63A1;&#x5375;&#x56DE;&#x6570;: '+sumCount+'&#x56DE;&#x3000;&#xFF0F;&#x3000;&#x30C9;&#x30CA;&#x30FC;&#x982D;&#x6570;&#xFF08;&#x5B9F;&#x982D;&#x6570;&#xFF09;: '+sumDonors+'&#x982D;</div>'
+  var summaryHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden;">'
+    + '<button onclick="var b=this.nextElementSibling;var open=b.style.display!==\'none\';b.style.display=open?\'none\':\'\';this.querySelector(\'.col-sum-arrow\').textContent=open?\'▶\':\'▼\';" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:none;border:none;color:var(--text);cursor:pointer;font-size:13px;font-weight:700;">'
+      + '<span>&#x1F4CA; &#x63A1;&#x5375;&#x5B9F;&#x7E3E;&#x30B5;&#x30DE;&#x30EA;&#x30FC;' + (yearFilter ? '&#xFF08;'+yearFilter+'&#xFF09;' : '&#xFF08;&#x5168;&#x671F;&#x9593;&#xFF09;') + ' <span style="font-size:11px;font-weight:400;color:var(--muted);">'+sumCount+'&#x56DE; &#x30FB; '+sumDonors+'&#x982D;</span></span>'
+      + '<span class="col-sum-arrow" style="color:var(--muted);font-size:12px;">&#x25B6;</span>'
+    + '</button>'
+    + '<div style="display:none;padding:0 16px 14px;">'
     + '<div style="background:var(--bg3);border-radius:8px;overflow:hidden;margin-bottom:12px;">'
       + '<table style="width:100%;border-collapse:collapse;font-size:11.5px;">'
         + '<thead>'
@@ -9975,6 +9978,7 @@ function renderCollectionTab() {
           + '</div>'
         + '</div>'
       ) : '')
+    + '</div>' // 折りたたみ内側div
     + '</div>';
 
   list.innerHTML = _deliveryCartBarHtml() + summaryHTML + carryoverHTML + sorted.map(r => {
