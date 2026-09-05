@@ -13110,18 +13110,54 @@ function reissueCertFromTransferBook(){
   const t=transferBook.find(x=>x.id===id); if(!t) return;
   // 保存済み情報を証明書用のグローバルに反映
   const farm = otherFarms.find(f=>f.name===t.farmName) || {};
-  window._etCertFeeder = farm.feeder || '';
+  window._etCertFeeder = farm.feeder || t.feeder || '';
   window._etCertRegOrg = t.regOrg || '日本あか牛登録協会';
   window._etCertRegNo = farm.regNo || '';
   window._etCertBreed = t.breed || '褐毛和種';
   window._etCertRecipient = { name: t.recipientName||'', nationalId: t.recipientNationalId||'', dob: t.recipientDob||'' };
-  window._etCertMoveDate = t.transferDate || '';   // 移植日
+  window._etCertMoveDate = t.transferDate || '';
+
+  // colRecIdがあれば採卵記録からステージ・ランク・胚種別を正確に取得する
+  let stage = t.stage || '', rank = t.rank || '';
+  let embryoType = t.embryoType || '';
+  const colRec = t.colRecId ? (collectionRecordsNew||[]).find(c => c.id === t.colRecId) : null;
+  if (colRec) {
+    // 凍結胚か新鮮胚か培養胚かを正確に判定
+    const isFrozen = (colRec.frozenEmbryos||[]).some(e => e.no === t.embryoNo);
+    const freshEmbryo = (colRec.freshEmbryos||[]).find(e => e.embryoNo === t.embryoNo);
+    const cultureEmbryo = (colRec.cultureEmbryos||[]).find(e => e.embryoNo === t.embryoNo);
+    if (isFrozen) {
+      embryoType = '凍結';
+      const fe = (colRec.frozenEmbryos||[]).find(e => e.no === t.embryoNo);
+      if (fe) { stage = stage || fe.stage || ''; rank = rank || fe.rank || ''; }
+    } else if (freshEmbryo) {
+      embryoType = '新鮮';
+      stage = stage || freshEmbryo.stage || '';
+      rank = rank || freshEmbryo.rank || '';
+    } else if (cultureEmbryo) {
+      embryoType = cultureEmbryo.action === 'freeze' ? '凍結' : '新鮮';
+      stage = stage || cultureEmbryo.cultureStage || cultureEmbryo.stage || '';
+      rank = rank || cultureEmbryo.cultureRank || cultureEmbryo.rank || '';
+    }
+  }
+
+  // 新鮮胚番号(ロット-連番形式)には01L237-を補完する
+  let embryoNo = t.embryoNo || '';
+  if (embryoType === '新鮮' && embryoNo && !/^01L237/.test(embryoNo)) {
+    embryoNo = '01L237-' + embryoNo;
+  }
+
   const rec = {
     t: '__other__',
-    s: (t.donor && t.sire) ? (t.donor+'×'+t.sire) : (t.embryoNo||''),
-    n: t.embryoNo || '',
+    s: (t.donor && t.sire) ? (t.donor+'×'+t.sire) : embryoNo,
+    n: embryoNo,
     d: t.transferDate || '',
-    m: '', op: t.vet||'',
+    m: '',
+    op: t.vet || '',
+    _embryoType: embryoType,
+    _stage: stage,
+    _rank: rank,
+    _colRecId: t.colRecId || '',
   };
   closeModal('modal-tb-edit');
   etCertCounter = 16;
@@ -14016,7 +14052,7 @@ function buildEtCertHTML(r, certNo) {
   if(!donorRegOrg) donorRegOrg = regOrgByBreed(dc?dc.breed:'');
 
   var embryoNo2=(r.n&&r.n.trim())?r.n.trim():'';
-  var collectDate='',aiDate='',stage='',rank='';
+  var collectDate='',aiDate='',stage=r._stage||'',rank=r._rank||'';
   var embryoType = isFreshEmbryo ? '新鮮' : '凍結';
   // 呼び出し元（採卵記録からの発行など）が既に正確な種別を判定済みの場合はそれを優先し、以降の推測で上書きしない
   var embryoTypeConfirmed = false;
