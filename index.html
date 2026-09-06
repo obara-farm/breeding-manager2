@@ -3986,8 +3986,9 @@ function toggleTask(id) {
     // AI実施タスクをチェック → 実施記録モーダルを開く（実体のない記録を裏で作らないようにする）
     if (task.action === '人工授精（AI）' || task.action === '発情確認・AI実施') {
       const cowForAiCheck = cows.find(c => c.id === task.cowId);
+      // タスク日付の前後7日以内にai_done記録があれば登録済みとみなす
       const alreadyRegistered = cowForAiCheck && (cowForAiCheck.events||[]).some(e =>
-        e.type === 'ai_done' && e.date === task.date
+        e.type === 'ai_done' && Math.abs(diffDays(e.date, task.date)) <= 7
       );
       if (alreadyRegistered) {
         // 既に種付けタブ等から登録済みなら、フォームを開かずそのままタスクを完了にする
