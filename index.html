@@ -13073,9 +13073,9 @@ function editTransferBook(id){
   document.getElementById('tb-e-type').value=t.embryoType||'';
   document.getElementById('tb-e-stage').value=t.stage||'';
   document.getElementById('tb-e-rank').value=t.rank||'';
-  document.getElementById('tb-e-regorg').value=t.regOrg||'日本あか牛登録協会';
-  document.getElementById('tb-e-breed').value=t.breed||'褐毛和種';
+  document.getElementById('tb-e-regorg').value=t.regOrg||'日本あか牛登録協会';  document.getElementById('tb-e-breed').value=t.breed||'褐毛和種';
   document.getElementById('tb-e-vet').value=t.vet||'';
+  document.getElementById('tb-e-siregrade').value=t.sireGrade||'';
   openModal('modal-tb-edit');
 }
 function addTransferBookManual(){
@@ -13100,6 +13100,7 @@ function saveTransferBookEdit(){
   t.embryoType=document.getElementById('tb-e-type').value;
   t.stage=document.getElementById('tb-e-stage').value;
   t.rank=document.getElementById('tb-e-rank').value;
+  t.sireGrade=document.getElementById('tb-e-siregrade').value.trim();
   t.regOrg=document.getElementById('tb-e-regorg').value;
   t.breed=document.getElementById('tb-e-breed').value;
   t.vet=document.getElementById('tb-e-vet').value.trim();
@@ -13165,6 +13166,7 @@ function reissueCertFromTransferBook(){
     _stage: stage,
     _rank: rank,
     _colRecId: t.colRecId || '',
+    _sireGrade: t.sireGrade || '',
   };
   closeModal('modal-tb-edit');
   etCertCounter = 16;
@@ -14120,7 +14122,9 @@ function buildEtCertHTML(r, certNo) {
 
   // collectionRecordsから採卵日・授精日・精液証明書番号を取得
   var cr=null;
-  if(embryoNo2) cr=collectionRecordsNew.find(function(c){
+  // _colRecIdが渡されている場合はそれを最優先で使用（外部授精簿からの再発行など）
+  if(r._colRecId) cr=collectionRecordsNew.find(function(c){return c.id===r._colRecId;});
+  if(!cr && embryoNo2) cr=collectionRecordsNew.find(function(c){
     return (c.frozenEmbryos||[]).some(function(e){return e.no===embryoNo2;})||
            (c.freshEmbryos||[]).some(function(e){return e.embryoNo===embryoNo2;});
   });
@@ -14271,7 +14275,7 @@ function buildEtCertHTML(r, certNo) {
         '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">種畜証明書番号</td>' +
         '<td style="'+V+'">'+sireCert+'</td>' +
         '<td style="'+Vc+'white-space:nowrap;font-size:8.5pt;">等　級</td>' +
-        '<td style="'+V+'" contenteditable="true"></td>' +
+        '<td style="'+V+'" contenteditable="true">'+(r._sireGrade||'')+'</td>' +
       '</tr>' +
       '<tr style="height:'+H+';">' +
         '<td style="'+Vc+'">名　　　　前</td>' +
@@ -21274,7 +21278,10 @@ try {
         <select id="tb-e-breed" style="font-size:13px;width:100%;"><option value="褐毛和種">褐毛和種</option><option value="黒毛和種">黒毛和種</option><option value="乳×肉">乳×肉</option></select>
       </div>
     </div>
-    <div class="form-group" style="margin-bottom:12px;"><label style="font-size:11px;">術者</label><input type="text" id="tb-e-vet" style="font-size:13px;"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">術者</label><input type="text" id="tb-e-vet" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">種雄牛の等級</label><input type="text" id="tb-e-siregrade" placeholder="例: 1級" style="font-size:13px;"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:8px;">
       <button class="btn btn-primary" style="flex:1;" onclick="saveTransferBookEdit()">保存</button>
       <button class="btn btn-secondary" style="flex:0;" onclick="deleteTransferBookEntry()">🗑 削除</button>
