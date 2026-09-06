@@ -13069,6 +13069,8 @@ function editTransferBook(id){
   document.getElementById('tb-e-sire').value=t.sire||'';
   document.getElementById('tb-e-embryo').value=t.embryoNo||'';
   document.getElementById('tb-e-type').value=t.embryoType||'';
+  document.getElementById('tb-e-stage').value=t.stage||'';
+  document.getElementById('tb-e-rank').value=t.rank||'';
   document.getElementById('tb-e-regorg').value=t.regOrg||'日本あか牛登録協会';
   document.getElementById('tb-e-breed').value=t.breed||'褐毛和種';
   document.getElementById('tb-e-vet').value=t.vet||'';
@@ -13094,6 +13096,8 @@ function saveTransferBookEdit(){
   t.sire=document.getElementById('tb-e-sire').value.trim();
   t.embryoNo=document.getElementById('tb-e-embryo').value.trim();
   t.embryoType=document.getElementById('tb-e-type').value;
+  t.stage=document.getElementById('tb-e-stage').value;
+  t.rank=document.getElementById('tb-e-rank').value;
   t.regOrg=document.getElementById('tb-e-regorg').value;
   t.breed=document.getElementById('tb-e-breed').value;
   t.vet=document.getElementById('tb-e-vet').value.trim();
@@ -14339,7 +14343,7 @@ function buildEtCertHTML(r, certNo) {
     '<div style="font-size:9.5pt;line-height:1.7;padding-left:8mm;">' +
       '<div>'+etDateStr+'</div>' +
       '<div>獣医師（家畜人工授精師）　小原家畜診療所（小原家畜人工授精所）</div>' +
-      '<div>登録番号（免許番号）　第 60937 号　（授精所番号：01L237）</div>' +
+      '<div>登録番号　第 60937 号　（授精所番号：01L237）</div>' +
       '<div>住　所　中川郡池田町字千代田697番地</div>' +
       '<div>氏　名　小原　千佳　　　㊞</div>' +
     '</div>' +
@@ -21248,6 +21252,16 @@ try {
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">胚証明書番号</label><input type="text" id="tb-e-embryo" style="font-size:13px;"></div>
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">凍結/新鮮</label>
         <select id="tb-e-type" style="font-size:13px;width:100%;"><option value="">—</option><option value="凍結">凍結</option><option value="新鮮">新鮮</option><option value="培養">培養</option></select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">ステージ</label>
+        <select id="tb-e-stage" style="font-size:13px;width:100%;">
+          <option value="">—</option><option value="CM">CM（後期桑実胚）</option><option value="EB">EB（初期胚盤胞）</option><option value="BL">BL（胚盤胞）</option><option value="EX">EX（拡張胚盤胞）</option><option value="ExB">ExB（孵化中胚盤胞）</option><option value="HB">HB（孵化胚盤胞）</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">ランク（等級）</label>
+        <select id="tb-e-rank" style="font-size:13px;width:100%;"><option value="">—</option><option value="A">A</option><option value="B">B</option><option value="C">C</option></select>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
