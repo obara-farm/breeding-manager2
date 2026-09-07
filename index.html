@@ -3856,7 +3856,17 @@ function renderGrouped(taskList) {
             <div style="margin-top:4px;">
               ${(()=>{
                 const cow2 = cows.find(c=>c.id===t.cowId);
-                const lastAiEt = cow2 && [...(cow2.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+                // 妊娠確定したAI/ETを特定する（preg_positiveのinsemDateに対応するイベントを優先）
+                let lastAiEt = null;
+                if (cow2) {
+                  const pregPos = [...(cow2.events||[])].filter(e=>e.type==='preg_positive'&&e.insemDate).sort((a,b)=>b.date.localeCompare(a.date))[0];
+                  if (pregPos && pregPos.insemDate) {
+                    lastAiEt = (cow2.events||[]).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type)&&e.date===pregPos.insemDate);
+                  }
+                  if (!lastAiEt) {
+                    lastAiEt = [...(cow2.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+                  }
+                }
                 const sireStr = lastAiEt ? (lastAiEt.memo||'').replace(/^胚番号:|^精液:/,'').split('／')[0].trim() : '';
                 const isEt = lastAiEt && (['et_done','estrus_et'].includes(lastAiEt.type) || looksLikeEmbryo(sireStr) || looksLikeEmbryo(lastAiEt.memo));
                 return lastAiEt ? `<div style="font-size:11px;color:var(--info);margin-bottom:4px;">${isEt?'🧬ET':'💉AI'} ${fmtDate(lastAiEt.date)}${sireStr?' — '+etDisplayLabel(sireStr,isEt):''}</div>` : '';
