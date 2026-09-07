@@ -12834,10 +12834,20 @@ function onOtherFarmPick(){
     const names = Object.keys(link).sort((a,b)=>a.localeCompare(b,'ja'));
     cowSel.innerHTML = '<option value="">— 手入力する —</option>' +
       names.map(nm=>`<option value="${nm}">${nm}（${link[nm].id||''} ${link[nm].nationalId||''}）</option>`).join('');
+    // 手入力欄はデフォルト表示(リストにない牛のため)
+    const manual = document.getElementById('ofpick-cow-manual');
+    if (manual) manual.style.display = 'grid';
   } else {
     cowGroup.style.display = 'none';
     cowSel.innerHTML = '<option value="">— 手入力する —</option>';
+    const manual = document.getElementById('ofpick-cow-manual');
+    if (manual) manual.style.display = 'grid';
   }
+  // 手入力欄をリセット
+  const nameEl = document.getElementById('ofpick-cow-name');
+  const natIdEl = document.getElementById('ofpick-cow-natid');
+  if (nameEl) nameEl.value = '';
+  if (natIdEl) natIdEl.value = '';
   // 登録機関：農家に保存済みがあればそれ、なければデフォルト（日本あか牛登録協会）
   const orgSel = document.getElementById('ofpick-regorg');
   if (orgSel) orgSel.value = (f.regOrg && ['日本あか牛登録協会','全国和牛登録協会'].includes(f.regOrg)) ? f.regOrg : '日本あか牛登録協会';
@@ -12854,12 +12864,15 @@ function confirmOtherFarmCert(){
   window._etCertMoveDate = moveDate;
   // 受け牛
   const cowName = document.getElementById('ofpick-cow').value;
+  const manualName = document.getElementById('ofpick-cow-name')?.value.trim() || '';
+  const manualNatId = document.getElementById('ofpick-cow-natid')?.value.trim() || '';
   window._etCertRecipient = null;
   if (cowName && f.linkFarm && FARM_DAM_IDS[f.linkFarm] && FARM_DAM_IDS[f.linkFarm][cowName]) {
     const info = FARM_DAM_IDS[f.linkFarm][cowName];
     window._etCertRecipient = { name: cowName, nationalId: info.nationalId||'', earTag: info.id||'', dob: dobVal };
-  } else if (dobVal) {
-    window._etCertRecipient = { name:'', nationalId:'', dob: dobVal };
+  } else {
+    // 手入力欄の値を使用（リストにない牛、または長島牧場以外の農家）
+    window._etCertRecipient = { name: manualName, nationalId: manualNatId, dob: dobVal };
   }
   closeModal('modal-otherfarm-pick');
   etCertCounter = 16;
@@ -12877,12 +12890,28 @@ function confirmOtherFarmCert(){
       if ((cr.cultureEmbryos||[]).some(e=>(e.embryoNo||e.no)===no)) return '培養';
       return '';
     };
-    const recs = selNos.map(no => ({
-      t: '__other__',
-      s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (no||''),
-      n: no || '', d: '', m: '', op: 'TBS',
-      _embryoType: embType(no), // 凍結/新鮮/培養の判定結果をそのまま証明書生成に渡す（再推測させない）
-    }));
+    const getStageRank = no => {
+      const fe = (cr.frozenEmbryos||[]).find(e => (e.no||e.embryoNo)===no);
+      if (fe) return {stage: fe.stage||'', rank: fe.rank||''};
+      const fre = (cr.freshEmbryos||[]).find(e => (e.embryoNo||e.no)===no);
+      if (fre) return {stage: fre.stage||'', rank: fre.rank||''};
+      const ce = (cr.cultureEmbryos||[]).find(e => (e.embryoNo||e.no)===no);
+      if (ce) return {stage: ce.cultureStage||ce.stage||'', rank: ce.cultureRank||ce.rank||''};
+      return {stage:'', rank:''};
+    };
+    const recs = selNos.map(no => {
+      const sr = getStageRank(no);
+      return {
+        t: '__other__',
+        s: (donor && cr.sire) ? (donor+'×'+cr.sire) : (no||''),
+        n: no || '', d: '', m: '', op: 'TBS',
+        _embryoType: embType(no),
+        _stage: sr.stage,
+        _rank: sr.rank,
+        _colRecId: cr.id || '',
+        _sireGrade: window._etCertSireGrade || '',
+      };
+    });
     // 授精所の移植簿に自動記録（誤発行修正のため後で編集・削除可）
     // ただし、既に通常の授精簿（自農場）にその胚のET記録がある場合は、外部（他農家）への
     // 重複記録にはならないようスキップする
@@ -21851,10 +21880,13 @@ try {
         <span onclick="openOtherFarmManage()" style="color:var(--accent);cursor:pointer;text-decoration:underline;">＋ 農家を登録・編集</span>
       </div>
     </div>
-    <div id="ofpick-cow-group" class="form-group" style="margin-bottom:12px;display:none;">
+    <div id="ofpick-cow-group" class="form-group" style="margin-bottom:8px;display:none;">
       <label>受け牛（在籍牛リストから選択）</label>
-      <select id="ofpick-cow" style="width:100%;font-size:13px;"><option value="">— 手入力する —</option></select>
-      <div style="font-size:10px;color:var(--muted);margin-top:4px;">名前・個体識別番号が自動で入ります。リストに無ければ「手入力」を選んで証明書上で記入してください。</div>
+      <select id="ofpick-cow" onchange="document.getElementById('ofpick-cow-manual').style.display=this.value?'none':'grid';" style="width:100%;font-size:13px;"><option value="">— 手入力する —</option></select>
+    </div>
+    <div id="ofpick-cow-manual" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+      <div class="form-group" style="margin-bottom:0;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="ofpick-cow-name" placeholder="例: あみか" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:0;"><label style="font-size:11px;">個体識別番号</label><input type="text" id="ofpick-cow-natid" placeholder="例: 1516723933" style="font-size:13px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;">
