@@ -6230,8 +6230,8 @@ const ET_RATE_EXCLUDE = [
 function isEtRateExcluded(d){ return ET_RATE_EXCLUDE.some(x => d >= x.from && d <= x.to); }
 // R6（令和6年）に製造した受精卵は受胎率の集計に含めない
 function isOldEmbryo(sire, memo){
-  // s欄(胚番号)のみで判定。m欄(メモ)に別の情報が混入していても誤除外しないようにする
-  const t = (sire||'');
+  // s欄が「ドナー×種雄牛」形式の場合はm欄も含めて判定（他所産胚の胚番号がm欄に入ることがある）
+  const t = (sire||'').includes('×') ? (sire||'') + ' ' + (memo||'') : (sire||'');
   return /(^|[^0-9A-Za-z])R6-\d/.test(t) || /01L237R6/.test(t);
 }
 // ETの1件を受胎率集計から外すか（期間除外 or R6胚）
@@ -6239,9 +6239,9 @@ function isOldEmbryo(sire, memo){
 // 自家生産の胚番号は「01L237…」「25E04B1-1」形式。採卵所番号（例: NB26F-000018）は外部産とみなす
 function isExternalEmbryo(sire, memo){
   // s欄(胚番号)のみで判定。自家生産の胚番号は「01L237…」「25E04B1-1」形式。
-  // 採卵所番号（例: NB26F-000018）は外部産とみなす
+  // 採卵所番号（例: NB26F-000018）または「ドナー×種雄牛」形式は外部産とみなす
   const t = (sire||'');
-  return /NB\d{2}[A-Z]?-\d+/i.test(t);
+  return /NB\d{2}[A-Z]?-\d+/i.test(t) || t.includes('×');
 }
 function isEtRecExcluded(rec){
   return isEtRateExcluded(rec.d || rec.date) || isOldEmbryo(rec.s, rec.m) || isExternalEmbryo(rec.s, rec.m);
