@@ -882,6 +882,10 @@ textarea{resize:vertical;}
       style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);border:2px solid var(--border);color:var(--muted);">
       🐮 子牛 <span id="dead-calves-count"></span>
     </button>
+    <button id="retired-tab-miscarriage" onclick="switchRetiredTab('miscarriage')"
+      style="flex:1;padding:8px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:var(--bg3);border:2px solid var(--border);color:var(--muted);">
+      🚨 流産 <span id="miscarriage-count"></span>
+    </button>
   </div>
 
   <!-- 親牛セクション -->
@@ -894,6 +898,15 @@ textarea{resize:vertical;}
   <div id="retired-panel-calf" style="display:none;">
     <div id="dead-calves-container"></div>
     <div id="dead-calves-empty" style="display:none;color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">死亡子牛はいません</div>
+  </div>
+
+  <!-- 流産記録セクション -->
+  <div id="retired-panel-miscarriage" style="display:none;">
+    <button onclick="openMiscarriageForm()" style="width:100%;background:#1a0a0a;border:1px dashed #ef4444;color:#ef4444;font-size:13px;font-weight:700;padding:10px;border-radius:8px;cursor:pointer;margin-bottom:12px;">
+      ＋ 流産を記録する
+    </button>
+    <div id="miscarriage-list-container"></div>
+    <div id="miscarriage-empty" style="display:none;color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">流産記録はありません</div>
   </div>
 </div>
 
@@ -2699,6 +2712,7 @@ let semenInventory = JSON.parse(_store.getItem('semenInventory') || '[]');
 let embryoInventory = JSON.parse(_store.getItem('embryoInventory') || '[]');
 let pendingUseRecords = JSON.parse(_store.getItem('pendingUseRecords') || '[]');
 let retiredCows = JSON.parse(_store.getItem('retiredCows') || '[]');
+let miscarriageRecords = JSON.parse(_store.getItem('miscarriageRecords') || '[]');
 let insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
 let insemBookEdits = JSON.parse(_store.getItem('insemBookEdits') || '{}'); // 固定データの上書き編集
 let staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}'); // ドナーAIフラグ専用
@@ -2878,6 +2892,7 @@ function save() {
     _store.setItem('embryoInventory', JSON.stringify(embryoInventory));
     _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
     _store.setItem('retiredCows', JSON.stringify(retiredCows));
+    _store.setItem('miscarriageRecords', JSON.stringify(miscarriageRecords));
     _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
     _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
     _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
@@ -2898,6 +2913,7 @@ function save() {
   _store.setItem('embryoInventory', JSON.stringify(embryoInventory));
   _store.setItem('pendingUseRecords', JSON.stringify(pendingUseRecords));
   _store.setItem('retiredCows', JSON.stringify(retiredCows));
+  _store.setItem('miscarriageRecords', JSON.stringify(miscarriageRecords));
   _store.setItem('insemBookRecords', JSON.stringify(insemBookRecords));
   _store.setItem('insemBookEdits', JSON.stringify(insemBookEdits));
   _store.setItem('staticDonorAIFlags', JSON.stringify(staticDonorAIFlags));
@@ -5047,6 +5063,27 @@ function showCowDetail(cowId) {
         </div>`).join('')}
     </div>` : '';
 
+  // 流産記録（この牛のもの）
+  const cowMiscarriages = miscarriageRecords.filter(r => r.cowId === cowId)
+    .sort((a,b) => b.date.localeCompare(a.date));
+  const miscarriageHTML = cowMiscarriages.length ? `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:#ef4444;letter-spacing:1px;margin-bottom:8px;">🚨 流産記録</div>
+      ${cowMiscarriages.map(rec=>`
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#ef4444"></div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
+              <div class="tl-date">${fmtDate(rec.date)}</div>
+              <div class="tl-action" style="color:#ef4444;">流産${rec.pregnancyMonth?` 妊娠${rec.pregnancyMonth}ヶ月`:''}</div>
+              ${rec.sire?`<div class="tl-memo">父牛: ${rec.sire}</div>`:''}
+              ${rec.memo?`<div class="tl-memo">📝 ${rec.memo}</div>`:''}
+            </div>
+            <button onclick="deleteMiscarriageRecord('${rec.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:10px;border-radius:5px;padding:3px 7px;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:8px;">🗑 削除</button>
+          </div>
+        </div>`).join('')}
+    </div>` : '';
+
   document.getElementById('modal-cow-title').textContent = `${cowId} ${name} — タイムライン`;
   document.getElementById('modal-cow-content').innerHTML = `
     ${(cow.sire||cow.maternalSire) ? `
@@ -5065,6 +5102,7 @@ function showCowDetail(cowId) {
       </div>
     </div>
     ${insemHTML}
+    ${miscarriageHTML}
     <div style="margin-bottom:14px;">
       <div class="timeline">
         ${pending.length?'<div style="font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px;margin-bottom:8px;">未処置・予定</div>':''}
@@ -21052,23 +21090,157 @@ function confirmRetire() {
 
 function switchRetiredTab(tab) {
   const isCow = tab === 'cow';
+  const isCalf = tab === 'calf';
+  const isMis = tab === 'miscarriage';
   document.getElementById('retired-panel-cow').style.display = isCow ? '' : 'none';
-  document.getElementById('retired-panel-calf').style.display = isCow ? 'none' : '';
+  document.getElementById('retired-panel-calf').style.display = isCalf ? '' : 'none';
+  document.getElementById('retired-panel-miscarriage').style.display = isMis ? '' : 'none';
   const cowBtn = document.getElementById('retired-tab-cow');
   const calfBtn = document.getElementById('retired-tab-calf');
+  const misBtn = document.getElementById('retired-tab-miscarriage');
   cowBtn.style.background  = isCow ? '#0a1a2a' : 'var(--bg3)';
   cowBtn.style.borderColor = isCow ? 'var(--info)' : 'var(--border)';
   cowBtn.style.color       = isCow ? 'var(--info)' : 'var(--muted)';
-  calfBtn.style.background  = isCow ? 'var(--bg3)' : '#1a0808';
-  calfBtn.style.borderColor = isCow ? 'var(--border)' : 'var(--danger)';
-  calfBtn.style.color       = isCow ? 'var(--muted)' : '#fca5a5';
+  calfBtn.style.background  = isCalf ? '#1a0808' : 'var(--bg3)';
+  calfBtn.style.borderColor = isCalf ? 'var(--danger)' : 'var(--border)';
+  calfBtn.style.color       = isCalf ? '#fca5a5' : 'var(--muted)';
+  misBtn.style.background  = isMis ? '#1a0808' : 'var(--bg3)';
+  misBtn.style.borderColor = isMis ? '#ef4444' : 'var(--border)';
+  misBtn.style.color       = isMis ? '#ef4444' : 'var(--muted)';
 }
+
+function openMiscarriageForm(editId) {
+  const rec = editId ? miscarriageRecords.find(r => r.id === editId) : null;
+  const cowOpts = cows.map(c => `<option value="${c.id}" ${rec && rec.cowId===c.id?'selected':''}>${c.id} ${c.name||''}</option>`).join('');
+  const html = `<div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--card);border-radius:14px;padding:20px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
+      <div style="font-size:15px;font-weight:700;margin-bottom:16px;">🚨 流産を記録</div>
+      <div class="form-group" style="margin-bottom:10px;"><label>母牛</label>
+        <select id="mis-cow" style="font-size:13px;width:100%;"><option value="">選択してください</option>${cowOpts}</select>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;"><label>流産日</label>
+        <input type="date" id="mis-date" value="${rec?rec.date:today()}" style="font-size:13px;width:100%;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div class="form-group"><label>胎次</label>
+          <input type="number" id="mis-parity" min="1" value="${rec?rec.parity:''}" placeholder="例: 2" style="font-size:13px;width:100%;">
+        </div>
+        <div class="form-group"><label>妊娠月数（概算）</label>
+          <input type="number" id="mis-month" min="1" max="9" step="0.5" value="${rec?rec.pregnancyMonth:''}" placeholder="例: 5" style="font-size:13px;width:100%;">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:10px;"><label>父牛（種雄牛）</label>
+        <input type="text" id="mis-sire" value="${rec?rec.sire||'':''}" placeholder="例: 幸泉" style="font-size:13px;width:100%;">
+      </div>
+      <div class="form-group" style="margin-bottom:16px;"><label>メモ</label>
+        <textarea id="mis-memo" style="font-size:13px;width:100%;height:60px;resize:vertical;">${rec?rec.memo||'':''}</textarea>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="saveMiscarriageRecord(${editId?`'${editId}'`:'null'})" style="flex:1;background:#ef4444;border:none;color:#fff;font-size:13px;font-weight:700;padding:10px;border-radius:8px;cursor:pointer;">
+          ${editId?'更新':'記録する'}
+        </button>
+        <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:700;padding:10px;border-radius:8px;cursor:pointer;">
+          キャンセル
+        </button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+async function saveMiscarriageRecord(editId) {
+  const cowId = document.getElementById('mis-cow').value;
+  const date = document.getElementById('mis-date').value;
+  if (!cowId || !date) { alert('母牛と流産日は必須です'); return; }
+  const rec = {
+    id: editId || Math.random().toString(36).slice(2),
+    cowId,
+    date,
+    parity: parseInt(document.getElementById('mis-parity').value) || null,
+    pregnancyMonth: parseFloat(document.getElementById('mis-month').value) || null,
+    sire: document.getElementById('mis-sire').value.trim(),
+    memo: document.getElementById('mis-memo').value.trim(),
+    recordedAt: today(),
+  };
+  if (editId) {
+    const idx = miscarriageRecords.findIndex(r => r.id === editId);
+    if (idx >= 0) miscarriageRecords[idx] = rec;
+  } else {
+    miscarriageRecords.push(rec);
+    // 母牛のeventsにも記録
+    const cow = cows.find(c => c.id === cowId);
+    if (cow) {
+      cow.events = cow.events || [];
+      cow.events.push({type:'miscarriage', date, memo: (rec.sire?`父:${rec.sire} `:'') + (rec.pregnancyMonth?`妊娠${rec.pregnancyMonth}ヶ月 `:'') + (rec.memo||'')});
+    }
+  }
+  save();
+  document.querySelector('div[style*="position:fixed"]').remove();
+  renderRetiredList();
+  renderAll();
+}
+
+function deleteMiscarriageRecord(id) {
+  if (!confirm('この流産記録を削除しますか？')) return;
+  const rec = miscarriageRecords.find(r => r.id === id);
+  if (rec) {
+    // cow.eventsからも削除
+    const cow = cows.find(c => c.id === rec.cowId);
+    if (cow) cow.events = (cow.events||[]).filter(e => !(e.type==='miscarriage' && e.date===rec.date));
+  }
+  miscarriageRecords = miscarriageRecords.filter(r => r.id !== id);
+  save();
+  renderRetiredList();
+  renderAll();
+}
+
+function renderMiscarriageList() {
+  const container = document.getElementById('miscarriage-list-container');
+  const empty = document.getElementById('miscarriage-empty');
+  const countEl = document.getElementById('miscarriage-count');
+  if (!container) return;
+  if (countEl) countEl.textContent = miscarriageRecords.length ? `${miscarriageRecords.length}件` : '';
+  if (!miscarriageRecords.length) {
+    container.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  const sorted = [...miscarriageRecords].sort((a,b) => b.date.localeCompare(a.date));
+  container.innerHTML = sorted.map(rec => {
+    const cow = cows.find(c => c.id === rec.cowId);
+    const cowLabel = cow ? `${rec.cowId} ${cow.name||''}` : rec.cowId;
+    return `<div style="background:var(--card);border:1px solid #7f1d1d;border-radius:10px;padding:14px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+        <div>
+          <span style="font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:900;color:#ef4444;">🚨 流産</span>
+          <span style="font-size:14px;font-weight:700;color:var(--text);margin-left:8px;">${cowLabel}</span>
+        </div>
+        <span style="font-size:12px;color:var(--muted);">${fmtDate(rec.date)}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;">
+        ${rec.parity?`<div>胎次: <strong style="color:var(--text);">${rec.parity}産目</strong></div>`:''}
+        ${rec.pregnancyMonth?`<div>妊娠月数: <strong style="color:var(--text);">約${rec.pregnancyMonth}ヶ月</strong></div>`:''}
+        ${rec.sire?`<div>父牛: <strong style="color:var(--text);">${rec.sire}</strong></div>`:''}
+        ${rec.memo?`<div colspan="2">メモ: <strong style="color:var(--text);">${rec.memo}</strong></div>`:''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="openMiscarriageForm('${rec.id}')" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:6px;border-radius:6px;cursor:pointer;">✏️ 編集</button>
+        <button onclick="deleteMiscarriageRecord('${rec.id}')" style="flex:1;background:#1a0808;border:1px solid var(--danger);color:var(--danger);font-size:12px;font-weight:700;padding:6px;border-radius:6px;cursor:pointer;">🗑 削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 
 function renderRetiredList() {
   const container = document.getElementById('retired-list-container');
   const empty = document.getElementById('retired-empty');
   const badge = document.getElementById('retired-badge');
   if (!container) return;
+
+  // 流産記録セクション
+  renderMiscarriageList();
 
   // 死亡子牛を取得
   const deadCalves = calves.filter(c => c.deathDate);
@@ -22246,7 +22418,7 @@ function initFirebaseSync() {
       const safeKeysForSnapshot = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
         'collectionRecords','collectionRecordsNew','transferBook','etRecords','fatteningRecords',
         'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-        'pendingUseRecords','lastCalfNatIdPrefix','data_version'];
+        'pendingUseRecords','lastCalfNatIdPrefix','miscarriageRecords','data_version'];
       safeKeysForSnapshot.forEach(k => {
         const v = _store.getItem(k);
         if (v !== null) _lastSentSnapshot[k] = v;
@@ -22273,7 +22445,7 @@ function initFirebaseSync() {
       const safeKeys = ['cows','tasks','calves','calvingRecords','retiredCows',
         'semenInventory','embryoInventory','collectionRecords','collectionRecordsNew',
         'etRecords','fatteningRecords','insemBookRecords','insemBookEdits','staticDonorAIFlags',
-        'donorAIRecords','pendingEtList','pendingUseRecords','transferBook','data_version'];
+        'donorAIRecords','pendingEtList','pendingUseRecords','transferBook','miscarriageRecords','data_version'];
       let anyChanged = false;
       safeKeys.forEach(k => {
         if (!(k in remote)) return;
@@ -22401,7 +22573,7 @@ function saveToFirebase() {
     const keys = ['cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
       'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
       'insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-      'pendingUseRecords','transferBook','lastCalfNatIdPrefix','data_version'];
+      'pendingUseRecords','transferBook','lastCalfNatIdPrefix','miscarriageRecords','data_version'];
     // 変更があったキーのみupdate()で差分送信
     const updates = {};
     let hasChanges = false;
