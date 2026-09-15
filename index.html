@@ -6305,27 +6305,34 @@ function renderStats() {
 
   // 1. ステータス集計
   const st = {open:0,pregnant:0,program:0,fresh:0};
-  cows.forEach(c => { if (st[c.status]!==undefined) st[c.status]++; else st.open++; });
+  let pregWaitingForSt = 0;
+  let notYetEligibleForSt = 0;
+  const todayForSt = today();
+  cows.forEach(c => {
+    const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
+      .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+    const hasNegAfter = lastAiEt && (c.events||[]).some(e=>e.type==='preg_negative'&&e.date>lastAiEt.date);
+    const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
+    const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date&&(!e.insemDate||e.insemDate===lastAiEt.date));
+    const isDonorSt = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
+    const lastAiEtIsDonorSt = lastAiEt && lastAiEt.donorAI === true;
+    const isPregWaitingSt = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorSt || !lastAiEtIsDonorSt);
+    const hasEverInsemSt = (c.events||[]).some(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+    const ageMonthsSt = c.dob ? Math.floor(diffDays(todayForSt, c.dob) / 30.5) : null;
+    const firstInsemMonthsSt = (c.breed === '黒毛和種') ? 14 : 13;
+    const isNotYetEligibleSt = !hasEverInsemSt && c.status === 'open' && (c.lactation||0) === 0 &&
+      ageMonthsSt !== null && ageMonthsSt < firstInsemMonthsSt;
+    if (isPregWaitingSt) pregWaitingForSt++;
+    else if (isNotYetEligibleSt) notYetEligibleForSt++;
+    else if (st[c.status] !== undefined) st[c.status]++;
+    else st.open++;
+  });
   const total = cows.length;
 
-  // programの中から「妊鑑待ち」（AI/ET後35日以上経過で妊鑑未実施）を分離
-  const todayForSt = today();
-  let pregWaitingCount = 0;
-  cows.filter(c => c.status === 'program').forEach(c => {
-    const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
-      .find(e => ['et_done','ai_done'].includes(e.type));
-    if (lastAiEt) {
-      const daysAfter = diffDays(todayForSt, lastAiEt.date);
-      const hasPregResult = (c.events||[]).some(e =>
-        (e.type==='preg_positive'||e.type==='preg_negative') && e.date > lastAiEt.date &&
-        (!e.insemDate || e.insemDate === lastAiEt.date)
-      );
-      const isDonorCow = c.isDonor || (c.events||[]).some(e => ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type) && !e._retired);
-      const lastAiEtIsDonorAI = lastAiEt.donorAI === true;
-      if (!hasPregResult && daysAfter >= 35 && (!isDonorCow || !lastAiEtIsDonorAI)) pregWaitingCount++;
-    }
-  });
-  const realProgramCount = st.program - pregWaitingCount;
+  // programの中から「妊鑑待ち」を分離（群ステータスカード用）
+  const pregWaitingCount = pregWaitingForSt;
+  const realProgramCount = st.program;
 
   // 2. 受胎率（授精簿全記録ベース）
   let aiTotal=0, aiPos=0, etTotal=0, etPos=0;
@@ -6530,8 +6537,15 @@ function renderStats() {
     <!-- ステータス -->
     <div class="stats-card">
       <div class="stats-title">📊 群ステータス（${total}頭）</div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;text-align:center;">
-        ${[['空胎',st.open,'var(--warn)'],['妊娠中',st.pregnant,'var(--accent)'],['妊鑑待ち',pregWaitingCount,'var(--info)'],['プログラム中',realProgramCount,'var(--purple)'],['新鮮分娩',st.fresh,'#f472b6']].map(([l,v,c])=>`
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;margin-bottom:8px;">
+        ${[['空胎',st.open,'var(--warn)'],['妊娠中',st.pregnant,'var(--accent)'],['妊鑑待ち',pregWaitingCount,'var(--info)']].map(([l,v,c])=>`
+          <div style="background:var(--bg3);border-radius:8px;padding:10px 4px;">
+            <div style="font-size:22px;font-weight:900;color:${c};font-family:'JetBrains Mono',monospace">${v}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;">${l}</div>
+          </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+        ${[['授精可能待ち',notYetEligibleForSt,'var(--muted)'],['プログラム中',realProgramCount,'var(--purple)'],['新鮮分娩',st.fresh,'#f472b6']].map(([l,v,c])=>`
           <div style="background:var(--bg3);border-radius:8px;padding:10px 4px;">
             <div style="font-size:22px;font-weight:900;color:${c};font-family:'JetBrains Mono',monospace">${v}</div>
             <div style="font-size:10px;color:var(--muted);margin-top:2px;">${l}</div>
