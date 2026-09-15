@@ -9144,7 +9144,13 @@ function renderInsemBook() {
         '<div data-month="'+((dispD2||'').slice(0,7))+'" style="background:var(--card);border:1px solid ' + (isNew2 ? 'var(--info)' : 'var(--border)') + ';border-radius:10px;margin-bottom:8px;overflow:hidden;">' +
           '<div onclick="toggleInsemCard(\'' + uid + '\')" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer;background:var(--bg2);">' +
             '<div>' +
-              '<div style="font-size:13px;font-weight:700;color:var(--text);">' + fmtDate(dispD2) + '　<span style="color:var(--accent);font-family:\'JetBrains Mono\',monospace;">' + r.t + '</span></div>' +
+              '<div style="font-size:13px;font-weight:700;color:var(--text);">' + fmtDate(dispD2) + '　<span style="color:var(--accent);font-family:\'JetBrains Mono\',monospace;">' + r.t + '</span>' + (() => {
+                const cowForLabel = cows.find(c => c.id === r.t);
+                if (!cowForLabel) return '';
+                const natId = cowForLabel.nationalId ? String(cowForLabel.nationalId).slice(-4) : '';
+                const name = cowForLabel.name || '';
+                return natId || name ? '<span style="font-size:11px;color:var(--muted);font-weight:400;margin-left:6px;">' + (natId ? natId + '-' : '') + (name ? '[' + name + ']' : '') + '</span>' : '';
+              })() + '</div>' +
               '<div style="font-size:12px;color:' + typeColor2 + ';font-weight:700;margin-top:2px;">' + (() => {
                 if (!et2) return typeLabel2 + ' ' + r.s;
                 const donorM2 = (r.m||'').match(/ドナー:([^\s]+)/);
