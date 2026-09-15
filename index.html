@@ -4624,7 +4624,8 @@ function renderCowList() {
       const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date&&(!e.insemDate||e.insemDate===lastAiEt.date));
       const isDonorC2 = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
       const lastAiEtIsDonorAIC2 = lastAiEt && lastAiEt.donorAI === true;
-      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC2 || !lastAiEtIsDonorAIC2); return (c.lactation||0) === 0;
+      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC2 || !lastAiEtIsDonorAIC2);
+      if (cowStatusFilter === 'never_calved') return (c.lactation||0) === 0;
       if (cowStatusFilter === 'preg_waiting') return isPregWaiting;
       return !isPregWaiting && c.status === cowStatusFilter;
     });
