@@ -4590,7 +4590,7 @@ function renderCowList() {
       const hasNegAfter = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_negative')&&e.date>lastAiEt.date);
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
-      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
+      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date&&(!e.insemDate||e.insemDate===lastAiEt.date));
       const isDonorC = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
       const lastAiEtIsDonorAIC = lastAiEt && lastAiEt.donorAI === true;
       const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC || !lastAiEtIsDonorAIC);
@@ -4621,7 +4621,7 @@ function renderCowList() {
       const hasNegAfter = lastAiEt && (c.events||[]).some(e=>e.type==='preg_negative'&&e.date>lastAiEt.date);
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
-      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
+      const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date&&(!e.insemDate||e.insemDate===lastAiEt.date));
       const isDonorC2 = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
       const lastAiEtIsDonorAIC2 = lastAiEt && lastAiEt.donorAI === true;
       const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC2 || !lastAiEtIsDonorAIC2); return (c.lactation||0) === 0;
@@ -4691,7 +4691,8 @@ function renderCowList() {
     );
     const hasPregResult = lastAiEt && (cow.events||[]).some(e =>
       (e.type==='preg_positive'||e.type==='preg_negative') &&
-      e.date > lastAiEt.date
+      e.date > lastAiEt.date &&
+      (!e.insemDate || e.insemDate === lastAiEt.date)
     );
     // 陰性後に新たなAI/ETがあるか確認
     const lastNegAfterAi = lastAiEt && [...(cow.events||[])].filter(e =>
@@ -6298,7 +6299,8 @@ function renderStats() {
     if (lastAiEt) {
       const daysAfter = diffDays(todayForSt, lastAiEt.date);
       const hasPregResult = (c.events||[]).some(e =>
-        (e.type==='preg_positive'||e.type==='preg_negative') && e.date > lastAiEt.date
+        (e.type==='preg_positive'||e.type==='preg_negative') && e.date > lastAiEt.date &&
+        (!e.insemDate || e.insemDate === lastAiEt.date)
       );
       const isDonorCow = c.isDonor || (c.events||[]).some(e => ['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type) && !e._retired);
       const lastAiEtIsDonorAI = lastAiEt.donorAI === true;
