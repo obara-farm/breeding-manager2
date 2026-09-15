@@ -4591,7 +4591,9 @@ function renderCowList() {
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
       const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
-      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg);
+      const isDonorC = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
+      const lastAiEtIsDonorAIC = lastAiEt && lastAiEt.donorAI === true;
+      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC || !lastAiEtIsDonorAIC);
       if(isPregWaiting) pregWaitingCount++;
       else statusCount[c.status||'open'] = (statusCount[c.status||'open']||0)+1;
     });
@@ -4620,8 +4622,9 @@ function renderCowList() {
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
       const hasPregRes = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
-      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg);
-      if (cowStatusFilter === 'never_calved') return (c.lactation||0) === 0;
+      const isDonorC2 = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
+      const lastAiEtIsDonorAIC2 = lastAiEt && lastAiEt.donorAI === true;
+      const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC2 || !lastAiEtIsDonorAIC2); return (c.lactation||0) === 0;
       if (cowStatusFilter === 'preg_waiting') return isPregWaiting;
       return !isPregWaiting && c.status === cowStatusFilter;
     });
