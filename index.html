@@ -6780,15 +6780,73 @@ function renderStats() {
                       ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">▼</span>` : '<span style="color:var(--border);">—</span>'}
                     </td>` : ''}
                   </tr>
-                  ${et.total ? `<tr id="${rowId}" style="display:none;"><td colspan="${cellsN}" style="padding:6px 8px;border:1px solid var(--border);background:var(--bg3);">
-                    <div style="display:flex;gap:14px;justify-content:center;font-size:11px;">
-                      <span>🌱 新鮮胚 ${efRate!==null?`<b style="color:${col(efRate)};">${efRate}%</b> <span style="color:var(--muted);">${ef.pos}/${ef.total}</span>`:'<span style="color:var(--muted);">記録なし</span>'}</span>
-                      <span>❄️ 凍結胚 ${ezRate!==null?`<b style="color:${col(ezRate)};">${ezRate}%</b> <span style="color:var(--muted);">${ez.pos}/${ez.total}</span>`:'<span style="color:var(--muted);">記録なし</span>'}</span>
-                    </div></td></tr>` : ''}`;
+                  ${et.total ? `<tr id="${rowId}" style="display:none;"><td colspan="${cellsN}" style="padding:8px 10px;border:1px solid var(--border);background:var(--bg3);">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;">
+                      <div style="background:var(--bg2);border-radius:6px;padding:7px 10px;">
+                        <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">🌱 新鮮胚</div>
+                        ${efRate!==null
+                          ? `<div style="font-size:15px;font-weight:900;color:${col(efRate)};">${efRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ef.pos}/${ef.total}</span></div><div style="height:4px;border-radius:2px;background:var(--border);margin-top:4px;"><div style="height:4px;border-radius:2px;background:${col(efRate)};width:${efRate}%;"></div></div>`
+                          : `<div style="color:var(--muted);font-size:11px;">記録なし</div>`}
+                      </div>
+                      <div style="background:var(--bg2);border-radius:6px;padding:7px 10px;">
+                        <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">❄️ 凍結胚</div>
+                        ${ezRate!==null
+                          ? `<div style="font-size:15px;font-weight:900;color:${col(ezRate)};">${ezRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ez.pos}/${ez.total}</span></div><div style="height:4px;border-radius:2px;background:var(--border);margin-top:4px;"><div style="height:4px;border-radius:2px;background:${col(ezRate)};width:${ezRate}%;"></div></div>`
+                          : `<div style="color:var(--muted);font-size:11px;">記録なし</div>`}
+                      </div>
+                    </div>
+                  </td></tr>` : ''}`;
                 }).join('')})()
               </tbody>
             </table>
           </div>`;
+      })();
+
+      // 月別ET受胎率グラフ用データ
+      const graphMonths = monthNames.filter(m => monthMap[m].et.total > 0);
+      const monthGraph = (() => {
+        if (graphMonths.length < 2) return '';
+        const W = 280, H = 100, PAD = 28;
+        const toRate = d => d.total ? Math.round(d.pos/d.total*100) : null;
+        const rates = graphMonths.map(m => toRate(monthMap[m].et));
+        const freshRates = graphMonths.map(m => toRate(monthMap[m].etFresh));
+        const frozenRates = graphMonths.map(m => toRate(monthMap[m].etFrozen));
+        const xStep = (W - PAD*2) / Math.max(graphMonths.length - 1, 1);
+        const yS = function(v){ return H - PAD - (v / 100) * (H - PAD*2); };
+        const xS = function(i){ return PAD + i * xStep; };
+        function makePath(rs) {
+          return rs.map(function(r,i){ return r !== null ? (i===0||rs.slice(0,i).every(function(x){return x===null;})?'M':'L')+xS(i).toFixed(1)+','+yS(r).toFixed(1) : ''; }).filter(Boolean).join(' ');
+        }
+        function makeDots(rs, color) {
+          return rs.map(function(r,i){ return r !== null ? '<circle cx="'+xS(i).toFixed(1)+'" cy="'+yS(r).toFixed(1)+'" r="3" fill="'+color+'"/>' : ''; }).join('');
+        }
+        function makeLabels(rs, color) {
+          return rs.map(function(r,i){ return r !== null ? '<text x="'+xS(i).toFixed(1)+'" y="'+(yS(r)-6).toFixed(1)+'" text-anchor="middle" font-size="8" fill="'+color+'">'+r+'%</text>' : ''; }).join('');
+        }
+        const grids = [0,25,50,75,100].map(function(v){
+          return '<line x1="'+PAD+'" y1="'+yS(v).toFixed(1)+'" x2="'+(W-PAD)+'" y2="'+yS(v).toFixed(1)+'" stroke="var(--border)" stroke-width="0.5"/>'+
+                 '<text x="'+(PAD-3)+'" y="'+(yS(v)+3).toFixed(1)+'" text-anchor="end" font-size="7" fill="var(--muted)">'+v+'%</text>';
+        }).join('');
+        const xLabels = graphMonths.map(function(m,i){
+          return '<text x="'+xS(i).toFixed(1)+'" y="'+(H-4)+'" text-anchor="middle" font-size="8" fill="var(--muted)">'+m+'</text>';
+        }).join('');
+        return '<div style="margin-top:16px;">'+
+          '<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px;">📈 ET受胎率の推移</div>'+
+          '<svg width="100%" viewBox="0 0 '+W+' '+H+'" style="overflow:visible;">'+
+            grids + xLabels +
+            '<path d="'+makePath(freshRates)+'" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4,2"/>'+
+            makeDots(freshRates,'var(--accent)')+makeLabels(freshRates,'var(--accent)')+
+            '<path d="'+makePath(frozenRates)+'" fill="none" stroke="var(--info)" stroke-width="1.5" stroke-dasharray="4,2"/>'+
+            makeDots(frozenRates,'var(--info)')+makeLabels(frozenRates,'var(--info)')+
+            '<path d="'+makePath(rates)+'" fill="none" stroke="var(--text)" stroke-width="2"/>'+
+            makeDots(rates,'var(--text)')+makeLabels(rates,'var(--text)')+
+          '</svg>'+
+          '<div style="display:flex;gap:12px;font-size:10px;color:var(--muted);margin-top:2px;">'+
+            '<span><span style="display:inline-block;width:14px;height:2px;background:var(--text);vertical-align:middle;margin-right:3px;"></span>ET合計</span>'+
+            '<span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed var(--accent);vertical-align:middle;margin-right:3px;"></span>🌱新鮮</span>'+
+            '<span><span style="display:inline-block;width:14px;height:2px;border-top:2px dashed var(--info);vertical-align:middle;margin-right:3px;"></span>❄️凍結</span>'+
+          '</div>'+
+        '</div>';
       })();
 
       const stageRows = Object.entries(stageMap).sort((a,b)=>b[1].total-a[1].total).map(([name,d])=>`
@@ -6810,6 +6868,7 @@ function renderStats() {
           ${monthRows ? `
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">月別受胎率（AI / ET）</div>
             ${monthRows}
+            ${monthGraph}
             <div style="height:1px;background:var(--border);margin:14px 0;"></div>` : ''}
           ${Object.values(stageMap).length ? `
             <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">胚ステージ別受胎率</div>
