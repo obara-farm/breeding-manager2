@@ -3591,9 +3591,18 @@ function registerEvent() {
       setTimeout(() => showDueDateResult(cowId, dueDate, moveDate), 300);
       break;
     }
-    case 'preg_negative': cow.status='open';
+    case 'preg_negative': {
+      // 陰性判定の対象となった授精日を特定
+      const negInsemDate = date; // 登録日ではなく、呼び出し元でinsemDateが渡される場合もある
+      // 陰性の後に既に新しいプログラムが開始されている場合はstatusを変えない
+      const programStartAfterNeg = (cow.events||[]).some(e =>
+        e.date >= date &&
+        ['et_recipient','cidr_ai_start','donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start','estrus_et','estrus_ai'].includes(e.type)
+      );
+      if (!programStartAfterNeg) cow.status = 'open';
       schedule=[{cowId, day:0, action:'空胎確認', detail:'再プログラム開始を検討', color:'#ef4444', date, priority:'high', id:Math.random().toString(36).slice(2), done:false}];
       break;
+    }
     case 'open': cow.status='open'; break;
   }
 
