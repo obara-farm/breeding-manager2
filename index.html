@@ -4583,6 +4583,8 @@ function renderCowList() {
   if (statusSummaryEl) {
     const statusCount = {};
     let pregWaitingCount = 0;
+    let notYetEligibleCount = 0;
+    const todayStrForFilter = today();
     cows.forEach(c => {
       // isPregWaitingの判定（簡易版）
       const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
@@ -4594,7 +4596,14 @@ function renderCowList() {
       const isDonorC = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
       const lastAiEtIsDonorAIC = lastAiEt && lastAiEt.donorAI === true;
       const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC || !lastAiEtIsDonorAIC);
+      // 授精可能待ち：未授精・未経産・open・月齢が足りない
+      const hasEverInsemC = (c.events||[]).some(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+      const ageMonthsC = c.dob ? Math.floor(diffDays(todayStrForFilter, c.dob) / 30.5) : null;
+      const firstInsemMonthsC = (c.breed === '黒毛和種') ? 14 : 13;
+      const isNotYetEligible = !hasEverInsemC && c.status === 'open' && (c.lactation||0) === 0 &&
+        ageMonthsC !== null && ageMonthsC < firstInsemMonthsC;
       if(isPregWaiting) pregWaitingCount++;
+      else if(isNotYetEligible) { notYetEligibleCount++; /* 空胎カウントから除外 */ }
       else statusCount[c.status||'open'] = (statusCount[c.status||'open']||0)+1;
     });
     const neverCalvedCount = cows.filter(c => (c.lactation||0) === 0).length;
@@ -4603,6 +4612,7 @@ function renderCowList() {
       {key:'preg_waiting', label:'妊鑑待ち', icon:'🔬', count: pregWaitingCount},
       {key:'pregnant', label:'妊娠中', icon:'🤰', count: statusCount['pregnant']||0},
       {key:'open', label:'空胎', icon:'⭕', count: statusCount['open']||0},
+      {key:'not_yet_eligible', label:'授精可能待ち', icon:'⏳', count: notYetEligibleCount},
       {key:'program', label:'プログラム中', icon:'📋', count: statusCount['program']||0},
       {key:'fresh', label:'新鮮分娩', icon:'🍼', count: statusCount['fresh']||0},
       {key:'never_calved', label:'未経産', icon:'🐮', count: neverCalvedCount},
@@ -4625,8 +4635,15 @@ function renderCowList() {
       const isDonorC2 = c.isDonor || (c.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type)&&!e._retired);
       const lastAiEtIsDonorAIC2 = lastAiEt && lastAiEt.donorAI === true;
       const isPregWaiting = (c.status==='open'||c.status==='program') && lastAiEt && (!hasPregRes||newAiAfterNeg) && (!isDonorC2 || !lastAiEtIsDonorAIC2);
+      const hasEverInsemF = (c.events||[]).some(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+      const ageMonthsF = c.dob ? Math.floor(diffDays(today(), c.dob) / 30.5) : null;
+      const firstInsemMonthsF = (c.breed === '黒毛和種') ? 14 : 13;
+      const isNotYetEligibleF = !hasEverInsemF && c.status === 'open' && (c.lactation||0) === 0 &&
+        ageMonthsF !== null && ageMonthsF < firstInsemMonthsF;
       if (cowStatusFilter === 'never_calved') return (c.lactation||0) === 0;
       if (cowStatusFilter === 'preg_waiting') return isPregWaiting;
+      if (cowStatusFilter === 'not_yet_eligible') return isNotYetEligibleF;
+      if (cowStatusFilter === 'open') return !isPregWaiting && !isNotYetEligibleF && c.status === 'open';
       return !isPregWaiting && c.status === cowStatusFilter;
     });
   }
