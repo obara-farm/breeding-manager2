@@ -4597,7 +4597,7 @@ function renderCowList() {
     cows.forEach(c => {
       // isPregWaitingの判定（簡易版）
       const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
-        .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+        .find(e=>['ai_done','et_done'].includes(e.type));
       const hasNegAfter = lastAiEt && (c.events||[]).some(e=>(e.type==='preg_negative')&&e.date>lastAiEt.date);
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
@@ -4636,7 +4636,7 @@ function renderCowList() {
   if (cowStatusFilter !== 'all') {
     filtered = filtered.filter(c => {
       const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
-        .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+        .find(e=>['ai_done','et_done'].includes(e.type));
       const hasNegAfter = lastAiEt && (c.events||[]).some(e=>e.type==='preg_negative'&&e.date>lastAiEt.date);
       const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
       const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
@@ -6319,7 +6319,7 @@ function renderStats() {
   const todayForSt = today();
   cows.forEach(c => {
     const lastAiEt = [...(c.events||[])].sort((a,b)=>b.date.localeCompare(a.date))
-      .find(e=>['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type));
+      .find(e=>['ai_done','et_done'].includes(e.type));
     const hasNegAfter = lastAiEt && (c.events||[]).some(e=>e.type==='preg_negative'&&e.date>lastAiEt.date);
     const lastNeg = lastAiEt && hasNegAfter && [...(c.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
     const newAiAfterNeg = lastNeg && (c.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
