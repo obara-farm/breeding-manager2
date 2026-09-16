@@ -2837,6 +2837,22 @@ function loadData() {
     if (rec.pregResult === 'positive' && cow.status !== 'pregnant' && cow.status !== 'fresh') {
       cow.status = 'pregnant';
       if (!cow.dueDate) cow.dueDate = addDays(rec.d, rec.insemType === 'et' ? 278 : 285);
+      // 早期妊鑑（40日より前）の場合は60日目に再妊鑑タスクを生成
+      const daysAtCheckSync = diffDays(syncDate, rec.d);
+      if (daysAtCheckSync < 40) {
+        const alreadyHasTask = tasks.some(t => t.cowId === rec.t && t.action.includes('再妊娠鑑定') && t.insemDate === rec.d);
+        if (!alreadyHasTask) {
+          const baseDate = rec.insemType === 'et' ? addDays(rec.d, -7) : rec.d;
+          tasks.push({
+            id: Math.random().toString(36).slice(2), cowId: rec.t,
+            date: addDays(baseDate, 60),
+            action: '🔬 再妊娠鑑定',
+            detail: `早期妊鑑（授精後${daysAtCheckSync}日）のため60日目に再確認`,
+            color: '#f59e0b', priority: 'high', done: false, timeOfDay: '', insemDate: rec.d
+          });
+          cowSyncFixed = true;
+        }
+      }
     } else if (rec.pregResult === 'negative' && (cow.status === 'program' || cow.status === 'open')) {
       cow.status = 'open';
     }
