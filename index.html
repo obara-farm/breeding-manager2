@@ -8092,7 +8092,7 @@ function renderCalvingAlerts() {
     const daysSince = diffDays(todayStr, cow.calvingDate);
     if (daysSince < 45) return false;
     const hasInsemination = (cow.events || []).some(ev =>
-      ['estrus','cidr_ai_start','ai_done','et_recipient','et_done','donor_et_start','preg_positive'].includes(ev.type) &&
+      ['estrus','cidr_ai_start','ai_done','et_recipient','et_done','donor_et_start','donor_et_takahashi_start','donor_et_pretreat_start','preg_positive'].includes(ev.type) &&
       ev.date > cow.calvingDate
     );
     if (hasInsemination) return false;
