@@ -16245,7 +16245,7 @@ function renderCalves() {
 
   // 今年（1〜12月）の受精卵産仔集計
   const thisYear = new Date().getFullYear().toString();
-  const etCalvesThisYear = calves.filter(c => c.dob && c.dob.startsWith(thisYear) && c.isEt);
+  const etCalvesThisYear = calves.filter(c => c.dob && c.dob.startsWith(thisYear) && c.embryoNo);
   const etSummaryEl = document.getElementById('et-calves-summary');
   if (etSummaryEl) {
     const total = etCalvesThisYear.length;
