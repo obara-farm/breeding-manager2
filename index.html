@@ -684,6 +684,7 @@ textarea{resize:vertical;}
     <div class="section-title">🐮 子牛管理</div>
     <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="openAddCalf()">＋ 子牛を追加</button>
   </div>
+  <div id="et-calves-summary" style="display:none;background:#0f0a1a;border:1px solid var(--purple);border-radius:10px;padding:12px 14px;margin-bottom:12px;"></div>
   <div id="calf-move-alert" style="display:none;background:#1a1100;border:1px solid var(--warn);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--warn);"></div>
   <div style="margin-bottom:10px;">
     <input type="text" id="calf-search" placeholder="🔍 耳標番号の一部で検索（例: 3228）" style="width:100%;margin-bottom:0;" oninput="renderCalves()">
@@ -6897,13 +6898,13 @@ function renderStats() {
                       <div style="background:var(--bg2);border-radius:6px;padding:7px 10px;">
                         <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">🌱 新鮮胚</div>
                         ${efRate!==null
-                          ? `<div style="font-size:15px;font-weight:900;color:${col(efRate)};">${efRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ef.pos}/${ef.total}</span></div><div style="height:4px;border-radius:2px;background:var(--border);margin-top:4px;"><div style="height:4px;border-radius:2px;background:${col(efRate)};width:${efRate}%;"></div></div>`
+                          ? `<div style="font-size:15px;font-weight:900;color:${col(efRate)};">${efRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ef.pos}/${ef.total}</span></div>`
                           : `<div style="color:var(--muted);font-size:11px;">記録なし</div>`}
                       </div>
                       <div style="background:var(--bg2);border-radius:6px;padding:7px 10px;">
                         <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">❄️ 凍結胚</div>
                         ${ezRate!==null
-                          ? `<div style="font-size:15px;font-weight:900;color:${col(ezRate)};">${ezRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ez.pos}/${ez.total}</span></div><div style="height:4px;border-radius:2px;background:var(--border);margin-top:4px;"><div style="height:4px;border-radius:2px;background:${col(ezRate)};width:${ezRate}%;"></div></div>`
+                          ? `<div style="font-size:15px;font-weight:900;color:${col(ezRate)};">${ezRate}%<span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:4px;">${ez.pos}/${ez.total}</span></div>`
                           : `<div style="color:var(--muted);font-size:11px;">記録なし</div>`}
                       </div>
                     </div>
@@ -16240,6 +16241,38 @@ function renderCalves() {
       const name = (c.name || '').replace(/[-\s]/g, '');
       return id.includes(calfSearchVal) || name.includes(calfSearchVal);
     });
+  }
+
+  // 今年（1〜12月）の受精卵産仔集計
+  const thisYear = new Date().getFullYear().toString();
+  const etCalvesThisYear = calves.filter(c => c.dob && c.dob.startsWith(thisYear) && c.isEt);
+  const etSummaryEl = document.getElementById('et-calves-summary');
+  if (etSummaryEl) {
+    const total = etCalvesThisYear.length;
+    const male = etCalvesThisYear.filter(c => c.sex === '雄').length;
+    const female = etCalvesThisYear.filter(c => c.sex === '雌').length;
+    const byMonth = {};
+    etCalvesThisYear.forEach(c => {
+      const m = parseInt(c.dob.slice(5,7)) + '月';
+      byMonth[m] = (byMonth[m]||0)+1;
+    });
+    if (total > 0) {
+      etSummaryEl.style.display = '';
+      etSummaryEl.innerHTML =
+        '<div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;">🧬 '+thisYear+'年 受精卵産仔</div>'+
+        '<div style="display:flex;gap:16px;font-size:13px;margin-bottom:8px;">'+
+          '<span>合計: <strong style="color:var(--text);font-size:16px;">'+total+'頭</strong></span>'+
+          '<span>♂ '+male+'頭</span>'+
+          '<span>♀ '+female+'頭</span>'+
+        '</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;">'+
+          Object.entries(byMonth).sort((a,b)=>parseInt(a[0])-parseInt(b[0])).map(([m,n])=>
+            '<span style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--muted);">'+m+' <strong style="color:var(--purple);">'+n+'頭</strong></span>'
+          ).join('')+
+        '</div>';
+    } else {
+      etSummaryEl.style.display = 'none';
+    }
   }
 
   // 移動待ちアラート
