@@ -6892,19 +6892,7 @@ function renderStats() {
                   const ezRate = ez.total ? Math.round(ez.pos/ez.total*100) : null;
                   const rowId = 'etsub-'+mi;
                   const cellsN = 1 + (aiHas?1:0) + (etHas?1:0);
-                  return `<tr>
-                    <td style="padding:5px 4px;border:1px solid var(--border);font-weight:700;">${m}</td>
-                    ${aiHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
-                      ${aiRate !== null ? `<span style="font-weight:700;color:${col(aiRate)};">${aiRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${ai.pos}/${ai.total}</span>` : '<span style="color:var(--border);">—</span>'}
-                    </td>` : ''}
-                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;${et.total?'cursor:pointer;':''}" ${et.total?`onclick="var r=document.getElementById('${rowId}');r.style.display=r.style.display==='table-row'?'none':'table-row';"`:''}>
-                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">▼</span>` : '<span style="color:var(--border);">—</span>'}
-                    </td>` : ''}
-                  </tr>
-                  ${et.total ? `<tr id="${rowId}" style="display:none;">
-                    <td style="border:1px solid var(--border);background:var(--bg3);"></td>
-                    ${aiHas ? `<td style="border:1px solid var(--border);background:var(--bg3);"></td>` : ''}
-                    <td style="padding:8px 10px;border:1px solid var(--border);background:var(--bg3);">
+                  const subHtml = et.total ? `<div id="${rowId}" style="display:none;padding:8px 0;">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;">
                       <div style="background:var(--bg2);border-radius:6px;padding:7px 10px;">
                         <div style="font-size:10px;color:var(--muted);margin-bottom:3px;">🌱 新鮮胚</div>
@@ -6919,7 +6907,16 @@ function renderStats() {
                           : `<div style="color:var(--muted);font-size:11px;">記録なし</div>`}
                       </div>
                     </div>
-                  </td></tr>` : ''}`;
+                  </div>` : '';
+                  return `<tr>
+                    <td style="padding:5px 4px;border:1px solid var(--border);font-weight:700;">${m}</td>
+                    ${aiHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;">
+                      ${aiRate !== null ? `<span style="font-weight:700;color:${col(aiRate)};">${aiRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${ai.pos}/${ai.total}</span>` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                    ${etHas ? `<td style="padding:5px 4px;border:1px solid var(--border);text-align:center;${et.total?'cursor:pointer;':''}" ${et.total?`onclick="var r=document.getElementById('${rowId}');r.style.display=r.style.display==='block'?'none':'block';"`:''}>
+                      ${etRate !== null ? `<span style="font-weight:700;color:${col(etRate)};">${etRate}%</span><span style="font-size:10px;color:var(--muted);margin-left:4px;">${et.pos}/${et.total}</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">▼</span>${subHtml}` : '<span style="color:var(--border);">—</span>'}
+                    </td>` : ''}
+                  </tr>`;
                 }).join('')})()
               </tbody>
             </table>
