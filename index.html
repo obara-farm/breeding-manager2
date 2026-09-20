@@ -14665,12 +14665,9 @@ function openCertPreview(records) {
   var container = document.getElementById('cert-preview-container');
   // 2025/11/05以前は授精証明書番号なし、以降は587から採番
   var CUTOFF = '2025-11-05';
-  var certCounter = 587;
+  // 自動採番は廃止。q欄(手入力)のみを使用する
   container.innerHTML = records.map(function(r, i) {
-    // ★ET記録はcertCounterを消費しない（ET記録が挟まると番号が飛ぶバグを修正）
-    const isETRec = r.s && (r.s.includes('×') || r.insemType === 'et' || /^\d{2}[A-L]\d{2}B\d+-\d+$/.test(r.s));
-    var certNo = (r.d && r.d > CUTOFF && !isETRec) ? certCounter++ : null;
-    return buildCertHTML(r, i, certNo);
+    return buildCertHTML(r, i, null);
   }).join('');
   modal.classList.add('open');
 }
@@ -14693,9 +14690,8 @@ function buildCertHTML(r, idx, certNo) {
   if (rawQ) {
     // 数字だけなら「第　〇〇　号」に整形、既に「第」が入っていればそのまま
     insemCertNoStr = /^\d+$/.test(rawQ) ? '第　' + rawQ + '　号' : rawQ;
-  } else if (certNo !== null) {
-    insemCertNoStr = '第　' + String(certNo) + '　号';
   }
+  // 自動採番は廃止 — q欄が空の場合は空欄のまま
   // 精液証明書番号：授精簿のn欄
   var semenCertNo = (r.n && r.n.trim()) ? r.n.trim() : '';
   var aiDateStr   = fmtDateJP(r.d);
