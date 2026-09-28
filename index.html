@@ -9573,7 +9573,7 @@ function embryoResultIndex(){
       found.forEach(no=>{
         if (!no) return;
         if (idx[no]) return; // 既にinsemBook/transferBookに記録があれば上書きしない
-        idx[no] = { result: null, date: h.date||'', cowId: null, recipientLabel: '譲渡済み' };
+        idx[no] = { result: null, date: h.date||'', cowId: null, recipientLabel: '譲渡済み', source: 'inventory_transfer' };
       });
     });
   });
@@ -9591,6 +9591,8 @@ function embResultBadge(no){
   const tip = `${fmtDate(hit.date)} ${who}`;
   if (hit.result==='pos') return `<span title="${tip}" style="color:var(--accent);font-weight:900;font-size:15px;">＋</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
   if (hit.result==='neg') return `<span title="${tip}" style="color:var(--danger);font-weight:900;font-size:15px;">−</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
+  // embryoInventoryのtransfer（譲渡のみ、まだ移植されていない）は「妊鑑待ち」ではなく「譲渡済み」と表示
+  if (hit.source === 'inventory_transfer') return `<span title="${tip}" style="color:var(--muted);font-size:11px;">譲渡済み</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
   return `<span title="${tip}" style="color:var(--warn);font-size:11px;">妊鑑待ち</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
 }
 function _getCollectionEmbryos(colRecId) {
