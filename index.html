@@ -1240,6 +1240,7 @@ textarea{resize:vertical;}
       <button id="emb-group-toggle" onclick="toggleEmbryoGroupByDonor()" style="background:var(--purple);border:1px solid var(--purple);color:#fff;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;">🐄 ドナー別にまとめる</button>
     </div>
     <div id="embryo-low-alert" style="display:none;background:#1a0808;border:1px solid var(--danger);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#fca5a5;"></div>
+    <div id="embryo-breed-totals" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;"></div>
     <div id="embryo-list-container"></div>
     <div class="empty" id="embryo-empty" style="display:none;">
       <div class="empty-icon">🧬</div>
@@ -17690,6 +17691,27 @@ function renderEmbryo() {
   const filteredEmbryo = qe
     ? _visibleEmbryo.filter(e => (e.sire||'').toLowerCase().includes(qe) || (e.breed||'').includes(qe) || (e.dam||'').toLowerCase().includes(qe) || (e.lot||'').toLowerCase().includes(qe))
     : _visibleEmbryo;
+
+  // 品種別合計本数を計算して表示
+  const breedTotalsEl = document.getElementById('embryo-breed-totals');
+  if (breedTotalsEl) {
+    const breedMap = {};
+    _visibleEmbryo.forEach(e => {
+      const b = e.breed || 'その他';
+      if (!breedMap[b]) breedMap[b] = 0;
+      breedMap[b] += e.stock || 0;
+    });
+    const totalAll = Object.values(breedMap).reduce((s,v)=>s+v, 0);
+    const chips = [];
+    if (breedMap['褐毛'] !== undefined) chips.push(`<span style="background:#3b0000;border:1px solid #7f1d1d;color:#fca5a5;font-size:12px;font-weight:700;padding:5px 12px;border-radius:8px;">🟥 あか牛 ${breedMap['褐毛']}本</span>`);
+    if (breedMap['黒毛'] !== undefined) chips.push(`<span style="background:#111827;border:1px solid #374151;color:#d1d5db;font-size:12px;font-weight:700;padding:5px 12px;border-radius:8px;">⬛ 黒毛和牛 ${breedMap['黒毛']}本</span>`);
+    Object.entries(breedMap).filter(([b])=>b!=='褐毛'&&b!=='黒毛').forEach(([b,n])=>{
+      chips.push(`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;font-weight:700;padding:5px 12px;border-radius:8px;">${b} ${n}本</span>`);
+    });
+    chips.push(`<span style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;padding:5px 12px;border-radius:8px;">合計 ${totalAll}本</span>`);
+    breedTotalsEl.innerHTML = chips.join('');
+    breedTotalsEl.style.display = chips.length ? 'flex' : 'none';
+  }
 
   if (!filteredEmbryo.length) { container.innerHTML=`<div style="text-align:center;color:var(--muted);padding:20px;">該当する受精卵がありません</div>`; return; }
 
