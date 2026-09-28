@@ -9544,6 +9544,19 @@ function embryoResultIndex(){
       nos.forEach(no=>{ if(!idx[no]) idx[no] = {result, date: rec.date, cowId}; });
     });
   });
+
+  // transferBook（他農家への移植簿）も索引に追加
+  // pregResult: '' = 未実施/待ち、'+' = 受胎、'-' = 不受胎
+  (typeof transferBook!=='undefined'?transferBook:[]).forEach(tb=>{
+    const no = String(tb.embryoNo||'').trim();
+    if (!no) return;
+    if (idx[no]) return; // 自農場の記録が既にある場合は上書きしない
+    const result = tb.pregResult==='+' ? 'pos' : tb.pregResult==='-' ? 'neg' : null;
+    // 受け牛は他農場なのでcowIdなし。recipientNameを使う
+    const recipName = [tb.recipientName, tb.farmName].filter(Boolean).join(' / ');
+    idx[no] = { result, date: tb.transferDate||tb.recordedAt||'', cowId: null, recipientLabel: recipName };
+  });
+
   _embResultCache = idx;
   return idx;
 }
@@ -9552,7 +9565,8 @@ function embResultBadge(no){
   if (!no) return '';
   const hit = embryoResultIndex()[String(no).trim()];
   if (!hit) return '<span style="color:var(--muted);font-size:10px;">未移植</span>';
-  const who = hit.cowId ? `${hit.cowId} ${cowDisplayName(hit.cowId)||''}` : '';
+  // cowId（自農場）またはrecipientLabel（他農場）で表示名を決める
+  const who = hit.cowId ? `${hit.cowId} ${cowDisplayName(hit.cowId)||''}` : (hit.recipientLabel||'他農場');
   const tip = `${fmtDate(hit.date)} ${who}`;
   if (hit.result==='pos') return `<span title="${tip}" style="color:var(--accent);font-weight:900;font-size:15px;">＋</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
   if (hit.result==='neg') return `<span title="${tip}" style="color:var(--danger);font-weight:900;font-size:15px;">−</span><span style="font-size:9px;color:var(--muted);margin-left:3px;">${who}</span>`;
@@ -9952,7 +9966,7 @@ function printCollectionPdf() {
       var recipName = '';
       if (!hit) { resultStr = '在庫'; }
       else {
-        recipName = cowDisplayName(hit.cowId)||hit.cowId||'';
+        recipName = hit.cowId ? (cowDisplayName(hit.cowId)||hit.cowId) : (hit.recipientLabel||'他農場');
         if (hit.result==='pos') resultStr = '＋受胎';
         else if (hit.result==='neg') resultStr = '－不受胎';
         else resultStr = '妊鑑待ち';
