@@ -9557,37 +9557,25 @@ function embryoResultIndex(){
     idx[no] = { result, date: tb.transferDate||tb.recordedAt||'', cowId: null, recipientLabel: recipName };
   });
 
-  // embryoInventory の history に type:'transfer'（譲渡出荷）がある場合、胚番号を索引に追加
-  // 胚番号は embryoDetails[].no から取得、またはhistoryのmemoから抽出
+  // embryoInventory の history[type='transfer'] のmemoに個別胚番号が明記されている場合のみ索引に追加
+  // ロット単位の譲渡記録（memoに胚番号なし）はスキップする（全胚が誤って「譲渡済み」になるため）
   (typeof embryoInventory!=='undefined'?embryoInventory:[]).forEach(inv=>{
-    const transferred = (inv.history||[]).filter(h=>h.type==='transfer');
-    if (!transferred.length) return;
-    const latestTr = transferred.sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
-    const trDate = latestTr.date||'';
-
-    // embryoDetails から個別胚番号を取得して登録
-    const details = inv.embryoDetails||[];
-    if (details.length > 0) {
-      details.forEach(d=>{
-        const no = String(d.no||'').trim();
+    (inv.history||[]).filter(h=>h.type==='transfer').forEach(h=>{
+      const memo = h.memo||'';
+      const found = new Set();
+      // 「胚番号:xxxx」形式
+      [...memo.matchAll(/胚番号:([\w\-]+)/g)].forEach(m=>found.add(m[1]));
+      // 「譲渡 01L237R8-0017」のように胚番号だけが書かれている形式
+      [...memo.matchAll(/(01L237[A-Za-z0-9\-]+)/g)].forEach(m=>found.add(m[1]));
+      // ロット番号形式（例: 26F22B1-3、25E04B1-1）
+      [...memo.matchAll(/(\d{2}[A-L]\d{2}B\d+-\d+)/g)].forEach(m=>found.add(m[1]));
+      // memoに個別胚番号が含まれている場合のみ登録
+      found.forEach(no=>{
         if (!no) return;
         if (idx[no]) return; // 既にinsemBook/transferBookに記録があれば上書きしない
-        idx[no] = { result: null, date: trDate, cowId: null, recipientLabel: '譲渡済み' };
+        idx[no] = { result: null, date: h.date||'', cowId: null, recipientLabel: '譲渡済み' };
       });
-    } else {
-      // embryoDetailsがない場合はhistoryのmemoから胚番号を抽出
-      transferred.forEach(h=>{
-        const memo = h.memo||'';
-        const m = memo.match(/(\d{2}[A-L]\d{2}B\d+-\d+)/g) || memo.match(/胚番号:([\w\-]+)/g);
-        if (!m) return;
-        m.forEach(raw=>{
-          const no = raw.replace(/^胚番号:/,'').trim();
-          if (!no) return;
-          if (idx[no]) return;
-          idx[no] = { result: null, date: h.date||trDate, cowId: null, recipientLabel: '譲渡済み' };
-        });
-      });
-    }
+    });
   });
 
   _embResultCache = idx;
@@ -9873,6 +9861,34 @@ function _doDelivPrint() {
     // 印刷後、カートを空にするか確認
     setTimeout(function(){
       if (_deliveryCart.length && confirm('印刷しました。納品書カートを空にしますか？')) {
+        // 各胚番号を embryoInventory の history に個別記録（譲渡済み表示のため）
+        var dateStr = document.getElementById('delivery-date')?.value || new Date().toISOString().slice(0,10);
+        var tIdx = document.getElementById('delivery-target-select')?.value;
+        var targetName = (tIdx!=='' && _deliveryTargets[tIdx]) ? _deliveryTargets[tIdx].name : '';
+        var memoBase = targetName ? ('譲渡先:' + targetName) : '譲渡';
+        _deliveryCart.forEach(function(d){
+          if (!d.no) return;
+          // colRecId から該当 embryoInventory を探す
+          var matchInv = null;
+          if (d.colRecId) {
+            matchInv = embryoInventory.find(function(inv){
+              return (inv.embryoDetails||[]).some(function(ed){ return ed.no === d.no; });
+            });
+          }
+          if (matchInv) {
+            // 既に記録済みか確認
+            var already = (matchInv.history||[]).some(function(h){
+              return h.type==='transfer' && (h.memo||'').includes(d.no);
+            });
+            if (!already) {
+              matchInv.history = matchInv.history||[];
+              matchInv.history.push({ date: dateStr, type: 'transfer', count: 1, cowId: null, memo: '胚番号:' + d.no + ' ' + memoBase });
+              matchInv.stock = Math.max(0, (matchInv.stock||0) - 1);
+            }
+          }
+        });
+        save();
+        if (typeof _embResultCache !== 'undefined') _embResultCache = null; // キャッシュクリア
         _deliveryCart = [];
         closeModal('modal-delivery-slip');
         if (typeof renderCollectionTab==='function') renderCollectionTab();
@@ -12302,9 +12318,10 @@ function saveCollection() {
             inv.lot===oldRec.lot && (!inv.dam || inv.dam === _oldDonorName2))
         );
       }
-      // 凍結胚在庫（採卵由来・同ドナー）を削除→再作成
+      // 凍結胚在庫（採卵由来・同ドナー）を削除（ロットまたは日付が変わった場合のみ）
+      // ※同じロット・日付での再保存の場合は後続の更新処理で対応するため削除しない
       const _oldDonorName = cowDisplayName(oldRec.donorId)||oldRec.donorId;
-      if (oldRec.lot) {
+      if (oldRec.lot && (oldRec.lot !== lot || oldDate !== date)) {
         embryoInventory = embryoInventory.filter(inv => {
           if (!(inv.collectionDate===oldDate && inv.lot===oldRec.lot)) return true;
           if (inv.dam && inv.dam !== _oldDonorName) return true;
@@ -12333,28 +12350,55 @@ function saveCollection() {
     const invMemo = isExternal
       ? `外部採卵 譲受（${rec.externalFarmer}）${lot||date} 凍結${frozenEmbryos.length}本${freshCount?`（同採卵の新鮮${freshCount}本は別途記録）`:''}`
       : `採卵${lot||date} 凍結${frozenEmbryos.length}本${freshCount?`（同採卵の新鮮${freshCount}本は別途記録）`:''}`;
-    // 同ロット・同採卵日・同ドナーの在庫を削除（採卵由来のみ）
+    // 同ロット・同採卵日・同ドナーの既存在庫を探す（採卵由来のみ）
+    let existingInv = null;
     if (lot) {
-      embryoInventory = embryoInventory.filter(e => {
-        if (!(e.lot === lot && e.collectionDate === date)) return true;
-        if (e.dam && e.dam !== donorName) return true;
-        const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect' || h.type === 'restock');
-        return !hasSelfCollect;
-      });
+      existingInv = embryoInventory.find(e =>
+        e.lot === lot && e.collectionDate === date &&
+        (!e.dam || e.dam === donorName) &&
+        (e.history||[]).some(h => h.type === 'selfcollect' || h.type === 'restock')
+      );
     }
-    // 新規作成
-    const invItem = {
-      id: Math.random().toString(36).slice(2),
-      sire: sire||'', dam: donorName, lot: lot||date,
-      type: 'frozen', breed: donorBreed, stage: frozenEmbryos[0]?.stage||'',
-      stock: totalCount, alertThreshold: 2, noAlert: false,
-      collectionDate: date,
-      history: [{
-        date, type: invType, count: totalCount, memo: invMemo,
-      }],
-      embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
-    };
-    embryoInventory.push(invItem);
+    if (existingInv) {
+      // 既存在庫を更新（譲渡・使用などのhistoryは保持し、selfcollect行のみ更新）
+      existingInv.sire = sire||'';
+      existingInv.dam = donorName;
+      existingInv.breed = donorBreed;
+      existingInv.embryoDetails = frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date}));
+      // selfcollect/restockの入庫履歴を更新（最初の1件のみ置き換え）
+      const scIdx = existingInv.history.findIndex(h => h.type === 'selfcollect' || h.type === 'restock');
+      if (scIdx >= 0) {
+        existingInv.history[scIdx] = { date, type: invType, count: totalCount, memo: invMemo };
+      } else {
+        existingInv.history.unshift({ date, type: invType, count: totalCount, memo: invMemo });
+      }
+      // stock は（入庫数 - 使用/譲渡/廃棄数）で再計算
+      const usedCount = (existingInv.history||[]).filter(h=>h.type==='use'||h.type==='transfer'||h.type==='discard').reduce((s,h)=>s+(h.count||1),0);
+      existingInv.stock = Math.max(0, totalCount - usedCount);
+    } else {
+      // 既存なし→新規作成
+      if (lot) {
+        // 古い採卵由来在庫があれば削除（ロット変更などの場合）
+        embryoInventory = embryoInventory.filter(e => {
+          if (!(e.lot === lot && e.collectionDate === date)) return true;
+          if (e.dam && e.dam !== donorName) return true;
+          const hasSelfCollect = (e.history||[]).some(h => h.type === 'selfcollect' || h.type === 'restock');
+          return !hasSelfCollect;
+        });
+      }
+      const invItem = {
+        id: Math.random().toString(36).slice(2),
+        sire: sire||'', dam: donorName, lot: lot||date,
+        type: 'frozen', breed: donorBreed, stage: frozenEmbryos[0]?.stage||'',
+        stock: totalCount, alertThreshold: 2, noAlert: false,
+        collectionDate: date,
+        history: [{
+          date, type: invType, count: totalCount, memo: invMemo,
+        }],
+        embryoDetails: frozenEmbryos.map(e=>({...e, frozen:true, fresh:false, collectedDate: date})),
+      };
+      embryoInventory.push(invItem);
+    }
   }
 
   // 新鮮胚の処理
