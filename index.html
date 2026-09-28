@@ -9557,6 +9557,39 @@ function embryoResultIndex(){
     idx[no] = { result, date: tb.transferDate||tb.recordedAt||'', cowId: null, recipientLabel: recipName };
   });
 
+  // embryoInventory の history に type:'transfer'（譲渡出荷）がある場合、胚番号を索引に追加
+  // 胚番号は embryoDetails[].no から取得、またはhistoryのmemoから抽出
+  (typeof embryoInventory!=='undefined'?embryoInventory:[]).forEach(inv=>{
+    const transferred = (inv.history||[]).filter(h=>h.type==='transfer');
+    if (!transferred.length) return;
+    const latestTr = transferred.sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+    const trDate = latestTr.date||'';
+
+    // embryoDetails から個別胚番号を取得して登録
+    const details = inv.embryoDetails||[];
+    if (details.length > 0) {
+      details.forEach(d=>{
+        const no = String(d.no||'').trim();
+        if (!no) return;
+        if (idx[no]) return; // 既にinsemBook/transferBookに記録があれば上書きしない
+        idx[no] = { result: null, date: trDate, cowId: null, recipientLabel: '譲渡済み' };
+      });
+    } else {
+      // embryoDetailsがない場合はhistoryのmemoから胚番号を抽出
+      transferred.forEach(h=>{
+        const memo = h.memo||'';
+        const m = memo.match(/(\d{2}[A-L]\d{2}B\d+-\d+)/g) || memo.match(/胚番号:([\w\-]+)/g);
+        if (!m) return;
+        m.forEach(raw=>{
+          const no = raw.replace(/^胚番号:/,'').trim();
+          if (!no) return;
+          if (idx[no]) return;
+          idx[no] = { result: null, date: h.date||trDate, cowId: null, recipientLabel: '譲渡済み' };
+        });
+      });
+    }
+  });
+
   _embResultCache = idx;
   return idx;
 }
