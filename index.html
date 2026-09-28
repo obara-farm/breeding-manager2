@@ -9971,7 +9971,8 @@ function printCollectionPdf() {
   // 胚番号→受胎結果の索引を構築（embryoResultIndex関数を再利用）
   var embIdx = embryoResultIndex();
 
-  // 胚ごとの受胎結果集計（年度合計）
+  // 受胎結果集計（頭数ベース：同一牛・同一日の複数卵移植は1頭扱い）
+  // totalEmbryo は本数カウント（在庫含む表示用）、pos/neg/wait は移植牛頭数ベース
   var totalEmbryo = 0, posEmbryo = 0, negEmbryo = 0, waitEmbryo = 0, unstockedEmbryo = 0;
   allRecs.forEach(r=>{
     var embryos = [
@@ -9983,12 +9984,31 @@ function printCollectionPdf() {
         stage: (e.cultureStage||e.stage||'')+(e.cultureRank||e.rank||'')
       })),
     ].filter(e=>e.no);
+    totalEmbryo += embryos.length; // 本数は全部カウント
+    // 同一牛・同一日への複数卵移植を1頭扱いにするため、cowId+dateでグループ化
+    // insemBookRecordsから各胚番号が移植された牛IDと日付を取得
+    var cowDateSet = new Set(); // "cowId|date" キーで重複排除
+    var hasPosInRec = false, hasNegInRec = false, hasWaitInRec = false, hasUnstockedInRec = false;
+    // まず各胚の結果を収集し、cowId+dateごとに最良結果（pos > wait > neg）を1回だけ集計
+    var cowDateResult = {}; // "cowId|date" → 'pos'|'neg'|'wait'|'unstocked'
     embryos.forEach(e=>{
-      totalEmbryo++;
       var hit = embIdx[String(e.no).trim()];
-      if (!hit) unstockedEmbryo++;
-      else if (hit.result==='pos') posEmbryo++;
-      else if (hit.result==='neg') negEmbryo++;
+      if (!hit) {
+        // 在庫中（移植されていない）は胚単位でカウント
+        unstockedEmbryo++;
+        return;
+      }
+      var key = (hit.cowId||hit.recipientLabel||'other') + '|' + (hit.date||'');
+      var cur = cowDateResult[key];
+      var res = hit.result==='pos' ? 'pos' : hit.result==='neg' ? 'neg' : 'wait';
+      // 同一牛同一日で最良結果を優先（pos > wait > neg）
+      if (!cur) cowDateResult[key] = res;
+      else if (res==='pos') cowDateResult[key] = 'pos';
+      else if (res==='wait' && cur==='neg') cowDateResult[key] = 'wait';
+    });
+    Object.values(cowDateResult).forEach(res=>{
+      if (res==='pos') posEmbryo++;
+      else if (res==='neg') negEmbryo++;
       else waitEmbryo++;
     });
   });
