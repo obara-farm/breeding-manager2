@@ -9998,6 +9998,8 @@ function printCollectionPdf() {
         unstockedEmbryo++;
         return;
       }
+      // 在庫から譲渡済み（まだ移植されていない）は在庫扱い
+      if (hit.source==='inventory_transfer') { unstockedEmbryo++; return; }
       var key = (hit.cowId||hit.recipientLabel||'other') + '|' + (hit.date||'');
       var cur = cowDateResult[key];
       var res = hit.result==='pos' ? 'pos' : hit.result==='neg' ? 'neg' : 'wait';
@@ -10040,14 +10042,16 @@ function printCollectionPdf() {
         recipName = hit.cowId ? (cowDisplayName(hit.cowId)||hit.cowId) : (hit.recipientLabel||'他農場');
         if (hit.result==='pos') resultStr = '＋受胎';
         else if (hit.result==='neg') resultStr = '－不受胎';
+        else if (hit.source==='inventory_transfer') resultStr = '譲渡済み';
         else resultStr = '妊鑑待ち';
       }
+      var resultColor = hit?.result==='pos'?'#1a7a3a':hit?.result==='neg'?'#b00020':hit?.source==='inventory_transfer'?'#555':'#a06000';
       return `<tr>
         <td style="padding:2px 6px;font-size:9px;color:#555;">${e.typeLabel}</td>
         <td style="padding:2px 6px;font-size:9px;font-family:monospace;">${e.no||'—'}${e.stage?' <span style="color:#888;">'+e.stage+'</span>':''}</td>
         <td style="padding:2px 6px;font-size:9px;color:#555;">${fmtDate(hit?.date||'')}</td>
         <td style="padding:2px 6px;font-size:9px;">${recipName}</td>
-        <td style="padding:2px 6px;font-size:9px;font-weight:bold;color:${hit?.result==='pos'?'#1a7a3a':hit?.result==='neg'?'#b00020':'#a06000'};">${resultStr}</td>
+        <td style="padding:2px 6px;font-size:9px;font-weight:bold;color:${resultColor};">${resultStr}</td>
       </tr>`;
     }).join('');
 
