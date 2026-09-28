@@ -9866,6 +9866,314 @@ function saveDeliveryTargets() {
   closeModal('modal-delivery-target');
   alert('譲渡先を保存しました');
 }
+// ===== 採卵記録 PDF出力 =====
+function printCollectionPdf() {
+  // 現在の年度フィルタを取得
+  var yearFilter = (document.getElementById('collection-search-year')?.value)||'';
+
+  // 出力対象の採卵記録を絞り込む
+  var allRecs = [...collectionRecordsNew].sort((a,b)=>a.date.localeCompare(b.date));
+  if (yearFilter) {
+    var fy = parseInt(yearFilter.replace('R',''));
+    var lotYear = String(fy + 2018 - 2000).padStart(2,'0');
+    allRecs = allRecs.filter(r => (r.lot||'').slice(0,2) === lotYear);
+  }
+
+  var summaryRecs = allRecs.filter(r => !r.isExternal);
+  var sumCount = summaryRecs.length;
+  var sumDonors = new Set(summaryRecs.map(r=>r.donorId)).size;
+  var sumRecovered = summaryRecs.reduce((s,r)=>s+(r.recovered||0),0);
+  var sumA = summaryRecs.reduce((s,r)=>s+(r.gradeA||0),0);
+  var sumB = summaryRecs.reduce((s,r)=>s+(r.gradeB||0),0);
+  var sumUsable = sumA + sumB;
+  var sumDegen = summaryRecs.reduce((s,r)=>s+(r.degenerate||0),0);
+  var sumUnfert = summaryRecs.reduce((s,r)=>s+(r.unfertilized||0),0);
+  function pct(a,b){ return b ? Math.round(a/b*100) : 0; }
+
+  // ドナー別集計
+  var donorMap = {};
+  summaryRecs.forEach(r=>{
+    var id = r.donorId;
+    if (!donorMap[id]) donorMap[id] = {name:cowDisplayName(id)||id, count:0, recovered:0, usable:0, a:0, b:0};
+    donorMap[id].count++;
+    donorMap[id].recovered += (r.recovered||0);
+    donorMap[id].a += (r.gradeA||0);
+    donorMap[id].b += (r.gradeB||0);
+    donorMap[id].usable += (r.gradeA||0)+(r.gradeB||0);
+  });
+  var donorRanking = Object.values(donorMap).sort((a,b)=>b.usable-a.usable);
+
+  // 胚番号→受胎結果の索引を構築（embryoResultIndex関数を再利用）
+  var embIdx = embryoResultIndex();
+
+  // 胚ごとの受胎結果集計（年度合計）
+  var totalEmbryo = 0, posEmbryo = 0, negEmbryo = 0, waitEmbryo = 0, unstockedEmbryo = 0;
+  allRecs.forEach(r=>{
+    var embryos = [
+      ...(r.frozenEmbryos||[]).map(e=>({no:e.no, type:'凍結', stage:(e.stage||'')+(e.rank||'')})),
+      ...(r.freshEmbryos||[]).map(e=>({no:e.embryoNo, type:'新鮮', stage:(e.stage||'')+(e.rank||'')})),
+      ...(r.cultureEmbryos||[]).filter(e=>e.cultureResult==='et'||e.cultureResult==='freeze').map(e=>({
+        no: e.embryoNo,
+        type: e.cultureResult==='freeze' ? '凍結(培養)' : '培養',
+        stage: (e.cultureStage||e.stage||'')+(e.cultureRank||e.rank||'')
+      })),
+    ].filter(e=>e.no);
+    embryos.forEach(e=>{
+      totalEmbryo++;
+      var hit = embIdx[String(e.no).trim()];
+      if (!hit) unstockedEmbryo++;
+      else if (hit.result==='pos') posEmbryo++;
+      else if (hit.result==='neg') negEmbryo++;
+      else waitEmbryo++;
+    });
+  });
+
+  // 採卵記録テーブル行を生成
+  var recRows = allRecs.map(r=>{
+    var donorName = r.isExternal
+      ? '(外部) ' + (r.externalFarmer||'') + ' ' + (r.externalCowName||'')
+      : (cowDisplayName(r.donorId)||r.donorId||'');
+    var gradeA = r.gradeA||0, gradeB = r.gradeB||0, usable = gradeA+gradeB;
+
+    // 各胚の移植結果行
+    var embryos = [
+      ...(r.frozenEmbryos||[]).map(e=>({no:e.no, typeLabel:'❄凍', stage:(e.stage||'')+(e.rank||''), cane:e.cane||''})),
+      ...(r.freshEmbryos||[]).map(e=>({no:e.embryoNo, typeLabel:'🌱新', stage:(e.stage||'')+(e.rank||''), cane:''})),
+      ...(r.cultureEmbryos||[]).filter(e=>e.embryoNo&&(e.cultureResult==='et'||e.cultureResult==='freeze')).map(e=>({
+        no: e.embryoNo,
+        typeLabel: e.cultureResult==='freeze' ? '❄培' : '🔬培',
+        stage: (e.cultureStage||e.stage||'')+(e.cultureRank||e.rank||''),
+        cane: e.caneNo||''
+      })),
+    ];
+    var embRows = embryos.map(e=>{
+      var hit = embIdx[String(e.no||'').trim()];
+      var resultStr = '';
+      var recipName = '';
+      if (!hit) { resultStr = '在庫'; }
+      else {
+        recipName = cowDisplayName(hit.cowId)||hit.cowId||'';
+        if (hit.result==='pos') resultStr = '＋受胎';
+        else if (hit.result==='neg') resultStr = '－不受胎';
+        else resultStr = '妊鑑待ち';
+      }
+      return `<tr>
+        <td style="padding:2px 6px;font-size:9px;color:#555;">${e.typeLabel}</td>
+        <td style="padding:2px 6px;font-size:9px;font-family:monospace;">${e.no||'—'}${e.stage?' <span style="color:#888;">'+e.stage+'</span>':''}</td>
+        <td style="padding:2px 6px;font-size:9px;color:#555;">${fmtDate(hit?.date||'')}</td>
+        <td style="padding:2px 6px;font-size:9px;">${recipName}</td>
+        <td style="padding:2px 6px;font-size:9px;font-weight:bold;color:${hit?.result==='pos'?'#1a7a3a':hit?.result==='neg'?'#b00020':'#a06000'};">${resultStr}</td>
+      </tr>`;
+    }).join('');
+
+    return `<tr style="border-top:2px solid #ddd;vertical-align:top;">
+      <td style="padding:4px 6px;font-size:10px;">${fmtDate(r.date)}</td>
+      <td style="padding:4px 6px;font-size:9px;color:#555;">${r.lot||''}</td>
+      <td style="padding:4px 6px;font-size:10px;font-weight:bold;">${donorName}</td>
+      <td style="padding:4px 6px;font-size:10px;">${r.sire||''}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;">${r.recovered||0}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;font-weight:bold;">${usable}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;color:#1a6a3a;">${gradeA}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;color:#4a3a9a;">${gradeB}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;color:#888;">${r.degenerate||0}</td>
+      <td style="padding:4px 6px;font-size:10px;text-align:center;color:#888;">${r.unfertilized||0}</td>
+    </tr>
+    ${embRows ? `<tr><td colspan="10" style="padding:0 6px 6px 16px;background:#fafafa;">
+      <table style="width:100%;border-collapse:collapse;">
+        <colgroup><col style="width:40px"><col style="width:120px"><col style="width:80px"><col style="width:80px"><col></colgroup>
+        ${embRows}
+      </table></td></tr>` : ''}`;
+  }).join('');
+
+  var titleYear = yearFilter ? yearFilter + '年度' : '全期間';
+  var printDate = new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+
+  var html = `<!DOCTYPE html><html lang="ja"><head>
+<meta charset="UTF-8">
+<title>採卵記録 ${titleYear}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Kaku Gothic ProN', 'Yu Gothic', 'Meiryo', sans-serif; font-size: 11px; color: #111; background: #fff; }
+  @page { size: A4; margin: 12mm 10mm; }
+  @media print {
+    .no-print { display: none !important; }
+    tr { page-break-inside: avoid; }
+  }
+  h1 { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+  h2 { font-size: 11px; font-weight: bold; margin-bottom: 6px; border-left: 3px solid #444; padding-left: 6px; }
+  .print-btn { position: fixed; top: 12px; right: 12px; background: #333; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-size: 12px; cursor: pointer; }
+  .section { margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #f0f0f0; font-size: 9px; font-weight: 700; padding: 4px 6px; border: 1px solid #ccc; text-align: center; }
+  td { border: 1px solid #ddd; vertical-align: middle; }
+  .summary-table td, .summary-table th { padding: 4px 8px; }
+  .rec-table th { white-space: nowrap; }
+  .total-row { font-weight: bold; background: #f8f8f8; }
+  .label-muted { font-size: 9px; color: #777; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 6px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+  .stat-box { border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; text-align: center; }
+  .stat-label { font-size: 9px; color: #777; }
+  .stat-value { font-size: 16px; font-weight: bold; }
+  .stat-sub { font-size: 9px; color: #555; }
+</style>
+</head><body>
+<button class="print-btn no-print" onclick="window.print()">🖨 印刷 / PDF保存</button>
+
+<div class="header">
+  <div>
+    <h1>📋 採卵記録 — ${titleYear}</h1>
+    <span class="label-muted">出力日：${printDate}　／　対象件数：${allRecs.length}件</span>
+  </div>
+</div>
+
+<!-- サマリーグリッド -->
+<div class="section">
+  <h2>📊 採卵実績サマリー（${titleYear}）</h2>
+  <div class="stat-grid">
+    <div class="stat-box">
+      <div class="stat-label">採卵回数</div>
+      <div class="stat-value">${sumCount}</div>
+      <div class="stat-sub">回</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">ドナー頭数</div>
+      <div class="stat-value">${sumDonors}</div>
+      <div class="stat-sub">頭</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">総回収数</div>
+      <div class="stat-value">${sumRecovered}</div>
+      <div class="stat-sub">個</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">有効胚（A+B）</div>
+      <div class="stat-value">${sumUsable}</div>
+      <div class="stat-sub">個 （有効率 ${pct(sumUsable,sumRecovered)}%）</div>
+    </div>
+  </div>
+  <table class="summary-table" style="margin-bottom:8px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">区分</th>
+        <th>合計</th>
+        <th>総回収比</th>
+        <th>有効胚比</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td style="padding:4px 8px;">有効胚（A+B）</td><td style="text-align:center;font-weight:bold;">${sumUsable}個</td><td style="text-align:center;">${pct(sumUsable,sumRecovered)}%</td><td style="text-align:center;">—</td></tr>
+      <tr><td style="padding:4px 8px;padding-left:16px;">└ Aランク</td><td style="text-align:center;color:#1a7a3a;font-weight:bold;">${sumA}個</td><td style="text-align:center;">${pct(sumA,sumRecovered)}%</td><td style="text-align:center;">${pct(sumA,sumUsable)}%</td></tr>
+      <tr><td style="padding:4px 8px;padding-left:16px;">└ Bランク</td><td style="text-align:center;color:#4a3a9a;font-weight:bold;">${sumB}個</td><td style="text-align:center;">${pct(sumB,sumRecovered)}%</td><td style="text-align:center;">${pct(sumB,sumUsable)}%</td></tr>
+      <tr><td style="padding:4px 8px;">変性</td><td style="text-align:center;color:#a06000;">${sumDegen}個</td><td style="text-align:center;">${pct(sumDegen,sumRecovered)}%</td><td style="text-align:center;">—</td></tr>
+      <tr><td style="padding:4px 8px;">未受精</td><td style="text-align:center;color:#888;">${sumUnfert}個</td><td style="text-align:center;">${pct(sumUnfert,sumRecovered)}%</td><td style="text-align:center;">—</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ドナー別成績 -->
+  <h2>🐄 ドナー別成績</h2>
+  <table class="summary-table" style="margin-bottom:8px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">ドナー</th>
+        <th>回数</th>
+        <th>総回収</th>
+        <th>有効計</th>
+        <th>平均/回</th>
+        <th>Aランク</th>
+        <th>A率</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${donorRanking.map(d=>`<tr>
+        <td style="padding:4px 8px;font-weight:bold;">${d.name}</td>
+        <td style="text-align:center;">${d.count}回</td>
+        <td style="text-align:center;">${d.recovered}個</td>
+        <td style="text-align:center;font-weight:bold;color:#1a5a3a;">${d.usable}個</td>
+        <td style="text-align:center;">${d.count?Math.round(d.usable/d.count*10)/10:0}</td>
+        <td style="text-align:center;color:#1a7a3a;">${d.a}個</td>
+        <td style="text-align:center;">${d.usable?Math.round(d.a/d.usable*100):0}%</td>
+      </tr>`).join('')}
+      <tr class="total-row">
+        <td style="padding:4px 8px;">合計</td>
+        <td style="text-align:center;">${sumCount}回</td>
+        <td style="text-align:center;">${sumRecovered}個</td>
+        <td style="text-align:center;color:#1a5a3a;">${sumUsable}個</td>
+        <td style="text-align:center;">${sumCount?Math.round(sumUsable/sumCount*10)/10:0}</td>
+        <td style="text-align:center;color:#1a7a3a;">${sumA}個</td>
+        <td style="text-align:center;">${sumUsable?Math.round(sumA/sumUsable*100):0}%</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- 受胎実績サマリー -->
+  <h2>🔬 受胎実績（${titleYear}）</h2>
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);">
+    <div class="stat-box">
+      <div class="stat-label">移植胚総数</div>
+      <div class="stat-value">${totalEmbryo}</div>
+      <div class="stat-sub">本（在庫含む）</div>
+    </div>
+    <div class="stat-box" style="border-color:#1a7a3a;">
+      <div class="stat-label">受胎（＋）</div>
+      <div class="stat-value" style="color:#1a7a3a;">${posEmbryo}</div>
+      <div class="stat-sub">頭 （${pct(posEmbryo,posEmbryo+negEmbryo)}%）</div>
+    </div>
+    <div class="stat-box" style="border-color:#b00020;">
+      <div class="stat-label">不受胎（−）</div>
+      <div class="stat-value" style="color:#b00020;">${negEmbryo}</div>
+      <div class="stat-sub">頭</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">妊鑑待ち / 在庫</div>
+      <div class="stat-value" style="color:#a06000;">${waitEmbryo + unstockedEmbryo}</div>
+      <div class="stat-sub">（待ち${waitEmbryo} / 在庫${unstockedEmbryo}）</div>
+    </div>
+  </div>
+  <p style="font-size:9px;color:#777;margin-top:4px;">※ 受胎率（確定分）= 受胎${posEmbryo}頭 ÷ 確定済み${posEmbryo+negEmbryo}件 = <b>${pct(posEmbryo,posEmbryo+negEmbryo)}%</b>（妊鑑待ち・在庫中を除く）</p>
+</div>
+
+<!-- 採卵記録一覧 -->
+<div class="section">
+  <h2>📋 採卵記録一覧（${titleYear}）</h2>
+  <table class="rec-table">
+    <thead>
+      <tr>
+        <th>採卵日</th>
+        <th>ロット</th>
+        <th>ドナー</th>
+        <th>種雄牛</th>
+        <th>回収</th>
+        <th>有効</th>
+        <th>A</th>
+        <th>B</th>
+        <th>変性</th>
+        <th>未受精</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${recRows}
+      <tr class="total-row" style="border-top:2px solid #999;">
+        <td colspan="4" style="padding:4px 6px;font-size:10px;">合計 ${allRecs.length}件</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;">${sumRecovered}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;">${sumUsable}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;color:#1a6a3a;">${sumA}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;color:#4a3a9a;">${sumB}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;color:#888;">${sumDegen}</td>
+        <td style="padding:4px 6px;text-align:center;font-size:10px;color:#888;">${sumUnfert}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</body></html>`;
+
+  var w = window.open('', '_blank', 'width=900,height=700');
+  if (!w) { alert('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。'); return; }
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+}
+
 // ===== 採卵記録タブ =====
 
 function renderCollectionTab() {
@@ -21565,6 +21873,7 @@ try {
     <select id="collection-search-year" onchange="renderCollectionTab()" style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;padding:5px 8px;border-radius:6px;"></select>
     <input type="text" id="collection-search-query" oninput="renderCollectionTab()" placeholder="例: 0044 または 25E02" style="flex:1;min-width:140px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;padding:5px 8px;border-radius:6px;">
     <button onclick="document.getElementById('collection-search-query').value='';renderCollectionTab();" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:4px 8px;border-radius:5px;cursor:pointer;">クリア</button>
+    <button onclick="printCollectionPdf()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;white-space:nowrap;">📄 PDF出力</button>
   </div>
 
   <!-- 翌日移植予定リスト -->
