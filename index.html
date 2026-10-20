@@ -3642,53 +3642,58 @@ function registerEvent() {
     }
     case 'open': cow.status='open'; break;
     case 'pg_rescue': {
-      // PGレスキュープログラム — 先生作成プロトコルに基づく固定7タスクスケジュール
+      // PGレスキュープログラム
       // 根拠: 松下ら1989年（帯広畜産大）+ ルテウムデポー添付文書 + 臨床判断
       const pgAddDays = (d, n) => { const r = new Date(d + 'T00:00:00'); r.setDate(r.getDate()+n); return r.toISOString().slice(0,10); };
 
-      // 【第1期：超厳重警戒期】誤投与日〜+14日
-      // +2日: エコー検査（胎児生存確認）
-      schedule.push({ cowId, date: pgAddDays(date, 2),
-        action: '🔴 【PGレスキュー +2日】エコー検査 — 胎児生存確認',
-        detail: '【第1期：超厳重警戒期】\n■ 目的: PGによるP4急低下・子宮収縮を乗り越えられているか確認\n■ エコー確認\n  ・胎児心拍・自発運動の有無（心拍確認できれば生存）\n  ・子宮頸管の閉鎖確認（開大していれば流産進行中のサイン）\n  ・子宮筋の収縮・緊張亢進がないか\n■ 外観確認\n  ・陰部からの異常排出物（血性・膿性粘液）の有無\n■ 判定\n  → 心拍あり＋頸管閉鎖＋排出物なし → 経過良好、+7日のルテウムデポーへ\n  → 異常あり → 流産リスク高、対応を判断',
+      // 誤投与時の妊娠日数を計算（AI日・ET日から）
+      const pgCow = cows.find(c => c.id === cowId);
+      const lastInsemDate = pgCow ? (pgCow.etDate || pgCow.aiDate || null) : null;
+      const gestDaysAtPg = lastInsemDate ? diffDays(date, lastInsemDate) : null;
+      // 妊娠200日到達まで何日必要か（誤投与日起点）。不明なら60日固定
+      const daysTo200 = gestDaysAtPg ? Math.max(30, 200 - gestDaysAtPg) : 60;
+      const gestNote = gestDaysAtPg ? `（誤投与時妊娠${gestDaysAtPg}日目）` : '（妊娠日数不明）';
+
+      // ① +5日: エコー検査
+      schedule.push({ cowId, date: pgAddDays(date, 5),
+        action: '🔴 【PGレスキュー +5日】エコー検査 — 胎児生存確認',
+        detail: `■ 誤投与時妊娠日数: ${gestDaysAtPg ? gestDaysAtPg + '日目' : '不明'}\n■ 目的: PGによるP4急低下・子宮収縮を乗り越えられているか確認\n■ エコー確認\n  ・胎児心拍・自発運動の有無（心拍確認できれば生存）\n  ・子宮頸管の閉鎖確認（開大していれば流産進行中のサイン）\n  ・子宮筋の収縮・緊張亢進がないか\n■ 外観確認\n  ・陰部からの異常排出物（血性・膿性粘液）の有無\n■ 判定\n  → 心拍あり＋頸管閉鎖＋排出物なし → 経過良好、+10日のデポー＋CIDR交換へ\n  → 異常あり → 流産リスク高、対応を判断`,
         color: '#ef4444', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
-      // +7日: ルテウムデポー2本目 + CIDR交換
-      schedule.push({ cowId, date: pgAddDays(date, 7),
-        action: '💉🔧 【PGレスキュー +7日】ルテウムデポー2本目＋CIDR交換',
-        detail: '【第1期：超厳重警戒期】\n■ 処置①: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・1本目（誤投与当日）から7日後の追加投与\n  ・根拠: 松下ら1989年 — PG誤投与後は外部P4補充で黄体退行を補う\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n  ・挿入から7日経過でP4放出量が低下するため交換\n  ・新CIDRで+14日の抜去まで安定したP4補充を維持\n■ 投与前確認（外観）\n  ・発情回帰様行動（乗駕許容・ソワソワ）がないか\n  ・陰部からの異常排出物がないか\n  ・腹痛様症状がないか\n■ 次: +14日にルテウムデポー3本目＋CIDR抜去（必ず同時）',
+      // ② +10日: デポー2本目＋CIDR交換（固定）
+      schedule.push({ cowId, date: pgAddDays(date, 10),
+        action: '💉🔧 【PGレスキュー +10日】ルテウムデポー2本目＋CIDR交換',
+        detail: `■ 処置①: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・1本目（誤投与当日）から10日後 — 添付文書準拠（約10日持続）\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n  ・デポーと同日に交換しP4補充を切れ目なく維持\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか / 腹痛様症状がないか`,
         color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
-      // +14日: ルテウムデポー3本目 + CIDR抜去（必ず同時に実施）
-      schedule.push({ cowId, date: pgAddDays(date, 14),
-        action: '💉🔧 【PGレスキュー +14日】ルテウムデポー3本目＋CIDR抜去（同時実施）',
-        detail: '【第1期：超厳重警戒期 → 第2期移行】\n■ ⚠️ 必須: ルテウムデポーとCIDR抜去は必ず同日に実施\n■ 処置①: ルテウムデポー1本を筋肉注射\n  ・CIDR抜去によるP4急降下を補うために同時投与が必須\n■ 処置②: CIDRを抜去\n  ・挿入から14日目が目安（最長14日）\n  ・抜去前後でP4急落させないためデポーと同時実施\n■ エコー確認\n  ・胎児心拍・自発運動\n  ・子宮頸管の閉鎖確認\n■ 次: +25日にルテウムデポー4本目（第2期へ移行）',
-        color: '#f59e0b', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
-
-      // 【第2期：移行・維持期】+14日〜+35日
-      // +25日: ルテウムデポー4本目
-      schedule.push({ cowId, date: pgAddDays(date, 25),
-        action: '💉 【PGレスキュー +25日】ルテウムデポー4本目',
-        detail: '【第2期：移行・維持期】\n■ 処置: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・3本目（+14日）から11日後の投与\n  ・根拠: 松下ら1989年 — 13〜19日間隔での反復投与で妊娠維持\n■ 投与前確認（外観・行動）\n  ・発情回帰様行動がないか\n  ・陰部からの異常排出物がないか\n  ・食欲・元気の急激な変化がないか\n■ エコー確認（可能であれば実施）\n  ・胎児心拍・自発運動の有無\n■ 次: +35日にルテウムデポー5本目',
+      // ③ +20日: デポー3本目＋CIDR交換（固定）
+      schedule.push({ cowId, date: pgAddDays(date, 20),
+        action: '💉🔧 【PGレスキュー +20日】ルテウムデポー3本目＋CIDR交換',
+        detail: `■ 処置①: ルテウムデポー1本を筋肉注射\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか`,
         color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
-      // +35日: ルテウムデポー5本目
-      schedule.push({ cowId, date: pgAddDays(date, 35),
-        action: '💉 【PGレスキュー +35日】ルテウムデポー5本目',
-        detail: '【第2期：移行・維持期】\n■ 処置: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・4本目（+25日）から10日後の投与\n■ 投与前確認（外観・行動）\n  ・発情回帰様行動がないか\n  ・陰部からの異常排出物がないか\n  ・食欲・元気の急激な変化がないか\n■ エコー確認（可能であれば実施）\n  ・胎児心拍・自発運動の有無\n  ・子宮頸管の閉鎖確認\n■ 次: +45日にルテウムデポー6本目（最終）',
-        color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
+      // ④ +30日以降: 妊娠200日到達まで10日おきにデポー＋CIDR交換 or 抜去
+      let depotDay = 30;
+      let depotNum = 4;
+      while (depotDay < daysTo200) {
+        const gestAtDepot = gestDaysAtPg ? gestDaysAtPg + depotDay : null;
+        const isLastBeforeEnd = depotDay + 10 >= daysTo200; // 次回が終了以降 = 今回がCIDR最終
+        const cidrAction = isLastBeforeEnd ? 'CIDR抜去（最終）' : 'CIDR交換';
+        const cidrDetail = isLastBeforeEnd
+          ? '■ 処置②: CIDRを抜去（最終）\n  ・妊娠200日到達が近いため、このタイミングで抜去\n  ・胎盤性P4への移行が安定してきているため外部補充を終了へ'
+          : '■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n  ・引き続きCIDRでP4補充を維持';
+        schedule.push({ cowId, date: pgAddDays(date, depotDay),
+          action: `💉🔧 【PGレスキュー +${depotDay}日】ルテウムデポー${depotNum}本目＋${cidrAction}`,
+          detail: `${gestAtDepot ? `■ この時点の妊娠日数: 約${gestAtDepot}日目${gestNote}\n` : ''}■ 処置①: ルテウムデポー1本を筋肉注射\n${cidrDetail}\n■ 投与前確認（外観・行動）\n  ・発情回帰様行動がないか / 異常排出物がないか / 食欲・元気の変化がないか\n■ エコー確認（可能であれば実施）\n  ・胎児心拍・自発運動 / 子宮頸管の閉鎖確認`,
+          color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
+        depotDay += 10;
+        depotNum++;
+      }
 
-      // 【第3期：胎盤移行期】+45日〜+50日
-      // +45日: ルテウムデポー6本目（最終）
-      schedule.push({ cowId, date: pgAddDays(date, 45),
-        action: '💉 【PGレスキュー +45日】ルテウムデポー6本目（最終投与）',
-        detail: '【第3期：胎盤移行期】\n■ 処置: ルテウムデポー1本を筋肉注射（最終投与）\n  ・5本目（+35日）から10日後の投与\n  ・この時点で胎盤性P4の自力分泌が安定してきている\n  ・これが最後のルテウムデポー投与\n■ 投与前確認（外観・行動）\n  ・発情回帰様行動がないか\n  ・陰部からの異常排出物がないか\n■ 次: +50日に最終エコー確認（プログラム終了判定）',
-        color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
-
-      // +50日: プログラム終了エコー確認
-      schedule.push({ cowId, date: pgAddDays(date, 50),
-        action: '🟢 【PGレスキュー +50日】最終エコー — プログラム終了確認',
-        detail: '【第3期：胎盤移行期・プログラム終了】\n■ 目的: 胎盤P4への移行が完了し、外部P4補充なしで妊娠維持できているか確認\n■ エコー確認\n  ・胎児の大きさ・動き・心拍が妊娠日数に見合っているか\n  ・胎盤付着部の異常（浮腫・剥離所見）がないか\n  ・子宮頸管の閉鎖・腟粘液の正常性\n■ 外観・行動確認\n  ・発情回帰様行動（乗駕許容・そわそわ）がないか\n  ・陰部からの粘液排出・腹痛様症状がないか\n■ 判定\n  → 異常なし → PGレスキュープログラム終了。通常の分娩前管理へ移行\n  → 異常あり → 追加P4投与継続・再評価\n■ 根拠: 松下ら1989年（帯広畜産大）+ ルテウムデポー添付文書 + 臨床判断',
+      // 最終エコー（最後のデポーから5日後）
+      schedule.push({ cowId, date: pgAddDays(date, daysTo200 + 5),
+        action: `🟢 【PGレスキュー +${daysTo200 + 5}日】最終エコー — プログラム終了確認`,
+        detail: `■ 誤投与時妊娠日数: ${gestDaysAtPg ? gestDaysAtPg + '日目' : '不明'} → 現在約${gestDaysAtPg ? gestDaysAtPg + daysTo200 + 5 : '?'}日目\n■ 目的: 胎盤P4への移行が完了し、外部P4補充なしで妊娠維持できているか確認\n■ エコー確認\n  ・胎児の大きさ・動き・心拍が妊娠日数に見合っているか\n  ・胎盤付着部の異常（浮腫・剥離所見）がないか\n  ・子宮頸管の閉鎖・腟粘液の正常性\n■ 外観・行動確認\n  ・発情回帰様行動がないか / 異常排出物・腹痛様症状がないか\n■ 判定\n  → 異常なし → PGレスキュープログラム終了。通常の分娩前管理へ移行\n  → 異常あり → 追加P4投与継続・再評価\n■ 根拠: 松下ら1989年（帯広畜産大）+ ルテウムデポー添付文書 + 臨床判断`,
         color: '#22c55e', priority: 'medium', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
       break;
