@@ -3713,12 +3713,12 @@ function renderSchedulePreview(schedule, cowId, startDate) {
   const tl = document.getElementById('schedule-timeline');
   const name = cowDisplayName(cowId);
   el.style.display = '';
-  tl.innerHTML = schedule.map(s => `
+  tl.innerHTML = schedule.map((s,si) => `
     <div class="tl-item">
       <div class="tl-dot" style="background:${s.color}"></div>
       <div class="tl-date">${fmtDate(s.date)} (D${s.day})</div>
       <div class="tl-action">${s.action}</div>
-      <div class="tl-detail">${s.detail}</div>
+      ${s.detail ? `<button onclick="var d=document.getElementById('tld-${si}');var open=d.style.display==='block';d.style.display=open?'none':'block';this.textContent=open?'▶ 確認事項':'▼ 閉じる';" style="background:#1a1040;border:1px solid #6d28d9;color:#a78bfa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:3px;">▶ 確認事項</button><div id="tld-${si}" style="display:none;" class="tl-detail">${s.detail}</div>` : ''}
     </div>`).join('');
 }
 
@@ -3756,6 +3756,7 @@ function jumpToToday() {
 function actionKey(action) {
   if (action.includes('妊娠鑑定')) return '🔬 妊娠鑑定';
   if (action.includes('FSH')) return '💉 FSH投与';
+  if (action.includes('PGレスキュー')) return action; // PGレスキューは個別表示
   if (action.includes('CIDR挿入') || action.includes('CIDRプログラム開始') || action.includes('レシピエント同期プログラム開始')) return '💉 CIDR挿入';
   if (action.includes('CIDR抜去') || action.includes('CIDR除去')) return '🔧 CIDR抜去';
   if ((action.includes('PG') || action.includes('ジノプロスト')) && !action.includes('CIDR')) return '💉 PG投与';
@@ -3907,7 +3908,14 @@ function renderGrouped(taskList) {
         const memoHtml = _memoDisp ? `<span style="font-size:10px;color:var(--muted);margin-left:4px;">📝${_memoDisp}</span>` : '';
         const sep = i > 0 ? '<div style="border-top:1px solid rgba(255,255,255,.05);margin:6px 0;"></div>' : '';
         const hasPregBtn = t.action.includes('妊娠鑑定');
-        const detailHtml = t.detail ? `<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>` : '';
+        const isPgRescue = t.tag === 'pg_rescue';
+        const detailHtml = t.detail ? (isPgRescue
+          ? `<div style="margin-top:3px;">
+              <button onclick="event.stopPropagation();var d=this.nextElementSibling;var open=d.style.display==='block';d.style.display=open?'none':'block';this.textContent=open?'▶ 確認事項を見る':'▼ 閉じる';" style="background:#1a1040;border:1px solid #6d28d9;color:#a78bfa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;cursor:pointer;">▶ 確認事項を見る</button>
+              <div style="display:none;font-size:10px;color:var(--muted);margin-top:4px;white-space:pre-wrap;background:var(--bg3);border-radius:6px;padding:8px;border:1px solid var(--border);">${t.detail}${memoHtml}</div>
+            </div>`
+          : `<div style="font-size:10px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.detail}${memoHtml}</div>`)
+          : '';
         return sep + `<div style="display:flex;align-items:flex-start;gap:8px;">
           <div class="task-check${isChecked?' checked':''}" onclick="event.stopPropagation();${hasPregBtn?'':` toggleTask('${t.id}')`}" style="flex-shrink:0;margin-top:2px;${hasPregBtn?'cursor:default;':'cursor:pointer;'}"></div>
           <div style="flex:1;min-width:0;cursor:pointer;" onclick="openCowQuickView('${t.cowId}','${t.date}')">
@@ -5165,14 +5173,14 @@ function showCowDetail(cowId) {
     <div style="margin-bottom:14px;">
       <div class="timeline">
         ${pending.length?'<div style="font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px;margin-bottom:8px;">未処置・予定</div>':''}
-        ${pending.map(t=>`
+        ${pending.map((t,ti)=>`
           <div class="tl-item">
             <div class="tl-dot" style="background:${t.color||'#666'}"></div>
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div style="flex:1;min-width:0;">
                 <div class="tl-date">${fmtDate(t.date)}</div>
                 <div class="tl-action">${t.action}</div>
-                <div class="tl-detail">${t.detail}</div>
+                ${t.detail?(t.tag==='pg_rescue'?`<button onclick="var d=document.getElementById('prd-${ti}');var open=d.style.display==='block';d.style.display=open?'none':'block';this.textContent=open?'▶ 確認事項を見る':'▼ 閉じる';" style="background:#1a1040;border:1px solid #6d28d9;color:#a78bfa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:3px;">▶ 確認事項を見る</button><div id="prd-${ti}" style="display:none;white-space:pre-wrap;" class="tl-detail">${t.detail}</div>`:`<div class="tl-detail">${t.detail}</div>`):''}
                 ${t.memo?`<div class="tl-memo">📝 ${t.memo}</div>`:''}
               </div>
               <div style="display:flex;flex-direction:column;gap:4px;margin-left:8px;flex-shrink:0;">
@@ -15968,20 +15976,20 @@ function openCowQuickView(cowId, fromTaskDate) {
     ${cow.memo?`<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin-bottom:12px;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>`:''}
     <div class="timeline">
       ${todayTasks.length?`<div style="font-size:11px;font-weight:700;color:var(--warn);letter-spacing:1px;margin-bottom:8px;">📌 ${fmtDate(fromTaskDate)} の処置</div>`:''}
-      ${todayTasks.map(t=>`
+      ${todayTasks.map((t,ti)=>`
         <div class="tl-item">
           <div class="tl-dot" style="background:${t.color||'#666'}"></div>
           <div class="tl-date">${fmtDate(t.date)}${t.timeOfDay?' 【'+t.timeOfDay+'】':''}</div>
           <div class="tl-action">${t.action}</div>
-          <div class="tl-detail">${t.detail}</div>
+          ${t.detail?(t.tag==='pg_rescue'?`<button onclick="var d=document.getElementById('qct-${ti}');var open=d.style.display==='block';d.style.display=open?'none':'block';this.textContent=open?'▶ 確認事項を見る':'▼ 閉じる';" style="background:#1a1040;border:1px solid #6d28d9;color:#a78bfa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:3px;">▶ 確認事項を見る</button><div id="qct-${ti}" style="display:none;white-space:pre-wrap;" class="tl-detail">${t.detail}</div>`:`<div class="tl-detail">${t.detail}</div>`):''}
         </div>`).join('')}
       ${otherTasks.length?`<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin:${todayTasks.length?'12px':'0'} 0 8px;">今後の予定</div>`:''}
-      ${otherTasks.map(t=>`
+      ${otherTasks.map((t,ti)=>`
         <div class="tl-item">
           <div class="tl-dot" style="background:${t.color||'#666'}"></div>
           <div class="tl-date">${fmtDate(t.date)}${t.timeOfDay?' 【'+t.timeOfDay+'】':''}</div>
           <div class="tl-action">${t.action}</div>
-          <div class="tl-detail">${t.detail}</div>
+          ${t.detail?(t.tag==='pg_rescue'?`<button onclick="var d=document.getElementById('qco-${ti}');var open=d.style.display==='block';d.style.display=open?'none':'block';this.textContent=open?'▶ 確認事項を見る':'▼ 閉じる';" style="background:#1a1040;border:1px solid #6d28d9;color:#a78bfa;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:3px;">▶ 確認事項を見る</button><div id="qco-${ti}" style="display:none;white-space:pre-wrap;" class="tl-detail">${t.detail}</div>`:`<div class="tl-detail">${t.detail}</div>`):''}
           ${t.memo?`<div class="tl-memo">📝 ${t.memo}</div>`:''}
         </div>`).join('')}
       ${!otherTasks.length&&!todayTasks.length?'<div style="color:var(--muted);font-size:13px;">今後の予定はありません</div>':''}
