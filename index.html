@@ -3648,7 +3648,7 @@ function registerEvent() {
       // 最終授精/移植日から妊娠日数を計算し、Step3の日付を動的に決定
       const pgCow = cows.find(c => c.id === cowId);
       const lastInsemDate = pgCow ? (pgCow.etDate || pgCow.aiDate || null) : null;
-      const gestDaysAtPg = lastInsemDate ? diffDays(lastInsemDate, date) : null;
+      const gestDaysAtPg = lastInsemDate ? diffDays(date, lastInsemDate) : null;
       // 妊娠180日目に到達するまでの残り日数（最低14日は確保）
       const daysTo180 = gestDaysAtPg ? Math.max(14, 180 - gestDaysAtPg) : 30;
       const step3Note = gestDaysAtPg
