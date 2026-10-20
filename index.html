@@ -3644,7 +3644,7 @@ function registerEvent() {
     case 'pg_rescue': {
       // PGレスキュープログラム
       // 根拠: 松下ら1989年（帯広畜産大）+ ルテウムデポー添付文書 + 臨床判断
-      const pgAddDays = (d, n) => { const r = new Date(d + 'T00:00:00'); r.setDate(r.getDate()+n); return r.toISOString().slice(0,10); };
+      const pgAddDays = (d, n) => addDays(d, n);
 
       // 誤投与時の妊娠日数を計算（AI日・ET日から）
       const pgCow = cows.find(c => c.id === cowId);
