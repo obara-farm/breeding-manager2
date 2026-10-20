@@ -2190,6 +2190,9 @@ textarea{resize:vertical;}
           <option value="preg_negative">空胎確認（手入力）</option>
           <option value="open">空胎に戻す</option>
         </optgroup>
+        <optgroup label="── 緊急処置 ──">
+          <option value="pg_rescue">🚨 PGレスキュー（PG誤投与緊急対応）</option>
+        </optgroup>
       </select>
     </div>
 
@@ -3638,6 +3641,44 @@ function registerEvent() {
       break;
     }
     case 'open': cow.status='open'; break;
+    case 'pg_rescue': {
+      // PG誤投与緊急レスキュー — 実施日を起点にタスクを自動生成
+      const pgDate = new Date(date + 'T00:00:00');
+      const pgAddDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r.toISOString().slice(0,10); };
+      // 最終授精/移植日から妊娠日数を計算し、Step3の日付を動的に決定
+      const pgCow = cows.find(c => c.id === cowId);
+      const lastInsemDate = pgCow ? (pgCow.etDate || pgCow.aiDate || null) : null;
+      const gestDaysAtPg = lastInsemDate ? diffDays(lastInsemDate, date) : null;
+      // 妊娠180日目に到達するまでの残り日数（最低14日は確保）
+      const daysTo180 = gestDaysAtPg ? Math.max(14, 180 - gestDaysAtPg) : 30;
+      const step3Note = gestDaysAtPg
+        ? `■ タイミング: 誤投与時妊娠${gestDaysAtPg}日目 → 妊娠180日目（胎盤P4安定圏）まであと約${daysTo180}日\n`
+        : '■ タイミング: 妊娠180〜200日目頃（胎盤P4安定圏）が目安\n';
+      schedule = [
+        { cowId, date: pgAddDays(pgDate, 2),  action: '🔴 【PGレスキューStep1】エコー検査 — 胎児生存確認', detail: '■ 目的: PGによるP4急低下・子宮収縮を乗り越えられているか確認\n■ エコー確認\n  ・胎児心拍・自発運動の有無（心拍確認できれば生存）\n  ・子宮頸管の閉鎖確認（開大していれば流産進行中のサイン）\n  ・子宮筋の収縮・緊張亢進がないか\n■ 外観確認\n  ・陰部からの異常排出物（血性・膿性粘液）の有無\n■ 判定\n  → 心拍あり＋頸管閉鎖＋排出物なし → 経過良好、Step2へ\n  → 異常あり → 流産リスク高、対応を判断', color: '#ef4444', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' },
+        { cowId, date: pgAddDays(pgDate, 12), action: '🟡 【PGレスキューStep2】CIDR抜去＋ルテウムデポー追加投与', detail: '■ 目的: CIDR抜去時のP4急降下を防ぎ、胎盤P4移行期まで緩やかにつなぐ\n■ 処置\n  ・CIDRを抜去（挿入から10〜14日後が目安）\n  ・抜去と同時（または直前）にルテウムデポー1本を追加投与\n    → P4が急降下せず、徐々に下がっていくため流産リスクを低減\n■ エコー確認\n  ・胎児心拍・自発運動\n  ・子宮頸管の閉じ具合\n  ・異常排出物の有無\n■ 判定\n  → 胎児生存＋頸管閉鎖 → 次のルテウムデポー投与タスクへ（妊娠180日到達まで継続）\n  → 異常あり（頸管開大・出血） → 流産リスク高、要判断', color: '#f59e0b', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' },
+      ];
+      // CIDR抜去（+12日）以降、妊娠180日到達まで12日おきにルテウムデポー投与タスクを生成
+      if (daysTo180 > 14) {
+        let depotDay = 24; // Step2の12日後から開始
+        let depotCount = 1;
+        while (depotDay < daysTo180 - 5) {
+          const gestAtDepot = gestDaysAtPg ? gestDaysAtPg + depotDay : null;
+          schedule.push({
+            cowId, date: pgAddDays(pgDate, depotDay),
+            action: `💉 【PGレスキュー】ルテウムデポー投与 ${depotCount}回目`,
+            detail: `■ 処置\n  ・ルテウムデポー1本を筋肉注射（投与部位：頸部または臀部）\n${gestAtDepot ? `  ・この時点の妊娠日数: 約${gestAtDepot}日目\n` : ''}  ・胎盤P4が安定する妊娠180日到達まで約12日おきに継続\n■ 投与前の確認（外観・行動）\n  ・発情回帰様行動（乗駕許容・ソワソワ・鳴き声）がないか\n  ・陰部からの透明〜血性粘液の排出がないか\n  ・腹痛様症状（頻繁な起立・臥下・後ろ足で腹を蹴る）がないか\n  ・食欲・元気の急激な変化がないか\n■ エコー確認（異常を疑う場合は必ず実施、余裕があれば毎回実施）\n  ・胎児心拍・自発運動の有無\n  ・子宮頸管の閉鎖確認（開大 → 流産進行中のサイン）\n  ・羊水量の異常（極端な減少・増加）がないか\n  ・子宮壁・胎盤付着部の浮腫・剥離所見がないか\n■ 判定\n  → 外観異常なし＋エコー異常なし → 予定通り投与して次回タスクへ\n  → 兆候あり or エコー異常あり → 流産処置の要否を判断してから投与`,
+            color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue'
+          });
+          depotDay += 12;
+          depotCount++;
+        }
+      }
+      schedule.push(
+        { cowId, date: pgAddDays(pgDate, daysTo180), action: '🟢 【PGレスキューStep3】最終エコー — 胎盤P4移行確認・レスキュー終了判断', detail: step3Note + '  ・なぜここで終わるか: 妊娠150〜200日頃から胎盤がP4を自力分泌し始めるため、黄体・外部P4への依存度が大幅に低下する\n■ エコー確認\n  ・胎児の大きさ・動き・心拍が妊娠日数に見合っているか\n  ・胎盤付着部の異常（浮腫・剥離所見）がないか\n  ・子宮頸管の閉鎖・腟粘液の正常性\n■ 外観・行動確認\n  ・発情回帰様行動（乗駕許容・そわそわ）がないか\n  ・陰部からの粘液排出・腹痛様症状がないか\n■ 判定\n  → 異常なし＋妊娠180日超 → PGレスキュー管理終了。通常の分娩前管理へ移行\n  → 異常あり → 追加P4投与継続・再評価', color: '#22c55e', priority: 'medium', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' }
+      );
+      break;
+    }
   }
 
   schedule.forEach(s => {
