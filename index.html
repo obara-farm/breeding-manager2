@@ -3654,22 +3654,24 @@ function registerEvent() {
       const daysTo200 = gestDaysAtPg ? Math.max(30, 200 - gestDaysAtPg) : 60;
       const gestNote = gestDaysAtPg ? `（誤投与時妊娠${gestDaysAtPg}日目）` : '（妊娠日数不明）';
 
+      const pgGest = (n) => gestDaysAtPg ? `■ この時点の妊娠日数: 約${gestDaysAtPg + n}日目\n` : '';
+
       // ① +5日: エコー検査
       schedule.push({ cowId, date: pgAddDays(date, 5),
         action: '🔴 【PGレスキュー +5日】エコー検査 — 胎児生存確認',
-        detail: `■ 誤投与時妊娠日数: ${gestDaysAtPg ? gestDaysAtPg + '日目' : '不明'}\n■ 目的: PGによるP4急低下・子宮収縮を乗り越えられているか確認\n■ エコー確認\n  ・胎児心拍・自発運動の有無（心拍確認できれば生存）\n  ・子宮頸管の閉鎖確認（開大していれば流産進行中のサイン）\n  ・子宮筋の収縮・緊張亢進がないか\n■ 外観確認\n  ・陰部からの異常排出物（血性・膿性粘液）の有無\n■ 判定\n  → 心拍あり＋頸管閉鎖＋排出物なし → 経過良好、+10日のデポー＋CIDR交換へ\n  → 異常あり → 流産リスク高、対応を判断`,
+        detail: `■ 誤投与時妊娠日数: ${gestDaysAtPg ? gestDaysAtPg + '日目' : '不明'} → この時点: 約${gestDaysAtPg ? gestDaysAtPg + 5 : '?'}日目\n■ 目的: PGによるP4急低下・子宮収縮を乗り越えられているか確認\n■ エコー確認\n  ・胎児心拍・自発運動の有無（心拍確認できれば生存）\n  ・子宮頸管の閉鎖確認（開大していれば流産進行中のサイン）\n  ・子宮筋の収縮・緊張亢進がないか\n■ 外観確認\n  ・陰部からの異常排出物（血性・膿性粘液）の有無\n■ 判定\n  → 心拍あり＋頸管閉鎖＋排出物なし → 経過良好、+10日のデポー＋CIDR交換へ\n  → 異常あり → 流産リスク高、対応を判断`,
         color: '#ef4444', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
       // ② +10日: デポー2本目＋CIDR交換（固定）
       schedule.push({ cowId, date: pgAddDays(date, 10),
         action: '💉🔧 【PGレスキュー +10日】ルテウムデポー2本目＋CIDR交換',
-        detail: `■ 処置①: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・1本目（誤投与当日）から10日後 — 添付文書準拠（約10日持続）\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n  ・デポーと同日に交換しP4補充を切れ目なく維持\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか / 腹痛様症状がないか`,
+        detail: `${pgGest(10)}■ 処置①: ルテウムデポー1本を筋肉注射（頸部または臀部）\n  ・1本目（誤投与当日）から10日後 — 添付文書準拠（約10日持続）\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n  ・デポーと同日に交換しP4補充を切れ目なく維持\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか / 腹痛様症状がないか`,
         color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
       // ③ +20日: デポー3本目＋CIDR交換（固定）
       schedule.push({ cowId, date: pgAddDays(date, 20),
         action: '💉🔧 【PGレスキュー +20日】ルテウムデポー3本目＋CIDR交換',
-        detail: `■ 処置①: ルテウムデポー1本を筋肉注射\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか`,
+        detail: `${pgGest(20)}■ 処置①: ルテウムデポー1本を筋肉注射\n■ 処置②: CIDR交換（旧CIDR抜去→新CIDR挿入）\n■ 投与前確認（外観）\n  ・発情回帰様行動がないか / 異常排出物がないか`,
         color: '#8b5cf6', priority: 'high', done: false, id: Math.random().toString(36).slice(2), tag: 'pg_rescue' });
 
       // ④ +30日以降: 妊娠200日到達まで10日おきにデポー＋CIDR交換 or 抜去
