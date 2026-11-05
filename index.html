@@ -3380,6 +3380,7 @@ function addDays(dateStr, n) {
   d.setDate(d.getDate() + n);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+const FRESH_AVAIL_DAYS = 45;   // 新鮮分娩の牛の授精可能日（分娩後この日数）
 function diffDays(a, b) {
   return Math.round((new Date(a+'T00:00:00') - new Date(b+'T00:00:00')) / 86400000);
 }
@@ -5519,7 +5520,13 @@ function renderCowList() {
     const notYetEligible = !hasEverInsem && cow.status === 'open' && cow.lactation === 0 &&
       ageMonths !== null && ageMonths < firstInsemMonths;
     const eligibleDate = notYetEligible ? addDays(cowDobForAlert, firstInsemMonths * 30.5) : null;
-    const displayStatus = notYetEligible ? `授精可能: ${fmtDate(eligibleDate)}` : isPregWaiting ? '妊鑑待ち' : cowDisplayStatus(cow).label;
+    // 新鮮分娩の牛：分娩後45日（発情が来なければプログラムに乗せる目安）を授精可能日として表示
+    const freshAvail = (cow.status === 'fresh' && cow.calvingDate) ? addDays(cow.calvingDate, FRESH_AVAIL_DAYS) : null;
+    const freshLeft = freshAvail ? diffDays(freshAvail, todayStr2) : null;
+    const displayStatus = notYetEligible ? `授精可能: ${fmtDate(eligibleDate)}`
+      : isPregWaiting ? '妊鑑待ち'
+      : freshAvail ? `新鮮分娩（授精可能: ${fmtDate(freshAvail)}${freshLeft > 0 ? '・あと' + freshLeft + '日' : '〜'}）`
+      : cowDisplayStatus(cow).label;
     const displayDot = isPregWaiting ? 'dot-program' : (statusDot[cow.status]||'dot-open');
 
     // カードスタイル: 分娩後45日超空胎 > 妊鑑陰性放置 > 受精後妊鑑未実施 > 初回受精時期 の優先順
@@ -5647,6 +5654,7 @@ function renderCowList() {
       </div>
       ${lastInsemLabel}
       ${insemHistoryLabel}
+      ${donorStopBanner(cow)}
       ${cow.memo?`<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin:6px 0;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>`:''}
       <div class="cow-actions" onclick="event.stopPropagation()">
         <button class="btn btn-secondary" onclick="showCowDetail('${cow.id}')">📖 ストーリー</button>
@@ -5871,6 +5879,70 @@ function setCowViewMode(mode, cowId) {
 // プログラム中＝授精・ET・採卵の「プログラム」実施中。授精・移植のあと妊鑑を待っている牛は「妊鑑待ち」で、プログラム中には含めない。
 const DONOR_PROG_TYPES = ['donor_et_start', 'donor_et_pretreat_start', 'donor_et_takahashi_start'];
 const PROG_START_TYPES = ['cidr_ai_start', 'et_recipient', 'estrus_et', 'estrus_ai', ...DONOR_PROG_TYPES];
+// いま動いている採卵プログラム（やめたものは除く）
+function activeDonorProgram(cow) {
+  if (!cow || cowDisplayStatus(cow).key !== 'donor') return null;
+  return [...(cow.events || [])].filter(e => DONOR_PROG_TYPES.includes(e.type) && !e._retired)
+    .sort((a, b) => b.date.localeCompare(a.date))[0] || null;
+}
+// 採卵の予定として作られたタスク（その採卵プログラムの開始日以降・まだ済んでいないもの）
+function donorProgramTasks(cowId, startDate) {
+  return tasks.filter(t => t.cowId === cowId && !t.done && t.date >= startDate &&
+    /ドナー|【受卵牛】|受精卵回収|採卵/.test(String(t.action || '')));
+}
+function donorStopBanner(cow) {
+  const dp = activeDonorProgram(cow);
+  if (!dp) return '';
+  const label = { donor_et_start: '採卵（自然発情）', donor_et_pretreat_start: '採卵（前処置）', donor_et_takahashi_start: '採卵（高橋式）' }[dp.type] || '採卵';
+  return `<div onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.35);border-radius:8px;padding:6px 10px;margin:6px 0;font-size:11px;">
+      <span style="color:#fb7185;font-weight:700;">🧫 ${label} ${fmtDate(dp.date)}〜${dp.memo ? '（' + _stEsc(dp.memo) + '）' : ''}</span>
+      <button onclick="stopDonorProgram('${cow.id}')" style="margin-left:auto;background:var(--bg3);border:1px solid #fb7185;color:#fb7185;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;">🛑 採卵をやめる</button>
+    </div>`;
+}
+// 採卵をやめる：記録は消さずに「中止」の印をつけ、残っている採卵の予定だけ消す
+function stopDonorProgram(cowId) {
+  const cow = cows.find(c => c.id === cowId);
+  const dp = activeDonorProgram(cow);
+  if (!dp) return;
+  const left = donorProgramTasks(cowId, dp.date).sort((a, b) => a.date.localeCompare(b.date));
+  const recips = [...new Set(left.flatMap(t => t.etRecipients || []))];
+  document.getElementById('confirm-title').innerHTML = `🛑 採卵をやめる — ${_stEsc(cowId)} ${_stEsc(cowDisplayName(cowId) || '')}`;
+  document.getElementById('confirm-body').innerHTML = `
+    <div style="font-size:12px;line-height:1.7;">
+      ${fmtDate(dp.date)}に始めた採卵プログラムを<strong>中止</strong>にします。<br>
+      ・ステータスは「採卵ドナー」から外れます<br>
+      ・ストーリーには「採卵中止」として残ります（記録は消しません）<br>
+      ・まだ済んでいない採卵の予定 <strong>${left.length}件</strong> を消します
+    </div>
+    ${left.length ? `<div style="background:var(--bg3);border-radius:6px;padding:6px 8px;margin-top:6px;font-size:11px;color:var(--muted);max-height:160px;overflow:auto;">${left.map(t => `${fmtDate(t.date)}　${_stEsc(t.action)}`).join('<br>')}</div>` : ''}
+    ${recips.length ? `<div style="font-size:11px;color:var(--warn);margin-top:6px;">※ 受卵牛（${recips.map(_stEsc).join('・')}）の予定はそのまま残します。移植しないなら受卵牛のほうも直してください。</div>` : ''}
+    <div class="form-group" style="margin:8px 0 0;"><label>やめた理由（なくてもOK）</label><input type="text" id="donor-stop-memo" placeholder="例: 普通のプログラム授精に切り替え"></div>`;
+  const ok = document.getElementById('confirm-ok-btn');
+  ok.textContent = '採卵をやめる';
+  ok.style.cssText = 'background:#e11d48;border-color:#e11d48;color:#fff;';
+  ok.onclick = () => {
+    dp._retired = true;
+    dp.stoppedAt = today();
+    const why = (document.getElementById('donor-stop-memo').value || '').trim();
+    if (why) dp.stopMemo = why;
+    const ids = new Set(left);
+    tasks = tasks.filter(t => !ids.has(t));
+    save();
+    closeModal('modal-confirm');
+    renderAll();
+    const mc = document.getElementById('modal-cow');
+    if (mc && mc.classList.contains('open')) showCowDetail(cowId);
+  };
+  openModal('modal-confirm');
+}
+// 採卵中止の取り消し（消した予定は戻らないので、必要ならプログラムを入れ直す）
+function undoStopDonor(cowId, idx) {
+  const cow = cows.find(c => c.id === cowId);
+  const e = cow && (cow.events || [])[idx];
+  if (!e || !e._retired) return;
+  delete e._retired; delete e.stoppedAt; delete e.stopMemo;
+  save(); renderAll(); showCowDetail(cowId);
+}
 function cowDisplayStatus(cow) {
   if (!cow) return { key: 'open', label: '空胎' };
   const ev = [...(cow.events || [])].sort((a, b) => b.date.localeCompare(a.date));
@@ -5883,7 +5955,9 @@ function cowDisplayStatus(cow) {
   const isDonorCow = cow.isDonor || ev.some(e => DONOR_PROG_TYPES.includes(e.type) && !e._retired);
   const lastIsDonorAI = lastAiEt && lastAiEt.donorAI === true;
   // 採卵ドナー：最後に始めたプログラムが採卵、または最後の授精がドナーAI（その後に分娩していない）
-  const lastProg = ev.find(e => PROG_START_TYPES.includes(e.type));
+  // 採卵をやめた（_retired）プログラムは数えない。同じ日なら普通のプログラムを優先
+  const lastProg = ev.filter(e => PROG_START_TYPES.includes(e.type) && !e._retired)
+    .sort((a, b) => b.date.localeCompare(a.date) || (DONOR_PROG_TYPES.includes(a.type) ? 1 : 0) - (DONOR_PROG_TYPES.includes(b.type) ? 1 : 0))[0];
   const lastCalv = ev.find(e => e.type === 'calving');
   const donorNow = (lastProg && DONOR_PROG_TYPES.includes(lastProg.type) && (!lastCalv || lastProg.date > lastCalv.date))
     || (lastIsDonorAI && (!lastCalv || lastAiEt.date > lastCalv.date));
@@ -6192,7 +6266,10 @@ function buildCowStory(cowId) {
       const kv = [];
       const donor = _stMemoVal(e.memo, 'ドナー');
       if (donor) kv.push([donor, 'ドナー']);
-      items.push({ date: e.date, cat: 'treat', color: e.type === 'pg_rescue' ? '#ef4444' : '#94a3b8', title: '▶ ' + progLabel[e.type], badge: null, desc: '', kv, memo: donor ? '' : e.memo, acts: [] });
+      const stopped = e._retired && DONOR_PROG_TYPES.includes(e.type);
+      if (stopped) kv.push([(e.stoppedAt ? fmtDate(e.stoppedAt) + ' ' : '') + (e.stopMemo ? _stEsc(e.stopMemo) : ''), '🛑 採卵中止']);
+      items.push({ date: e.date, cat: 'treat', color: e.type === 'pg_rescue' ? '#ef4444' : '#94a3b8', title: '▶ ' + progLabel[e.type] + (stopped ? '（中止）' : ''), badge: null, desc: '', kv, memo: donor ? '' : e.memo,
+        acts: stopped && !isRetired ? [`<button class="st-act" onclick="undoStopDonor('${_stEsc(cowId)}',${e._idx})">↩ 中止を取り消す</button>`] : [] });
     } else if (e.type === 'open') {
       items.push({ date: e.date, cat: 'breed', color: '#94a3b8', title: '空胎に戻す', badge: null, desc: '', kv: [], memo: e.memo, acts: [] });
     }
@@ -9136,7 +9213,18 @@ function openVetTab(cowId) {
   startVetSync();
   renderVetSummary();
   const fr = document.getElementById('vet-frame');
-  if (fr && !fr.src) fr.src = VET_TOOL_URL;
+  // 牛が決まっているときは、薬品管理の処置登録をその牛を選んだ状態で開く
+  if (fr && cowId) {
+    if (fr.src && fr.dataset.loaded === '1') {
+      try { fr.contentWindow.postMessage({ type: 'vet-open-treat', cowId: String(cowId) }, location.origin); } catch (e) {}
+    } else {
+      if (!fr.dataset.hooked) { fr.dataset.hooked = '1'; fr.addEventListener('load', () => { fr.dataset.loaded = '1'; }); }
+      fr.src = VET_TOOL_URL + '#treat=' + encodeURIComponent(cowId);
+    }
+  } else if (fr && !fr.src) {
+    fr.addEventListener('load', () => { fr.dataset.loaded = '1'; }); fr.dataset.hooked = '1';
+    fr.src = VET_TOOL_URL;
+  }
   const hint = document.getElementById('vet-cow-hint');
   if (hint) hint.innerHTML = cowId ? `<div style="background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;">📝 <b>${_stEsc(cowId)} ${_stEsc(cowDisplayName(cowId) || '')}</b> の治療を、下の薬品管理で記録してください</div>` : '';
 }
@@ -21957,7 +22045,7 @@ function renderCalves() {
                 if(isPregWaiting && !isDonorCow) return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
                 if(dm.status==='program'||isDonorCow) return ' <span style="color:var(--purple);font-size:10px;">●プログラム中</span>';
                 if(openDays!==null && openDays<45){
-                  const availDate = addDays(dm.calvingDate, 45);
+                  const availDate = addDays(dm.calvingDate, FRESH_AVAIL_DAYS);
                   return ' <span style="color:var(--muted);font-size:10px;">●新鮮分娩 '+availDate.slice(5).replace('-','/')+'から授精可</span>';
                 }
                 if(openDays!==null && openDays>=45) return ' <span style="color:var(--warn);font-size:10px;">●未受精'+openDays+'日</span>';
