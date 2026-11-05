@@ -5599,7 +5599,7 @@ function renderCowList() {
           💉 ${lc ? '今回の分娩後' : ''}受精${cur.length}回目 ▾ 履歴を見る
         </summary>
         <div style="background:var(--bg3);border-radius:6px;padding:6px 8px;margin-top:4px;">${curRows || '<div style="font-size:11px;color:var(--muted);">分娩後の授精はまだありません</div>'}${pastRows}
-          <div style="font-size:10px;color:var(--muted);margin-top:5px;">直す・消すときは「タイムライン」の繁殖履歴から</div></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:5px;">直す・消すときは「📖 ストーリー」の繁殖履歴から</div></div>
       </details>`;
     })() : '';
 
@@ -5636,7 +5636,7 @@ function renderCowList() {
       ${insemHistoryLabel}
       ${cow.memo?`<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin:6px 0;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>`:''}
       <div class="cow-actions" onclick="event.stopPropagation()">
-        <button class="btn btn-secondary" onclick="showCowDetail('${cow.id}')">タイムライン</button>
+        <button class="btn btn-secondary" onclick="showCowDetail('${cow.id}')">📖 ストーリー</button>
         <button class="btn btn-warn" onclick="addEventForCow('${cow.id}')">＋ 処置追加</button>
         <button style="background:#1a0f00;border:1px solid #b45309;color:#f59e0b;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;" onclick="openRetireModal('${cow.id}')">🚫 廃用</button>
       </div>
@@ -5770,7 +5770,7 @@ function showCowDetailClassic(cowId) {
         </div>`).join('')}
     </div>` : '';
 
-  document.getElementById('modal-cow-title').textContent = `${cowId} ${name} — タイムライン`;
+  document.getElementById('modal-cow-title').textContent = `${cowId} ${name} — ストーリー`;
   document.getElementById('modal-cow-content').innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin-bottom:10px;"><button class="st-viewtoggle" onclick="setCowViewMode('story','${cowId}')">📖 新表示（ストーリー）に切替</button></div>
     ${(cow.sire||cow.maternalSire) ? `
@@ -8738,6 +8738,7 @@ function openTagEditor(kind, key) {
     if (document.getElementById('page-herd')?.classList.contains('active')) renderHerdList();
     const mc = document.getElementById('modal-cow');
     if (kind === 'cow' && mc && mc.classList.contains('open')) showCowDetail(key);
+    if (kind === 'calf' && mc && mc.classList.contains('open') && window._openCalfStoryId === key) showCalfStory(key);
   };
   openModal('modal-confirm');
 }
@@ -22051,40 +22052,85 @@ function showCalfStory(calfId) {
   (calf.notes || []).forEach((n, i) => items.push({ date: n.date, color: '#38bdf8', title: '📝 メモ', desc: '', kv: [], memo: n.text,
     acts: [`<button class="st-act" onclick="openCalfNote('${esc(calf.id)}',${i})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteCalfNote('${esc(calf.id)}',${i})">🗑 削除</button>`] }));
   items.sort((a, b) => b.date.localeCompare(a.date));
-  const pend = (calf.notes || []).filter(n => n.date > today());
+  const T = today();
+  const pend = items.filter(it => it.date > T);
+  const past = items.filter(it => it.date <= T);
   const asCow = cows.find(c => calf.earTagId && c.id === calf.earTagId);
-  const stJa = calf.deathDate || fd ? '死亡' : fr ? '出荷済' : asCow ? '親牛に移行' : ({ active: '在籍', moved: '移動済（育成・肥育へ）', kept: '自家保留' }[calf.status] || calf.status || '在籍');
-  const ageTxt = calf.dob ? fmtAgeDays(diffDays(calf.deathDate || (fd && fd.date) || today(), calf.dob), false) : '—';
-  const card = it => `<div class="st-card" style="border-left:3px solid ${it.color};">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
-        <div style="flex:1;min-width:0;"><div style="font-size:11px;color:var(--muted);">${fmtDate(it.date)}${it.date > today() ? ' <span style="color:var(--info);">予定</span>' : ''}</div>
-          <div style="font-size:14px;font-weight:800;margin-top:1px;">${it.title}</div>
-          ${it.desc ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;">${esc(it.desc)}</div>` : ''}</div>
-        ${it.acts.length ? `<button class="st-more" onclick="this.closest('.st-card').querySelector('.st-acts').classList.toggle('open')">⋮</button>` : ''}
-      </div>
-      ${it.kv.length ? `<div class="st-box">${it.kv.map(([v, l]) => `<div class="st-kv"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>` : ''}
-      ${it.memo ? `<div style="font-size:12px;margin-top:4px;">📝 ${esc(it.memo)}</div>` : ''}
-      ${it.acts.length ? `<div class="st-acts">${it.acts.join('')}</div>` : ''}
-    </div>`;
+  const dead = !!(calf.deathDate || fd);
+  const stJa = dead ? '死亡' : fr ? '出荷済' : asCow ? '親牛に移行' : ({ active: '在籍', moved: '移動済', kept: '自家保留' }[calf.status] || calf.status || '在籍');
+  const days = calf.dob ? diffDays(calf.deathDate || (fd && fd.date) || T, calf.dob) : null;
+  const met = (v, l) => `<div class="st-metric"><div class="v">${v == null || v === '' ? '—' : v}</div><div class="l">${l}</div></div>`;
+  // ◀▶：子牛タブと同じ並び（在籍の子牛を新しい順）
+  const nav = (typeof calves !== 'undefined' ? calves : []).filter(c => !c.deathDate && (c.status || 'active') === 'active').sort((a, b) => (b.dob || '').localeCompare(a.dob || ''));
+  const pos = nav.findIndex(c => c.id === calf.id);
+  const prevId = pos > 0 ? nav[pos - 1].id : null, nextId = pos >= 0 && pos < nav.length - 1 ? nav[pos + 1].id : null;
+  const filters = [['all', '全部'], ['treat', '治療'], ['note', 'メモ']];
+  const fOf = it => /^💊/.test(it.title) ? 'treat' : /^📝/.test(it.title) ? 'note' : 'other';
+  window._calfStFilter = window._calfStFilter || 'all';
+  const shown = past.filter(it => _calfStFilter === 'all' || fOf(it) === _calfStFilter);
+  let curYear = '';
+  const row = it => {
+    const y = it.date.slice(0, 4);
+    const yearHdr = y !== curYear ? `<div class="st-year">${_stReiwa(y)}（${y}）</div>` : '';
+    curYear = y;
+    const kvHTML = it.kv.length ? `<div class="st-box">${it.kv.map(([v, l]) => `<div class="st-kv"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join('')}</div>` : '';
+    const more = it.acts.length ? `<button class="st-more" onclick="this.closest('.st-card').querySelector('.st-acts').classList.toggle('open')">⋮</button>` : '';
+    return `${yearHdr}
+      <div class="st-row">
+        <div class="st-date">${fmtDateShort(it.date)}</div>
+        <div class="st-rail"><div class="st-dot" style="border-color:${it.color}"></div></div>
+        <div class="st-card">
+          <div class="st-head"><div class="st-title">${it.title}</div>${more}</div>
+          ${it.desc ? `<div class="st-desc">${esc(it.desc)}</div>` : ''}
+          ${kvHTML}
+          ${it.memo ? `<div class="tl-memo">📝 ${esc(it.memo)}</div>` : ''}
+          ${it.acts.length ? `<div class="st-acts">${it.acts.join('')}</div>` : ''}
+        </div>
+      </div>`;
+  };
+  const storyRows = shown.map(row).join('');
+  const pendRows = pend.slice().reverse().map(it => `<div class="st-row"><div class="st-date">${fmtDateShort(it.date)}</div>
+      <div class="st-rail"><div class="st-dot" style="border-color:var(--warn)"></div></div>
+      <div class="st-card"><div class="st-head"><div class="st-title">${it.title}</div>${it.acts.length ? `<button class="st-more" onclick="this.closest('.st-card').querySelector('.st-acts').classList.toggle('open')">⋮</button>` : ''}</div>
+        ${it.memo ? `<div class="st-desc">${esc(it.memo)}</div>` : ''}${it.acts.length ? `<div class="st-acts">${it.acts.join('')}</div>` : ''}</div></div>`).join('');
   window._openCalfStoryId = calf.id;
   document.getElementById('modal-cow-title').textContent = `🐮 ${tag} ${calf.name || ''}`;
   document.getElementById('modal-cow-content').innerHTML = `
-    <div class="st-hero" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
-      ${[[stJa, '状態'], [ageTxt, calf.deathDate || fd ? '死亡時の日齢' : '日齢・月齢'], [`${calf.breed || '—'} ${sexJa}`, '品種・性別']].map(([v, l]) => `<div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;"><div style="font-size:14px;font-weight:900;">${esc(v)}</div><div style="font-size:10px;color:var(--muted);">${l}</div></div>`).join('')}
+    <div class="st-bar">
+      <button class="st-nav" ${prevId ? '' : 'disabled'} onclick="showCalfStory('${esc(prevId || '')}')" title="前の子牛">◀</button>
+      <button class="st-nav" ${nextId ? '' : 'disabled'} onclick="showCalfStory('${esc(nextId || '')}')" title="次の子牛">▶</button>
+      <span style="font-size:11px;color:var(--muted);">${pos >= 0 ? (pos + 1) + ' / ' + nav.length : stJa}</span>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7;">
-      ${calf.nationalId ? `個体識別番号 <b style="color:var(--text);font-family:'JetBrains Mono',monospace;">${esc(calf.nationalId)}</b><br>` : ''}
-      ${[calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).length ? `血統 ${esc([calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).join(' × '))}` : ''}
+    <div class="st-metrics">
+      ${met(esc(stJa), '状態')}
+      ${met(days != null ? fmtAgeDays(days, false) : null, dead ? '死亡時の日齢' : '日齢・月齢')}
+      ${met(esc(sexJa), '性別')}
+      ${met(esc(calf.breed || ''), '品種')}
+      ${met(calf.birthWeightKg ? calf.birthWeightKg + 'kg' : null, '生時体重')}
+      ${met(calf.weight || calf.size || null, '体格（1小〜5大）')}
+      ${met(calf.dob ? calf.dob.slice(2).replace(/-/g, '/') : null, '生年月日')}
+      ${met(isEt ? 'ET' : (calf.insemDate ? 'AI' : null), '授精')}
     </div>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
-      <button class="st-act" onclick="openCalfNote('${esc(calf.id)}')">📝 メモ・予定</button>
-      ${calf.nationalId || calf.earTagId ? `<button class="st-act" onclick="openVetTab('${esc(calf.earTagId || calf.nationalId)}')">💊 治療を記録</button>` : ''}
-      <button class="st-act" onclick="closeModal('modal-cow');openEditCalfModal('${esc(calf.id)}')">✏ 子牛の情報を直す</button>
-      ${calf.damId && cows.some(c => c.id === calf.damId) ? `<button class="st-act" onclick="showCowDetail('${esc(calf.damId)}')">🐄 母牛 ${esc(calf.damId)}</button>` : ''}
-      ${asCow ? `<button class="st-act" style="border-color:var(--accent);color:var(--accent);" onclick="showCowDetail('${esc(asCow.id)}')">➡ 親牛としてのストーリー</button>` : ''}
+    <div class="st-rec">
+      <button onclick="openCalfNote('${esc(calf.id)}')">📝<span>メモ・予定</span></button>
+      ${calf.nationalId || calf.earTagId ? `<button onclick="openVetTab('${esc(calf.earTagId || calf.nationalId)}')">💊<span>治療</span></button>` : ''}
+      <button onclick="closeModal('modal-cow');openEditCalfModal('${esc(calf.id)}')">✏<span>情報を直す</span></button>
+      ${calf.damId && cows.some(c => c.id === calf.damId) ? `<button onclick="showCowDetail('${esc(calf.damId)}')">🐄<span>母牛</span></button>` : ''}
+      ${asCow ? `<button onclick="showCowDetail('${esc(asCow.id)}')">➡<span>親牛へ</span></button>` : ''}
     </div>
-    ${pend.length ? `<div class="st-sec" style="color:var(--info);">📅 今後の予定（${pend.length}件）</div>` : ''}
-    ${items.length ? items.map(card).join('') : '<div style="color:var(--muted);font-size:12px;padding:12px;">記録がまだありません</div>'}
+    ${(calf.nationalId || [calf.sire, calf.maternalSire].some(Boolean)) ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.7;">
+      ${calf.nationalId ? `個体識別番号 <span style="color:var(--text);font-family:'JetBrains Mono',monospace;">${esc(calf.nationalId)}</span><br>` : ''}
+      ${[calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).length ? `🐄 血統 <span style="color:var(--text);font-weight:500;">${esc([calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).join(' × '))}</span>` : ''}
+    </div>` : ''}
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin-bottom:10px;">
+      ${(calf.tags || []).map(t => `<span class="herd-tag">${esc(t)}</span>`).join('')}
+      <button class="herd-tagbtn" style="color:var(--muted);" onclick="openTagEditor('calf','${esc(calf.id)}')">🏷 ${(calf.tags || []).length ? '編集' : 'タグを付ける'}</button>
+    </div>
+    ${pend.length ? `<div class="st-sec" style="color:var(--warn);">📅 今後の予定（${pend.length}件）</div>${pendRows}` : ''}
+    <div class="st-chips" style="margin-top:6px;">
+      ${filters.map(([k, l]) => `<button class="st-chip ${_calfStFilter === k ? 'on' : ''}" onclick="_calfStFilter='${k}';showCalfStory('${esc(calf.id)}')">${l}</button>`).join('')}
+    </div>
+    ${storyRows || '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px 0;">記録はありません</div>'}
     ${typeof _vetData === 'undefined' || !_vetData ? '<div style="font-size:11px;color:var(--warn);margin-top:8px;">💊 薬品管理のデータを読み込み中です。読み込めたら治療歴が出ます</div>' : ''}
     <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6;">※ 治療は薬品管理の記録です（耳標・個体識別番号のほか、耳標を付ける前に「新生子」として母牛に付けた記録も含みます）。出荷は肥育成績の個体識別番号と照らし合わせています。</div>`;
   openModal('modal-cow');
