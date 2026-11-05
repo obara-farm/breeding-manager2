@@ -3396,6 +3396,35 @@ function addDays(dateStr, n) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 const FRESH_AVAIL_DAYS = 45;   // 新鮮分娩の牛の授精可能日（分娩後この日数）
+// 個体の生まれ：ET産仔か、ドナー牛から直接生まれた牛か
+function _donorCowNames() {
+  const all = cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []);
+  const set = new Set();
+  all.forEach(c => { if (c.role === 'donor' || c.isDonor || (c.events || []).some(e => DONOR_PROG_TYPES.includes(e.type))) { const n = cowDisplayName(c.id) || c.name; if (n) set.add(String(n).replace(/★/g, '').trim()); } });
+  return set;
+}
+function cowBirthOrigin(cow) {
+  if (!cow) return null;
+  const clean = v => String(v || '').replace(/★/g, '').trim();
+  if (cow.birthOrigin === 'none') return null;
+  if (cow.birthOrigin === 'et') return { kind: 'et', donor: clean(cow.dam), sire: cow.sire || '', sure: true };
+  if (cow.birthOrigin === 'donor') return { kind: 'donor', donor: clean(cow.dam), sure: true };
+  const calf = (typeof calves !== 'undefined' ? calves : []).find(c => c.earTagId === cow.id || (cow.nationalId && c.nationalId === cow.nationalId));
+  const donors = _donorCowNames();
+  if (calf) {
+    if (calf.insemType === 'et' || calf.donor) {
+      let d = String(calf.donor || '').trim();
+      if (d && cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []).some(x => x.id === d)) d = cowDisplayName(d) || d;
+      return { kind: 'et', donor: clean(d || cow.dam), sire: calf.sire || cow.sire || '', recip: calf.damId ? (calf.damId + ' ' + (cowDisplayName(calf.damId) || '')).trim() : '', sure: true };
+    }
+    const damName = clean(cowDisplayName(calf.damId) || '');
+    if (damName && donors.has(damName)) return { kind: 'donor', donor: damName, sure: true };
+    return null;
+  }
+  // 子牛の記録がない牛（前からいる牛）：母の名前がドナー牛と同じなら「ドナーの子？」
+  if (cow.dam && donors.has(clean(cow.dam))) return { kind: 'donor', donor: clean(cow.dam), sure: false };
+  return null;
+}
 function diffDays(a, b) {
   return Math.round((new Date(a+'T00:00:00') - new Date(b+'T00:00:00')) / 86400000);
 }
@@ -21831,7 +21860,7 @@ function printCalvesList(){
   else { iframe.onload = () => setTimeout(doPrint, 300); setTimeout(doPrint, 800); }
 }
 function renderCalves() {
-  { const ba = document.getElementById('birth-report-alert'); if (ba) ba.innerHTML = birthReportAlertHTML(); }
+  { const ba = document.getElementById('birth-report-alert'); if (ba && typeof birthReportAlertHTML === 'function') ba.innerHTML = birthReportAlertHTML(); }
   updateCalvesBadge();
   const todayStr = today();
   const sexLabel = {雄:'♂ 雄', 雌:'♀ 雌'};
@@ -28998,35 +29027,6 @@ function _brNote(c) {
   if (donor && cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []).some(x => x.id === donor)) donor = cowDisplayName(donor) || donor;
   const sire = String(c.sire || '').trim();
   return donor || sire ? `${donor || '—'}×${sire || '—'}` : '';
-}
-// 個体の生まれ：ET産仔か、ドナー牛から直接生まれた牛か
-function _donorCowNames() {
-  const all = cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []);
-  const set = new Set();
-  all.forEach(c => { if (c.role === 'donor' || c.isDonor || (c.events || []).some(e => DONOR_PROG_TYPES.includes(e.type))) { const n = cowDisplayName(c.id) || c.name; if (n) set.add(String(n).replace(/★/g, '').trim()); } });
-  return set;
-}
-function cowBirthOrigin(cow) {
-  if (!cow) return null;
-  const clean = v => String(v || '').replace(/★/g, '').trim();
-  if (cow.birthOrigin === 'none') return null;
-  if (cow.birthOrigin === 'et') return { kind: 'et', donor: clean(cow.dam), sire: cow.sire || '', sure: true };
-  if (cow.birthOrigin === 'donor') return { kind: 'donor', donor: clean(cow.dam), sure: true };
-  const calf = (typeof calves !== 'undefined' ? calves : []).find(c => c.earTagId === cow.id || (cow.nationalId && c.nationalId === cow.nationalId));
-  const donors = _donorCowNames();
-  if (calf) {
-    if (calf.insemType === 'et' || calf.donor) {
-      let d = String(calf.donor || '').trim();
-      if (d && cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []).some(x => x.id === d)) d = cowDisplayName(d) || d;
-      return { kind: 'et', donor: clean(d || cow.dam), sire: calf.sire || cow.sire || '', recip: calf.damId ? (calf.damId + ' ' + (cowDisplayName(calf.damId) || '')).trim() : '', sure: true };
-    }
-    const damName = clean(cowDisplayName(calf.damId) || '');
-    if (damName && donors.has(damName)) return { kind: 'donor', donor: damName, sure: true };
-    return null;
-  }
-  // 子牛の記録がない牛（前からいる牛）：母の名前がドナー牛と同じなら「ドナーの子？」
-  if (cow.dam && donors.has(clean(cow.dam))) return { kind: 'donor', donor: clean(cow.dam), sure: false };
-  return null;
 }
 function _brDamNatId(c) {
   const cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId);
