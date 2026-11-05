@@ -256,7 +256,7 @@ textarea{resize:vertical;}
 .herd-frow label{display:flex;align-items:center;gap:3px;font-size:11px;color:var(--text);text-transform:none;letter-spacing:0;font-weight:400;}
 .herd-frow input[type=number]{width:52px;font-size:12px;padding:3px 5px;margin:0;}
 /* 個体画面の記録ボタン */
-.st-rec{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:12px;}
+.st-rec{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:12px;}
 .st-rec button{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:8px 0 6px;font-size:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--text);}
 .st-rec button span{font-size:10px;font-weight:700;color:var(--muted);}
 .st-rec button:active{background:var(--card);}
@@ -3304,6 +3304,7 @@ function syncInsemTasks() {
 function save() {
   try { syncRecipientPlaceholders(); } catch (e) { console.error('syncRecipientPlaceholders', e); }
   try { syncInsemTasks(); } catch (e) { console.error('syncInsemTasks', e); }
+  try { syncReturnTasks(); } catch (e) { console.error('syncReturnTasks', e); }
   try { cows.forEach(normalizePregEvents); } catch (e) { console.error('normalizePregEvents', e); }
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
@@ -4639,6 +4640,18 @@ function toggleTask(id) {
       return;
     }
 
+    // 産室移動の予定をチェック → 産室への移動を記録
+    if (task.action === '🏠 産室移動') {
+      const cw = cows.find(c => c.id === task.cowId);
+      const d = task.date <= today() ? task.date : today();
+      if (cw && !cowMoves(cw).some(m => m.to === '産室' && Math.abs(diffDays(m.date, d)) <= 3)) { cw.events = cw.events || []; cw.events.push({ type: 'move', date: d, to: '産室', memo: '産室移動の予定から' }); }
+    }
+    // 繁殖舎へ戻す予定をチェック → 移動の画面（子牛も一緒に）を開き、記録したら済みにする
+    if (task.action === '🏠 繁殖舎へ戻す') {
+      task.done = false; task.doneAt = null; save(); renderAll();
+      openMoveDialog('cow', task.cowId, '繁殖舎', null, task.id);
+      return;
+    }
     // ET実施タスクをチェック → 種付けタブと同じ記録画面（処置追加・ET）を開く
     // （以前の「ET記録」画面は胚ステージのボタンが表示されない不具合があったので使わない）
     if (task.action === '胚移植（ET）' || task.action.startsWith('胚移植（ET）')) {
@@ -6166,7 +6179,10 @@ function buildCowStory(cowId) {
     estrus_et: '自然発情 → ET予定（発情確認）',
   };
   events.forEach(e => {
-    if (e.type === 'note') {
+    if (e.type === 'move') {
+      items.push({ date: e.date, cat: 'move', color: '#38bdf8', title: `🏠 ${_stEsc(e.to)}へ移動`, badge: null, desc: '', kv: [], memo: e.memo,
+        acts: isRetired ? [] : [`<button class="st-act" onclick="openMoveDialog('cow','${_stEsc(cowId)}',null,${e._idx})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteStoryEvent('${_stEsc(cowId)}',${e._idx})">🗑 削除</button>`] });
+    } else if (e.type === 'note') {
       items.push({ date: e.date, cat: 'note', color: '#38bdf8', title: '📝 メモ', badge: null, desc: '', kv: [], memo: e.memo,
         acts: isRetired ? [] : [`<button class="st-act" onclick="openCowNote('${_stEsc(cowId)}',${e._idx})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteStoryEvent('${_stEsc(cowId)}',${e._idx})">🗑 削除</button>`] });
     } else if (e.type === 'estrus') {
@@ -6507,7 +6523,7 @@ function showCowStory(cowId) {
   ` : '';
 
   // ストーリー本体
-  const filters = [['all', '全部'], ['breed', '繁殖'], ['treat', '処置'], ['calving', '分娩・流産'], ['collect', '採卵'], ['note', 'メモ']];
+  const filters = [['all', '全部'], ['breed', '繁殖'], ['treat', '処置'], ['calving', '分娩・流産'], ['collect', '採卵'], ['move', '移動'], ['note', 'メモ']];
   const shown = items.filter(it => _stFilter === 'all' || it.cat === _stFilter);
   let curYear = '';
   const storyRows = shown.map(it => {
@@ -6550,6 +6566,7 @@ function showCowStory(cowId) {
       <button onclick="stRecord('med','${esc(cowId)}')">💊<span>治療</span></button>
       <button onclick="stRecord('other','${esc(cowId)}')">📋<span>その他</span></button>
       <button onclick="openCowNote('${esc(cowId)}')">📝<span>メモ</span></button>
+      <button onclick="openMoveDialog('cow','${esc(cowId)}')">🏠<span>移動</span></button>
     </div>`}
     ${(() => { const w = (typeof getVetWithdrawalMap === 'function') ? getVetWithdrawalMap()[cowId] : null;
       return w ? `<div style="background:#3d2800;border:1px solid var(--warn);border-radius:8px;padding:7px 10px;margin-bottom:10px;font-size:12px;cursor:pointer;" onclick="_stMode='med';showCowDetail('${esc(cowId)}')">⚠️ <b style="color:var(--warn);">休薬期間中</b>：${fmtDate(w)}まで出荷不可（治療歴を見る）</div>` : ''; })()}
@@ -6566,6 +6583,8 @@ function showCowStory(cowId) {
       <button class="btn btn-primary" style="white-space:nowrap;padding:0 12px;margin-top:0;" onclick="saveCowMemo('${esc(cowId)}')">保存</button>
     </div>`}
     ${cowOffspringHTML(cow, name, true)}
+    ${isRet ? '' : damCompatHTML(cowId)}
+    ${!isRet && cowLocation(cow) ? `<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">🏠 今いる場所：<b style="color:var(--text);">${esc(cowLocation(cow))}</b></div>` : ''}
     ${pendingHTML}
     <div class="st-modes">
       <button class="${_stMode === 'story' ? 'on' : ''}" onclick="_stMode='story';showCowDetail('${esc(cowId)}')">📖 ストーリー</button>
@@ -7304,8 +7323,8 @@ function saveCowNote(cowId, evIdx) {
 async function deleteStoryEvent(cowId, evIdx) {
   const cow = cows.find(c => c.id === cowId);
   const e = cow && (cow.events || [])[evIdx];
-  if (!e || !['note', 'estrus'].includes(e.type)) return;
-  const what = e.type === 'note' ? 'メモ' : (e.skip ? '発情・見送りの記録' : '発情の記録');
+  if (!e || !['note', 'estrus', 'move'].includes(e.type)) return;
+  const what = e.type === 'note' ? 'メモ' : e.type === 'move' ? `移動（${e.to}）` : (e.skip ? '発情・見送りの記録' : '発情の記録');
   if (!await appConfirm(`${fmtDate(e.date)} の${what}を削除しますか？`)) return;
   cow.events.splice(evIdx, 1);
   _rptCache = null;
@@ -8804,6 +8823,16 @@ function herdBulkNoteSave() {
   renderHerdList();
   appAlert(`${T.length}頭に「${text}」を入れました`);
 }
+// 牛群リストで選んだ牛をまとめて移動（子牛で体格の節目に移すときは、1頭ずつ体格を聞く）
+function herdBulkMove() {
+  const T = _herdSelTargets(); if (!T.length) return;
+  const kind = T.every(x => x.kind === 'calf') ? 'calf' : T.every(x => x.kind === 'cow') ? 'cow' : null;
+  if (!kind) { appAlert('親牛と子牛は分けて選んでください'); return; }
+  window._bulkMoveQueue = T.map(x => x.obj.id);
+  const next = () => { const id = (window._bulkMoveQueue || []).shift(); if (id) openMoveDialog(kind, id, window._bulkLastTo || ''); };
+  window._bulkMoveNext = next;
+  next();
+}
 async function herdBulkTag() {
   const T = _herdSelTargets();
   if (!T.length) return;
@@ -8921,6 +8950,7 @@ function renderHerdList() {
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         <button class="st-act" ${_herdSel.size ? '' : 'disabled'} onclick="herdBulkNote()">📝 同じメモ・予定を入れる</button>
         <button class="st-act" ${_herdSel.size ? '' : 'disabled'} onclick="herdBulkTag()">🏷 タグを付ける</button>
+        <button class="st-act" ${_herdSel.size ? '' : 'disabled'} onclick="herdBulkMove()">🏠 まとめて移動</button>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:5px;">行をタップで選ぶ／外す。ワクチン・削蹄・除角など、同じことを何頭にもしたときに使います</div>
     </div>` : ''}
@@ -9299,7 +9329,7 @@ function doUndo() {
 const UNDO_TARGETS = {
   deleteSingleTask: '予定を削除しました', deleteAllTasksForCow: 'この牛の予定を削除しました',
   clearAllTasksFromEdit: '予定を削除しました', clearAllTasksIncludingDoneFromEdit: '予定を削除しました', openDeleteTask: '予定を削除しました',
-  deleteInsemEvent: '授精の記録を削除しました', deleteStoryEvent: '記録を削除しました', deleteCalfNote: 'メモを削除しました', herdBulkNoteSave: 'まとめて入れたメモを取り消しました', deleteCowEvent: '記録を削除しました', deleteInsemRecord: '授精簿の記録を削除しました',
+  deleteInsemEvent: '授精の記録を削除しました', deleteStoryEvent: '記録を削除しました', deleteCalfNote: 'メモを削除しました', deleteCalfMove: '移動を削除しました', herdBulkNoteSave: 'まとめて入れたメモを取り消しました', deleteCowEvent: '記録を削除しました', deleteInsemRecord: '授精簿の記録を削除しました',
   deleteCalvingEntry: '分娩記録を削除しました', deleteMiscarriageRecord: '流産記録を削除しました', deleteRetiredCow: '廃用牛を削除しました',
   deleteCollectionRecord: '採卵記録を削除しました', deleteTransferBookEntry: '移植簿の記録を削除しました', deleteHistoryEdit: '履歴を削除しました',
   deleteInventoryHistory: '在庫の履歴を削除しました', removeContradictPreg: '妊鑑記録を削除しました', removeContradictPregBulk: '妊鑑記録を削除しました',
@@ -21999,6 +22029,188 @@ function renderCalves() {
     }).join('');
 }
 
+
+// ===== 🏠 移動と体格審査（親牛：繁殖舎⇄産室など／子牛：繁殖舎→育成舎①→育成舎②→肥育舎→出荷） =====
+// 親牛は cow.events に {type:'move', date, to}、子牛は calf.moves に {date, to, score(1〜5), memo} を残す。
+// 子牛の体格は、生時（calf.weight）に加えて 育成舎①・育成舎②・出荷 の節目で5段階で入れる（体重は量らない代わり）
+const DEFAULT_BARNS = ['繁殖舎', '産室', '育成舎①', '育成舎②', '肥育舎'];
+const SCORE_STAGES = ['育成舎①', '育成舎②', '出荷'];
+function getBarns() { const b = (typeof farmTargets !== 'undefined' && farmTargets && farmTargets._barns) || null; return Array.isArray(b) && b.length ? b : DEFAULT_BARNS; }
+function cowMoves(cow) { return (cow.events || []).map((e, i) => ({ ...e, _idx: i })).filter(e => e.type === 'move').sort((a, b) => a.date.localeCompare(b.date)); }
+function cowLocation(cow) { const m = cowMoves(cow); return m.length ? m[m.length - 1].to : ''; }
+function calfMoves(calf) { return (calf.moves || []).map((m, i) => ({ ...m, _idx: i })).sort((a, b) => a.date.localeCompare(b.date)); }
+function calfLocation(calf) { const m = calfMoves(calf); return m.length ? m[m.length - 1].to : ''; }
+// 子牛の体格の移り変わり（育成舎①・育成舎②・出荷の節目だけ。生時の体格は評価に入れない）
+function calfScores(calf) {
+  const out = [];
+  calfMoves(calf).forEach(m => { const v = Number(m.score); if (v >= 1 && v <= 5) out.push({ stage: m.to, date: m.date, score: v }); });
+  return out;
+}
+// 1頭の子の判定：出荷の評価があればそれで確定、無ければ一番新しい途中の評価で仮判定（生時は判定に使わない）
+function calfVerdict(calf) {
+  const sc = calfScores(calf);
+  const post = sc;
+  const ship = post.find(x => x.stage === '出荷');
+  const last = ship || post[post.length - 1] || null;
+  if (!last) return null;
+  const seq = sc.map(x => x.score);
+  const declining = seq.length >= 2 && seq.every((v, i) => i === 0 || v < seq[i - 1]);   // 節目ごとに下がっている（例：育成舎①4 → 育成舎②3）
+  let ill = false;
+  try { ill = typeof vetTreatmentsForCalf === 'function' && _vetData && vetTreatmentsForCalf(calf).some(t => !t.hanshoku); } catch (e) {}
+  return { final: !!ship, score: last.score, stage: last.stage, bad: last.score <= 2, declining, ill, seq: sc };
+}
+// 母牛×種雄牛ごとの相性（子の体格評価から）
+function damSireCompat(damId) {
+  const by = {};
+  (typeof calves !== 'undefined' ? calves : []).filter(c => c.damId === damId && c.sire).forEach(c => {
+    const v = calfVerdict(c); if (!v) return;
+    const sire = normalizeSireName(String(c.sire).trim());
+    (by[sire] = by[sire] || []).push({ calf: c, v });
+  });
+  return Object.entries(by).map(([sire, list]) => {
+    const finalBad = list.filter(x => x.v.final && x.v.bad).length;
+    const provBad = list.filter(x => !x.v.final && x.v.bad).length;
+    const level = finalBad >= 1 ? 'avoid' : provBad >= 1 ? 'caution' : 'ok';
+    return { sire, list, finalBad, provBad, level, strong: finalBad + provBad >= 2,
+      avg: Math.round(list.reduce((a, x) => a + x.v.score, 0) / list.length * 10) / 10 };
+  }).sort((a, b) => ({ avoid: 0, caution: 1, ok: 2 }[a.level] - { avoid: 0, caution: 1, ok: 2 }[b.level]) || a.avg - b.avg);
+}
+// 種雄牛ごとの、うちで生まれた子の体格の平均（どの母牛でも伸びない種かを見る）
+function sireScoreSummary(sire) {
+  const n = normalizeSireName(String(sire).trim());
+  const vs = (typeof calves !== 'undefined' ? calves : []).filter(c => c.sire && normalizeSireName(String(c.sire).trim()) === n).map(calfVerdict).filter(Boolean);
+  if (!vs.length) return null;
+  return { n: vs.length, avg: Math.round(vs.reduce((a, v) => a + v.score, 0) / vs.length * 10) / 10, bad: vs.filter(v => v.bad).length };
+}
+function damCompatHTML(damId) {
+  const L = damSireCompat(damId);
+  if (!L.length) return '';
+  const esc = _stEsc;
+  const lbl = { avoid: ['🚫 お勧めしません', '#ef4444'], caution: ['⚠ 注意（途中の評価）', '#f59e0b'], ok: ['✓ 問題なし', '#4ade80'] };
+  return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:6px;">🧬 種雄牛との相性（子の体格評価から）</div>
+    ${L.map(x => { const ss = sireScoreSummary(x.sire); return `<div style="border-top:1px solid rgba(255,255,255,.06);padding:6px 0;">
+      <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;">
+        <b style="font-size:13px;">${esc(x.sire)}</b>
+        <span style="font-size:11px;font-weight:900;color:${lbl[x.level][1]};">${lbl[x.level][0]}${x.strong && x.level !== 'ok' ? '（2頭以上）' : ''}</span>
+      </div>
+      ${x.list.map(({ calf, v }) => `<div style="font-size:11px;color:var(--muted);line-height:1.6;cursor:pointer;" onclick="showCalfStory('${esc(calf.id)}')">
+        ${esc(calf.earTagId || (calf.nationalId ? '個体' + String(calf.nationalId).slice(-4) : '子牛'))} ${fmtDateShort(calf.dob || '')}生：${v.seq.map(q => `${esc(q.stage)}${q.score}`).join(' → ')}
+        ${v.final ? '' : '<span style="color:var(--warn);">（出荷前）</span>'}${v.declining ? ' <span style="color:var(--warn);">伸びが悪い</span>' : ''}${v.ill ? ' <span style="color:#f472b6;">治療歴あり（病気の影響かも）</span>' : ''}</div>`).join('')}
+      ${ss && ss.n > x.list.length ? `<div style="font-size:10px;color:var(--muted);">牧場全体での ${esc(x.sire)} の子：${ss.n}頭・平均 ${ss.avg}${ss.bad ? `（1〜2が${ss.bad}頭）` : ''}</div>` : ''}
+    </div>`; }).join('')}
+    <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5;">出荷のときの体格が1〜2なら「お勧めしません」。出荷前は一番新しい途中の評価（育成舎①・②）で仮に判断しています</div>
+  </div>`;
+}
+// 移動を記録する画面（親牛・子牛共通）。idx を渡すと修正
+function openMoveDialog(kind, id, defTo, idx, taskId) {
+  const obj = kind === 'calf' ? calves.find(c => c.id === id) : cows.find(c => c.id === id);
+  if (!obj) return;
+  const esc = _stEsc;
+  const cur = idx != null ? (kind === 'calf' ? (obj.moves || [])[idx] : (obj.events || [])[idx]) : null;
+  const from = kind === 'calf' ? calfLocation(obj) : cowLocation(obj);
+  const dests = [...getBarns(), ...(kind === 'calf' ? ['出荷'] : [])];
+  const label = kind === 'calf' ? (obj.earTagId || (obj.nationalId ? '個体' + String(obj.nationalId).slice(-4) : '子牛')) : `${obj.id} ${cowDisplayName(obj.id) || ''}`;
+  window._mv = { kind, id, idx, taskId, to: cur ? cur.to : (defTo || ''), score: cur ? Number(cur.score) || 0 : 0 };
+  // 産室から戻すときに一緒に動かせる子牛（この母牛の子で、生まれてから60日以内・まだ育成に出ていない）
+  const kids = kind === 'cow' ? calves.filter(c => c.damId === obj.id && !c.deathDate && c.dob && diffDays(today(), c.dob) <= 60 && !SCORE_STAGES.concat(['肥育舎']).includes(calfLocation(c))) : [];
+  document.getElementById('move-modal')?.remove();
+  const w = document.createElement('div');
+  w.id = 'move-modal';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:16px;';
+  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:420px;max-height:90vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:15px;font-weight:900;">🏠 ${cur ? '移動を修正' : '移動を記録'}</div>
+      <button class="modal-close" onclick="document.getElementById('move-modal').remove()">✕</button>
+    </div>
+    <div style="font-size:13px;font-weight:700;margin-bottom:4px;">${esc(label)}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">今いる場所：${esc(from || '未記録')}</div>
+    <div class="form-group" style="margin-bottom:10px;"><label>日付</label><input type="date" id="mv-date" value="${esc(cur ? cur.date : today())}"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">移動先</div>
+    <div id="mv-dests" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px;">
+      ${dests.map(d => `<button type="button" class="st-act" data-to="${esc(d)}" onclick="_mvSetTo(this.dataset.to)" style="padding:10px 4px;font-size:13px;">${esc(d)}</button>`).join('')}
+    </div>
+    ${kind === 'calf' ? `<div id="mv-score-box" style="margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">体格（5段階：1小〜5大）<span id="mv-score-hint" style="font-weight:400;"></span></div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="st-act mv-sc" data-sc="${n}" onclick="_mvSetScore(${n})" style="padding:10px 0;font-size:16px;font-weight:900;">${n}</button>`).join('')}</div>
+    </div>` : ''}
+    ${kids.length && !cur ? `<label style="display:flex;gap:8px;align-items:center;font-size:12px;margin-bottom:10px;"><input type="checkbox" id="mv-kids" checked style="width:auto;"> 子牛も一緒に移す（${kids.map(k => esc(k.earTagId || ('個体' + String(k.nationalId || '').slice(-4)))).join('・')}）</label>` : ''}
+    <div class="form-group" style="margin-bottom:12px;"><label>メモ</label><input type="text" id="mv-memo" value="${esc(cur ? cur.memo || '' : '')}" placeholder="例：分娩後10日"></div>
+    <button class="btn btn-primary" style="width:100%;" onclick="saveMove()">記録する</button>
+  </div>`;
+  document.body.appendChild(w);
+  _mvSetTo(window._mv.to); if (window._mv.score) _mvSetScore(window._mv.score, true);
+}
+function _mvSetTo(to) {
+  window._mv.to = to;
+  document.querySelectorAll('#mv-dests button').forEach(b => { const on = b.dataset.to === to; b.style.borderColor = on ? 'var(--accent)' : ''; b.style.color = on ? 'var(--accent)' : ''; b.style.fontWeight = on ? '900' : ''; });
+  const h = document.getElementById('mv-score-hint');
+  if (h) h.textContent = SCORE_STAGES.includes(to) ? '　← この節目では入れてください' : '　（入れなくても大丈夫）';
+}
+function _mvSetScore(n, force) {
+  window._mv.score = window._mv.score === n && !force ? 0 : n;   // 同じ数字をもう一度押すと取り消し
+  document.querySelectorAll('.mv-sc').forEach(b => { const on = Number(b.dataset.sc) === window._mv.score; b.style.background = on ? 'var(--accent2)' : ''; b.style.color = on ? '#000' : ''; });
+}
+function saveMove() {
+  const m = window._mv; if (!m) return;
+  const date = document.getElementById('mv-date').value || today();
+  const memo = (document.getElementById('mv-memo').value || '').trim();
+  if (!m.to) { appAlert('移動先を選んでください'); return; }
+  if (m.kind === 'calf' && SCORE_STAGES.includes(m.to) && !m.score) { appAlert(`${m.to}${m.to === '出荷' ? '' : 'へ移す'}ときは、体格（1〜5）も入れてください`); return; }
+  armUndo('移動を記録しました');
+  const moveCalf = (calf, to, score) => {
+    calf.moves = calf.moves || [];
+    const rec = { date, to, memo }; if (score) rec.score = score;
+    calf.moves.push(rec);
+    if (['育成舎①', '育成舎②', '肥育舎', '出荷'].includes(to) && (calf.status || 'active') === 'active') calf.status = 'moved';
+    if (to === '出荷') calf.shipDate = date;
+  };
+  if (m.kind === 'calf') {
+    const calf = calves.find(c => c.id === m.id);
+    if (m.idx != null && calf.moves && calf.moves[m.idx]) { const r = { date, to: m.to, memo }; if (m.score) r.score = m.score; calf.moves[m.idx] = r; if (m.to === '出荷') calf.shipDate = date; }
+    else moveCalf(calf, m.to, m.score);
+  } else {
+    const cow = cows.find(c => c.id === m.id);
+    cow.events = cow.events || [];
+    if (m.idx != null && cow.events[m.idx] && cow.events[m.idx].type === 'move') { cow.events[m.idx].date = date; cow.events[m.idx].to = m.to; cow.events[m.idx].memo = memo; }
+    else {
+      cow.events.push({ type: 'move', date, to: m.to, memo });
+      if (document.getElementById('mv-kids')?.checked) calves.filter(c => c.damId === cow.id && !c.deathDate && c.dob && diffDays(today(), c.dob) <= 60 && !SCORE_STAGES.concat(['肥育舎']).includes(calfLocation(c))).forEach(c => moveCalf(c, m.to, 0));
+    }
+    if (m.taskId) { const t = tasks.find(x => x.id === m.taskId); if (t) { t.done = true; t.doneAt = new Date().toISOString(); } }
+  }
+  save();
+  document.getElementById('move-modal')?.remove();
+  window._bulkLastTo = m.to;
+  try { renderAll(); } catch (e) {}
+  const mc = document.getElementById('modal-cow');
+  if (mc && mc.classList.contains('open')) { if (m.kind === 'calf') showCalfStory(m.id); else showCowDetail(m.id); }
+  // 牛群リストからまとめて移動しているときは、次の牛の画面を開く（最後まで行ったら選択を解除）
+  if (Array.isArray(window._bulkMoveQueue)) {
+    if (window._bulkMoveQueue.length) setTimeout(window._bulkMoveNext, 50);
+    else { window._bulkMoveQueue = null; window._bulkMoveNext = null; _herdSelMode = false; _herdSel.clear(); try { renderHerdList(); } catch (e) {} }
+  }
+}
+async function deleteCalfMove(calfId, idx) {
+  const calf = calves.find(c => c.id === calfId);
+  if (!calf || !(calf.moves || [])[idx]) return;
+  if (!await appConfirm(`${fmtDate(calf.moves[idx].date)} の移動（${calf.moves[idx].to}）を削除しますか？`)) return;
+  calf.moves.splice(idx, 1);
+  if (!calf.moves.some(x => x.to === '出荷')) delete calf.shipDate;
+  save();
+  showCalfStory(calfId);
+}
+// 分娩したら、10日後に「🏠 繁殖舎へ戻す」予定を出す（産室にいる牛だけ・1頭に1つ）
+function syncReturnTasks() {
+  cows.forEach(c => {
+    const mv = cowMoves(c); const last = mv[mv.length - 1];
+    if (!last || last.to !== '産室') return;
+    const cd = c.calvingDate;
+    if (!cd || cd < last.date) return;
+    if (tasks.some(t => t.cowId === c.id && t.action === '🏠 繁殖舎へ戻す' && (!t.done || t.date >= cd))) return;
+    tasks.push({ id: 'rt' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), cowId: c.id, date: addDays(cd, 10), action: '🏠 繁殖舎へ戻す', detail: '産室から繁殖舎へ（子牛も一緒に）', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '' });
+  });
+}
 // ===== 🐮 子牛のストーリー（誕生→治療→保留・移動・死亡→出荷成績） =====
 function _calfIds(calf) { return [calf.earTagId, calf.nationalId].filter(Boolean).map(String); }
 function calfFatteningRec(calf) {
@@ -22048,6 +22260,10 @@ function showCalfStory(calfId) {
     if (fr.unitPrice) fkv.push([Number(fr.unitPrice).toLocaleString() + '円', 'kg単価']);
     items.push({ date: /^\d{4}-\d{2}-\d{2}$/.test(sd) ? sd : (calf.dob || ''), color: '#facc15', title: '🚚 出荷（枝肉成績）', desc: '', kv: fkv, memo: '', acts: [] });
   }
+  // 移動（体格つき）
+  calfMoves(calf).forEach(m => items.push({ date: m.date, color: m.to === '出荷' ? '#facc15' : '#38bdf8', title: m.to === '出荷' ? '🚚 出荷' : `🏠 ${m.to}へ移動`, desc: '',
+    kv: m.score ? [[m.score + ' / 5', '体格']] : [], memo: m.memo || '',
+    acts: [`<button class="st-act" onclick="openMoveDialog('calf','${esc(calf.id)}',null,${m._idx})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteCalfMove('${esc(calf.id)}',${m._idx})">🗑 削除</button>`] }));
   // メモ
   (calf.notes || []).forEach((n, i) => items.push({ date: n.date, color: '#38bdf8', title: '📝 メモ', desc: '', kv: [], memo: n.text,
     acts: [`<button class="st-act" onclick="openCalfNote('${esc(calf.id)}',${i})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteCalfNote('${esc(calf.id)}',${i})">🗑 削除</button>`] }));
@@ -22064,8 +22280,8 @@ function showCalfStory(calfId) {
   const nav = (typeof calves !== 'undefined' ? calves : []).filter(c => !c.deathDate && (c.status || 'active') === 'active').sort((a, b) => (b.dob || '').localeCompare(a.dob || ''));
   const pos = nav.findIndex(c => c.id === calf.id);
   const prevId = pos > 0 ? nav[pos - 1].id : null, nextId = pos >= 0 && pos < nav.length - 1 ? nav[pos + 1].id : null;
-  const filters = [['all', '全部'], ['treat', '治療'], ['note', 'メモ']];
-  const fOf = it => /^💊/.test(it.title) ? 'treat' : /^📝/.test(it.title) ? 'note' : 'other';
+  const filters = [['all', '全部'], ['move', '移動・体格'], ['treat', '治療'], ['note', 'メモ']];
+  const fOf = it => /^💊/.test(it.title) ? 'treat' : /^📝/.test(it.title) ? 'note' : /^(🏠|🚚 出荷$)/.test(it.title) ? 'move' : 'other';
   window._calfStFilter = window._calfStFilter || 'all';
   const shown = past.filter(it => _calfStFilter === 'all' || fOf(it) === _calfStFilter);
   let curYear = '';
@@ -22106,13 +22322,14 @@ function showCalfStory(calfId) {
       ${met(days != null ? fmtAgeDays(days, false) : null, dead ? '死亡時の日齢' : '日齢・月齢')}
       ${met(esc(sexJa), '性別')}
       ${met(esc(calf.breed || ''), '品種')}
-      ${met(calf.birthWeightKg ? calf.birthWeightKg + 'kg' : null, '生時体重')}
-      ${met(calf.weight || calf.size || null, '体格（1小〜5大）')}
+      ${met(esc(calfLocation(calf) || ''), '今いる場所')}
+      ${(() => { const sc = calfScores(calf); const l = sc[sc.length - 1]; return met(l ? `${l.score}<span style="font-size:10px;color:var(--muted);">（${esc(l.stage)}）</span>` : null, '体格（1〜5）'); })()}
       ${met(calf.dob ? calf.dob.slice(2).replace(/-/g, '/') : null, '生年月日')}
       ${met(isEt ? 'ET' : (calf.insemDate ? 'AI' : null), '授精')}
     </div>
     <div class="st-rec">
       <button onclick="openCalfNote('${esc(calf.id)}')">📝<span>メモ・予定</span></button>
+      <button onclick="openMoveDialog('calf','${esc(calf.id)}')">🏠<span>移動</span></button>
       ${calf.nationalId || calf.earTagId ? `<button onclick="openVetTab('${esc(calf.earTagId || calf.nationalId)}')">💊<span>治療</span></button>` : ''}
       <button onclick="closeModal('modal-cow');openEditCalfModal('${esc(calf.id)}')">✏<span>情報を直す</span></button>
       ${calf.damId && cows.some(c => c.id === calf.damId) ? `<button onclick="showCowDetail('${esc(calf.damId)}')">🐄<span>母牛</span></button>` : ''}
@@ -22122,6 +22339,12 @@ function showCalfStory(calfId) {
       ${calf.nationalId ? `個体識別番号 <span style="color:var(--text);font-family:'JetBrains Mono',monospace;">${esc(calf.nationalId)}</span><br>` : ''}
       ${[calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).length ? `🐄 血統 <span style="color:var(--text);font-weight:500;">${esc([calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).join(' × '))}</span>` : ''}
     </div>` : ''}
+    ${(() => { const v = calfVerdict(calf); const sc = calfScores(calf); if (!sc.length) return '';
+      return `<div style="background:var(--bg3);border:1px solid ${v && v.bad ? (v.final ? '#ef4444' : '#f59e0b') : 'var(--border)'};border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;">
+        <b>体格の移り変わり</b>：${sc.map(x => `${esc(x.stage)} <b>${x.score}</b>`).join(' → ')}
+        ${v && v.bad ? `<div style="color:${v.final ? '#ef4444' : '#f59e0b'};margin-top:3px;">${v.final ? '🚫 出荷時の体格が' + v.score + '。母 ' + esc(calf.damId || '') + ' × ' + esc(calf.sire || '') + ' は相性が悪いとみなします' : '⚠ ' + esc(v.stage) + 'で体格' + v.score + '（途中の評価）'}${v.ill ? '（治療歴あり：病気の影響かも）' : ''}</div>` : ''}
+        ${v && v.declining && !v.bad ? '<div style="color:var(--warn);margin-top:3px;">伸びが悪い（だんだん下がっている）</div>' : ''}
+      </div>`; })()}
     <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;margin-bottom:10px;">
       ${(calf.tags || []).map(t => `<span class="herd-tag">${esc(t)}</span>`).join('')}
       <button class="herd-tagbtn" style="color:var(--muted);" onclick="openTagEditor('calf','${esc(calf.id)}')">🏷 ${(calf.tags || []).length ? '編集' : 'タグを付ける'}</button>
@@ -27240,7 +27463,7 @@ document.addEventListener('click', function(e) {
     const id = calfBtn.dataset.calfid;
     const action = calfBtn.dataset.action;
     if (action === 'keep')    { setCalfStatus(id, 'kept'); return; }
-    if (action === 'moved')   { setCalfStatus(id, 'moved'); return; }
+    if (action === 'moved')   { openMoveDialog('calf', id, '育成舎①'); return; }   // 日付・移動先・体格も残す
     if (action === 'active')  { setCalfStatus(id, 'active'); return; }
     if (action === 'delete')  { confirmDeleteCalf(id); return; }
     if (action === 'death')   { recordCalfDeath(id); return; }
