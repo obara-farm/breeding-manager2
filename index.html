@@ -18725,7 +18725,7 @@ function renderTransferBook(){
         return `<div onclick="editTransferBook('${t.id}')" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <span style="font-size:13px;font-weight:700;color:var(--text);">${t.transferDate?fmtDate(t.transferDate):'<span style="color:var(--danger);">移植日未入力</span>'}</span>
-            <div style="display:flex;gap:6px;align-items:center;">${pregBadge}<span style="font-size:11px;color:var(--muted);">${t.farmName||''}</span></div>
+            <div style="display:flex;gap:6px;align-items:center;">${t.damaMoto?'<span style="font-size:10px;border:1px solid var(--warn);color:var(--warn);padding:0 6px;border-radius:4px;font-weight:700;">ダメもと</span>':''}${pregBadge}<span style="font-size:11px;color:var(--muted);">${t.farmName||''}</span></div>
           </div>
           <div style="font-size:12px;color:var(--text);margin-top:4px;">受け牛: <b>${t.recipientName||'（手入力）'}</b>${t.recipientNationalId?' <span style="font-family:monospace;color:var(--muted);font-size:11px;">'+t.recipientNationalId+'</span>':''}</div>
           <div style="font-size:12px;color:var(--info);margin-top:2px;">${t.donor||''}${t.sire?' × '+t.sire:''}${t.embryoNo?' <span style="font-family:monospace;color:var(--muted);">／ '+t.embryoNo+'</span>':''} ${typeBadge}</div>
@@ -18765,6 +18765,7 @@ function editTransferBook(id){
   document.getElementById('tb-e-date').value=t.transferDate||'';
   document.getElementById('tb-e-preg').value=t.pregResult||'';
   document.getElementById('tb-e-pregdate').value=t.pregDate||'';
+  document.getElementById('tb-e-damamoto').checked=!!t.damaMoto;
   document.getElementById('tb-e-farm').value=t.farmName||'';
   document.getElementById('tb-e-recip').value=t.recipientName||'';
   document.getElementById('tb-e-recipid').value=t.recipientNationalId||'';
@@ -18792,6 +18793,7 @@ function saveTransferBookEdit(){
   t.transferDate=document.getElementById('tb-e-date').value;
   t.pregResult=document.getElementById('tb-e-preg').value;
   t.pregDate=document.getElementById('tb-e-pregdate').value;
+  t.damaMoto=document.getElementById('tb-e-damamoto').checked;
   t.farmName=document.getElementById('tb-e-farm').value.trim();
   t.recipientName=document.getElementById('tb-e-recip').value.trim();
   t.recipientNationalId=document.getElementById('tb-e-recipid').value.trim();
@@ -27837,6 +27839,10 @@ try {
       <select id="tb-e-preg" style="font-size:13px;width:100%;"><option value="">未実施</option><option value="+">＋（受胎）</option><option value="-">−（不受胎）</option></select>
     </div>
     <input type="hidden" id="tb-e-pregdate">
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin:0 0 10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;">
+      <input type="checkbox" id="tb-e-damamoto" style="width:auto;margin:0;">
+      <span><b>ダメもと移植</b><span style="color:var(--muted);font-size:10.5px;">（請求書：受胎しなければ卵代・技術料なし）</span></span>
+    </label>
     <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の農家</label><input type="text" id="tb-e-farm" placeholder="農家名" style="font-size:13px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="tb-e-recip" style="font-size:13px;"></div>
