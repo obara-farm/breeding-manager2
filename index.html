@@ -600,20 +600,10 @@ textarea{resize:vertical;}
     <div id="advisor-setting" style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;"></div>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="closeModal('modal-settings');switchTab('history')">📝 変更履歴を見る</button>
 
-    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🐄 らくちく連携設定</div>
-    <div style="background:#0a1a2a;border:1px solid var(--info);border-radius:10px;padding:12px 14px;margin-bottom:20px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">ログイン情報はこの端末のみに保存されます。サーバーには送信されません。</div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">ログインID</label>
-        <input type="text" id="rakuchiku-id" placeholder="らくちくのID" style="font-size:13px;"
-          value="" oninput="saveRakuchikuSettings()">
-      </div>
-      <div class="form-group" style="margin-bottom:8px;">
-        <label style="font-size:12px;">パスワード</label>
-        <input type="password" id="rakuchiku-pw" placeholder="らくちくのパスワード" style="font-size:13px;"
-          value="" oninput="saveRakuchikuSettings()">
-      </div>
-      <div id="rakuchiku-save-status" style="font-size:11px;color:var(--accent);height:16px;"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🐄 らくちく出生報告</div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:12px;line-height:1.7;">
+      らくちくのIDとパスワードはこのツールに保存しません（ログインは自分で）。<br>
+      <button class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:13px;" onclick="closeModal('modal-settings');openBirthReport()">🐄 出生報告の画面を開く</button>
     </div>
 
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">💾 バックアップ</div>
@@ -853,6 +843,7 @@ textarea{resize:vertical;}
     <button class="btn btn-primary" style="font-size:12px;padding:6px 12px;" onclick="openAddCalf()">＋ 子牛を追加</button>
   </div>
   <div id="et-calves-summary" style="display:none;background:#0f0a1a;border:1px solid var(--purple);border-radius:10px;padding:12px 14px;margin-bottom:12px;"></div>
+  <div id="birth-report-alert"></div>
   <div id="calf-move-alert" style="display:none;background:#1a1100;border:1px solid var(--warn);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--warn);"></div>
   <div style="margin-bottom:10px;">
     <input type="text" id="calf-search" placeholder="🔍 耳標・個体識別番号の下4桁で検索（例: 3228）" style="width:100%;margin-bottom:0;" oninput="renderCalves()">
@@ -2735,20 +2726,35 @@ textarea{resize:vertical;}
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-rakuchiku-report">
-  <div class="modal" style="max-width:min(98vw,480px);">
+<div class="modal-overlay" id="modal-birth-report">
+  <div class="modal" style="max-width:min(98vw,620px);">
     <div class="modal-title">
       <span>🐄 らくちく出生報告</span>
-      <button class="modal-close" onclick="closeModal('modal-rakuchiku-report')">✕</button>
+      <button class="modal-close" onclick="closeModal('modal-birth-report')">✕</button>
     </div>
-    <div id="rakuchiku-report-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.8;"></div>
-    <div class="form-group" style="margin-bottom:12px;">
-      <label>子牛ID（個体識別番号・10桁）</label>
-      <input type="text" id="rakuchiku-calf-id" placeholder="例: 1234567890" maxlength="10"
-        style="font-size:16px;letter-spacing:2px;" oninput="this.value=this.value.replace(/\D/g,'')">
+    <div style="font-size:11.5px;color:var(--muted);line-height:1.7;margin-bottom:8px;">
+      報告する子牛にチェック →「📋 コピーしてらくちくを開く」→ らくちくに自分でログインして「出生・分娩報告」の登録画面へ → ブックマークの「らくちく入力」を押す。<br>
+      入力された内容を確認して、<b>申請のチェックと「報告」は自分で</b>押してください。
     </div>
-    <button class="btn btn-primary" onclick="submitRakuchikuReport()" style="width:100%;margin-bottom:8px;">🚀 らくちくで報告する</button>
-    <div style="font-size:11px;color:var(--muted);text-align:center;">らくちくが新しいタブで開きます。内容を確認して申請ボタンを押してください。</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button id="br-tab-todo" onclick="setBirthReportView('todo')" style="flex:1;font-size:12px;font-weight:700;padding:6px;border-radius:8px;cursor:pointer;">まだ報告していない</button>
+      <button id="br-tab-done" onclick="setBirthReportView('done')" style="flex:1;font-size:12px;font-weight:700;padding:6px;border-radius:8px;cursor:pointer;">報告済み（最近）</button>
+    </div>
+    <div id="br-list" style="max-height:52vh;overflow:auto;"></div>
+    <div id="br-actions" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" style="flex:2;min-width:200px;" onclick="copyBirthReport()">📋 コピーしてらくちくを開く</button>
+      <button class="btn btn-secondary" style="flex:1;min-width:140px;" onclick="markBirthReported()">✅ 報告済みにする</button>
+    </div>
+    <details style="margin-top:12px;font-size:12px;">
+      <summary style="cursor:pointer;color:var(--info);font-weight:700;">🔖 ブックマーク「らくちく入力」の作り方（最初の1回だけ）</summary>
+      <div style="line-height:1.8;margin-top:6px;color:var(--text);">
+        <b>パソコン（Edge・Chrome）</b>：下の緑のボタンを、お気に入りバーまでドラッグして離す。<br>
+        <a id="br-bookmarklet" href="#" onclick="event.preventDefault();alert('このボタンは押すのではなく、お気に入りバーにドラッグしてください');" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;padding:6px 14px;border-radius:8px;text-decoration:none;margin:4px 0;">らくちく入力</a><br>
+        <b>iPad・iPhone（Safari）</b>：①このページを適当にブックマークし、名前を「らくちく入力」に変える ②下の「コードをコピー」を押す ③ブックマークを編集して、アドレス欄をコピーした文字に置き換える。<br>
+        <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;margin-top:4px;" onclick="copyBookmarkletCode()">コードをコピー</button>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:6px;">このブックマークはパスワードを使いません。らくちくの画面の欄を見出し（母牛ID・子牛IDなど）で探して入れるだけです。</div>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -20369,7 +20375,7 @@ function openModal(id) {
     }
   }
   document.getElementById(id).classList.add('open');
-  if (id === 'modal-settings') { renderSettingsStats(); loadRakuchikuSettings(); }
+  if (id === 'modal-settings') { renderSettingsStats(); }
 }
 
 // ===== 日付バリデーション =====
@@ -21807,6 +21813,7 @@ function printCalvesList(){
   else { iframe.onload = () => setTimeout(doPrint, 300); setTimeout(doPrint, 800); }
 }
 function renderCalves() {
+  { const ba = document.getElementById('birth-report-alert'); if (ba) ba.innerHTML = birthReportAlertHTML(); }
   updateCalvesBadge();
   const todayStr = today();
   const sexLabel = {雄:'♂ 雄', 雌:'♀ 雌'};
@@ -28929,90 +28936,95 @@ document.getElementById('login-screen').classList.add('active');
 }); // window.onload end
 
 // ★ グローバルヘルパー：イベントのmemoがロット番号形式かどうか判定
-// ===== らくちく連携 =====
-let _rakuchikuReportData = null;
-
-function loadRakuchikuSettings() {
-  const idEl = document.getElementById('rakuchiku-id');
-  const pwEl = document.getElementById('rakuchiku-pw');
-  if (idEl) idEl.value = localStorage.getItem('rakuchiku_id') || '';
-  if (pwEl) pwEl.value = localStorage.getItem('rakuchiku_pw') || '';
+// ===== らくちく出生報告 =====
+// 以前はらくちくのID・パスワードをこの端末に保存して自動ログインしていた。危ないのでやめ、残っている保存も消す。
+try { localStorage.removeItem('rakuchiku_id'); localStorage.removeItem('rakuchiku_pw'); } catch (e) {}
+const RAKUCHIKU_URL = 'https://rakuchiku.jatokachi.jp/SeisanPC/DJL00';
+const RAKUCHIKU_BOOKMARKLET = "(async function(){\nvar H=['母牛ID','子牛ID','出生日','品種','性別','双子区分','出生状態','集荷','授証','哺育','備考','申請','補給金'];\nvar t='';try{t=await navigator.clipboard.readText();}catch(e){}\nif(!/^RKC1:/.test(t||''))t=prompt('繁殖管理の「コピーしてらくちくを開く」でコピーしたデータを、ここに貼り付けてOKを押してください')||'';\nt=t.trim();if(!/^RKC1:/.test(t)){alert('出生報告のデータがありません。繁殖管理でコピーしてからもう一度押してください。');return;}\nvar L;try{L=JSON.parse(decodeURIComponent(escape(atob(t.slice(5)))));}catch(e){alert('データが読めませんでした。もう一度コピーしてください。');return;}\nfunction txt(e){return (e.textContent||'').replace(/\\s/g,'');}\nvar hr=[].slice.call(document.querySelectorAll('tr')).find(function(r){return [].some.call(r.cells,function(c){return txt(c)==='母牛ID';});});\nif(!hr){alert('「出生・分娩報告」の登録画面を開いてから押してください。');return;}\nvar col={};[].forEach.call(hr.cells,function(c,i){var k=txt(c);if(H.indexOf(k)>=0)col[k]=i;});\nvar N=hr.cells.length;\nfunction rows(){return [].slice.call(document.querySelectorAll('tr')).filter(function(r){return r!==hr&&r.cells.length===N&&r.cells[col['母牛ID']]&&r.cells[col['母牛ID']].querySelector('input[type=text],input:not([type])');});}\nfunction inp(r,k){var c=r.cells[col[k]];return c?c.querySelector('input[type=text],input:not([type])'):null;}\nfunction setv(el,v){if(!el)return;el.focus();var d=Object.getOwnPropertyDescriptor(el.tagName==='SELECT'?HTMLSelectElement.prototype:HTMLInputElement.prototype,'value');d.set.call(el,v);['input','change','keyup','blur'].forEach(function(n){el.dispatchEvent(new Event(n,{bubbles:true}));});}\nfunction pick(r,k,label){var c=r.cells[col[k]];if(!c)return false;var s=c.querySelector('select');if(s){var o=[].find.call(s.options,function(o){return txt(o).indexOf(label)>=0;});if(o){setv(s,o.value);return true;}return false;}\n var b=[].slice.call(c.querySelectorAll('button,a,input[type=button],span,div,label')).find(function(e){return txt(e)===label||e.value===label;});if(b){b.click();return true;}return false;}\nfunction chk(r,k,on){var c=r.cells[col[k]];if(!c)return;var x=c.querySelector('input[type=checkbox]');if(x&&x.checked!==on)x.click();}\nvar empty=function(){return rows().filter(function(r){var a=inp(r,'母牛ID'),b=inp(r,'子牛ID');return a&&!a.value&&(!b||!b.value);});};\nvar tries=0;while(empty().length<L.length&&tries<L.length){var add=[].slice.call(document.querySelectorAll('button,a,input[type=button]')).find(function(e){return /出生・分娩牛の追加/.test(txt(e)||e.value||'');});if(!add)break;add.click();tries++;await new Promise(function(s){setTimeout(s,400);});}\nvar E=empty(),done=0,miss=[];\nfor(var i=0;i<L.length;i++){var d=L[i],r=E[i];if(!r){miss.push(d.c||d.m);continue;}\n setv(inp(r,'母牛ID'),d.m);setv(inp(r,'子牛ID'),d.c);setv(inp(r,'出生日'),d.d);\n if(d.b&&!pick(r,'品種',d.b))miss.push((d.c||'')+' 品種');\n if(!pick(r,'性別',d.s==='雄'?'♂':'♀'))miss.push((d.c||'')+' 性別');\n if(!pick(r,'双子区分',d.t?'双子以上':'単子'))miss.push((d.c||'')+' 双子区分');\n chk(r,'集荷',true);chk(r,'授証',!!d.a);\n r.style.outline='3px solid #f59e0b';done++;}\nalert(done+'頭分を入力しました（オレンジの枠の行）。'+(miss.length?'\\n入らなかった所：'+miss.join('、'):'')+'\\n\\n内容を確認してから、申請にチェックして「報告」を押してください。');\n})();";
+const BIRTH_REPORT_DAYS = 90;   // 生まれてから何日以内の子牛を「まだ報告していない」に出すか
+let _brView = 'todo', _brSel = new Set();
+function birthReportCandidates(view) {
+  const from = addDays(today(), -BIRTH_REPORT_DAYS);
+  return calves.filter(c => c.dob && c.status !== 'dead' && (view === 'done' ? (c.birthReportedAt && c.birthReportedAt >= addDays(today(), -60)) : (!c.birthReportedAt && c.dob >= from)))
+    .sort((a, b) => b.dob.localeCompare(a.dob));
 }
-
-function saveRakuchikuSettings() {
-  localStorage.setItem('rakuchiku_id', document.getElementById('rakuchiku-id')?.value || '');
-  localStorage.setItem('rakuchiku_pw', document.getElementById('rakuchiku-pw')?.value || '');
-  const status = document.getElementById('rakuchiku-save-status');
-  if (status) { status.textContent = '✓ 保存しました'; setTimeout(() => { status.textContent = ''; }, 2000); }
+function _brTwin(c) {
+  const cr = (typeof calvingRecords !== 'undefined' ? calvingRecords : []).find(r => r.id === c.calvingRecordId);
+  if (cr && cr.twin) return true;
+  return calves.filter(x => x.damId === c.damId && x.dob === c.dob).length > 1;
 }
-
-function openRakuchikuReport() {
-  const cowId = document.getElementById('cr-cowid')?.value;
-  const calvingDate = document.getElementById('cr-date')?.value;
-  const sex = document.getElementById('cr-sex')?.value;
-  const isTwin = document.getElementById('cr-twin')?.checked;
-  const cow = cows.find(c => c.id === cowId);
-  if (!cow || !calvingDate) { alert('分娩記録を先に保存してください'); return; }
-  const operator = document.getElementById('cr-operator')?.value || '';
-  const isExternalOp = operator && !['小原','obara','OBARA'].some(n => operator.toLowerCase().includes(n.toLowerCase()));
-  const breedMap = {'黒毛':'黒毛和種','褐毛':'褐毛和種','ホルスタイン':'ホルスタイン','F1':'F1'};
-  const breed = breedMap[cow.breed] || '黒毛和種';
-  const sexLabel = sex === 'bull' ? '♂' : sex === 'heifer' ? '♀' : '不明';
-  _rakuchikuReportData = { cowId, calvingDate, sex, sexLabel, isTwin, breed,
-    motherNatId: cow.nationalId || '', isExternalOp,
-    cowName: cowDisplayName(cowId) || cow.name || cowId };
-  const info = document.getElementById('rakuchiku-report-info');
-  if (info) info.innerHTML =
-    `<div style="color:var(--muted);font-size:11px;margin-bottom:4px;">報告内容</div>` +
-    `<div>🐄 母牛：${_rakuchikuReportData.cowName}（${cow.nationalId || '耳標なし'}）</div>` +
-    `<div>📅 出生日：${calvingDate}</div><div>品種：${breed}　性別：${sexLabel}</div>` +
-    `<div>双子：${isTwin ? '双子以上' : '単子'}　出生状態：正常</div>` +
-    `<div>授証：${isExternalOp ? 'なし（外部術者）' : 'あり（自院）'}　集荷：✓　補給金：全✓</div>`;
-  document.getElementById('rakuchiku-calf-id').value = '';
-  closeModal('modal-calving-record');
-  openModal('modal-rakuchiku-report');
+function _brDamNatId(c) {
+  const cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId);
+  return String((cow && cow.nationalId) || '').replace(/\D/g, '');
 }
-
-function submitRakuchikuReport() {
-  const calfId = (document.getElementById('rakuchiku-calf-id')?.value || '').replace(/\D/g,'');
-  if (calfId.length !== 10) { alert('子牛IDは10桁で入力してください'); return; }
-  if (!_rakuchikuReportData) { alert('データが不正です'); return; }
-  const d = _rakuchikuReportData;
-  // 子牛IDをcalvesに反映
-  const calf = calves.find(c => c.damId === d.cowId && c.birthDate === d.calvingDate && !c.nationalId);
-  if (calf) { calf.nationalId = calfId; save(); }
-  const rakuId = localStorage.getItem('rakuchiku_id') || '';
-  const rakuPw = localStorage.getItem('rakuchiku_pw') || '';
-  const calvDate = d.calvingDate.replace(/-/g,'/');
-  const sexVal = d.sex === 'bull' ? '1' : '2';
-  const twinVal = d.isTwin ? '2' : '1';
-  const certChk = d.isExternalOp ? 'false' : 'true';
-  const script = `(function(){
-  var id=document.querySelector('[name="userId"],[name="id"],[name="loginId"],#userId,#loginId');
-  var pw=document.querySelector('[name="password"],#password');
-  if(id&&pw){id.value='${rakuId}';pw.value='${rakuPw}';
-    var btn=document.querySelector('[type="submit"],#loginBtn,.login-btn');
-    if(btn){btn.click();alert('ログイン中...報告画面に進んだら再度実行');}return;}
-  function sv(s,v){var e=document.querySelector(s);if(e){e.value=v;e.dispatchEvent(new Event('change'));e.dispatchEvent(new Event('input'));}}
-  function sc(s,v){var e=document.querySelector(s);if(e)e.checked=v;}
-  setTimeout(function(){
-    sv('[name="motherCattleId"],[name="damId"]','${d.motherNatId}');
-    sv('[name="childCattleId"],[name="calfId"]','${calfId}');
-    sv('[name="birthDate"]','${calvDate}');
-    sv('[name="sex"]','${sexVal}');
-    sv('[name="twins"]','${twinVal}');
-    sv('[name="birthCondition"]','1');
-    sc('[name="collection"]',true);
-    sc('[name="authCert"]',${certChk});
-    sc('[name="nursing"]',false);
-    document.querySelectorAll('input[type="checkbox"]').forEach(function(e){if(e.name&&e.name.match(/subsidy|supplement|hogo|補給/i))e.checked=true;});
-    alert('✓ 入力完了！内容確認して申請ボタンを押してください');
-  },800);
-})();`;
-  navigator.clipboard.writeText(script).catch(() => {});
-  window.open('https://rakuchiku.jatokachi.jp/SeisanPC/DLL60', '_blank');
-  closeModal('modal-rakuchiku-report');
-  alert('✓ らくちくを新しいタブで開きました\n\nF12→Consoleに貼り付けてEnter\n（クリップボードにコピー済み）\n\n子牛ID: ' + calfId + ' をデータに反映しました');
+function openBirthReport(view) {
+  _brView = view || 'todo';
+  _brSel = new Set(birthReportCandidates('todo').map(c => c.id));
+  const a = document.getElementById('br-bookmarklet');
+  if (a) a.setAttribute('href', 'javascript:' + encodeURIComponent(RAKUCHIKU_BOOKMARKLET));
+  renderBirthReport();
+  openModal('modal-birth-report');
+}
+// 分娩記録の保存後の「らくちく出生報告」ボタン（前の仕組みの入口をそのまま使う）
+function openRakuchikuReport() { openBirthReport('todo'); }
+function setBirthReportView(v) { _brView = v; renderBirthReport(); }
+function renderBirthReport() {
+  const list = birthReportCandidates(_brView);
+  ['todo', 'done'].forEach(v => { const b = document.getElementById('br-tab-' + v); if (b) b.style.cssText += _brView === v ? ';background:var(--accent2);color:#000;border:none;' : ';background:var(--bg3);color:var(--muted);border:1px solid var(--border);'; });
+  document.getElementById('br-actions').style.display = _brView === 'todo' ? 'flex' : 'none';
+  const box = document.getElementById('br-list');
+  if (!list.length) { box.innerHTML = `<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px;">${_brView === 'todo' ? 'まだ報告していない子牛はいません（生まれて' + BIRTH_REPORT_DAYS + '日以内）' : '最近報告済みにした子牛はいません'}</div>`; return; }
+  box.innerHTML = list.map(c => {
+    const dam = _brDamNatId(c), nat = String(c.nationalId || '').replace(/\D/g, '');
+    const bad = [];
+    if (nat.length !== 10) bad.push('子牛ID');
+    if (dam.length !== 10) bad.push('母牛ID');
+    const sexMark = c.sex === '雄' ? '♂' : c.sex === '雌' ? '♀' : '？';
+    return `<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 4px;border-bottom:1px solid var(--border);">
+      ${_brView === 'todo' ? `<input type="checkbox" ${_brSel.has(c.id) ? 'checked' : ''} onchange="this.checked?_brSel.add('${c.id}'):_brSel.delete('${c.id}')" style="width:20px;height:20px;margin-top:2px;flex-shrink:0;">` : ''}
+      <div style="flex:1;font-size:12px;line-height:1.7;">
+        <div><b>${fmtDate(c.dob)}</b>　${_stEsc(c.breed || '')}　${sexMark}${_brTwin(c) ? '　双子' : ''}　<span style="color:var(--muted);">母 ${_stEsc(cowDisplayName(c.damId) || c.damId || '')}</span></div>
+        <div style="font-family:monospace;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">子 ${nat.length === 10 || _brView !== 'todo' ? (nat || '—') : `<input type="text" inputmode="numeric" maxlength="10" value="${nat}" placeholder="子牛の個体識別番号10桁" onchange="brSetNat('${c.id}',this.value)" style="width:150px;font-size:14px;padding:3px 6px;letter-spacing:1px;margin:0;">`}　母 ${dam || '<span style="color:var(--danger);">未入力</span>'}</div>
+        ${_brView === 'todo' ? `<label style="font-size:11px;color:var(--muted);"><input type="checkbox" ${c.noAuthCert ? '' : 'checked'} onchange="brSetAuth('${c.id}',this.checked)" style="width:auto;margin:0 3px 0 0;">授証（授精証明あり）</label>` : `<span style="font-size:11px;color:var(--accent);">✅ ${fmtDate(c.birthReportedAt)} 報告済み</span> <button onclick="undoBirthReported('${c.id}')" style="font-size:10px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:1px 6px;cursor:pointer;">戻す</button>`}
+        ${bad.length && _brView === 'todo' ? `<div style="font-size:11px;color:var(--danger);">⚠ ${bad.join('・')}が10桁になっていません${bad.includes('母牛ID') ? '（母牛IDは母牛カードで直してください）' : ''}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function brSetNat(id, v) {
+  const c = calves.find(x => x.id === id); if (!c) return;
+  const d = String(v || '').replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).replace(/\D/g, '');
+  c.nationalId = d; save(); renderBirthReport();
+}
+function brSetAuth(id, on) { const c = calves.find(x => x.id === id); if (!c) return; if (on) delete c.noAuthCert; else c.noAuthCert = true; save(); }
+function _brSelected() { return birthReportCandidates('todo').filter(c => _brSel.has(c.id)); }
+function copyBirthReport() {
+  const sel = _brSelected();
+  if (!sel.length) { alert('報告する子牛にチェックを入れてください'); return; }
+  const ng = sel.filter(c => String(c.nationalId || '').replace(/\D/g, '').length !== 10 || _brDamNatId(c).length !== 10);
+  if (ng.length) { alert(`個体識別番号が10桁になっていない子牛が ${ng.length} 頭あります。番号を入れるか、チェックを外してください。`); return; }
+  const data = sel.map(c => ({ m: _brDamNatId(c), c: String(c.nationalId || '').replace(/\D/g, ''), d: c.dob.replace(/-/g, '/'), b: c.breed || '', s: c.sex || '', t: _brTwin(c), a: !c.noAuthCert }));
+  const code = 'RKC1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const done = () => { window.open(RAKUCHIKU_URL, '_blank'); };
+  (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(done).catch(() => { prompt('このデータをコピーしてください', code); done(); });
+}
+function copyBookmarkletCode() {
+  const code = 'javascript:' + encodeURIComponent(RAKUCHIKU_BOOKMARKLET);
+  (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => alert('コピーしました。ブックマークのアドレス欄に貼り付けてください')).catch(() => prompt('このコードをコピーしてください', code));
+}
+async function markBirthReported() {
+  const sel = _brSelected();
+  if (!sel.length) { alert('報告済みにする子牛にチェックを入れてください'); return; }
+  if (!await appConfirm(`${sel.length}頭を「報告済み」にします。らくちくで「報告」まで押しましたか？`)) return;
+  const d = today();
+  sel.forEach(c => { c.birthReportedAt = d; });
+  save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves();
+}
+function undoBirthReported(id) { const c = calves.find(x => x.id === id); if (!c) return; delete c.birthReportedAt; save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves(); }
+function birthReportAlertHTML() {
+  const n = birthReportCandidates('todo').length;
+  if (!n) return '';
+  return `<div onclick="openBirthReport()" style="cursor:pointer;background:rgba(56,189,248,.08);border:1px solid var(--info);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--info);display:flex;align-items:center;gap:8px;">🐄 出生報告がまだの子牛 <b>${n}頭</b><span style="margin-left:auto;font-size:12px;font-weight:700;">らくちく出生報告 ›</span></div>`;
 }
 
 function isLotMemo(e) {
