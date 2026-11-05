@@ -28953,6 +28953,25 @@ function _brTwin(c) {
   if (cr && cr.twin) return true;
   return calves.filter(x => x.damId === c.damId && x.dob === c.dob).length > 1;
 }
+// 子牛の元になった授精・移植の術者（授精簿の術者欄・記録のメモ。空欄＝自分）
+function _brOperator(c) {
+  if (!c.insemDate || !c.damId) return { found: false, op: '' };
+  const recs = (typeof _stInsemBookRecs === 'function' ? _stInsemBookRecs(c.damId) : []).filter(r => r.d === c.insemDate);
+  const cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId);
+  const evs = ((cow && cow.events) || []).filter(e => e.date === c.insemDate && ['ai_done', 'et_done', 'ai', 'et'].includes(e.type));
+  if (!recs.length && !evs.length) return { found: false, op: '' };
+  let op = '';
+  recs.forEach(r => { const v = String(r.op || '').replace(/在庫反映.*$/, '').trim(); if (!op && v) op = v; });
+  evs.forEach(e => { const m = String(e.memo || '').match(/術者:([^／\s]+)/); if (!op && m) op = m[1].trim(); });
+  op = op.replace(/在庫反映.*$/, '').replace(/[\s\u3000].*$/, '').trim();   // 「TBS　在庫反映なし」「在庫反映なし」のようなメモは術者ではない
+  return { found: true, op };
+}
+// 授証：自分が授精・移植した子牛だけチェック。手で変えたときはそれを優先
+function _brAuth(c) {
+  if (c.authCertManual === true || c.authCertManual === false) return c.authCertManual;
+  if (c.noAuthCert) return false;
+  return !_brOperator(c).op;
+}
 function _brDamNatId(c) {
   const cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId);
   return String((cow && cow.nationalId) || '').replace(/\D/g, '');
@@ -28985,7 +29004,9 @@ function renderBirthReport() {
       <div style="flex:1;font-size:12px;line-height:1.7;">
         <div><b>${fmtDate(c.dob)}</b>　${_stEsc(c.breed || '')}　${sexMark}${_brTwin(c) ? '　双子' : ''}　<span style="color:var(--muted);">母 ${_stEsc(cowDisplayName(c.damId) || c.damId || '')}</span></div>
         <div style="font-family:monospace;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">子 ${nat.length === 10 || _brView !== 'todo' ? (nat || '—') : `<input type="text" inputmode="numeric" maxlength="10" value="${nat}" placeholder="子牛の個体識別番号10桁" onchange="brSetNat('${c.id}',this.value)" style="width:150px;font-size:14px;padding:3px 6px;letter-spacing:1px;margin:0;">`}　母 ${dam || '<span style="color:var(--danger);">未入力</span>'}</div>
-        ${_brView === 'todo' ? `<label style="font-size:11px;color:var(--muted);"><input type="checkbox" ${c.noAuthCert ? '' : 'checked'} onchange="brSetAuth('${c.id}',this.checked)" style="width:auto;margin:0 3px 0 0;">授証（授精証明あり）</label>` : `<span style="font-size:11px;color:var(--accent);">✅ ${fmtDate(c.birthReportedAt)} 報告済み</span> <button onclick="undoBirthReported('${c.id}')" style="font-size:10px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:1px 6px;cursor:pointer;">戻す</button>`}
+        ${_brView === 'todo' ? `${(() => { const o = _brOperator(c), on = _brAuth(c);
+          const why = !o.found ? '<span style="color:var(--warn);">授精の記録が見つからない・確認してください</span>' : o.op ? '術者：' + _stEsc(o.op) + '（自分以外）' : '術者：自分';
+          return `<label style="font-size:11px;color:var(--muted);"><input type="checkbox" ${on ? 'checked' : ''} onchange="brSetAuth('${c.id}',this.checked)" style="width:auto;margin:0 3px 0 0;">授証（授精証明あり）</label> <span style="font-size:10.5px;color:var(--muted);">${why}${c.authCertManual != null ? '・手で変更' : ''}</span>`; })()}` : `<span style="font-size:11px;color:var(--accent);">✅ ${fmtDate(c.birthReportedAt)} 報告済み</span> <button onclick="undoBirthReported('${c.id}')" style="font-size:10px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:1px 6px;cursor:pointer;">戻す</button>`}
         ${bad.length && _brView === 'todo' ? `<div style="font-size:11px;color:var(--danger);">⚠ ${bad.join('・')}が10桁になっていません${bad.includes('母牛ID') ? '（母牛IDは母牛カードで直してください）' : ''}</div>` : ''}
       </div>
     </div>`;
@@ -28996,14 +29017,19 @@ function brSetNat(id, v) {
   const d = String(v || '').replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).replace(/\D/g, '');
   c.nationalId = d; save(); renderBirthReport();
 }
-function brSetAuth(id, on) { const c = calves.find(x => x.id === id); if (!c) return; if (on) delete c.noAuthCert; else c.noAuthCert = true; save(); }
+function brSetAuth(id, on) {
+  const c = calves.find(x => x.id === id); if (!c) return;
+  delete c.noAuthCert;
+  if (on === !_brOperator(c).op && _brOperator(c).found) delete c.authCertManual; else c.authCertManual = !!on;
+  save(); renderBirthReport();
+}
 function _brSelected() { return birthReportCandidates('todo').filter(c => _brSel.has(c.id)); }
 function copyBirthReport() {
   const sel = _brSelected();
   if (!sel.length) { alert('報告する子牛にチェックを入れてください'); return; }
   const ng = sel.filter(c => String(c.nationalId || '').replace(/\D/g, '').length !== 10 || _brDamNatId(c).length !== 10);
   if (ng.length) { alert(`個体識別番号が10桁になっていない子牛が ${ng.length} 頭あります。番号を入れるか、チェックを外してください。`); return; }
-  const data = sel.map(c => ({ m: _brDamNatId(c), c: String(c.nationalId || '').replace(/\D/g, ''), d: c.dob.replace(/-/g, '/'), b: c.breed || '', s: c.sex || '', t: _brTwin(c), a: !c.noAuthCert }));
+  const data = sel.map(c => ({ m: _brDamNatId(c), c: String(c.nationalId || '').replace(/\D/g, ''), d: c.dob.replace(/-/g, '/'), b: c.breed || '', s: c.sex || '', t: _brTwin(c), a: _brAuth(c) }));
   const code = 'RKC1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
   const done = () => { window.open(RAKUCHIKU_URL, '_blank'); };
   (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(done).catch(() => { prompt('このデータをコピーしてください', code); done(); });
