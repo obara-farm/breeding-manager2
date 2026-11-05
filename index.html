@@ -2178,6 +2178,15 @@ textarea{resize:vertical;}
           <input type="text" id="edit-cow-maternal-sire" placeholder="重川6の4" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:8px 6px;color:var(--text);font-size:13px;text-align:center;outline:none;width:100%;">
           <span style="color:var(--muted);font-size:13px;text-align:center;">）</span>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;">
+          <span style="color:var(--muted);font-weight:700;white-space:nowrap;">生まれ</span>
+          <select id="edit-cow-origin" style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 6px;color:var(--text);font-size:13px;">
+            <option value="">自動（子牛の記録から判断）</option>
+            <option value="et">🧬 ET産仔（母＝ドナー）</option>
+            <option value="donor">👑 ドナー牛から直接生まれた</option>
+            <option value="none">どちらでもない</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -5584,6 +5593,13 @@ function renderCowList() {
       : cow.role === 'donor'
       ? '<span style="background:#1f1600;border:1px solid #b45309;color:#fbbf24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;">🟡 ドナー</span>'
       : '';
+    // 生まれ：ET産仔／ドナー牛から直接生まれた
+    const originBadge = (() => {
+      const o = cowBirthOrigin(cow);
+      if (!o) return '';
+      if (o.kind === 'et') return `<span title="${o.recip ? '受卵牛：' + _stEsc(o.recip) : ''}" style="background:rgba(167,139,250,.12);border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;white-space:nowrap;">🧬 ET産仔 ${_stEsc(o.donor || '')}${o.sire ? '×' + _stEsc(o.sire) : ''}</span>`;
+      return `<span title="${o.sure ? '' : '子牛の記録がないため、母の名前がドナー牛と同じことから判断'}" style="background:#1f1600;border:1px solid #b45309;color:#fbbf24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;white-space:nowrap;">👑 ドナーの子 母:${_stEsc(o.donor || '')}${o.sure ? '' : '？'}</span>`;
+    })();
     // 手動マークが無い牛にだけ、成績ベースの提案を控えめに出す
     let roleSuggestBadge = '';
     if (!cow.role) {
@@ -5632,7 +5648,7 @@ function renderCowList() {
     return `<div class="cow-card" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
-          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${roleSuggestBadge}${abortionRiskBadge(cow.id)}</div>
+          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${originBadge}${roleSuggestBadge}${abortionRiskBadge(cow.id)}</div>
           ${(cow.sire||cow.maternalSire) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</div>` : ''}
           ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
@@ -11027,6 +11043,7 @@ function openEditCow(cowId) {
   setNatId('edit-cow-national', cow.nationalId || (master ? master.nationalId : ''));
   document.getElementById('edit-cow-sire').value = cow.sire || '';
   document.getElementById('edit-cow-dam').value = cow.dam || '';
+  document.getElementById('edit-cow-origin').value = cow.birthOrigin || '';
   document.getElementById('edit-cow-maternal-sire').value = cow.maternalSire || '';
   document.getElementById('edit-cow-reg-org').value = cow.regOrg || regOrgByBreed(cow.breed);
   document.getElementById('edit-cow-reg-no').value = cow.regNo || '';
@@ -11072,6 +11089,7 @@ function saveEditCow() {
   cow.nationalId = getNatId('edit-cow-national') || cow.nationalId;
   cow.sire       = document.getElementById('edit-cow-sire').value.trim();
   cow.dam        = document.getElementById('edit-cow-dam').value.trim();
+  { const o = document.getElementById('edit-cow-origin').value; if (o) cow.birthOrigin = o; else delete cow.birthOrigin; }
   cow.maternalSire = document.getElementById('edit-cow-maternal-sire').value.trim();
   cow.regOrg = document.getElementById('edit-cow-reg-org').value.trim();
   cow.regNo  = document.getElementById('edit-cow-reg-no').value.trim();
@@ -28980,6 +28998,35 @@ function _brNote(c) {
   if (donor && cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []).some(x => x.id === donor)) donor = cowDisplayName(donor) || donor;
   const sire = String(c.sire || '').trim();
   return donor || sire ? `${donor || '—'}×${sire || '—'}` : '';
+}
+// 個体の生まれ：ET産仔か、ドナー牛から直接生まれた牛か
+function _donorCowNames() {
+  const all = cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []);
+  const set = new Set();
+  all.forEach(c => { if (c.role === 'donor' || c.isDonor || (c.events || []).some(e => DONOR_PROG_TYPES.includes(e.type))) { const n = cowDisplayName(c.id) || c.name; if (n) set.add(String(n).replace(/★/g, '').trim()); } });
+  return set;
+}
+function cowBirthOrigin(cow) {
+  if (!cow) return null;
+  const clean = v => String(v || '').replace(/★/g, '').trim();
+  if (cow.birthOrigin === 'none') return null;
+  if (cow.birthOrigin === 'et') return { kind: 'et', donor: clean(cow.dam), sire: cow.sire || '', sure: true };
+  if (cow.birthOrigin === 'donor') return { kind: 'donor', donor: clean(cow.dam), sure: true };
+  const calf = (typeof calves !== 'undefined' ? calves : []).find(c => c.earTagId === cow.id || (cow.nationalId && c.nationalId === cow.nationalId));
+  const donors = _donorCowNames();
+  if (calf) {
+    if (calf.insemType === 'et' || calf.donor) {
+      let d = String(calf.donor || '').trim();
+      if (d && cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []).some(x => x.id === d)) d = cowDisplayName(d) || d;
+      return { kind: 'et', donor: clean(d || cow.dam), sire: calf.sire || cow.sire || '', recip: calf.damId ? (calf.damId + ' ' + (cowDisplayName(calf.damId) || '')).trim() : '', sure: true };
+    }
+    const damName = clean(cowDisplayName(calf.damId) || '');
+    if (damName && donors.has(damName)) return { kind: 'donor', donor: damName, sure: true };
+    return null;
+  }
+  // 子牛の記録がない牛（前からいる牛）：母の名前がドナー牛と同じなら「ドナーの子？」
+  if (cow.dam && donors.has(clean(cow.dam))) return { kind: 'donor', donor: clean(cow.dam), sure: false };
+  return null;
 }
 function _brDamNatId(c) {
   const cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId);
