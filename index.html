@@ -3284,8 +3284,26 @@ function syncRecipientPlaceholders() {
     else if (!allDone && t.done && t._autoDone) { t.done = false; t.doneAt = null; delete t._autoDone; }
   });
 }
+// AI・ETの予定は、その牛にAI・ETの記録（予定日の3日前〜7日後）が入ったら自動で済みにする。
+// （タスクのチェック→記録画面で保存したあと、もう一度チェックし直さなくていいように）
+function syncInsemTasks() {
+  tasks.forEach(t => {
+    if (t.done) return;
+    const act = String(t.action || '');
+    const isAi = act === '人工授精（AI）' || act === '発情確認・AI実施';
+    const isEt = act === '胚移植（ET）' || act.startsWith('胚移植（ET）');
+    if (!isAi && !isEt) return;
+    const cow = cows.find(c => c.id === t.cowId);
+    if (!cow) return;
+    const types = isEt ? ['et_done'] : ['ai_done', 'estrus_ai'];
+    if ((cow.events || []).some(e => types.includes(e.type) && diffDays(e.date, t.date) >= -3 && diffDays(e.date, t.date) <= 7)) {
+      t.done = true; t.doneAt = new Date().toISOString(); t._autoDone = true;
+    }
+  });
+}
 function save() {
   try { syncRecipientPlaceholders(); } catch (e) { console.error('syncRecipientPlaceholders', e); }
+  try { syncInsemTasks(); } catch (e) { console.error('syncInsemTasks', e); }
   try { cows.forEach(normalizePregEvents); } catch (e) { console.error('normalizePregEvents', e); }
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
@@ -4621,9 +4639,19 @@ function toggleTask(id) {
       return;
     }
 
-    // ET実施タスクをチェック → ET詳細記録モーダルを開く
+    // ET実施タスクをチェック → 種付けタブと同じ記録画面（処置追加・ET）を開く
+    // （以前の「ET記録」画面は胚ステージのボタンが表示されない不具合があったので使わない）
     if (task.action === '胚移植（ET）' || task.action.startsWith('胚移植（ET）')) {
-      openEtRecord(task.id, task.cowId, task.date);
+      const cowForEtCheck = cows.find(c => c.id === task.cowId);
+      const alreadyEt = cowForEtCheck && (cowForEtCheck.events || []).some(e => e.type === 'et_done' && Math.abs(diffDays(e.date, task.date)) <= 7);
+      if (alreadyEt) { save(); renderAll(); return; }   // 種付けタブなどで記録済みなら、そのまま済みにする
+      task.done = false; task.doneAt = null;   // 記録を保存したら自動で済みになる（syncInsemTasks）
+      save(); renderAll();
+      addEventForCow(task.cowId, 'et_done');
+      document.getElementById('qr-date').value = task.date;
+      if (document.getElementById('qr-memo')) document.getElementById('qr-memo').value = task.memo || '';
+      if (typeof onQrDateChange === 'function') onQrDateChange();
+      return;
     }
   }
   save();
@@ -8533,7 +8561,8 @@ function _herdLoadLists() {
   if (_herdLists !== null) return;
   try { _herdLists = JSON.parse(localStorage.getItem('herdLists') || '[]'); } catch (e) { _herdLists = []; }
   try {
-    if (typeof db !== 'undefined' && typeof CANONICAL_UID !== 'undefined') {
+    const db = window._fbDb, CANONICAL_UID = window._CANON_UID;   // 起動処理の中の db は外から見えないため
+    if (db && CANONICAL_UID) {
       db.ref('data/' + CANONICAL_UID + '/herdLists').once('value').then(snap => {
         const v = snap.val();
         if (v) { _herdLists = typeof v === 'string' ? JSON.parse(v) : v; try { localStorage.setItem('herdLists', JSON.stringify(_herdLists)); } catch (e) {} renderHerdList(); }
@@ -8544,7 +8573,8 @@ function _herdLoadLists() {
 function _herdSaveLists() {
   try { localStorage.setItem('herdLists', JSON.stringify(_herdLists)); } catch (e) {}
   try {
-    if (typeof db !== 'undefined' && typeof CANONICAL_UID !== 'undefined')
+    const db = window._fbDb, CANONICAL_UID = window._CANON_UID;
+    if (db && CANONICAL_UID)
       db.ref('data/' + CANONICAL_UID + '/herdLists').set(JSON.stringify(_herdLists)).catch(() => {});
   } catch (e) {}
 }
@@ -8911,7 +8941,10 @@ let _vetSyncStarted = false;
 function startVetSync() {
   if (_vetSyncStarted) return;
   try {
-    if (typeof db === 'undefined' || typeof CANONICAL_UID === 'undefined') return;
+    // db・CANONICAL_UID は起動処理の中で作られて外から見えないので、ログイン時に共有したものを使う
+    // （以前は typeof db が常に 'undefined' になり、薬品管理のデータが一度も読み込まれていなかった）
+    const db = window._fbDb, CANONICAL_UID = window._CANON_UID;
+    if (!db || !CANONICAL_UID) return;
     _vetSyncStarted = true;
     db.ref('vet/' + CANONICAL_UID).on('value', snap => {
       const d = snap.val() || {};
@@ -28174,6 +28207,7 @@ auth.onAuthStateChanged(user => {
     _syncStarted = true;
     dbRef = db.ref('data/' + CANONICAL_UID);
     window._dbRef = dbRef;   // 起動処理の外（initApp など）から使えるように
+    window._fbDb = db; window._CANON_UID = CANONICAL_UID;   // 薬品管理データの読み込み（startVetSync）用
     try { if (typeof startVetSync === 'function') startVetSync(); } catch (e) {}   // 薬品管理データ（読み取りのみ）
     initFirebaseSync();
   } else {
