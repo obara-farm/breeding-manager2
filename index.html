@@ -2761,6 +2761,8 @@ textarea{resize:vertical;}
         <a id="br-bookmarklet" href="#" onclick="event.preventDefault();alert('このボタンは押すのではなく、お気に入りバーにドラッグしてください');" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;padding:6px 14px;border-radius:8px;text-decoration:none;margin:4px 0;">らくちく入力</a><br>
         <b>iPad・iPhone（Safari）</b>：①このページを適当にブックマークし、名前を「らくちく入力」に変える ②下の「コードをコピー」を押す ③ブックマークを編集して、アドレス欄をコピーした文字に置き換える。<br>
         <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;margin-top:4px;" onclick="copyBookmarkletCode()">コードをコピー</button>
+        <div style="margin-top:10px;"><b>らくちく調査</b>（うまく報告できないときに使う）：下のオレンジのボタンをお気に入りバーにドラッグ。iPad・iPhoneは「調査用コードをコピー」で。</div>
+        <a id="br-diag-bookmarklet" href="#" onclick="event.preventDefault();alert('このボタンは押すのではなく、お気に入りバーにドラッグしてください');" style="display:inline-block;background:#c2410c;color:#fff;font-weight:700;padding:6px 14px;border-radius:8px;text-decoration:none;margin:4px 6px 0 0;">らくちく調査</a>
         <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px;margin-top:4px;" onclick="copyDiagCode()">🔎 調査用コードをコピー</button>
         <div style="font-size:10.5px;color:var(--muted);margin-top:6px;">このブックマークはパスワードを使いません。らくちくの画面の欄を見出し（母牛ID・子牛IDなど）で探して入れるだけです。</div>
       </div>
@@ -29039,6 +29041,8 @@ function openBirthReport(view) {
   _brSel = new Set(birthReportCandidates('todo').map(c => c.id));
   const a = document.getElementById('br-bookmarklet');
   if (a) a.setAttribute('href', 'javascript:' + encodeURIComponent(RAKUCHIKU_BOOKMARKLET));
+  const a2 = document.getElementById('br-diag-bookmarklet');
+  if (a2) a2.setAttribute('href', 'javascript:' + encodeURIComponent(RAKUCHIKU_DIAG));
   renderBirthReport();
   openModal('modal-birth-report');
 }
