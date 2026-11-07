@@ -8817,6 +8817,10 @@ function addRecipientFromSuggest(id) {
 // ===== ⏱ 初回授精レポート（今いる牛：分娩後日数 × 分娩〜初回授精日数） =====
 let _faMode = 'parous', _faHide = {}, _faSel = null;
 const FA_GROUPS = [['p1', '初産', '#60a5fa'], ['p2', '2産', '#22d3ee'], ['p3', '3産以上', '#c084fc']];
+// 図の点の形：妊娠中＝塗りつぶし、妊鑑待ち＝輪＋中の点、まだ妊娠していない＝輪だけ
+let _faStFilter = 'all';
+function _faStatus(c) { let k = 'open'; try { k = cowDisplayStatus(c).key; } catch (e) {} return k === 'pregnant' ? 'preg' : k === 'wait' ? 'wait' : 'open'; }
+const FA_ST = { preg: '妊娠中', wait: '妊鑑待ち', open: '未妊娠' };
 function firstAIData() {
   const todayStr = today();
   const pts = [], notBred = [], donor = [];
@@ -8835,7 +8839,7 @@ function firstAIData() {
       const end = first ? first.date : todayStr;
       if (donorDaysBetween(c, lc, end) > 0) { donor.push({ id: c.id, x, g }); return; }
       // ETは移植日ではなく、その発情（移植の7日前）を初回授精の日とする（AIと同じ物差しにする）
-      if (first) { const fdHeat = first.isEt ? addDays(first.date, -7) : first.date; pts.push({ id: c.id, x, y: diffDays(fdHeat, lc), g, et: first.isEt, lc, fd: first.date, fdHeat }); }
+      if (first) { const fdHeat = first.isEt ? addDays(first.date, -7) : first.date; pts.push({ id: c.id, x, y: diffDays(fdHeat, lc), g, et: first.isEt, lc, fd: first.date, fdHeat, lac, st: _faStatus(c) }); }
       else if (x >= RPT_VWP && !activeHold(c)) notBred.push({ id: c.id, x, g });
     } else {
       if (lc || (Number(c.lactation) || 0) > 0 || !c.dob) return;
@@ -8844,7 +8848,7 @@ function firstAIData() {
       const startM = String(c.breed || '').includes('黒') ? 14 : 13;
       const g = String(c.breed || '').includes('黒') ? 'k' : /F1|交雑/.test(String(c.breed || '')) ? 'f' : 'a';
       const first = ins[0];
-      if (first) pts.push({ id: c.id, x, y: Math.round(diffDays(first.date, c.dob) / 30.4 * 10) / 10, g, et: first.isEt, startM, fd: first.date });
+      if (first) pts.push({ id: c.id, x, y: Math.round(diffDays(first.date, c.dob) / 30.4 * 10) / 10, g, et: first.isEt, startM, fd: first.date, st: _faStatus(c) });
       else if (x >= startM) notBred.push({ id: c.id, x, g, startM });
     }
   });
@@ -8856,7 +8860,7 @@ function renderFirstAI(el) {
   const parous = _faMode === 'parous';
   const GROUPS = parous ? FA_GROUPS : [['a', '褐毛', '#f87171'], ['k', '黒毛', '#e2e8f0'], ['f', 'F1', '#60a5fa']];
   const target = parous ? ((typeof farmTargets !== 'undefined' && farmTargets.dfs != null) ? Number(farmTargets.dfs) : ADV_BASE.dfs.good) : null;
-  const shown = D.pts.filter(p => !_faHide[p.g]);
+  const shown = D.pts.filter(p => !_faHide[p.g] && (_faStFilter === 'all' || p.st === _faStFilter || (_faStFilter === 'notpreg' && p.st !== 'preg')));
   const avg = g => { const a = D.pts.filter(p => p.g === g); return a.length ? Math.round(a.reduce((s, p) => s + p.y, 0) / a.length * 10) / 10 : null; };
   // グラフ
   const W = 360, H = 240, L = 34, B = 26, T = 10, R = 8;
@@ -8865,7 +8869,7 @@ function renderFirstAI(el) {
   const xMin = parous ? 0 : 10, yMin = parous ? 0 : 10;
   const xv = v => L + (W - L - R) * (v - xMin) / (xMax - xMin);
   const yv = v => T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin));
-  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">`;
   const yStep = parous ? (yMax > 160 ? 40 : 20) : 2, xStep = parous ? (xMax > 400 ? 100 : 50) : (xMax - xMin > 16 ? 4 : 2);
   for (let v = Math.ceil(yMin / yStep) * yStep; v <= yMax; v += yStep) svg += `<line x1="${L}" x2="${W - R}" y1="${yv(v)}" y2="${yv(v)}" stroke="rgba(255,255,255,.07)"/><text x="${L - 4}" y="${yv(v) + 3}" font-size="8" fill="#8892b0" text-anchor="end">${v}</text>`;
   for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) svg += `<text x="${xv(v)}" y="${H - 12}" font-size="8" fill="#8892b0" text-anchor="middle">${v}</text>`;
@@ -8880,10 +8884,35 @@ function renderFirstAI(el) {
   const col = g => (GROUPS.find(x => x[0] === g) || [0, 0, '#94a3b8'])[2];
   shown.forEach(p => {
     const sel = _faSel === p.id;
-    svg += `<circle cx="${xv(p.x)}" cy="${yv(p.y)}" r="${sel ? 6 : 4.5}" fill="${col(p.g)}" fill-opacity=".85" stroke="${sel ? '#fff' : (p.et ? '#000' : 'none')}" stroke-width="${sel ? 2 : 1}" style="cursor:pointer;" onclick="_faSel='${esc(p.id)}';renderAnnual()"><title>${esc(p.id)}</title></circle>`;
+    const cx = xv(p.x), cy = yv(p.y), r = sel ? 6 : 4.5, c = col(p.g), on = `style="cursor:pointer;" onclick="_faSel='${esc(p.id)}';renderAnnual()"`;
+    // ETは◆、AIは●。妊娠中は塗りつぶし、妊鑑待ちは輪＋中の点、未妊娠は輪だけ
+    const shape = (rr, fill, stroke, sw) => p.et
+      ? `<rect x="${cx - rr}" y="${cy - rr}" width="${rr * 2}" height="${rr * 2}" transform="rotate(45 ${cx} ${cy})" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${on}/>`
+      : `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" ${on}/>`;
+    svg += `<g><title>${esc(p.id)} ${FA_ST[p.st] || ''}</title>`;
+    if (p.st === 'preg') svg += shape(r, c, sel ? '#fff' : 'none', sel ? 2 : 0);
+    else {
+      svg += shape(r - 0.6, 'rgba(0,0,0,.25)', sel ? '#fff' : c, sel ? 2.4 : 1.8);
+      if (p.st === 'wait') svg += `<circle cx="${cx}" cy="${cy}" r="1.6" fill="${c}" ${on}/>`;
+    }
+    svg += '</g>';
   });
   svg += '</svg>';
   const sp = _faSel ? D.pts.find(p => p.id === _faSel) : null;
+  // 点をタップしたら、その点の上にカードを出す（Farmnoteの初回授精レポートと同じ形）
+  let pop = '';
+  if (sp && !_faHide[sp.g]) {
+    const lx = xv(sp.x) / W * 100, ty = yv(sp.y) / H * 100, below = ty < 38;
+    const cell = (l, v, u) => `<div style="flex:1;text-align:center;padding:6px 4px;border-left:1px solid var(--border);"><div style="font-size:10px;color:var(--muted);">${l}</div><div style="font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;">${v}<span style="font-size:11px;font-weight:400;margin-left:2px;">${u}</span></div></div>`;
+    const breed = String((cows.find(c => c.id === sp.id) || {}).breed || '');
+    pop = `<div onclick="event.stopPropagation();showCowDetail('${esc(sp.id)}')" style="position:absolute;left:clamp(135px, ${lx}%, calc(100% - 135px));width:min(270px, 96%);top:${ty}%;transform:translate(-50%,${below ? '14px' : 'calc(-100% - 14px)'});background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer;z-index:2;">
+      <div style="display:flex;align-items:center;padding:8px 10px 6px;"><span style="flex:1;text-align:center;font-size:18px;font-weight:900;">🏷 ${esc(sp.id)} <span style="font-size:13px;color:var(--accent);">${esc(cowDisplayName(sp.id) || '')}</span>${sp.et ? ' <span style="font-size:10px;color:var(--muted);">ET</span>' : ''} <span style="font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid ${sp.st === 'preg' ? '#4ade80' : sp.st === 'wait' ? '#60a5fa' : '#f87171'};color:${sp.st === 'preg' ? '#4ade80' : sp.st === 'wait' ? '#60a5fa' : '#f87171'};">${(() => { try { return esc(cowDisplayStatus(cows.find(c => c.id === sp.id)).label); } catch (e) { return FA_ST[sp.st]; } })()}</span></span><span onclick="event.stopPropagation();_faSel=null;renderAnnual()" style="color:var(--muted);padding:0 4px;">✕</span></div>
+      <div style="display:flex;border-top:1px solid var(--border);margin-left:-1px;">${parous
+        ? cell('産次', sp.lac || '—', '産') + cell('分娩後日数', sp.x, '日') + cell('初回授精日', sp.y, '日')
+        : cell('品種', esc(breed.replace('和種', '') || '—'), '') + cell('今の月齢', sp.x, 'か月') + cell('初回授精', sp.y, 'か月')}</div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;padding:3px 0 6px;">${parous ? `分娩 ${fmtDateShort(sp.lc)} → 初回${sp.et ? 'ET ' + fmtDateShort(sp.fd) : 'AI ' + fmtDateShort(sp.fd)}` : '初回 ' + fmtDateShort(sp.fd)}・タップで牛を開く</div>
+    </div>`;
+  }
   const selHTML = sp ? `<div class="ann-card" style="margin-top:8px;display:flex;gap:8px;align-items:center;">
       <div style="flex:1;font-size:12px;line-height:1.6;"><b>${esc(sp.id)} ${esc(cowDisplayName(sp.id) || '')}</b><br>
         ${parous ? `分娩 ${fmtDateShort(sp.lc)} → 初回${sp.et ? `ET ${fmtDateShort(sp.fd)}（発情 ${fmtDateShort(sp.fdHeat)}）` : 'AI ' + fmtDateShort(sp.fd)}：<b>${sp.y}日</b>／分娩してから今日まで${sp.x}日` : `初回${sp.et ? 'ET' : 'AI'} ${fmtDateShort(sp.fd)}（<b>${sp.y}か月</b>）／今 ${sp.x}か月`}</div>
@@ -8902,10 +8931,16 @@ function renderFirstAI(el) {
         ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
       </div>
     </div>
-    <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? svg : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
-      <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0 4px;">点をタップするとその牛が分かります（黒い縁はET）。上の平均をタップすると、その群を出したり隠したりできます</div>
+    <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? `<div style="position:relative;max-width:640px;margin:0 auto;">${svg}${pop}</div>` : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
+      <div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;align-items:center;font-size:11px;color:var(--muted);padding:4px 0 2px;">
+        <span><svg width="12" height="12"><circle cx="6" cy="6" r="4.5" fill="#94a3b8"/></svg> 妊娠中</span>
+        <span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="rgba(0,0,0,.25)" stroke="#94a3b8" stroke-width="1.8"/><circle cx="6" cy="6" r="1.6" fill="#94a3b8"/></svg> 妊鑑待ち</span>
+        <span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="rgba(0,0,0,.25)" stroke="#94a3b8" stroke-width="1.8"/></svg> 未妊娠</span>
+        <span><svg width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" transform="rotate(45 6 6)" fill="#94a3b8"/></svg> ET（形が◆）</span>
+      </div>
+      <div class="st-chips" style="margin:4px 4px 2px;">${[['all', '全部'], ['preg', '妊娠中'], ['notpreg', '妊娠していない'], ['wait', '妊鑑待ち']].map(([k, l]) => `<button class="st-chip ${_faStFilter === k ? 'on' : ''}" onclick="_faStFilter='${k}';_faSel=null;renderAnnual()">${l}${k === 'all' ? '' : '（' + D.pts.filter(p => !_faHide[p.g] && (p.st === k || (k === 'notpreg' && p.st !== 'preg'))).length + '）'}</button>`).join('')}</div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0 4px;">点をタップするとその牛が分かります。上の平均をタップすると、その群を出したり隠したりできます</div>
     </div>
-    ${selHTML}
     <div class="st-sec" style="margin-top:12px;color:var(--danger);">${parous ? `まだ授精していない牛（分娩後${RPT_VWP}日以上・繁殖対象外を除く）` : '授精開始月齢を過ぎてまだ授精していない未経産'} ${D.notBred.length}頭</div>
     <div>${D.notBred.sort((a, b) => b.x - a.x).map(chip).join('') || '<span style="font-size:12px;color:var(--muted);">いません</span>'}</div>
     ${parous && D.donor.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;">※ 分娩後に採卵ドナーとして使った ${D.donor.length}頭（${D.donor.map(d => esc(d.id)).join('・')}）は、わざと授精していないので図から外しています。</div>` : ''}
