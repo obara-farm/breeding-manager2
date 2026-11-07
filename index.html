@@ -8886,6 +8886,9 @@ function renderFirstAI(el) {
   const parous = _faMode === 'parous';
   const GROUPS = parous ? FA_GROUPS : [['a', '褐毛', '#f87171'], ['k', '黒毛', '#e2e8f0'], ['f', 'F1', '#60a5fa']];
   const target = parous ? ((typeof farmTargets !== 'undefined' && farmTargets.dfs != null) ? Number(farmTargets.dfs) : ADV_BASE.dfs.good) : null;
+  // 横の目標：分娩後この日数までに受胎させたい（分娩間隔の目標から妊娠期間285日を引く。手で決めた値があればそれ）
+  const _ci = (typeof farmTargets !== 'undefined' && farmTargets.calv_int != null) ? Number(farmTargets.calv_int) : ADV_BASE.calv_int.good;
+  const xTarget = parous ? ((typeof farmTargets !== 'undefined' && farmTargets.dopen != null) ? Number(farmTargets.dopen) : Math.round(_ci * 30.4) - 285) : null;
   const shown = D.pts.filter(p => !_faHide[p.g] && (_faStFilter === 'all' || p.st === _faStFilter || (_faStFilter === 'notpreg' && p.st !== 'preg')));
   const avg = g => { const a = D.pts.filter(p => p.g === g); return a.length ? Math.round(a.reduce((s, p) => s + p.y, 0) / a.length * 10) / 10 : null; };
   // グラフ
@@ -8903,6 +8906,7 @@ function renderFirstAI(el) {
   svg += `<text x="9" y="${(H - B + T) / 2}" font-size="8" fill="#8892b0" text-anchor="middle" transform="rotate(-90 9 ${(H - B + T) / 2})">${parous ? '↑ 分娩から初回授精までの日数' : '↑ 初回授精した月齢'}</text>`;
   if (parous) {
     svg += `<line x1="${L}" x2="${W - R}" y1="${yv(RPT_VWP)}" y2="${yv(RPT_VWP)}" stroke="#64748b"/><text x="${L + 3}" y="${yv(RPT_VWP) + 9}" font-size="8" fill="#94a3b8">待機期間（${RPT_VWP}日）</text>`;
+    if (xTarget > xMin && xTarget < xMax) svg += `<line x1="${xv(xTarget)}" x2="${xv(xTarget)}" y1="${T}" y2="${H - B}" stroke="#f87171" stroke-dasharray="4 3"/><text x="${xv(xTarget) + 3}" y="${T + 8}" font-size="8" fill="#f87171">受胎目標 分娩後${xTarget}日 →</text>`;
     svg += `<line x1="${L}" x2="${W - R}" y1="${yv(target)}" y2="${yv(target)}" stroke="#facc15" stroke-dasharray="4 3"/><text x="${L + 3}" y="${yv(target) - 3}" font-size="8" fill="#facc15">目標（${target}日）</text>`;
   } else {
     [[13, '褐毛・F1 13か月', '#f87171'], [14, '黒毛 14か月', '#e2e8f0']].forEach(([v, l, c]) => { svg += `<line x1="${L}" x2="${W - R}" y1="${yv(v)}" y2="${yv(v)}" stroke="${c}" stroke-dasharray="4 3" opacity=".6"/><text x="${W - R - 2}" y="${yv(v) - 3}" font-size="8" fill="${c}" text-anchor="end">${l}</text>`; });
@@ -8954,7 +8958,7 @@ function renderFirstAI(el) {
       <div style="display:flex;gap:14px;flex-wrap:wrap;">${GROUPS.map(([g, l, c]) => { const a = avg(g), n = D.pts.filter(p => p.g === g).length; return `<div style="cursor:pointer;opacity:${_faHide[g] ? .35 : 1};" onclick="_faHide['${g}']=!_faHide['${g}'];renderAnnual()">
           <div style="font-size:20px;font-weight:900;color:${c};font-family:'JetBrains Mono',monospace;">${a != null ? a : '—'}<span style="font-size:11px;">${parous ? '日' : 'か月'}</span></div>
           <div style="font-size:10px;color:var(--muted);">${l} ${n}頭 ${_faHide[g] ? '（非表示）' : '👁'}</div></div>`; }).join('')}
-        ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
+        ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dopen','分娩後何日までに受胎させたいか（分娩間隔の目標−妊娠期間285日。空欄で分娩間隔の目標から計算）','日')"><div style="font-size:11px;color:var(--muted);">受胎目標（横）</div><div style="font-size:16px;font-weight:900;color:#f87171;">${xTarget}<span style="font-size:10px;">日</span> ✏</div></div>` : ''}${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
       </div>
     </div>
     <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? `<div style="position:relative;">${svg}${pop}</div>` : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
