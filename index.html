@@ -2159,7 +2159,7 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
       <div class="lf-row">
         <span class="lf-label">品種</span>
         <div class="lf-val">
-          <select id="edit-cow-breed" onchange="autoFillRegOrg()">
+          <select id="edit-cow-breed" onchange="autoFillRegOrg();genToggleBox()">
             <option value="">未設定</option>
             <option value="黒毛">⬛ 黒毛和種</option>
             <option value="褐毛">🟥 褐毛和種</option>
@@ -2270,6 +2270,29 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
           <div class="lf-val"><input type="text" id="edit-cow-reg-no" placeholder="例: 黒-1234567" style="font-size:12px;"></div>
         </div>
       </div>
+    </div>
+
+    <!-- ゲノミック評価（黒毛） -->
+    <div id="edit-genomic-box" style="display:none;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);flex:1;">🧬 ゲノミック評価（家畜改良事業団の成績報告書）</div>
+        <input type="date" id="edit-gen-date" style="width:auto;font-size:12px;padding:4px 6px;" title="評価年月日">
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" class="btn btn-secondary" style="flex:1;font-size:13px;" onclick="document.getElementById('gen-paste-box').style.display='block'">📷 報告書の写真から入れる（文字を貼り付け）</button>
+      </div>
+      <div id="gen-paste-box" style="display:none;margin-bottom:8px;">
+        <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:4px;">
+          <b>iPhone・iPad</b>：カメラか写真アプリで報告書を写し、右下の <b>[≡] テキスト認識</b>（文字が浮き出るボタン）を押す →「すべてをコピー」→ 下に貼り付け<br>
+          <b>Windows</b>：写真を「フォト」アプリで開いて「テキストのスキャン」→ コピー、または Snipping Tool の「テキストアクション」<br>
+          写真はスマホの中で文字にするだけで、このツールには保存されません</div>
+        <textarea id="gen-paste" rows="4" style="width:100%;font-size:12px;" placeholder="ここに貼り付け"></textarea>
+        <button type="button" class="btn btn-primary" style="width:100%;font-size:13px;margin-top:4px;" onclick="genFromText(document.getElementById('gen-paste').value,'貼り付け')">読み取る</button>
+      </div>
+      <div id="gen-read-msg"></div>
+      <div id="edit-gen-rows"></div>
+      <details style="margin-top:6px;"><summary style="font-size:11px;color:var(--info);cursor:pointer;">脂肪酸・生時体重など（任意）</summary><div id="edit-gen-extra" style="margin-top:6px;"></div></details>
+      <div id="edit-gen-verdict" style="margin-top:8px;"></div>
     </div>
 
     <button class="btn btn-primary" onclick="saveEditCow()" style="width:100%;margin-bottom:10px;">保存する</button>
@@ -5826,9 +5849,17 @@ function renderCowList() {
       if (o.kind === 'et') return `<span title="${o.recip ? '受卵牛：' + _stEsc(o.recip) : ''}" style="background:rgba(167,139,250,.12);border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;white-space:nowrap;">🧬 ET産仔 ${_stEsc(o.donor || '')}${o.sire ? '×' + _stEsc(o.sire) : ''}</span>`;
       return `<span title="${o.sure ? '' : '子牛の記録がないため、母の名前がドナー牛と同じことから判断'}" style="background:#1f1600;border:1px solid #b45309;color:#fbbf24;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;white-space:nowrap;">👑 ドナーの子 母:${_stEsc(o.donor || '')}${o.sure ? '' : '？'}</span>`;
     })();
+    // ゲノミック評価の判定（今の役割と違うときだけ。タップで反映）
+    let genBadge = '';
+    { const gv = (typeof genomicVerdict === 'function') ? genomicVerdict(cow) : null;
+      if (gv) { const cur = cow.role === 'recipient' ? 'recipient' : cow.role === 'donor' ? 'donor' : 'ai';
+        const col = gv.role === 'ai' ? '#4ade80' : gv.role === 'recipient' ? '#60a5fa' : '#facc15';
+        genBadge = (gv.role !== 'mid' && gv.role !== cur && cur !== 'donor')
+          ? `<span onclick="event.stopPropagation();applyGenomicRole('${cow.id}')" title="${_stEsc(gv.why.join('・'))}。タップで役割に反映" style="border:1px dashed ${col};color:${col};font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;margin-left:6px;white-space:nowrap;cursor:pointer;">🧬 ${gv.role === 'ai' ? 'AI向き' : '受け牛向き'}？</span>`
+          : `<span title="${_stEsc(gv.why.join('・'))}" style="border:1px solid ${col};color:${col};font-size:10px;padding:1px 6px;border-radius:4px;margin-left:6px;white-space:nowrap;">🧬${gv.role === 'ai' ? 'AI' : gv.role === 'recipient' ? '受' : '中'}</span>`; } }
     // 手動マークが無い牛にだけ、成績ベースの提案を控えめに出す
     let roleSuggestBadge = '';
-    if (!cow.role) {
+    if (!cow.role && !genBadge) {
       const sug = (typeof getRoleSuggestion==='function') ? getRoleSuggestion(cowName) : null;
       if (sug) {
         const isDonor = sug.role==='donor';
@@ -5874,7 +5905,7 @@ function renderCowList() {
     return `<div class="cow-card" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
       <div class="cow-header">
         <div>
-          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${originBadge}${roleSuggestBadge}${abortionRiskBadge(cow.id)}</div>
+          <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${originBadge}${genBadge}${roleSuggestBadge}${abortionRiskBadge(cow.id)}</div>
           ${(cow.sire||cow.maternalSire) ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${[cow.sire, cow.maternalSire].filter(Boolean).join(' × ')}</div>` : ''}
           ${cowDob?`<div style="font-size:11px;color:var(--muted);margin-top:2px;">${fmtDate(cowDob)} (${cowAge}歳)${(()=>{const m=getMasterCow(cow.id);const nid=(m?m.nationalId:cow.nationalId)||'';return nid.length>=5?` <span style="color:var(--muted);letter-spacing:1px;">…${nid.slice(-5)}</span>`:'';})()}</div>`:''}
         </div>
@@ -6910,6 +6941,7 @@ function showCowStory(cowId) {
     ${isRet ? retireHTML : metricsHTML}
     ${isRet ? '' : abortionRiskBanner(cowId)}
     ${isRet ? '' : cullBanner(cowId)}
+    ${isRet ? '' : genomicStoryHTML(cow)}
     ${isRet ? '' : `<div class="st-rec">
       <button onclick="stRecord('ai','${esc(cowId)}')">💉<span>AI</span></button>
       <button onclick="stRecord('et','${esc(cowId)}')">🧬<span>ET</span></button>
@@ -11977,9 +12009,127 @@ function openEditCow(cowId) {
   document.getElementById('edit-cow-maternal-sire').value = cow.maternalSire || '';
   document.getElementById('edit-cow-reg-org').value = cow.regOrg || regOrgByBreed(cow.breed);
   document.getElementById('edit-cow-reg-no').value = cow.regNo || '';
+  try { document.getElementById('edit-gen-date').value = (cow.genomic && cow.genomic.date) || ''; _genRowsHTML(cow.genomic); genToggleBox(); genLiveVerdict();
+    document.getElementById('gen-read-msg').innerHTML = ''; document.getElementById('gen-paste').value = ''; document.getElementById('gen-paste-box').style.display = 'none'; } catch (e) {}
   openModal('modal-edit-cow');
 }
 
+// ===== ゲノミック評価（黒毛）=====
+const GEN_TRAITS = [['cw', '枝肉重量'], ['rea', 'ロース芯面積'], ['rib', 'バラ厚'], ['sft', '皮下脂肪厚'], ['yld', '歩留基準値'], ['bms', 'BMS-No.']];
+const GEN_EXTRA = [['mufa', 'MUFA割合'], ['ole', 'オレイン酸割合'], ['bw', '生時体重'], ['dcw', '日齢枝肉重量'], ['gest', '在胎期間']];
+const GEN_GP = { A: 4, B: 3, C: 2, D: 1 };
+function _genRowsHTML(g) {
+  const t = (g && g.t) || {};
+  document.getElementById('edit-gen-rows').innerHTML = `<div style="display:grid;grid-template-columns:1fr 84px 64px;gap:4px 8px;align-items:center;font-size:12px;">
+    <span style="color:var(--muted);font-size:10px;">形質</span><span style="color:var(--muted);font-size:10px;">育種価</span><span style="color:var(--muted);font-size:10px;">区分</span>
+    ${GEN_TRAITS.map(([k, l]) => `<span>${l}</span><input type="number" step="0.001" id="gen-v-${k}" value="${t[k] && t[k].v != null ? t[k].v : ''}" style="font-size:13px;padding:5px 6px;" oninput="genLiveVerdict()">
+      <select id="gen-g-${k}" style="font-size:13px;padding:5px 4px;" onchange="genLiveVerdict()">${['', 'A', 'B', 'C', 'D'].map(x => `<option value="${x}" ${t[k] && t[k].g === x ? 'selected' : ''}>${x || '—'}</option>`).join('')}</select>`).join('')}
+  </div>`;
+  const x = (g && g.x) || {};
+  document.getElementById('edit-gen-extra').innerHTML = `<div style="display:grid;grid-template-columns:1fr 84px;gap:4px 8px;align-items:center;font-size:12px;">
+    ${GEN_EXTRA.map(([k, l]) => `<span>${l}</span><input type="number" step="0.001" id="gen-x-${k}" value="${x[k] != null ? x[k] : ''}" style="font-size:13px;padding:5px 6px;">`).join('')}</div>`;
+}
+function _genReadForm() {
+  const t = {}, x = {};
+  GEN_TRAITS.forEach(([k]) => { const v = document.getElementById('gen-v-' + k).value, g = document.getElementById('gen-g-' + k).value; if (v !== '' || g) t[k] = { v: v === '' ? null : Number(v), g: g || '' }; });
+  GEN_EXTRA.forEach(([k]) => { const v = document.getElementById('gen-x-' + k).value; if (v !== '') x[k] = Number(v); });
+  const date = document.getElementById('edit-gen-date').value;
+  if (!Object.keys(t).length && !Object.keys(x).length && !date) return null;
+  return { date, t, x };
+}
+// 判定：BMS・枝肉重量を重く、ロース芯・歩留・バラを軽く見る（皮下脂肪厚は判定に使わない）
+// AI向き＝点数3.0以上でBMS・枝肉がどちらもB以上／受け牛向き＝点数2.5未満、またはBMSか枝肉がD
+function genomicVerdict(cow) {
+  const g = cow && cow.genomic; if (!g || !g.t) return null;
+  const W = { bms: .35, cw: .30, rea: .15, yld: .10, rib: .10 };
+  let sum = 0, w = 0; const t = g.t;
+  Object.entries(W).forEach(([k, ww]) => { const p = t[k] && GEN_GP[t[k].g]; if (p) { sum += p * ww; w += ww; } });
+  if (w < .5) return null;   // 区分が足りない
+  const score = Math.round(sum / w * 100) / 100;
+  const gB = t.bms && t.bms.g, gC = t.cw && t.cw.g;
+  const why = [];
+  let role;
+  if (gB === 'D' || gC === 'D' || score < 2.5) {
+    role = 'recipient';
+    if (gB === 'D') why.push('BMSがD'); if (gC === 'D') why.push('枝肉重量がD'); if (score < 2.5) why.push('総合点が低い');
+  } else if (score >= 3.0 && 'AB'.includes(gB || 'x') && 'AB'.includes(gC || 'x')) {
+    role = 'ai'; why.push('BMS・枝肉重量がB以上');
+  } else { role = 'mid'; why.push('どちらとも言えない（交配する種雄牛で補う）'); }
+  const strong = Object.entries(t).filter(([k, v]) => v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
+  return { role, score, why, strong, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
+}
+function genLiveVerdict() {
+  const el = document.getElementById('edit-gen-verdict'); if (!el) return;
+  const g = _genReadForm(); const v = genomicVerdict({ genomic: g });
+  el.innerHTML = v ? genomicVerdictHTML(v) : '<div style="font-size:11px;color:var(--muted);">区分（A〜D）を入れると、AI向きか受け牛向きかを判定します</div>';
+}
+function genomicVerdictHTML(v) {
+  const col = v.role === 'ai' ? '#4ade80' : v.role === 'recipient' ? '#60a5fa' : '#facc15';
+  return `<div style="border:1px solid ${col};border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;">
+    <b style="color:${col};">🧬 ${v.label}</b> <span style="color:var(--muted);">（点数 ${v.score}／4）</span><br>
+    <span style="color:var(--muted);">${_stEsc(v.why.join('・'))}${v.strong.length ? '／Aの形質：' + _stEsc(v.strong.join('・')) : ''}</span></div>`;
+}
+function genomicStoryHTML(cow) {
+  const g = cow && cow.genomic; if (!g || !g.t) return '';
+  const v = genomicVerdict(cow);
+  const gc = x => ({ A: '#4ade80', B: '#60a5fa', C: '#facc15', D: '#f87171' }[x] || 'var(--muted)');
+  return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:12px;cursor:pointer;" onclick="openEditCow('${_stEsc(cow.id)}')">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;"><b>🧬 ゲノミック評価</b><span style="color:var(--muted);font-size:11px;">${g.date ? fmtDate(g.date) : ''}</span></div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${GEN_TRAITS.map(([k, l]) => { const t = g.t[k]; if (!t) return ''; return `<span style="border:1px solid ${gc(t.g)};border-radius:6px;padding:1px 6px;font-size:11px;"><span style="color:var(--muted);">${l}</span> <b style="color:${gc(t.g)};">${t.g || '—'}</b>${t.v != null ? ' <span style="color:var(--muted);">' + t.v + '</span>' : ''}</span>`; }).join('')}</div>
+    ${v ? genomicVerdictHTML(v) : ''}</div>`;
+}
+// ===== 報告書の写真の文字（iPhoneのテキスト認識などでコピーしたもの）から読み取る =====
+function _genParse(text) {
+  const t = String(text || '').replace(/[−–—ー‐]/g, (m, i, s0) => /\d/.test(s0[i + 1] || '') ? '-' : m).replace(/[０-９．，]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const lines = t.split(/\r?\n/);
+  const decs = l => (l.match(/-?\d[.,]\d{3}(?!\d)/g) || []).filter(x => !/^\d{2,}[,]/.test(x)).map(x => Number(x.replace(',', '.')));
+  const out = { main: null, extra: null, grades: null, date: '', ids: [] };
+  // 育種価：小数3けたの数が6つ以上並ぶ最初の行＝主要6形質、次に4つ以上並ぶ行＝脂肪酸など
+  for (const l of lines) { const d = (l.match(/-?\d\.\d{3}(?!\d)/g) || []).map(Number); if (!out.main && d.length >= 6) { out.main = d.slice(0, 6); continue; } if (out.main && !out.extra && d.length >= 4) { out.extra = d.slice(0, 5); } }
+  if (!out.main) { const all = (t.match(/-?\d\.\d{3}(?!\d)/g) || []).map(Number); if (all.length >= 6) { out.main = all.slice(0, 6); if (all.length >= 10) out.extra = all.slice(6, 11); } }
+  // 区分：A〜Dが6つ並ぶ行（「区分」の行）。縦に1つずつ並んで読めたときは、区分の後ろの6つ
+  for (const l of lines) { const g = l.replace(/BMS|SNP|MUFA/gi, '').match(/(?:^|[\s|｜:：])([ABCD])(?=$|[\s|｜])/g); if (g && g.length >= 6) { out.grades = g.slice(0, 6).map(x => x.trim().replace(/[|｜:：]/g, '')); break; } }
+  if (!out.grades) { const i = t.indexOf('区分'); if (i >= 0) { const g = t.slice(i, i + 200).match(/\b[ABCD]\b/g); if (g && g.length >= 6) out.grades = g.slice(0, 6); } }
+  const dm = t.match(/評価年月日[^\d令]*令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/) || t.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/);
+  if (dm) out.date = `${2018 + +dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
+  out.ids = [...new Set((t.match(/(?<!\d)\d{5}[\s-]?\d{4}[\s-]?\d(?!\d)/g) || []).map(x => x.replace(/\D/g, '')))];
+  return out;
+}
+function genFromText(text, how) { genApplyParsed(_genParse(text), how); }
+function genApplyParsed(r, how) {
+  const msg = document.getElementById('gen-read-msg');
+  const got = [];
+  if (r.main) { GEN_TRAITS.forEach(([k], i) => { const el = document.getElementById('gen-v-' + k); if (el && r.main[i] != null) { el.value = r.main[i]; el.style.borderColor = '#4ade80'; } }); got.push('育種価6つ'); }
+  if (r.grades) { GEN_TRAITS.forEach(([k], i) => { const el = document.getElementById('gen-g-' + k); if (el && r.grades[i]) { el.value = r.grades[i]; el.style.borderColor = '#4ade80'; } }); got.push('区分6つ'); }
+  if (r.extra) { GEN_EXTRA.forEach(([k], i) => { const el = document.getElementById('gen-x-' + k); if (el && r.extra[i] != null) el.value = r.extra[i]; }); got.push('脂肪酸など'); }
+  if (r.date) { document.getElementById('edit-gen-date').value = r.date; got.push('評価年月日'); }
+  // 個体識別番号の確認（報告書の本牛は3つ目の番号）
+  const cow = cows.find(c => c.id === document.getElementById('edit-cow-id').value);
+  const own = String((cow && cow.nationalId) || '').replace(/\D/g, '');
+  let idNote = '';
+  if (r.ids.length && own) {
+    if (r.ids.includes(own)) idNote = '<br>✓ 個体識別番号がこの牛と合っています';
+    else { const other = cows.find(c => r.ids.includes(String(c.nationalId || '').replace(/\D/g, ''))); idNote = `<br><b style="color:var(--danger);">⚠ 個体識別番号がこの牛と合いません${other ? `（${_stEsc(other.id)} ${_stEsc(cowDisplayName(other.id) || '')} の報告書かもしれません）` : ''}</b>`; }
+  }
+  const miss = [!r.main && '育種価', !r.grades && '区分（A〜D）'].filter(Boolean);
+  msg.innerHTML = `<div style="border:1px solid ${got.length ? '#4ade80' : 'var(--danger)'};border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;margin-bottom:8px;">
+    ${got.length ? `${how}から ${got.join('・')} を入れました（緑の枠）。報告書と見比べて、違っていたら直してください。` : `${how}から読み取れませんでした。`}
+    ${miss.length ? `<br><span style="color:var(--warn);">読めなかった：${miss.join('・')} → 手で入れてください</span>` : ''}${idNote}</div>`;
+  if (got.length) { const pb = document.getElementById('gen-paste-box'), ta = document.getElementById('gen-paste'); if (ta) ta.value = ''; if (pb) pb.style.display = 'none'; }   // 貼り付けた文字は残さない
+  genLiveVerdict();
+}
+function genToggleBox() {
+  const b = document.getElementById('edit-cow-breed')?.value || '';
+  const box = document.getElementById('edit-genomic-box'); if (!box) return;
+  const cow = cows.find(c => c.id === document.getElementById('edit-cow-id').value);
+  box.style.display = (/黒/.test(b) || (cow && cow.genomic)) ? '' : 'none';
+}
+// ゲノミックの判定を役割に反映（カードのバッジから）
+function applyGenomicRole(cowId) {
+  const cow = cows.find(c => c.id === cowId); const v = genomicVerdict(cow); if (!v || v.role === 'mid') return;
+  cow.role = v.role === 'recipient' ? 'recipient' : '';
+  save(); renderCowList();
+}
 function saveEditCow() {
   const cowId = document.getElementById('edit-cow-id').value;
   const cow = cows.find(c=>c.id===cowId);
@@ -11995,6 +12145,7 @@ function saveEditCow() {
   cow.lactation  = parseInt(document.getElementById('edit-cow-lactation').value) || cow.lactation;
   cow.breed      = document.getElementById('edit-cow-breed').value;
   cow.role       = document.getElementById('edit-cow-role').value;
+  try { const g = _genReadForm(); if (g) cow.genomic = g; else delete cow.genomic; } catch (e) {}
   cow.calvingDate = newCalving  || null;
 
   // 自家耳標の変更処理
