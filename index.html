@@ -858,6 +858,9 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
       <option value="age_desc">年齢↓高齢順</option>
       <option value="id_asc">耳標順</option>
       <option value="open_desc">空胎日数↓長い順</option>
+      <option value="gen_idx">🧬 ゲノミック総合 高い順</option>
+      <option value="gen_bms">🧬 BMS育種価 高い順</option>
+      <option value="gen_cw">🧬 枝肉重量育種価 高い順</option>
     </select>
   </div>
   <div style="margin-bottom:12px;">
@@ -5655,6 +5658,11 @@ function renderCowList() {
   if (sortKey === 'age_asc')    filtered.sort((a,b) => getDob(b).localeCompare(getDob(a))); // 若い=生年月日が新しい
   else if (sortKey === 'age_desc')   filtered.sort((a,b) => getDob(a).localeCompare(getDob(b))); // 高齢=生年月日が古い
   else if (sortKey === 'id_asc')     filtered.sort((a,b) => a.id.localeCompare(b.id));
+  else if (sortKey && sortKey.startsWith('gen_')) {
+    const R = genomicRanking();
+    const val = c => { const r = R.map[c.id]; if (!r) return -1e9; return sortKey === 'gen_bms' ? r.bms : sortKey === 'gen_cw' ? r.cw : r.idx; };
+    filtered.sort((a, b) => val(b) - val(a));
+  }
   else if (sortKey === 'open_desc') {
     filtered.sort((a,b) => {
       const da = a.calvingDate ? diffDays(todayStr, a.calvingDate) : -1;
@@ -5664,6 +5672,15 @@ function renderCowList() {
   }
 
   document.getElementById('cow-count').textContent = `${filtered.length}頭`;
+  { let gb = document.getElementById('gen-sort-bar');
+    if (sortKey && sortKey.startsWith('gen_')) {
+      if (!gb) { gb = document.createElement('div'); gb.id = 'gen-sort-bar'; const lc = document.getElementById('cow-list-container'); lc.parentNode.insertBefore(gb, lc); }
+      const R = genomicRanking();
+      gb.innerHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:12px;line-height:1.7;">
+        🧬 ゲノミック評価のある黒毛 <b>${R.n}頭</b>（総合＝枝肉重量とBMSの育種価を、牧場の中でそれぞれ偏差値にして平均）<br>
+        牧場の中で下位 <input type="number" min="0" max="50" value="${genRecipPct()}" style="width:52px;font-size:12px;padding:2px 4px;" onchange="farmTargets.genRecipPct=Math.max(0,Math.min(50,parseInt(this.value)||0));save();renderCowList()"> % を「受け牛向き」にする
+        <span style="color:var(--muted);">（今は${R.cut}頭。${R.n < 5 ? '5頭未満のときは使いません' : '枝肉かBMSがDの牛はこれとは別に受け牛向き'}）</span></div>`;
+    } else if (gb) gb.remove(); }
   const ageBtn = document.getElementById('cow-age-filter-btn');
   if (ageBtn) {
     ageBtn.style.background = cowAgeFilter ? 'var(--accent2)' : 'var(--bg3)';
@@ -12060,9 +12077,30 @@ function genomicVerdict(cow) {
     // 令和8年4月より前の報告書は3段階（A・B・C）で、Cは「平均未満」全部＝今のDも含む
     if (g.date && g.date < '2026-04-01') why.push('※令和8年3月以前の評価のCは、今の区分のCかDか分からない');
   }
+  // 牧場の中で下位○%なら、区分の条件を満たしていても受け牛向きにする
+  let rk = null; try { if (cow.id) rk = genomicRanking().map[cow.id]; } catch (e) {}
+  if (rk && rk.bottom && role !== 'recipient') { role = 'recipient'; why.unshift(`牧場の中で下位${genRecipPct()}%（${rk.n}頭中${rk.rank}位）`); }
+  else if (rk) why.push(`牧場の中で${rk.n}頭中${rk.rank}位`);
   const strong = Object.entries(t).filter(([k, v]) => v.g === 'H' || v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   const weak = Object.entries(t).filter(([k, v]) => v.g === 'D' && k !== 'bms' && k !== 'cw').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   return { role, why, strong, weak, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
+}
+// 牧場の中での順位（枝肉重量・BMSの育種価を、ゲノミックのある黒毛の中でそれぞれ偏差値にして平均）
+function genRecipPct() { return (typeof farmTargets !== 'undefined' && farmTargets.genRecipPct != null) ? Number(farmTargets.genRecipPct) : 15; }
+let _genRankCache = null;
+function genomicRanking() {
+  if (_genRankCache && _genRankCache.t > Date.now() - 1500) return _genRankCache.r;
+  const L = cows.filter(c => c.genomic && c.genomic.t && c.genomic.t.cw && c.genomic.t.bms && typeof c.genomic.t.cw.v === 'number' && typeof c.genomic.t.bms.v === 'number')
+    .map(c => ({ id: c.id, cw: c.genomic.t.cw.v, bms: c.genomic.t.bms.v }));
+  const st = k => { const v = L.map(x => x[k]); const m = v.reduce((a, b) => a + b, 0) / (v.length || 1); const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length || 1)); return { m, sd }; };
+  const sc = st('cw'), sb = st('bms');
+  L.forEach(x => { const zc = sc.sd > 0 ? 50 + (x.cw - sc.m) / sc.sd * 10 : 50, zb = sb.sd > 0 ? 50 + (x.bms - sb.m) / sb.sd * 10 : 50; x.idx = Math.round((zc + zb) / 2 * 10) / 10; });
+  L.sort((a, b) => b.idx - a.idx);
+  const n = L.length, cut = n >= 5 ? Math.round(n * genRecipPct() / 100) : 0;
+  const map = {}; L.forEach((x, i) => { map[x.id] = { ...x, rank: i + 1, n, bottom: i >= n - cut }; });
+  const r = { n, cut, map };
+  _genRankCache = { t: Date.now(), r };
+  return r;
 }
 function genLiveVerdict() {
   const el = document.getElementById('edit-gen-verdict'); if (!el) return;
@@ -12152,6 +12190,7 @@ function saveEditCow() {
   cow.breed      = document.getElementById('edit-cow-breed').value;
   cow.role       = document.getElementById('edit-cow-role').value;
   try { const g = _genReadForm(); if (g) cow.genomic = g; else delete cow.genomic; } catch (e) {}
+  _genRankCache = null;
   cow.calvingDate = newCalving  || null;
 
   // 自家耳標の変更処理
