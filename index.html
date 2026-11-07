@@ -10308,8 +10308,9 @@ const _recYear = r => r.y || (r.d ? 'R' + (+r.d.slice(0, 4) - 2018) : '');
 // 授精証明書No（AIのみ）の重複・未入力・桁違い・欠番・順番の逆転
 function checkCertNumbers(year) {
   const todayStr = today();
-  // ドナーAI（採卵目的）は授精証明書の対象外なので除く
-  const recs = _allInsemBookWithEdits().filter(r => !_isEtRec(r) && !r.donorAI && _recYear(r) === year && r.d && r.d <= todayStr)
+  // ドナーAI（採卵目的）も授精証明書の番号を使っているので数に入れる（入れないと、その番号が欠番に見える）。
+  // ただし番号が空欄でも「未入力」とは言わない
+  const recs = _allInsemBookWithEdits().filter(r => !_isEtRec(r) && _recYear(r) === year && r.d && r.d <= todayStr)
     .sort((a, b) => a.d.localeCompare(b.d) || (+a.q || 0) - (+b.q || 0));
   const num = r => { const m = String(r.q || '').trim().match(/^\d+$/); return m ? +m[0] : null; };
   const nums = recs.map(num).filter(n => n != null).sort((a, b) => a - b);
@@ -10320,7 +10321,7 @@ function checkCertNumbers(year) {
   recs.forEach(r => {
     const q = String(r.q || '').trim();
     if (q === '-' || r.certOk) return;          // 「-」はあえて入れている／「問題ない」にした記録
-    if (!q) issues.blank.push(r);
+    if (!q) { if (!r.donorAI) issues.blank.push(r); }
     else if (!okRec(r)) issues.odd.push(r);
   });
   // 重複
@@ -10923,7 +10924,14 @@ function markCheckOk(cowId, key, title) {
   clearTimeout(window._chkOkTimer); window._chkOkTimer = setTimeout(() => el.classList.remove('show'), 6000);
 }
 
+function openInsemBookRows(keys, label) {
+  window._ibOnly = { keys: new Set(String(keys).split(',').filter(Boolean)), label: label || '' };
+  switchTab('insembook');
+  const se = document.getElementById('insembook-search'); if (se) se.value = '';
+  renderInsemBook();
+}
 function openInsemBookFor(cowId, year) {
+  window._ibOnly = null;
   switchTab('insembook');
   const ys = document.getElementById('insembook-year'); if (ys && year) ys.value = year;
   const se = document.getElementById('insembook-search'); if (se) se.value = cowId || '';
@@ -10950,7 +10958,7 @@ function renderDataCheck() {
   const certHTML = !cert ? '' : `
     <div class="st-chips" style="flex-wrap:wrap;">${years.map(y => `<button class="st-chip ${y === _chkYear ? 'on' : ''}" onclick="_chkYear='${y}';renderDataCheck()">${y}（${+y.slice(1) + 2018}年）</button>`).join('')}</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">AIの授精 ${cert.recs.length}件・番号 ${cert.range ? cert.range[0] + '〜' + cert.range[1] : '—'}　${certCount ? `<b style="color:var(--warn);">要確認 ${certCount}件</b>` : '<b style="color:var(--accent);">✓ 重複・未入力なし</b>'}</div>
-    ${sec('🔴 同じ番号が重複', iss.dup.length, 'var(--danger)', iss.dup.map(g => `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span style="font-size:11px;color:var(--danger);">No.${g.no}</span><button class="st-act" style="padding:3px 9px;" onclick="markCertOk('${g.recs.map(r => r._src + ':' + r._idx).join(',')}')">この重複は問題ない</button></div>${g.recs.map(r => recLine(r, true)).join('')}`).join(''))}
+    ${sec('🔴 同じ番号が重複', iss.dup.length, 'var(--danger)', iss.dup.map(g => { const ks = g.recs.map(r => r._src + ':' + r._idx).join(','); const open = `openInsemBookRows('${ks}','No.${esc(String(g.no))}の重複')`; return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap;"><span style="font-size:11px;color:var(--danger);">No.${g.no}</span><span style="display:flex;gap:6px;"><button class="st-act" style="padding:3px 9px;" onclick="${open}">📖 授精簿で並べて見る</button><button class="st-act" style="padding:3px 9px;" onclick="markCertOk('${ks}')">この重複は問題ない</button></span></div>${g.recs.map(r => recLine(r, true).replace(/onclick="openInsemBookFor\([^"]*\)"/, `onclick="${open}"`)).join('')}`; }).join(''))}
     ${sec('🟠 桁違い・数字以外の番号', iss.odd.length, 'var(--warn)', iss.odd.map(r => recLine(r)).join(''))}
     ${sec('🟡 番号が未入力（「-」を入れた行は数えません）', iss.blank.length, '#facc15', iss.blank.map(r => recLine(r)).join(''))}
     ${sec('🔵 日付と番号の順番が合わない（番号か日付の打ち間違いの可能性）', iss.order.length, 'var(--info)', iss.order.map(o => `<div style="font-size:11px;color:var(--muted);margin-top:6px;">直前の流れ：No.${esc(o.prev.q)}（${fmtDate(o.prev.d)}）</div>${recLine(o.r)}`).join(''))}
@@ -14882,7 +14890,13 @@ function renderInsemBook() {
   ].sort((a,b) => a.d.localeCompare(b.d) || a.t.localeCompare(b.t));
 
   let data = combined.filter(r => r.y === year);
-  if (q) {
+  // 要確認の「同じ番号が重複」から開いたとき：重複している行だけを並べて出す
+  const onlyBox = document.getElementById('insembook-only');
+  if (window._ibOnly && window._ibOnly.keys && window._ibOnly.keys.size) {
+    data = combined.filter(r => window._ibOnly.keys.has(r._src + ':' + r._idx));
+    if (onlyBox) { onlyBox.style.display = 'flex'; onlyBox.innerHTML = `<span style="flex:1;color:#fca5a5;font-weight:700;">${_stEsc(window._ibOnly.label)}の行だけ表示しています</span><button class="st-act" onclick="window._ibOnly=null;renderInsemBook()">✕ 全部の行に戻す</button>`; }
+  } else if (onlyBox) { onlyBox.style.display = 'none'; }
+  if (q && !(window._ibOnly && window._ibOnly.keys)) {
     // `|`区切りで複数キーワードのOR検索に対応
     const qParts = q.split('|').map(s=>s.trim()).filter(Boolean);
     data = data.filter(r => {
@@ -28617,13 +28631,14 @@ try {
     <button onclick="toggleAllEtCheck()" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:8px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">ET全選択/解除</button>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
-    <select id="insembook-year" onchange="this.dataset.userChanged='1';renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
+    <select id="insembook-year" onchange="this.dataset.userChanged='1';window._ibOnly=null;renderInsemBook()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;">
     </select>
-    <input type="text" id="insembook-search" placeholder="🔍 耳標・牛名・種雄牛で検索..." oninput="renderInsemBook()" style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 12px;border-radius:8px;outline:none;">
+    <input type="text" id="insembook-search" placeholder="🔍 耳標・牛名・種雄牛で検索..." oninput="window._ibOnly=null;renderInsemBook()" style="flex:1;min-width:150px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:13px;padding:8px 12px;border-radius:8px;outline:none;">
     <button onclick="syncInsemBookToCows()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📥 種付け記録に反映</button>
     <button onclick="toggleInsemBookPreg()" id="insembook-preg-btn" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🔬 妊鑑</button>
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
   </div>
+  <div id="insembook-only" style="display:none;background:#2a0a0a;border:1px solid var(--danger);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;align-items:center;gap:10px;"></div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
   <div id="insembook-monthbar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;"></div>
   <div style="overflow-x:auto;" id="insembook-table-wrap">
