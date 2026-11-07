@@ -187,6 +187,8 @@ textarea{resize:vertical;}
 .st-nav{background:var(--bg3);border:1px solid var(--border);color:var(--text);width:34px;height:30px;border-radius:7px;cursor:pointer;font-size:14px;flex-shrink:0;}
 .st-nav:disabled{opacity:.3;cursor:default;}
 .st-viewtoggle{margin-left:auto;background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;font-weight:700;padding:6px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;}
+.es-opt{display:flex;align-items:center;gap:10px;width:100%;background:var(--bg3);border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);cursor:pointer;font-family:inherit;}
+.es-opt.on{border-color:var(--accent);background:rgba(74,222,128,.10);}
 .chip-scroll{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;}
 .chip-scroll::-webkit-scrollbar{display:none;}
 .chip-scroll>*{flex-shrink:0;white-space:nowrap;}
@@ -622,6 +624,7 @@ body.is-home{padding-bottom:0;}
       <button class="btn btn-secondary" style="flex:1;font-size:13px;color:var(--muted);" onclick="closeModal('modal-settings');logout()">⏻ ログアウト</button>
     </div>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="closeModal('modal-settings');switchTab('history')">📝 変更履歴を見る</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:12px;" onclick="closeModal('modal-settings');pushInsemBookAsTruth()">🔁 授精簿が端末ごとに違うとき：この端末の内容を正しいものにする</button>
 
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🐄 らくちく出生報告</div>
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:20px;font-size:12px;line-height:1.7;">
@@ -3088,6 +3091,7 @@ function loadData() {
   retiredCows     = JSON.parse(_store.getItem('retiredCows') || '[]');
   insemBookRecords = JSON.parse(_store.getItem('insemBookRecords') || '[]');
   insemBookEdits   = JSON.parse(_store.getItem('insemBookEdits') || '{}');
+  try { resetInsemSnap(); } catch (e) {}   // 読み直した授精簿は「今直した」扱いにしない
   staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}');
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
   transferBook      = JSON.parse(_store.getItem('transferBook') || '[]');
@@ -3253,6 +3257,74 @@ let _firebaseReady = false; // Firebase初期ロード完了フラグ
 // ===== 端末間の上書き防止：牛1頭ごとに「最後に変更した時刻（_mt）」を持ち、受信時は牛ごとに新しい方を残す =====
 let _cowSnap = null;   // 牛ID → 直近に保存した内容（_mtを除く）
 function _cowKey(c) { const { _mt, ...rest } = c; return JSON.stringify(rest); }
+
+// ===== 授精簿の同期：修正した行に「いつ直したか（_mt）」を付け、端末どうしでは新しい方を残す =====
+// 以前は「手元の値を優先」していたため、別の端末で直した No などが反映されず、端末ごとに値が食い違うことがあった
+let _ibeSnap = null, _ibrSnap = null;
+const _ibStrip = o => { const c = { ...(o || {}) }; delete c._mt; return JSON.stringify(c); };
+function resetInsemSnap() {
+  _ibeSnap = new Map(Object.entries(insemBookEdits || {}).map(([k, v]) => [k, _ibStrip(v)]));
+  _ibrSnap = (insemBookRecords || []).map(r => _ibStrip(r));
+}
+function stampChangedInsem() {
+  if (!_ibeSnap || !_ibrSnap) { resetInsemSnap(); return; }
+  const now = Date.now();
+  Object.entries(insemBookEdits || {}).forEach(([k, v]) => {
+    const j = _ibStrip(v);
+    if (_ibeSnap.get(k) !== j) { if (v && typeof v === 'object') v._mt = now; _ibeSnap.set(k, j); }
+  });
+  (insemBookRecords || []).forEach((r, i) => {
+    const j = _ibStrip(r);
+    if (_ibrSnap[i] !== j) { if (r && typeof r === 'object') r._mt = now; _ibrSnap[i] = j; }
+  });
+  if (_ibrSnap.length > insemBookRecords.length) _ibrSnap.length = insemBookRecords.length;
+}
+// 修正内容（insemBookEdits）：行ごとに新しい方。どちらも時刻が無い古い行は今まで通り手元を優先
+function mergeInsemEditsJSON(remoteStr, localStr) {
+  let R, L;
+  try { R = JSON.parse(remoteStr || '{}') || {}; L = JSON.parse(localStr || '{}') || {}; } catch (e) { return remoteStr; }
+  const out = { ...R };
+  Object.entries(L).forEach(([k, lv]) => {
+    const rv = out[k];
+    if (!rv) { out[k] = lv; return; }
+    const lt = (lv && lv._mt) || 0, rt = (rv && rv._mt) || 0;
+    if (lt || rt) out[k] = lt > rt ? lv : rv;          // 時刻があれば新しい方（同じなら受信した方）
+    else out[k] = { ...rv, ...lv };                      // 古い行は今まで通り
+  });
+  return JSON.stringify(out);
+}
+// 手入力の授精簿（insemBookRecords）：行ごとに新しい方のNo・数量・メモ・術者を使う
+function mergeInsemRecordsJSON(remoteStr, localStr) {
+  let remoteRecs, localRecs;
+  try { remoteRecs = JSON.parse(remoteStr || '[]'); localRecs = JSON.parse(localStr || '[]'); } catch (e) { return remoteStr; }
+  const merged = remoteRecs.map((rr, i) => {
+    let lr = localRecs[i];
+    if (!lr || lr.d !== rr.d || lr.t !== rr.t) {
+      lr = rr._seq ? localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && l._seq === rr._seq)
+                   : localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && !l._seq);
+    }
+    if (!lr) return rr;
+    const lt = lr._mt || 0, rt = rr._mt || 0;
+    if (lt || rt) return lt > rt ? { ...rr, ...lr } : rr;
+    return { ...rr,
+      n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
+      q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
+      m: lr.m !== undefined ? lr.m : rr.m,
+      op: lr.op !== undefined && lr.op !== '' ? lr.op : rr.op };
+  });
+  if (localRecs.length > remoteRecs.length) localRecs.slice(remoteRecs.length).forEach(lr => merged.push(lr));
+  return JSON.stringify(merged);
+}
+// この端末の授精簿を「正しいもの」として、ほかの端末に配る（端末ごとに値が食い違ったとき用）
+async function pushInsemBookAsTruth() {
+  if (!await appConfirm('この端末の授精簿（No・数量・メモ・術者・妊鑑の結果など）を正しいものとして、ほかの端末にも同じ内容を送ります。\n\nほかの端末で直した内容は、この端末の内容に置き換わります。よろしいですか？')) return;
+  const now = Date.now();
+  Object.values(insemBookEdits || {}).forEach(v => { if (v && typeof v === 'object') v._mt = now; });
+  (insemBookRecords || []).forEach(r => { if (r && typeof r === 'object') r._mt = now; });
+  resetInsemSnap();
+  save();
+  appAlert('送りました。ほかの端末は、開き直す（または数秒待つ）と、この端末と同じ内容になります。');
+}
 function resetCowSnap() { _cowSnap = new Map(cows.map(c => [c.id, _cowKey(c)])); }
 function stampChangedCows() {
   if (!_cowSnap) { resetCowSnap(); return; }
@@ -3352,6 +3424,7 @@ function save() {
   try { cows.forEach(normalizePregEvents); } catch (e) { console.error('normalizePregEvents', e); }
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
+  try { stampChangedInsem(); } catch (e) { console.error('stampChangedInsem', e); }
   if (!_firebaseReady) {
     // Firebase初期ロード前はlocalStorageのみに書き込み（Firebaseは上書きしない）
     _store.setItem('cows', JSON.stringify(cows));
@@ -7394,64 +7467,51 @@ function renderPregRate(el, Y) {
 }
 
 // 🔥 発情を見たが授精を見送った記録
-const ESTRUS_SKIP_REASONS = ['体調不良', '子宮回復待ち', '時期待ち', '廃用予定', 'ドナー予定', 'その他'];
-// 🔥 発情の記録：「発情を記録（このあとET・AI・様子見）」と「授精見送り」を選べる
+const ESTRUS_SKIP_REASONS = ['体調不良', '子宮回復待ち', '時期待ち', '様子見', '廃用予定', 'ドナー予定', 'その他'];
+// 🔥 発情を見たとき：「この発情でどうするか」を1回選ぶだけ
+//   ETする（AIせず）→ 移植までの予定を作る ／ AIする → AIの記録画面へ ／ 授精しない → 理由（様子見を含む）を残す
 function openEstrusSkip(cowId, defDate, mode) {
   document.getElementById('es-modal')?.remove();
   const esc = _stEsc;
   const d = defDate && defDate <= today() ? (defDate > addDays(today(), -60) ? today() : defDate) : today();
+  const first = mode === 'skip' ? 'skip' : 'et';
   const w = document.createElement('div');
   w.id = 'es-modal';
-  w.dataset.mode = mode === 'skip' ? 'skip' : 'rec';
   w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:16px;';
-  const seg = (k, l) => `<button type="button" class="st-chip es-mode" data-k="${k}" onclick="_esMode('${k}')" style="flex:1;justify-content:center;font-size:13px;padding:8px;">${l}</button>`;
+  const opt = (k, icon, l, sub) => `<button type="button" class="es-opt ${k === first ? 'on' : ''}" data-k="${k}" onclick="_esPick('es-next',this)">
+      <span style="font-size:20px;">${icon}</span><span style="text-align:left;"><b style="display:block;font-size:14px;">${l}</b><span style="font-size:11px;color:var(--muted);">${sub}</span></span></button>`;
   w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:400px;max-height:92vh;overflow:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-size:15px;font-weight:900;">🔥 発情</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:15px;font-weight:900;">🔥 発情 — ${esc(cowId)} ${esc(cowDisplayName(cowId) || '')}</div>
       <button class="modal-close" onclick="document.getElementById('es-modal').remove()">✕</button>
     </div>
-    <div style="font-size:13px;font-weight:700;margin-bottom:8px;">${esc(cowId)} ${esc(cowDisplayName(cowId) || '')}</div>
-    <div style="display:flex;gap:6px;margin-bottom:12px;">${seg('rec', '🔥 発情を記録')}${seg('skip', '⏸ 授精見送り')}</div>
     <div class="form-group" style="margin-bottom:10px;"><label>発情を見た日</label><input type="date" id="es-date" value="${esc(d)}"></div>
-    <div id="es-rec">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">このあと</div>
-      <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:6px;" id="es-next">
-        <button type="button" class="st-chip on" data-k="et" onclick="_esPick('es-next',this)">🧬 ETする（AIせず）</button>
-        <button type="button" class="st-chip" data-k="ai" onclick="_esPick('es-next',this)">💉 AIする</button>
-        <button type="button" class="st-chip" data-k="watch" onclick="_esPick('es-next',this)">👀 記録だけ（様子見）</button>
-      </div>
-      <div id="es-next-hint" style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;"></div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">この発情でどうする？</div>
+    <div id="es-next" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+      ${opt('et', '🧬', 'ETする（AIせず）', '6日目ゲストロン・7日目移植の予定も作る')}
+      ${opt('ai', '💉', 'AIする', 'AIの記録画面を開く')}
+      ${opt('skip', '⏸', '授精しない（見送り）', '理由を選んで残す（様子見もここ）')}
     </div>
-    <div id="es-skip">
-      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">見送った理由</div>
+    <div id="es-skip" style="display:none;">
       <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:10px;" id="es-reasons">${ESTRUS_SKIP_REASONS.map((r, i) => `<button type="button" class="st-chip ${i === 0 ? 'on' : ''}" onclick="_esPick('es-reasons',this)">${r}</button>`).join('')}</div>
     </div>
     <input type="text" id="es-memo" placeholder="メモ（任意）" style="margin-bottom:12px;">
-    <button class="btn btn-primary" style="width:100%;" onclick="saveEstrusSkip('${esc(cowId)}')">記録する</button>
-    <div style="font-size:10px;color:var(--muted);margin-top:8px;">発情発見率の計算と、次の発情予測（21日後）に使います</div>
+    <button class="btn btn-primary" id="es-save" style="width:100%;" onclick="saveEstrusSkip('${esc(cowId)}')">記録する</button>
   </div>`;
   document.body.appendChild(w);
-  _esMode(w.dataset.mode);
+  _esHint();
 }
 function _esPick(groupId, btn) {
-  document.querySelectorAll('#' + groupId + ' .st-chip').forEach(b => b.classList.remove('on'));
+  document.querySelectorAll('#' + groupId + ' > *').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   if (groupId === 'es-next') _esHint();
 }
-function _esMode(k) {
-  const w = document.getElementById('es-modal'); if (!w) return;
-  w.dataset.mode = k;
-  w.querySelectorAll('.es-mode').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-  document.getElementById('es-rec').style.display = k === 'rec' ? '' : 'none';
-  document.getElementById('es-skip').style.display = k === 'skip' ? '' : 'none';
-  _esHint();
-}
+function _esMode(k) { const b = document.querySelector(`#es-next [data-k="${k}"]`); if (b) _esPick('es-next', b); }
 function _esHint() {
-  const el = document.getElementById('es-next-hint'); if (!el) return;
-  const k = document.querySelector('#es-next .st-chip.on')?.dataset.k;
-  el.innerHTML = k === 'et' ? '発情日を0日目として、6日目ゲストロン・7日目移植の予定を作ります（「自然発情 → ET（AIせず）」と同じ）'
-    : k === 'ai' ? 'ストーリーに「発情 → AI」と残します。AIしたら、いつも通り「💉 AI」で授精を記録してください（ここでは授精の記録にはなりません）'
-    : 'ストーリーに発情だけ残します。予定は作りません';
+  const k = document.querySelector('#es-next .on')?.dataset.k;
+  const sk = document.getElementById('es-skip'); if (sk) sk.style.display = k === 'skip' ? '' : 'none';
+  const mm = document.getElementById('es-memo'); if (mm) mm.style.display = k === 'ai' ? 'none' : '';
+  const bt = document.getElementById('es-save'); if (bt) bt.textContent = k === 'ai' ? 'AIの記録へ進む' : '記録する';
 }
 // 自然発情→ET／AIのプログラムを始める（処置を記録の「自然発情 → ET（AIせず）」「発情確認・即AI」と同じ動き）
 function _startEstrusProgram(cow, kind, date, memo) {
@@ -7470,18 +7530,15 @@ function saveEstrusSkip(cowId) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) return;
   const w = document.getElementById('es-modal');
-  const mode = w?.dataset.mode || 'skip';
+  const k = document.querySelector('#es-next .on')?.dataset.k || 'watch';
   const date = document.getElementById('es-date').value || today();
   const memo = document.getElementById('es-memo').value.trim();
+  if (k === 'ai') { w?.remove(); stRecord('ai', cowId); return; }   // AIは授精の記録で入れる（ここで二重に数えない）
   cow.events = cow.events || [];
-  if (mode === 'skip') {
+  if (k === 'skip') {
     const reason = document.querySelector('#es-reasons .st-chip.on')?.textContent || 'その他';
     cow.events.push({ type: 'estrus', date, skip: true, reason, memo: `発情あり・見送り（${reason}）${memo ? '　' + memo : ''}` });
-  } else {
-    const k = document.querySelector('#es-next .st-chip.on')?.dataset.k || 'watch';
-    if (k === 'et') _startEstrusProgram(cow, 'et', date, memo);
-    else cow.events.push({ type: 'estrus', date, next: k, memo });
-  }
+  } else _startEstrusProgram(cow, 'et', date, memo);
   save();
   w?.remove();
   _rptCache = null;
@@ -28860,50 +28917,12 @@ function initFirebaseSync() {
           return;
         }
         if (k === 'insemBookEdits') {
-          // insemBookEditsはローカルとマージ（donorAIフラグを保護）
-          try {
-            const remoteEdits = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
-            const localEdits = JSON.parse(_store.getItem(k) || '{}');
-            const merged = {...remoteEdits};
-            Object.entries(localEdits).forEach(([ek, ev]) => {
-              if (!merged[ek]) merged[ek] = ev;
-              else merged[ek] = {...merged[ek], ...ev};
-            });
-            _store.setItem(k, JSON.stringify(merged));
-          } catch(e) {
-            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
-          }
+          // 行ごとに新しく直した方を残す（_mt）
+          const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+          _store.setItem(k, mergeInsemEditsJSON(rv, _store.getItem(k)));
         } else if (k === 'insemBookRecords') {
-          // insemBookRecordsはローカルで編集済みのn/q/m/op欄を保護
-          try {
-            const remoteRecs = typeof remote[k] === 'string' ? JSON.parse(remote[k]) : remote[k];
-            const localRecs = JSON.parse(_store.getItem(k) || '[]');
-            const merged = remoteRecs.map((rr, i) => {
-              // インデックス優先で照合、_seqがあれば_seqも使用
-              let lr = localRecs[i];
-              if (!lr || lr.d !== rr.d || lr.t !== rr.t) {
-                if (rr._seq) {
-                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && l._seq === rr._seq);
-                } else {
-                  lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && !l._seq);
-                }
-              }
-              if (!lr) return rr;
-              return {
-                ...rr,
-                n: lr.n !== undefined && lr.n !== '' ? lr.n : rr.n,
-                q: lr.q !== undefined && lr.q !== '' ? lr.q : rr.q,
-                m: lr.m !== undefined ? lr.m : rr.m,
-                op: lr.op !== undefined && lr.op !== '' ? lr.op : rr.op,
-              };
-            });
-            if (localRecs.length > remoteRecs.length) {
-              localRecs.slice(remoteRecs.length).forEach(lr => merged.push(lr));
-            }
-            _store.setItem(k, JSON.stringify(merged));
-          } catch(e) {
-            _store.setItem(k, typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]));
-          }
+          const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+          _store.setItem(k, mergeInsemRecordsJSON(rv, _store.getItem(k)));
         } else if (k === 'semenInventory' || k === 'embryoInventory') {
           // 精液・受精卵在庫はhistoryをマージ（ローカルにあってFirebaseにない履歴を保護）
           try {
@@ -28982,60 +29001,20 @@ function initFirebaseSync() {
         safeKeys.forEach(k => {
           if (!(k in remote)) return;
           const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
-          // insemBookRecordsは常にマージ（n/q/m欄を保護）
+          // insemBookRecordsは行ごとに新しく直した方を残す
           if (k === 'insemBookRecords') {
-            try {
-              const remoteRecs = JSON.parse(rv);
-              const localRecs = JSON.parse(_store.getItem(k) || '[]');
-              const merged = remoteRecs.map((rr, i) => {
-                // インデックスで照合（同牛同日同種雄牛の複数件に対応）
-                let lr = localRecs[i];
-                // インデックスが一致しない場合のみd/t/sで照合
-                if (!lr || (lr.d !== rr.d || lr.t !== rr.t)) {
-                  // _seqがあれば_seqも含めて照合
-                  if (rr._seq) {
-                    lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && l._seq === rr._seq);
-                  } else {
-                    lr = localRecs.find(l => l.d === rr.d && l.t === rr.t && l.s === rr.s && !l._seq);
-                  }
-                }
-                if (!lr) return rr;
-                return {
-                  ...rr,
-                  n: (lr.n !== undefined && lr.n !== '') ? lr.n : rr.n,
-                  q: (lr.q !== undefined && lr.q !== '') ? lr.q : rr.q,
-                  m: lr.m !== undefined ? lr.m : rr.m,
-                  op: (lr.op !== undefined && lr.op !== '') ? lr.op : rr.op,
-                };
-              });
-              // ローカルにあってリモートにない行も保持
-              if (localRecs.length > remoteRecs.length) {
-                localRecs.slice(remoteRecs.length).forEach(lr => merged.push(lr));
-              }
-              _store.setItem(k, JSON.stringify(merged));
-              _lastSentSnapshot[k] = JSON.stringify(merged);
-            } catch(e) {
-              _store.setItem(k, rv);
-            }
+            const merged = mergeInsemRecordsJSON(rv, _store.getItem(k));
+            _store.setItem(k, merged);
+            _lastSentSnapshot[k] = merged;
             return;
           }
           // 自分のエコーでないものだけ上書き
           if (_lastSentSnapshot[k] === rv) return;
-          // insemBookEditsは現在のローカルとマージ（donorAIなど重要なフラグを保護）
+          // insemBookEditsは行ごとに新しく直した方を残す
           if (k === 'insemBookEdits') {
-            try {
-              const remoteEdits = JSON.parse(rv);
-              const localEdits = JSON.parse(_store.getItem(k) || '{}');
-              const merged = {...remoteEdits};
-              Object.entries(localEdits).forEach(([ek, ev]) => {
-                if (!merged[ek]) merged[ek] = ev;
-                else merged[ek] = {...merged[ek], ...ev};
-              });
-              _store.setItem(k, JSON.stringify(merged));
-              _lastSentSnapshot[k] = JSON.stringify(merged);
-            } catch(e) {
-              _store.setItem(k, rv);
-            }
+            const merged = mergeInsemEditsJSON(rv, _store.getItem(k));
+            _store.setItem(k, merged);
+            _lastSentSnapshot[k] = merged;
             return;
           }
           // fatteningRecordsは配列丸ごと上書きだと後から追加した成績が消えるため、常にマージ（和集合）する
