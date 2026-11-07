@@ -207,6 +207,10 @@ body:has(.modal-overlay.open) #bottom-bar{display:none;}
 /* ホームはタイルのメニューがあるので、下のメニューは出さない */
 body.is-home #bottom-bar{display:none;}
 body.is-home{padding-bottom:0;}
+/* 薬品自動記録の画面のチェック欄 */
+.va-lbl{display:inline-flex!important;align-items:center;gap:6px;width:auto!important;margin:0;text-transform:none!important;letter-spacing:normal!important;font-weight:600;}
+.va-lbl input[type=checkbox]{width:18px!important;height:18px;min-width:18px;flex:none;margin:0!important;padding:0!important;}
+body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
 .adv-fold[open] summary span:last-child{display:none;}
 @media print{#bottom-bar{display:none !important;}}
 .st-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px;}
@@ -624,6 +628,8 @@ body.is-home{padding-bottom:0;}
       <button class="btn btn-secondary" style="flex:1;font-size:13px;color:var(--muted);" onclick="closeModal('modal-settings');logout()">⏻ ログアウト</button>
     </div>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="closeModal('modal-settings');switchTab('history')">📝 変更履歴を見る</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="closeModal('modal-settings');openVetRules()">💊 予定をチェックしたら薬品管理にも記録する（設定）</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="closeModal('modal-settings');openCullSettings()">🔻 廃用検討・繁殖障害の基準</button>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:14px;font-size:12px;" onclick="closeModal('modal-settings');pushInsemBookAsTruth()">🔁 授精簿が端末ごとに違うとき：この端末の内容を正しいものにする</button>
 
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">🐄 らくちく出生報告</div>
@@ -897,6 +903,35 @@ body.is-home{padding-bottom:0;}
 </div>
 
 <!-- 子牛死亡記録モーダル -->
+<div class="modal-overlay" id="modal-vetrules">
+  <div class="modal">
+    <div class="modal-title">
+      <span>💊 予定チェック → 薬品管理に記録</span>
+      <button class="modal-close" onclick="closeModal('modal-vetrules')">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;">予定（タスク）を済みにしたとき、予定の名前に下の言葉が入っていれば、その薬を薬品管理の処置記録に入れて在庫も減らします。量は予定の文字に「2ml」などがあればそれを使い、無ければここの量を使います。</div>
+    <div id="vetrules-body"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-cull">
+  <div class="modal">
+    <div class="modal-title">
+      <span>🔻 廃用検討・繁殖障害の基準</span>
+      <button class="modal-close" onclick="closeModal('modal-cull')">✕</button>
+    </div>
+    <div id="cull-body"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-vetauto">
+  <div class="modal">
+    <div class="modal-title">
+      <span>💊 薬品管理にも記録しますか？</span>
+      <button class="modal-close" onclick="vetAutoSkip()">✕</button>
+    </div>
+    <div id="vetauto-body"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-calf-death">
   <div class="modal">
     <div class="modal-title">
@@ -3081,6 +3116,7 @@ function loadData() {
   cows            = JSON.parse(_store.getItem('cows') || '[]');
   try { resetCowSnap(); } catch (e) {}   // 読み直した牛は「今変更した」扱いにしない
   tasks           = JSON.parse(_store.getItem('tasks') || '[]');
+  window._doneSnap = null;   // 読み直した予定は「今チェックした」扱いにしない
   collectionRecords = JSON.parse(_store.getItem('collectionRecords') || '[]');
   calvingRecords  = JSON.parse(_store.getItem('calvingRecords') || '[]');
   calves          = JSON.parse(_store.getItem('calves') || '[]');
@@ -3421,6 +3457,8 @@ function save() {
   try { syncRecipientPlaceholders(); } catch (e) { console.error('syncRecipientPlaceholders', e); }
   try { syncInsemTasks(); } catch (e) { console.error('syncInsemTasks', e); }
   try { syncReturnTasks(); } catch (e) { console.error('syncReturnTasks', e); }
+  try { closeEndedPregTasks(); } catch (e) { console.error('closeEndedPregTasks', e); }
+  try { if (typeof stampDoneTasks === 'function') stampDoneTasks(); } catch (e) { console.error('stampDoneTasks', e); }
   try { cows.forEach(normalizePregEvents); } catch (e) { console.error('normalizePregEvents', e); }
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
@@ -3638,6 +3676,7 @@ const PROTOCOLS = {
     {day:19, action:'胚移植（ET）', detail:'移植実施 ★胚番号・ドナー情報をメモに記入 → チェックすると妊鑑予定が自動追加されます', color:'#4ade80', priority:'high'},
   ],
   calving: s => [
+    {day:1, action:'💉 子牛にイーエスイー投与', detail:'生まれた子牛にイーエスイー（ビタミンE・セレン）を注射', color:'#22d3ee', priority:'high'},
     {day:14, action:'産後検診', detail:'子宮復古・悪露確認、子宮炎チェック', color:'#a78bfa', priority:'high'},
     {day:30, action:'卵巣・子宮エコー', detail:'黄体・卵胞の発育確認、子宮回復評価', color:'#60a5fa', priority:'high'},
     {day:45, action:'初回AI/ET 開始可能日', detail:'分娩後45日経過 ★プログラム開始を検討', color:'#4ade80', priority:'high'},
@@ -4047,7 +4086,7 @@ function registerEvent() {
       cow.status='fresh'; cow.calvingDate=date; cow.dueDate=null; cow.twin=false;
       // 産室移動→完了済みに、妊鑑・再発情・プログラム系の未完了タスクを削除
       tasks.forEach(t => {
-        if (t.cowId===cowId && !t.done && t.action==='🏠 産室移動') {
+        if (t.cowId===cowId && !t.done && (t.action==='🏠 産室移動' || t.action==='分娩予定')) {
           t.done=true; t.doneAt=new Date().toISOString();
         }
       });
@@ -6119,7 +6158,24 @@ function cowDisplayStatus(cow) {
   if (donorNow) return { key: 'donor', label: '採卵ドナー' };
   if (cow.status === 'program') return { key: 'program', label: 'プログラム中' };
   if (cow.status === 'fresh') return { key: 'fresh', label: '新鮮分娩' };
+  const aw = cowAbortWait(cow);
+  if (aw) return { key: 'open', label: `流産（授精可能: ${fmtDate(aw.avail)}${aw.left > 0 ? '・あと' + aw.left + '日' : '〜'}）`, abort: aw };
   return { key: 'open', label: '空胎' };
+}
+// 流産（早期胚死滅は除く）のあと、まだ授精していない空胎牛：流産日＋45日を授精可能日として出す
+function cowAbortWait(cow) {
+  if (!cow || (cow.status !== 'open' && cow.status !== 'fresh')) return null;
+  let ab = null;
+  try { if (typeof lastRealAbortion === 'function') ab = lastRealAbortion(cow.id); } catch (e) {}
+  if (!ab) return null;
+  const ev = cow.events || [];
+  if (ev.some(e => ['ai_done', 'et_done', 'estrus_ai', 'estrus_et'].includes(e.type) && e.date > ab)) return null;
+  if (ev.some(e => e.type === 'calving' && e.date >= ab) || (cow.calvingDate && cow.calvingDate >= ab)) return null;
+  const t = today();
+  const avail = addDays(ab, typeof ABORT_WAIT_DAYS !== 'undefined' ? ABORT_WAIT_DAYS : FRESH_AVAIL_DAYS);
+  const left = diffDays(avail, t);
+  if (left < -30) return null;   // 授精可能日から1か月以上たったら普通の「空胎」に戻す
+  return { date: ab, avail, left };
 }
 
 // 既存の呼び出し元（削除・修正後の再描画など）はすべてここを通る
@@ -6794,6 +6850,7 @@ function showCowStory(cowId) {
     </div>
     ${isRet ? retireHTML : metricsHTML}
     ${isRet ? '' : abortionRiskBanner(cowId)}
+    ${isRet ? '' : cullBanner(cowId)}
     ${isRet ? '' : `<div class="st-rec">
       <button onclick="stRecord('ai','${esc(cowId)}')">💉<span>AI</span></button>
       <button onclick="stRecord('et','${esc(cowId)}')">🧬<span>ET</span></button>
@@ -8058,8 +8115,8 @@ function renderDisease(el, Y) {
   }
   const S = _disState;
   const all = Object.entries(_vetData.treatments || {}).map(([id, t]) => ({ id, ...t, date: _normYMD(t.date) }))
-    .filter(t => t.date && (S.repro || !t.hanshoku))
-    .map(t => ({ ...t, cat: _disCat(t.cowId), name: t.hanshoku ? '繁殖処置' + (t.hanshokuType ? '（' + t.hanshokuType + '）' : '') : (String(t.diseaseName || t.complaint || '').trim() || '病名なし') }))
+    .filter(t => t.date && (S.repro || (!t.hanshoku && !t.preventive)))
+    .map(t => ({ ...t, cat: _disCat(t.cowId), name: t.hanshoku ? '繁殖処置' + (t.hanshokuType ? '（' + t.hanshokuType + '）' : '') : t.preventive ? '予防投与' : (String(t.diseaseName || t.complaint || '').trim() || '病名なし') }))
     .filter(t => S.cat === 'all' || t.cat === S.cat);
   const cur = all.filter(t => t.date.startsWith(String(Y))), prev = all.filter(t => t.date.startsWith(String(Y - 1)));
   const mc = (L, m) => L.filter(t => +t.date.slice(5, 7) === m).length;
@@ -8086,7 +8143,7 @@ function renderDisease(el, Y) {
   el.innerHTML = `
     <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:8px;">
       ${CAT.map(([k, l]) => `<button class="st-chip ${S.cat === k ? 'on' : ''}" onclick="_disState.cat='${k}';_disState.open=null;renderAnnual()">${l}</button>`).join('')}
-      <button class="st-chip ${S.repro ? 'on' : ''}" onclick="_disState.repro=!_disState.repro;renderAnnual()">繁殖処置も含める</button>
+      <button class="st-chip ${S.repro ? 'on' : ''}" onclick="_disState.repro=!_disState.repro;renderAnnual()">繁殖処置・予防投与も含める</button>
     </div>
     <div class="ann-rates" style="margin:0 0 10px;grid-template-columns:repeat(3,1fr);">
       <div><span>${Y}年の治療</span><b>${cur.length}件</b><small>前年 ${prev.length}件</small></div>
@@ -8392,7 +8449,7 @@ function buildAdvice(tab, Y) {
     });
   }
   if (tab === 'dis' && typeof _vetData !== 'undefined' && _vetData) {
-    const all = Object.values(_vetData.treatments || {}).map(t => ({ ...t, date: _normYMD(t.date) })).filter(t => t.date && !t.hanshoku);
+    const all = Object.values(_vetData.treatments || {}).map(t => ({ ...t, date: _normYMD(t.date) })).filter(t => t.date && !t.hanshoku && !t.preventive);
     const cur = all.filter(t => t.date.startsWith(String(Y)));
     const by = {}; cur.forEach(t => { const n = String(t.diseaseName || t.complaint || '').trim() || '病名なし'; (by[n] = by[n] || []).push(t); });
     Object.entries(by).sort((a, b) => b[1].length - a[1].length).slice(0, 2).forEach(([n, L]) => {
@@ -8492,18 +8549,27 @@ function abortionRisk(cowId) {
   const recs = (typeof miscarriageRecords !== 'undefined' ? miscarriageRecords : []);
   const list = _abRiskCache.all.filter(a => a.cowId === cowId && !a.bogus && !a.dup).map(a => {
     const mr = recs.find(r => r.cowId === cowId && Math.abs(diffDays(r.date, a.date)) <= 7);
-    return { date: a.date, cause: (mr && abortionCauseText(mr)) || (a.eed ? '早期胚死滅' : ''), eed: !!a.eed };
+    return { date: a.date, cause: (mr && abortionCauseText(mr)) || (a.eed ? '早期胚死滅' : ''), eed: !!a.eed, days: a.days, month: mr && mr.pregnancyMonth != null && mr.pregnancyMonth !== '' ? Number(mr.pregnancyMonth) : null };
   }).sort((x, y) => x.date.localeCompare(y.date));
   if (!list.length) return null;
   const eed = list.filter(a => a.eed).length;
   return { n: list.length, eed, abort: list.length - eed, last: list[list.length - 1].date, level: list.length >= 2 ? 'high' : 'mid', list };
 }
 // 早期胚死滅以外の流産：分娩と同じく45日たつまで授精できない
+// ただし早期胚死滅と、妊娠3か月台までの早い流産はすぐプログラムを組むので待たない
 const ABORT_WAIT_DAYS = 45;
+const ABORT_EARLY_DAYS = 120;   // 授精（ETは移植日−7日）から流産までがこの日数未満なら「早い流産」
+const ABORT_EARLY_MONTH = 3;    // 流産記録の「妊娠○か月」がこれ以下なら「早い流産」
+function abortNeedsWait(a) {
+  if (!a || a.eed) return false;
+  if (a.month != null && !isNaN(a.month)) return a.month > ABORT_EARLY_MONTH;
+  if (a.days != null) return a.days >= ABORT_EARLY_DAYS;
+  return true;   // 妊娠日数がわからないときは念のため待つ
+}
 function lastRealAbortion(cowId, beforeDate) {
   const r = abortionRisk(cowId);
   if (!r) return null;
-  const L = r.list.filter(a => !a.eed && (!beforeDate || a.date <= beforeDate));
+  const L = r.list.filter(a => abortNeedsWait(a) && (!beforeDate || a.date <= beforeDate));
   return L.length ? L[L.length - 1].date : null;
 }
 function abortionRiskBadge(cowId, small) {
@@ -8512,6 +8578,82 @@ function abortionRiskBadge(cowId, small) {
   const col = r.level === 'high' ? '#ef4444' : '#f59e0b';
   return `<span class="ab-risk" style="border-color:${col};color:${col};${small ? 'font-size:9px;padding:0 4px;' : ''}" title="流産${r.abort}回・早期胚死滅${r.eed}回">🌀流産歴${r.n}</span>`;
 }
+// ===== 繁殖障害・廃用の検討 =====
+// 分娩後の空胎日数（ドナー期間を除く）と、最後に受胎してから続いているAIの不受胎回数（ETは数えない）
+function reproProblem(c) {
+  if (!c) return null;
+  let st; try { st = buildCowStory(c.id); } catch (e) { return null; }
+  const lc = (st.metrics && st.metrics.lastCalving) || c.calvingDate;
+  const L = (st.insems || []).filter(i => !i.donorAI && (!lc || i.date > lc));
+  let aiFails = 0;
+  for (const i of [...L].reverse()) {
+    if (i.result === 'pos') break;
+    if (i.isEt) continue;   // 受卵牛は何度か移植するのが前提なので数えない
+    if (i.result === 'neg' || i.result === 'neg?') aiFails++;
+  }
+  let o = null; try { o = effOpenDays(c, st.metrics); } catch (e) {}
+  return { openDays: o ? o.days : null, aiFails };
+}
+// ホルモン剤の処置記録に「繁殖障害」の病名をつける牛か
+function reproDisorder(c) {
+  if (!c || c.status === 'pregnant') return null;
+  const p = reproProblem(c); if (!p) return null;
+  const S = { open: 120, repeat: 3, ...((farmTargets && farmTargets.reproProb) || {}) };
+  const why = [];
+  if (p.openDays != null && p.openDays >= S.open) why.push(`空胎${p.openDays}日`);
+  if (p.aiFails >= S.repeat) why.push(`AI${p.aiFails}回不受胎`);
+  return why.length ? why.join('・') : null;
+}
+const CULL_DEF = { open: 200, repeat: 5, abort: 2, age: 13 };
+function cullSettings() { return { ...CULL_DEF, ...((farmTargets && farmTargets.cull) || {}) }; }
+function cullReasons(c) {
+  if (!c || c.status === 'pregnant') return [];
+  try { if (cowDisplayStatus(c).key === 'donor') return []; } catch (e) {}
+  const S = cullSettings(), p = reproProblem(c) || {}, out = [];
+  if (S.open && p.openDays != null && p.openDays >= S.open) out.push(`空胎${p.openDays}日`);
+  if (S.repeat && p.aiFails >= S.repeat) out.push(`AI${p.aiFails}回連続不受胎`);
+  let r = null; try { r = abortionRisk(c.id); } catch (e) {}
+  if (S.abort && r && r.abort >= S.abort) out.push(`流産${r.abort}回`);
+  const m = typeof getMasterCow === 'function' ? getMasterCow(c.id) : null;
+  const dob = c.dob || (m && m.dob);
+  const age = dob ? Math.floor(diffDays(today(), dob) / 365.25) : null;
+  // 年齢だけでは出さない（分娩後まだ日が浅い牛まで出てしまうので、空胎90日以上か他の理由があるとき）
+  if (S.age && age != null && age >= S.age && (out.length || (p.openDays != null && p.openDays >= 90))) out.push(`${age}歳`);
+  return out;
+}
+function cullBanner(cowId) {
+  const c = cows.find(x => x.id === cowId); if (!c) return '';
+  const why = cullReasons(c); if (!why.length) return '';
+  return `<div style="background:#2a0a0a;border:1px solid #f87171;border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:12px;line-height:1.6;">
+    <div style="font-weight:900;color:#f87171;">🔻 廃用の検討 — ${why.map(_stEsc).join('・')}</div>
+    <div style="color:var(--muted);font-size:11px;">ツールが基準に当てはめただけです。体格・産子の成績・妊娠の見込みを見て決めてください（<span style="text-decoration:underline;cursor:pointer;" onclick="openCullSettings()">基準を変える</span>）</div>
+  </div>`;
+}
+function openCullSettings() {
+  const S = cullSettings();
+  const P = { open: 120, repeat: 3, ...((farmTargets && farmTargets.reproProb) || {}) };
+  document.getElementById('cull-body').innerHTML = `
+    <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:10px;">どれか1つでも当てはまる空胎の牛を「🔻 廃用を検討」に出します（妊娠中・採卵ドナーは出しません）。0にするとその基準は使いません。</div>
+    ${[['open', '分娩後の空胎日数（ドナー期間を除く）', '日以上', S.open], ['repeat', 'AIの連続不受胎（ETは数えない）', '回以上', S.repeat], ['abort', '流産の回数（早期胚死滅は数えない）', '回以上', S.abort], ['age', '年齢（空胎90日以上か、他の理由もあるとき）', '歳以上', S.age]]
+      .map(([k, l, u, v]) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="flex:1;font-size:13px;">${l}</span><input type="number" min="0" id="cull-${k}" value="${v}" style="width:70px;"><span style="font-size:12px;color:var(--muted);min-width:40px;">${u}</span></div>`).join('')}
+    <div style="font-size:13px;font-weight:800;margin:14px 0 6px;">💊 ホルモン剤の記録に「繁殖障害」の病名をつける牛</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="flex:1;font-size:13px;">分娩後の空胎日数</span><input type="number" min="0" id="rp-open" value="${P.open}" style="width:70px;"><span style="font-size:12px;color:var(--muted);min-width:40px;">日以上</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="flex:1;font-size:13px;">AIの連続不受胎（リピートブリーダー）</span><input type="number" min="0" id="rp-repeat" value="${P.repeat}" style="width:70px;"><span style="font-size:12px;color:var(--muted);min-width:40px;">回以上</span></div>
+    <button type="button" class="btn btn-primary" style="width:100%;" onclick="saveCullSettings()">保存</button>`;
+  openModal('modal-cull');
+}
+function saveCullSettings() {
+  const g = id => Math.max(0, parseInt(document.getElementById(id).value) || 0);
+  farmTargets.cull = { open: g('cull-open'), repeat: g('cull-repeat'), abort: g('cull-abort'), age: g('cull-age') };
+  farmTargets.reproProb = { open: g('rp-open') || 120, repeat: g('rp-repeat') || 3 };
+  closeModal('modal-cull'); save(); try { renderTodayWatch(); } catch (e) {} try { renderAll(); } catch (e) {}
+}
+// 薬品管理の病名（雌の繁殖障害でよく使うもの・共済コード）
+const REPRO_DISEASES = [
+  ['062400', '鈍性発情'], ['062000', '卵巣静止'], ['061900', '卵巣発育不全'], ['062100', '卵巣萎縮'], ['061700', '卵胞嚢腫'], ['061800', '黄体嚢腫'],
+  ['062200', '排卵遅延'], ['062300', '無排卵'], ['062500', '発育不全黄体'], ['062700', '黄体遺残'],
+  ['063207', '子宮内膜炎　潜在性'], ['063203', '子宮内膜炎　慢性ｶﾀﾙ性'], ['065300', 'その他雌生殖器疾患'],
+];
 function abortionRiskBanner(cowId) {
   const r = abortionRisk(cowId);
   if (!r) return '';
@@ -9265,6 +9407,308 @@ function renderHerdList() {
 
 // ===== 💊 薬品管理ツールとの連携（読み取り専用：vet/〈UID〉 を読むだけで書き込まない） =====
 const VET_TOOL_URL = 'https://obara-farm.github.io/vet-inventory/';
+// ===== 予定（タスク）を済みにしたら、薬品管理の処置記録にも入れる =====
+// ルール：{ id, kw:'CIDR挿入|CIDR交換', not:'PGレスキュー', items:[{drugId, qty}], auto:false, off:false }
+let _vetRules = null;
+function _vetRulesLoad() {
+  if (_vetRules !== null) return _vetRules;
+  try { _vetRules = JSON.parse(localStorage.getItem('vetAutoRules') || '[]'); } catch (e) { _vetRules = []; }
+  try {
+    const db = window._fbDb, U = window._CANON_UID;
+    if (db && U) db.ref('data/' + U + '/vetAutoRules').once('value').then(snap => {
+      const v = snap.val(); if (!v) return;
+      _vetRules = typeof v === 'string' ? JSON.parse(v) : v;
+      try { localStorage.setItem('vetAutoRules', JSON.stringify(_vetRules)); } catch (e) {}
+      if (document.getElementById('modal-vetrules')?.classList.contains('open')) renderVetRules();
+    }).catch(() => {});
+  } catch (e) {}
+  return _vetRules;
+}
+function _vetRulesSave() {
+  try { localStorage.setItem('vetAutoRules', JSON.stringify(_vetRules)); } catch (e) {}
+  try { const db = window._fbDb, U = window._CANON_UID; if (db && U) db.ref('data/' + U + '/vetAutoRules').set(JSON.stringify(_vetRules)).catch(() => {}); } catch (e) {}
+}
+// よく使う処置のおすすめ（薬品管理に登録されている薬の名前から自動で探す）
+const VET_RULE_SUGGEST = [
+  { kw: 'CIDR挿入|CIDR交換|シダー挿入', drug: /CIDR|シダー|サイダー/i, qty: 1 },
+  { kw: 'E2|オバホルモン|エストラジオール', drug: /オバホルモン|エストラジオール|E2/i, qty: 1 },
+  { kw: 'PG|ジノプロスト|プロナルゴン', not: 'PGレスキュー', drug: /プロナルゴン|ジノプロスト|レジプロン|エストラメイト|ダルマジン|プロスタ|PG/i, qty: 2 },
+  { kw: 'ゲストロン', drug: /ゲストロン/, qty: 1 },
+  { kw: 'コンセラール|GnRH', drug: /コンセラール|イトレリン|スポルネン|GnRH/i, qty: 1 },
+  { kw: 'アントリン', drug: /アントリン/, qty: 1 },
+  { kw: 'ルテウム', drug: /ルテウム/, qty: 1 },
+  { kw: 'イーエスイー|ESE', drug: /イーエスイー|E\.?S\.?E/i, qty: 1 },
+  { kw: '胚移植|採卵|受精卵回収', drug: /塩プロ|塩酸プロカイン|プロカイン/, qty: 5 },   // 移植・採卵のときの麻酔（量はその場で直せる）
+];
+function vetSuggestRules() {
+  if (!_vetData) { alert('薬品管理のデータを読み込み中です。少し待ってからもう一度押してください'); try { startVetSync(); } catch (e) {} return; }
+  _vetRulesLoad();
+  const dr = Object.entries(_vetData.drugs || {});
+  let added = 0; const miss = [];
+  VET_RULE_SUGGEST.forEach(sg => {
+    if (_vetRules.some(r => r.kw === sg.kw)) return;
+    const hit = dr.find(([, d]) => sg.drug.test(d.name || ''));
+    if (!hit) { miss.push(sg.kw.split('|')[0]); return; }
+    _vetRules.push({ id: 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), kw: sg.kw, not: sg.not || '', items: [{ drugId: hit[0], qty: sg.qty }], auto: false });
+    added++;
+  });
+  _vetRulesSave(); renderVetRules();
+  alert(`${added}件のルールを作りました。` + (miss.length ? `\n薬品管理に見つからなかった薬：${miss.join('、')}（必要なら手で追加してください）` : '') + '\n薬と量が合っているか確認してください');
+}
+function openVetRules() {
+  _vetRulesLoad();
+  if (!_vetData) { try { startVetSync(); } catch (e) {} }
+  openModal('modal-vetrules'); renderVetRules();
+}
+function _vetDrugOpts(sel) {
+  const dr = Object.entries((_vetData && _vetData.drugs) || {}).sort((a, b) => String(a[1].name || '').localeCompare(String(b[1].name || ''), 'ja'));
+  return `<option value="">（薬を選ぶ）</option>` + dr.map(([id, d]) => `<option value="${_stEsc(id)}" ${id === sel ? 'selected' : ''}>${_stEsc(d.name || id)}</option>`).join('');
+}
+function _vetUnit(id) { const d = _vetData && _vetData.drugs && _vetData.drugs[id]; return (d && d.unit) || 'ml'; }
+function renderVetRules() {
+  const box = document.getElementById('vetrules-body'); if (!box) return;
+  _vetRulesLoad();
+  if (!_vetData) { box.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0;">薬品管理のデータを読み込み中…</div>'; setTimeout(() => { if (document.getElementById('modal-vetrules').classList.contains('open')) renderVetRules(); }, 1200); return; }
+  const rows = _vetRules.map((r, i) => `
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;${r.off ? 'opacity:.5;' : ''}">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <input type="text" value="${_stEsc(r.kw)}" placeholder="予定の名前に入る言葉（| で区切ると複数）" onchange="_vetRules[${i}].kw=this.value.trim();_vetRulesSave()" style="flex:1;font-size:13px;">
+        <button type="button" class="st-act" onclick="_vetRules[${i}].off=!_vetRules[${i}].off;_vetRulesSave();renderVetRules()">${r.off ? '使う' : '止める'}</button>
+        <button type="button" class="st-act" style="color:var(--danger);" onclick="if(confirm('このルールを消しますか？')){_vetRules.splice(${i},1);_vetRulesSave();renderVetRules()}">消す</button>
+      </div>
+      ${(r.items || []).map((it, j) => `<div style="display:flex;gap:6px;align-items:center;margin-bottom:5px;">
+        <select style="flex:1;font-size:13px;" onchange="_vetRules[${i}].items[${j}].drugId=this.value;_vetRulesSave();renderVetRules()">${_vetDrugOpts(it.drugId)}</select>
+        <input type="number" step="0.1" min="0" value="${it.qty ?? ''}" style="width:70px;font-size:13px;" onchange="_vetRules[${i}].items[${j}].qty=parseFloat(this.value)||0;_vetRulesSave()">
+        <span style="font-size:12px;color:var(--muted);min-width:24px;">${_stEsc(_vetUnit(it.drugId))}</span>
+        <button type="button" class="st-act" onclick="_vetRules[${i}].items.splice(${j},1);_vetRulesSave();renderVetRules()">✕</button>
+      </div>`).join('')}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;">
+        <button type="button" class="st-act" onclick="_vetRules[${i}].items.push({drugId:'',qty:1});_vetRulesSave();renderVetRules()">＋ 薬を足す</button>
+        <label class="va-lbl" style="color:var(--muted);font-size:12px;"><input type="checkbox" ${r.auto ? 'checked' : ''} onchange="_vetRules[${i}].auto=this.checked;_vetRulesSave()">確認なしで記録</label>
+        <span style="color:var(--muted);">含まない言葉：</span><input type="text" value="${_stEsc(r.not || '')}" placeholder="任意" onchange="_vetRules[${i}].not=this.value.trim();_vetRulesSave()" style="width:110px;font-size:12px;">
+      </div>
+    </div>`).join('');
+  box.innerHTML = (rows || '<div style="color:var(--muted);font-size:13px;margin-bottom:8px;">まだルールがありません</div>') + `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+      <button type="button" class="btn btn-primary" style="flex:1;" onclick="vetSuggestRules()">✨ よく使うホルモン剤で作る</button>
+      <button type="button" class="btn btn-secondary" style="flex:1;" onclick="_vetRules.push({id:'r'+Date.now().toString(36),kw:'',not:'',items:[{drugId:'',qty:1}],auto:false});_vetRulesSave();renderVetRules()">＋ ルールを足す</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.7;">例：塩プロ注を分娩後に打つなら「言葉：産後検診」「薬：塩プロ注」のように、打つときに出てくる予定の名前を入れてください。<br>予定の名前の例：CIDR挿入／E2投与／PG投与 2ml／ゲストロン投与／ドナー オバホルモン 1.5ml／💉 子牛にイーエスイー投与</div>`;
+}
+// 予定の文字から、その薬の量（ml・cc）を読む。例「PG(2ml)」「ジノプロスト 2.5ml」
+function _vetQtyFromText(text, kw) {
+  const t = String(text || '').replace(/PGF2α|PGF2a|PGF₂α/gi, 'PG').replace(/ｍｌ|ｍL/g, 'ml');
+  for (const k of kw) {
+    const i = t.indexOf(k); if (i < 0) continue;
+    const m = t.slice(i + k.length).match(/^[^0-9＋+、・]{0,8}?([0-9]+(?:\.[0-9]+)?)\s*(ml|mL|cc|ＣＣ)/);
+    if (m) return parseFloat(m[1]);
+  }
+  return null;
+}
+// その予定に当てはまるルール
+function _vetRulesFor(t) {
+  _vetRulesLoad();
+  const out = [];
+  (_vetRules || []).forEach(r => {
+    if (r.off || !r.kw || !t || !t.action) return;
+    let a = String(t.action).replace(/PGF2α|PGF2a/gi, 'PG');
+    String(r.not || '').split('|').map(x => x.trim()).filter(Boolean).forEach(x => { a = a.split(x).join(''); });
+    const kws = r.kw.split('|').map(x => x.trim()).filter(Boolean);
+    if (kws.some(k => a.includes(k))) out.push({ r, a, kws });
+  });
+  return out;
+}
+// その予定に当てはまる薬の一覧
+function vetItemsForTask(t) {
+  _vetRulesLoad();
+  if (!_vetRules.length || !t || !t.action) return [];
+  const out = [];
+  _vetRulesFor(t).forEach(({ r, a, kws }) => {
+    (r.items || []).forEach(it => {
+      if (!it.drugId || out.some(o => o.drugId === it.drugId)) return;
+      const fromText = (it === r.items[0]) ? (_vetQtyFromText(a, kws) ?? _vetQtyFromText(String(t.detail || ''), kws)) : null;
+      out.push({ drugId: it.drugId, qty: fromText ?? (+it.qty || 0), auto: !!r.auto });
+    });
+  });
+  return out.filter(x => x.qty > 0);
+}
+function _vetKindFor(t) {
+  const a = (t.action || '') + ' ' + (t.detail || '');
+  if (/イーエスイー|子牛に/.test(t.action || '')) return null;   // 子牛の予防注射は繁殖処置ではない
+  if (/ドナー|採卵|FSH|アントリン/.test(a)) return '採卵';
+  if (/受卵牛|胚移植|ET|移植/.test(a)) return '移植';
+  return 'AI';
+}
+// 薬品管理に入れる牛のID（子牛向けの予定は、その分娩で生まれた子牛）
+function _vetTargetsFor(t) {
+  if (!/子牛に/.test(t.action || '')) return [{ cowId: t.cowId }];
+  const born = addDays(t.date, -1);
+  const cs = (typeof calves !== 'undefined' ? calves : []).filter(c => c.damId === t.cowId && c.dob && Math.abs(diffDays(c.dob, born)) <= 3 && !c.deathDate);
+  if (cs.length) return cs.map(c => ({ cowId: c.earTagId || c.id, label: c.earTagId || ('子牛 ' + fmtDateShort(c.dob)) }));
+  return [{ cowId: 'newborn_' + t.cowId + '_' + Date.now(), newborn: { isNewborn: true, motherId: t.cowId, motherName: cowDisplayName(t.cowId) || '', earTag: '' }, label: t.cowId + 'の子' }];
+}
+// save() のたびに、いま済みにした予定を探す
+let _vetQueue = [];
+function stampDoneTasks() {
+  const now = new Set(tasks.filter(t => t.done).map(t => t.id));
+  const prev = window._doneSnap;
+  window._doneSnap = now;
+  if (!prev) return;
+  tasks.forEach(t => {
+    if (prev.has(t.id) && !t.done) delete t.vetSkip;   // 未完了に戻したら、次に済みにしたときまた聞く
+    if (prev.has(t.id) && !t.done && (t.vetTreatIds || []).length) {
+      const ids = t.vetTreatIds; delete t.vetTreatIds;
+      setTimeout(() => { if (confirm(`「${t.action}」を未完了に戻しました。\n薬品管理に入れた処置記録（${ids.length}件）も消しますか？`)) vetDeleteTreats(ids); }, 50);
+    }
+    if (!t.done || prev.has(t.id) || t.vetTreatIds || t.vetSkip || t.autoClosed || t.pregResult) return;
+    if (_vetQueue.some(q => q.task.id === t.id)) return;
+    const items = vetItemsForTask(t);
+    if (items.length) _vetQueue.push({ task: t, items });
+  });
+  if (_vetQueue.length) { clearTimeout(window._vetQT); window._vetQT = setTimeout(showVetAutoSheet, 350); }
+}
+function _vetSig(q) { return q.task.action + '|' + q.items.map(i => i.drugId + ':' + i.qty).join(','); }
+function showVetAutoSheet() {
+  if (!_vetQueue.length) return;
+  if (!_vetData) { try { startVetSync(); } catch (e) {} setTimeout(showVetAutoSheet, 1200); return; }
+  // 確認なしのルールだけの予定は、そのまま記録
+  const autos = _vetQueue.filter(q => q.items.every(i => i.auto));
+  if (autos.length) { _vetQueue = _vetQueue.filter(q => !autos.includes(q)); vetWriteTreats(autos, true); }
+  if (!_vetQueue.length) return;
+  const sig = _vetSig(_vetQueue[0]);
+  const group = _vetQueue.filter(q => _vetSig(q) === sig);
+  window._vetGroup = group;
+  const dn = id => (_vetData.drugs[id] && _vetData.drugs[id].name) || '（薬品管理に無い薬）';
+  const rest = _vetQueue.length - group.length;
+  document.getElementById('vetauto-body').innerHTML = `
+    <div style="font-size:14px;font-weight:800;margin-bottom:6px;">${_stEsc(group[0].task.action)}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${group.map((q, i) => `<label class="va-lbl" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:13px;"><input type="checkbox" class="va-cow" data-i="${i}" checked>${_stEsc(q.task.cowId)} ${_stEsc(cowDisplayName(q.task.cowId) || '')}${/子牛に/.test(q.task.action) ? 'の子牛' : ''}</label>`).join('')}</div>
+    ${group[0].items.map((it, j) => `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="flex:1;font-size:14px;">${_stEsc(dn(it.drugId))}</span>
+      <input type="number" class="va-qty" data-j="${j}" step="0.1" min="0" value="${it.qty}" style="width:76px;font-size:14px;">
+      <span style="font-size:12px;color:var(--muted);min-width:24px;">${_stEsc(_vetUnit(it.drugId))}</span></div>
+      ${_isCidr(it.drugId) ? `<div style="display:flex;justify-content:flex-end;margin:-2px 0 8px;"><select class="va-reuse" data-j="${j}" style="width:auto;font-size:12px;padding:4px 8px;"><option value="new">🆕 新品（在庫を減らす）</option><option value="reuse" ${_cidrReuseDefault(group[0].task) ? 'selected' : ''}>♻ 滅菌して再利用（在庫は減らさない）</option></select></div>` : ''}`).join('')}
+    ${(() => {
+      const dis = group.map((q, i) => ({ q, i, why: _vetDisorderFor(q) })).filter(x => x.why);
+      if (!dis.length) return '';
+      const def = (farmTargets && farmTargets.vetReproDisease != null) ? farmTargets.vetReproDisease : '062400';
+      return `<div style="background:#2a1d05;border:1px solid var(--warn);border-radius:9px;padding:8px 10px;margin:4px 0 10px;font-size:12px;line-height:1.6;">
+        <div style="font-weight:800;color:var(--warn);">⚠ 繁殖障害の牛：${dis.map(x => `${_stEsc(x.q.task.cowId)}（${_stEsc(x.why)}）`).join('、')}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;"><span>病名</span><select id="va-dis" style="flex:1;font-size:13px;">${_vetDiseaseOpts(def)}</select></div>
+        <div style="color:var(--muted);font-size:11px;">この牛は治療（病名つき）として記録します。それ以外の牛は繁殖処置のままです</div></div>`;
+    })()}
+    <div style="font-size:11px;color:var(--muted);margin:4px 0 12px;">処置日：${fmtDate(_vetDateFor(group[0].task))}・薬品管理の在庫も減ります${rest ? `（このあと別の処置があと${rest}件）` : ''}</div>
+    <label class="va-lbl" style="font-size:12px;color:var(--muted);margin-bottom:12px!important;"><input type="checkbox" id="va-always">次からこの処置は確認しないで記録する</label>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="btn btn-secondary" style="flex:1;" onclick="vetAutoSkip()">記録しない</button>
+      <button type="button" class="btn btn-primary" style="flex:2;" onclick="vetAutoOk()">💊 記録する</button>
+    </div>`;
+  openModal('modal-vetauto');
+}
+const _isCidr = id => { const d = _vetData && _vetData.drugs && _vetData.drugs[id]; return !!d && /CIDR|シダー|サイダー|プリッド|PRID/i.test(d.name || ''); };
+function _cidrReuseDefault(t) { return /ドナー/.test((t.action || '') + (t.detail || '')) ? false : (farmTargets && farmTargets.cidrReuse === true); }
+function _vetDisorderFor(q) {
+  const kind = _vetKindFor(q.task);
+  if (!kind || kind === '採卵') return null;   // 採卵の過剰排卵処置・子牛の予防は病名なし
+  if (!q.items.some(i => { const d = _vetData && _vetData.drugs[i.drugId]; return !(d && /プロカイン|塩プロ/.test(d.name || '')); })) return null;   // 麻酔だけの処置
+  return reproDisorder(cows.find(c => c.id === q.task.cowId));
+}
+function _vetDiseaseOpts(sel) {
+  return REPRO_DISEASES.map(([c, n]) => `<option value="${c}" ${c === sel ? 'selected' : ''}>${n}</option>`).join('') + `<option value="" ${sel === '' ? 'selected' : ''}>病名をつけない（繁殖処置のまま）</option>`;
+}
+function _vetDateFor(t) { const td = today(); return t.date && t.date <= td ? t.date : td; }
+function vetAutoSkip() {
+  const g = window._vetGroup || [];
+  g.forEach(q => { q.task.vetSkip = true; });
+  _vetQueue = _vetQueue.filter(q => !g.includes(q));
+  closeModal('modal-vetauto'); save();
+  if (_vetQueue.length) setTimeout(showVetAutoSheet, 250);
+}
+function vetAutoOk() {
+  const g = window._vetGroup || [];
+  const qtys = [...document.querySelectorAll('#vetauto-body .va-qty')].map(x => parseFloat(x.value) || 0);
+  const on = new Set([...document.querySelectorAll('#vetauto-body .va-cow')].filter(x => x.checked).map(x => +x.dataset.i));
+  const pick = g.filter((q, i) => on.has(i)), skip = g.filter((q, i) => !on.has(i));
+  const reuse = {}; document.querySelectorAll('#vetauto-body .va-reuse').forEach(x => { reuse[+x.dataset.j] = x.value === 'reuse'; });
+  const disSel = document.getElementById('va-dis');
+  if (Object.keys(reuse).length && !/ドナー/.test(g[0].task.action + (g[0].task.detail || ''))) farmTargets.cidrReuse = Object.values(reuse).some(Boolean);
+  if (disSel) farmTargets.vetReproDisease = disSel.value;
+  pick.forEach(q => {
+    q.items = q.items.map((it, j) => ({ ...it, qty: qtys[j], reuse: !!reuse[j] })).filter(it => it.qty > 0);
+    q.disease = disSel ? disSel.value : '';
+  });
+  skip.forEach(q => { q.task.vetSkip = true; });
+  if (document.getElementById('va-always')?.checked) {
+    _vetRulesFor(g[0].task).forEach(({ r }) => { r.auto = true; });
+    _vetRulesSave();
+  }
+  _vetQueue = _vetQueue.filter(q => !g.includes(q));
+  closeModal('modal-vetauto');
+  vetWriteTreats(pick, false);
+  if (_vetQueue.length) setTimeout(showVetAutoSheet, 300);
+}
+function vetWriteTreats(list, quiet) {
+  const db = window._fbDb, U = window._CANON_UID;
+  if (!list.length) { save(); return; }
+  if (!db || !U || !_vetData) { alert('薬品管理につながっていないため記録できませんでした（ネットにつながってから、薬品管理で入力してください）'); return; }
+  const updates = {}; let n = 0;
+  list.forEach(q => {
+    const t = q.task, date = _vetDateFor(t), kind = _vetKindFor(t);
+    if (!q.items.length) return;
+    // 確認なしで記録するとき：CIDRの新品・再利用と病名はいつもの設定で
+    q.items.forEach(i => { if (i.reuse === undefined) i.reuse = _isCidr(i.drugId) && _cidrReuseDefault(t); });
+    if (q.disease === undefined) q.disease = (farmTargets && farmTargets.vetReproDisease != null) ? farmTargets.vetReproDisease : '062400';
+    const why = _vetDisorderFor(q);
+    const dis = why && q.disease ? REPRO_DISEASES.find(d => d[0] === q.disease) : null;
+    let maxMeat = 0, maxMilk = 0;
+    q.items.forEach(i => { const d = _vetData.drugs[i.drugId]; if (d) { maxMeat = Math.max(maxMeat, d.wdMeat || 0); maxMilk = Math.max(maxMilk, d.wdMilk || 0); } });
+    const ids = [];
+    _vetTargetsFor(t).forEach((tg, k) => {
+      const treatId = 'auto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + k;
+      const memo = '繁殖管理の予定から：' + t.action + (q.items.some(i => i.reuse) ? '（CIDRは滅菌再利用品）' : '');
+      updates['treatments/' + treatId] = {
+        cowId: tg.cowId, date, drugs: q.items.map(i => ({ drugId: i.drugId, qty: i.qty, ...(i.reuse ? { noStock: true, reused: true } : {}) })), memo,
+        ...(dis ? { complaint: '繁殖障害（' + why + '）', diseaseCode: dis[0], diseaseName: dis[1], diseaseLarge: '06', hanshokuType: kind, outcome: '', outcomeDate: '' }
+          : kind ? { hanshoku: true, hanshokuType: kind, kofuFarm: '' } : { complaint: '予防投与', preventive: true, outcome: '', outcomeDate: '' }),
+        wdMeatEnd: maxMeat > 0 ? addDays(date, maxMeat) : null, wdMilkEnd: maxMilk > 0 ? addDays(date, maxMilk) : null,
+        newborn: tg.newborn || null, fromTask: t.id, autoFromBreeding: true,
+      };
+      q.items.forEach((i, m) => {
+        if (i.reuse) return;   // 滅菌して再利用したCIDRは在庫を減らさない
+        updates['movements/mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + k + m] = { drugId: i.drugId, type: 'use', qty: -i.qty, date, cowId: tg.cowId, treatId, memo };
+      });
+      ids.push(treatId); n++;
+    });
+    t.vetTreatIds = ids;
+  });
+  save();
+  db.ref('vet/' + U).update(updates).then(() => {
+    _vetToast(`💊 薬品管理に${n}件記録しました`, list);
+  }).catch(e => {
+    list.forEach(q => { delete q.task.vetTreatIds; }); save();
+    alert('薬品管理への記録に失敗しました：' + (e && e.message || e));
+  });
+}
+function vetDeleteTreats(ids) {
+  const db = window._fbDb, U = window._CANON_UID; if (!db || !U || !ids || !ids.length) return;
+  const up = {};
+  ids.forEach(id => { up['treatments/' + id] = null; });
+  Object.entries((_vetData && _vetData.movements) || {}).forEach(([mid, m]) => { if (ids.includes(m.treatId)) up['movements/' + mid] = null; });
+  db.ref('vet/' + U).update(up).catch(() => {});
+}
+function _vetToast(msg, list) {
+  let el = document.getElementById('undo-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'undo-toast'; document.body.appendChild(el); }
+  el.innerHTML = `<span style="white-space:nowrap;">${_stEsc(msg)}</span><button type="button" id="vetauto-undo">取り消す</button>`;
+  el.querySelector('#vetauto-undo').onclick = () => {
+    const ids = [].concat(...list.map(q => q.task.vetTreatIds || []));
+    list.forEach(q => { delete q.task.vetTreatIds; q.task.vetSkip = true; });
+    vetDeleteTreats(ids); save(); el.classList.remove('show');
+  };
+  el.classList.add('show');
+  clearTimeout(window._vetToastT); window._vetToastT = setTimeout(() => el.classList.remove('show'), 7000);
+}
+
 let _vetData = null;          // { drugs, treatments, movements }
 let _vetSyncStarted = false;
 
@@ -9929,7 +10373,7 @@ function checkDataConsistency() {
   // 「問題ない」にした項目は出さない
   for (let i = out.length - 1; i >= 0; i--) {
     const x = out[i]; const cw = x.cowId && cows.find(c => c.id === x.cowId);
-    if (cw && (cw._chkOk || []).includes(x.title)) out.splice(i, 1);
+    if (cw && ((cw._chkOk || []).includes(x.title) || (cw._chkOk || []).includes(chkOkKey(x)))) out.splice(i, 1);
   }
   // 1c をまとめて直すボタン（3頭以上のとき先頭に）
   const contra = out.filter(x => x.payload);
@@ -10258,6 +10702,17 @@ function reconcileCow(c) {
       if (mvs.length > 1) { const keep = mvs[0]; tasks = tasks.filter(t => !(t.cowId === c.id && !t.done && t.action === '🏠 産室移動' && t !== keep)); changed = true; }
     }
   }
+  // 予定日より早く分娩・流産した：その妊娠の「分娩予定」「産室移動」が残っていたら済みにする
+  if (c.status !== 'pregnant') {
+    const ends = (c.events || []).filter(e => e.type === 'calving' || e.type === 'abortion' || e.type === 'miscarriage').map(e => e.date);
+    if (c.calvingDate) ends.push(c.calvingDate);
+    tasks.forEach(t => {
+      if (t.cowId !== c.id || t.done || (t.action !== '分娩予定' && t.action !== '🏠 産室移動')) return;
+      // 予定日の前100日〜予定日後60日の間に分娩・流産があれば、その妊娠は終わっている
+      const hit = ends.find(d => d && diffDays(t.date, d) <= 100 && diffDays(d, t.date) <= 60);
+      if (hit) { t.done = true; t.doneAt = t.doneAt || new Date().toISOString(); t.autoClosed = '分娩・流産済み'; changed = true; }
+    });
+  }
   return changed;
 }
 // 「受胎」になっている授精のあと、分娩・流産の記録がないまま次の授精をしている（受胎のはずがない）
@@ -10378,11 +10833,28 @@ function markCertOk(src, idx) {
   });
   save(); renderDataCheck();
 }
-function markCheckOk(cowId, title) {
-  const c = cows.find(x => x.id === cowId);
-  if (!c) return;
-  c._chkOk = [...new Set([...(c._chkOk || []), title])];
+// 「問題ない」の記憶用キー：牛の名前や「○日過ぎている」の日数が変わっても同じ項目とみなす
+function chkOkKey(x) {
+  const t = String(x.title || ''); const i = t.indexOf('：');
+  return 'k:' + (x.kind || '') + '|' + (i >= 0 ? t.slice(i + 1) : t).replace(/\d+/g, '#');
+}
+function markCheckOkBtn(btn) {
+  const card = btn.closest('[data-chk-cow]');
+  if (!card) return;
+  markCheckOk(card.dataset.chkCow, card.dataset.chkKey, card.dataset.chkTitle);
+}
+function markCheckOk(cowId, key, title) {
+  const c = cows.find(x => x.id === cowId) || (typeof retiredCows !== 'undefined' ? retiredCows.find(x => x.id === cowId) : null);
+  if (!c) { alert('この牛が見つかりませんでした（' + cowId + '）'); return; }
+  const before = [...(c._chkOk || [])];
+  c._chkOk = [...new Set([...before, key, ...(title ? [title] : [])])];
   save(); renderDataCheck(); if (typeof scheduleTodayWatch === 'function') scheduleTodayWatch();
+  let el = document.getElementById('undo-toast');
+  if (!el) { el = document.createElement('div'); el.id = 'undo-toast'; document.body.appendChild(el); }
+  el.innerHTML = `<span style="white-space:nowrap;">✅ 今後出しません</span><button type="button" id="chkok-undo">元に戻す</button>`;
+  el.querySelector('#chkok-undo').onclick = () => { c._chkOk = before; save(); renderDataCheck(); el.classList.remove('show'); };
+  el.classList.add('show');
+  clearTimeout(window._chkOkTimer); window._chkOkTimer = setTimeout(() => el.classList.remove('show'), 6000);
 }
 
 function openInsemBookFor(cowId, year) {
@@ -10420,11 +10892,11 @@ function renderDataCheck() {
     <div style="font-size:10px;color:var(--muted);margin-top:6px;">行をタップすると授精簿でその牛を開きます。番号の修正は授精簿で手入力してください（ここでは書き換えません）</div>`;
   const cons = checkDataConsistency();
   const consHTML = cons.length ? cons.map(x => `
-    <div class="chk-item" ${x.cowId ? `onclick="showCowDetail('${esc(x.cowId)}')"` : x.action ? `onclick="${x.action}"` : ''}>
+    <div class="chk-item" ${x.cowId ? `data-chk-cow="${esc(x.cowId)}" data-chk-key="${esc(chkOkKey(x))}" data-chk-title="${esc(x.title)}" onclick="showCowDetail('${esc(x.cowId)}')"` : x.action ? `onclick="${x.action}"` : ''}>
       <div style="font-size:13px;font-weight:700;">${esc(x.title)}</div>
       ${x.detail ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;">${esc(x.detail)}</div>` : ''}
       <div style="font-size:11px;color:var(--info);margin-top:3px;">→ ${esc(x.fix)}</div>
-      ${(x.buttons || x.cowId) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${x.buttons || ''}${x.cowId ? `<button class="st-act" style="color:var(--muted);" onclick="event.stopPropagation();markCheckOk('${esc(x.cowId)}','${esc(x.title).replace(/'/g, '&#39;')}')">問題ない（今後出さない）</button>` : ''}</div>` : ''}
+      ${(x.buttons || x.cowId) ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">${x.buttons || ''}${x.cowId ? `<button type="button" class="st-act" style="color:var(--muted);position:relative;z-index:2;" onclick="event.stopPropagation();markCheckOkBtn(this)">問題ない（今後出さない）</button>` : ''}</div>` : ''}
     </div>`).join('') : '<div style="color:var(--accent);font-size:13px;padding:8px 0;">✓ 食い違いは見つかりませんでした</div>';
   if (!window._watchRows) { try { renderTodayWatch(); } catch (e) {} }
   const wr = window._watchRows || [];
@@ -10493,6 +10965,9 @@ function renderTodayWatch() {
     return o ? { id: c.id, days: o.days, donor: o.donor } : null;
   }).filter(x => x && x.days > 120).sort((a, b) => b.days - a.days);
   if (longOpen.length) rows.push([`🚨 長期空胎（分娩後120日超 ${longOpen.length}頭）`, longOpen.slice(0, 3).map(x => chip(x.id, cowDisplayName(x.id), x.days + '日' + (x.donor ? '（ドナー除く）' : ''), 'var(--danger)')).join('') + (longOpen.length > 3 ? `<span class="tw-chip" style="border-style:dashed;" onclick="switchTab('herd');herdSelectList('longopen')">ほか${longOpen.length - 3}頭 →</span>` : '')]);
+  // 🔻 廃用を検討する牛
+  const culls = cows.map(c => ({ c, why: cullReasons(c) })).filter(x => x.why.length).sort((a, b) => b.why.length - a.why.length);
+  if (culls.length) rows.push([`🔻 廃用を検討（${culls.length}頭）`, culls.map(x => chip(x.c.id, cowDisplayName(x.c.id), x.why.join('・'), '#f87171')).join('') + ` <span class="tw-chip" style="border-style:dashed;" onclick="event.stopPropagation();openCullSettings()">⚙ 基準を変える</span>`]);
   // 🌀 流産傾向のある妊娠中の牛（黄体ホルモン補充の検討）
   const abPreg = cows.filter(c => c.status === 'pregnant').map(c => ({ c, r: abortionRisk(c.id) })).filter(x => x.r)
     .sort((a, b) => b.r.n - a.r.n);
@@ -21888,7 +22363,7 @@ function saveCalvingRecord() {
 
   // 産室移動→完了済みに、妊鑑・再発情・プログラム系の未完了タスクを削除
   tasks.forEach(t => {
-    if (t.cowId===cowId && !t.done && t.action==='🏠 産室移動') {
+    if (t.cowId===cowId && !t.done && (t.action==='🏠 産室移動' || t.action==='分娩予定')) {
       t.done=true; t.doneAt=new Date().toISOString();
     }
   });
@@ -22413,7 +22888,7 @@ function calfVerdict(calf) {
   const seq = sc.map(x => x.score);
   const declining = seq.length >= 2 && seq.every((v, i) => i === 0 || v < seq[i - 1]);   // 節目ごとに下がっている（例：育成舎①4 → 育成舎②3）
   let ill = false;
-  try { ill = typeof vetTreatmentsForCalf === 'function' && _vetData && vetTreatmentsForCalf(calf).some(t => !t.hanshoku); } catch (e) {}
+  try { ill = typeof vetTreatmentsForCalf === 'function' && _vetData && vetTreatmentsForCalf(calf).some(t => !t.hanshoku && !t.preventive); } catch (e) {}
   return { final: !!ship, score: last.score, stage: last.stage, bad: last.score <= 2, declining, ill, seq: sc };
 }
 // 母牛×種雄牛ごとの相性（子の体格評価から）
@@ -22556,6 +23031,26 @@ async function deleteCalfMove(calfId, idx) {
   if (!calf.moves.some(x => x.to === '出荷')) delete calf.shipDate;
   save();
   showCalfStory(calfId);
+}
+// 予定日より早く分娩・流産した牛の「分娩予定」「産室移動」が残っていたら済みにする
+// （別の端末の古い予定で上書きされた場合もここで直る）
+function closeEndedPregTasks() {
+  let changed = false;
+  const byCow = new Map(cows.map(c => [c.id, c]));
+  tasks.forEach(t => {
+    if (t.done || !t.date || (t.action !== '分娩予定' && t.action !== '🏠 産室移動')) return;
+    const c = byCow.get(t.cowId); if (!c) return;
+    const due = t.action === '分娩予定' ? t.date : addDays(t.date, 10);
+    const evs = c.events || [];
+    // 分娩：予定日の100日前〜60日後。流産：予定日の290日前〜予定日（その妊娠の途中）
+    const calv = [...evs.filter(e => e.type === 'calving').map(e => e.date), c.calvingDate].filter(Boolean)
+      .some(d => diffDays(due, d) <= 100 && diffDays(d, due) <= 60 && d <= today());
+    const abo = evs.filter(e => e.type === 'abortion' || e.type === 'miscarriage').map(e => e.date)
+      .some(d => d && diffDays(due, d) <= 290 && d <= due && d <= today()
+        && !evs.some(e => ['ai_done', 'et_done', 'estrus_ai'].includes(e.type) && e.date > d));   // 流産のあと授精し直した妊娠の予定は消さない
+    if (calv || abo) { t.done = true; t.doneAt = t.doneAt || new Date().toISOString(); t.autoClosed = calv ? '分娩済み' : '流産済み'; changed = true; }
+  });
+  return changed;
 }
 // 分娩したら、10日後に「🏠 繁殖舎へ戻す」予定を出す（産室にいる牛だけ・1頭に1つ）
 function syncReturnTasks() {
@@ -27938,6 +28433,7 @@ function renderAll() {
   const todayStr = today();
   let updated = false;
 
+  try { if (closeEndedPregTasks()) updated = true; } catch (e) {}
   // 分娩後40日経過でステータスをfresh→openに自動変更
   cows.forEach(cow => {
     if (cow.status === 'fresh' && cow.calvingDate) {
@@ -29057,6 +29553,7 @@ function initFirebaseSync() {
             }
           }
           try { resetCowSnap(); } catch (e) {}
+          window._doneSnap = null;
           renderAll();
           // 手元の方が新しい牛があったら、まとめた結果を送り返す
           if (window._cowsNeedPush) { window._cowsNeedPush = false; setTimeout(() => { try { saveToFirebase(); } catch (e) {} }, 400); }
