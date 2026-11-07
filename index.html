@@ -12017,13 +12017,13 @@ function openEditCow(cowId) {
 // ===== ゲノミック評価（黒毛）=====
 const GEN_TRAITS = [['cw', '枝肉重量'], ['rea', 'ロース芯面積'], ['rib', 'バラ厚'], ['sft', '皮下脂肪厚'], ['yld', '歩留基準値'], ['bms', 'BMS-No.']];
 const GEN_EXTRA = [['mufa', 'MUFA割合'], ['ole', 'オレイン酸割合'], ['bw', '生時体重'], ['dcw', '日齢枝肉重量'], ['gest', '在胎期間']];
-const GEN_GP = { A: 4, B: 3, C: 2, D: 1 };
+const GEN_GP = { H: 5, A: 4, B: 3, C: 2, D: 1 };   // 家畜改良事業団のゲノミック報告書の区分：H＝上位1/10、A＝上位1/4、B＝平均以上、C＝平均未満〜下位1/4、D＝下位1/4未満（登録協会の4区分のAは、ここのH＋A）
 function _genRowsHTML(g) {
   const t = (g && g.t) || {};
   document.getElementById('edit-gen-rows').innerHTML = `<div style="display:grid;grid-template-columns:1fr 84px 64px;gap:4px 8px;align-items:center;font-size:12px;">
     <span style="color:var(--muted);font-size:10px;">形質</span><span style="color:var(--muted);font-size:10px;">育種価</span><span style="color:var(--muted);font-size:10px;">区分</span>
     ${GEN_TRAITS.map(([k, l]) => `<span>${l}</span><input type="number" step="0.001" id="gen-v-${k}" value="${t[k] && t[k].v != null ? t[k].v : ''}" style="font-size:13px;padding:5px 6px;" oninput="genLiveVerdict()">
-      <select id="gen-g-${k}" style="font-size:13px;padding:5px 4px;" onchange="genLiveVerdict()">${['', 'A', 'B', 'C', 'D'].map(x => `<option value="${x}" ${t[k] && t[k].g === x ? 'selected' : ''}>${x || '—'}</option>`).join('')}</select>`).join('')}
+      <select id="gen-g-${k}" style="font-size:13px;padding:5px 4px;" onchange="genLiveVerdict()">${['', 'H', 'A', 'B', 'C', 'D'].map(x => `<option value="${x}" ${t[k] && t[k].g === x ? 'selected' : ''}>${x || '—'}</option>`).join('')}</select>`).join('')}
   </div>`;
   const x = (g && g.x) || {};
   document.getElementById('edit-gen-extra').innerHTML = `<div style="display:grid;grid-template-columns:1fr 84px;gap:4px 8px;align-items:center;font-size:12px;">
@@ -12037,42 +12037,48 @@ function _genReadForm() {
   if (!Object.keys(t).length && !Object.keys(x).length && !date) return null;
   return { date, t, x };
 }
-// 判定：BMS・枝肉重量を重く、ロース芯・歩留・バラを軽く見る（皮下脂肪厚は判定に使わない）
-// AI向き＝点数3.0以上でBMS・枝肉がどちらもB以上／受け牛向き＝点数2.5未満、またはBMSか枝肉がD
+// 判定の根拠：全国和牛登録協会の本原登録の育種価条件（雌）
+//  令和8年4月から：枝肉重量と脂肪交雑（BMS）が どちらもC以上（下位1/4に入らない）
+//  それまで（平成14年〜）：枝肉重量B＋脂肪交雑B以上、または脂肪交雑A（A・B・Cの3段階でCは平均未満）
+// これに合わせて、受け牛向き＝今の本原登録の条件を満たさない（枝肉かBMSがD）
+//              AI向き  ＝前の本原登録の条件も満たす（枝肉・BMSがどちらもB以上、またはBMSがA）
+//              中間    ＝今の条件は満たすが、枝肉かBMSのどちらかがC
+// ロース芯・バラ・皮下脂肪・歩留は判定に使わず、参考に表示する
 function genomicVerdict(cow) {
   const g = cow && cow.genomic; if (!g || !g.t) return null;
-  const W = { bms: .35, cw: .30, rea: .15, yld: .10, rib: .10 };
-  let sum = 0, w = 0; const t = g.t;
-  Object.entries(W).forEach(([k, ww]) => { const p = t[k] && GEN_GP[t[k].g]; if (p) { sum += p * ww; w += ww; } });
-  if (w < .5) return null;   // 区分が足りない
-  const score = Math.round(sum / w * 100) / 100;
-  const gB = t.bms && t.bms.g, gC = t.cw && t.cw.g;
-  const why = [];
-  let role;
-  if (gB === 'D' || gC === 'D' || score < 2.5) {
+  // 事業団のHは上位1/10で、登録協会の区分ならA（上位1/4）に入るので、条件はAとして見る
+  const t = g.t, gB = (t.bms && t.bms.g) === 'H' ? 'A' : (t.bms && t.bms.g), gC = (t.cw && t.cw.g) === 'H' ? 'A' : (t.cw && t.cw.g);
+  if (!gB || !gC) return null;   // 枝肉重量とBMSの区分がないと判定しない
+  const why = []; let role;
+  if (gB === 'D' || gC === 'D') {
     role = 'recipient';
-    if (gB === 'D') why.push('BMSがD'); if (gC === 'D') why.push('枝肉重量がD'); if (score < 2.5) why.push('総合点が低い');
-  } else if (score >= 3.0 && 'AB'.includes(gB || 'x') && 'AB'.includes(gC || 'x')) {
-    role = 'ai'; why.push('BMS・枝肉重量がB以上');
-  } else { role = 'mid'; why.push('どちらとも言えない（交配する種雄牛で補う）'); }
-  const strong = Object.entries(t).filter(([k, v]) => v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
-  return { role, score, why, strong, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
+    why.push([gC === 'D' && '枝肉重量がD', gB === 'D' && 'BMSがD'].filter(Boolean).join('・') + '（本原登録の雌の条件「枝肉重量と脂肪交雑がC以上」を満たさない）');
+  } else if (('AB'.includes(gB) && 'AB'.includes(gC)) || gB === 'A') {
+    role = 'ai'; why.push(gB === 'A' && !'AB'.includes(gC) ? 'BMSが' + t.bms.g + '（前の本原登録の条件「脂肪交雑A」を満たす）' : '枝肉重量・BMSがどちらもB以上（前の本原登録の条件「枝肉重量B＋脂肪交雑B以上」も満たす）');
+  } else {
+    role = 'mid'; why.push('今の本原登録の条件（C以上）は満たすが、' + [gC === 'C' && '枝肉重量', gB === 'C' && 'BMS'].filter(Boolean).join('・') + 'が平均未満（C）。交配する種雄牛で補う');
+    // 令和8年4月より前の報告書は3段階（A・B・C）で、Cは「平均未満」全部＝今のDも含む
+    if (g.date && g.date < '2026-04-01') why.push('※令和8年3月以前の評価のCは、今の区分のCかDか分からない');
+  }
+  const strong = Object.entries(t).filter(([k, v]) => v.g === 'H' || v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
+  const weak = Object.entries(t).filter(([k, v]) => v.g === 'D' && k !== 'bms' && k !== 'cw').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
+  return { role, why, strong, weak, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
 }
 function genLiveVerdict() {
   const el = document.getElementById('edit-gen-verdict'); if (!el) return;
   const g = _genReadForm(); const v = genomicVerdict({ genomic: g });
-  el.innerHTML = v ? genomicVerdictHTML(v) : '<div style="font-size:11px;color:var(--muted);">区分（A〜D）を入れると、AI向きか受け牛向きかを判定します</div>';
+  el.innerHTML = v ? genomicVerdictHTML(v) : '<div style="font-size:11px;color:var(--muted);">枝肉重量とBMSの区分（H〜D）を入れると、本原登録の条件をもとにAI向きか受け牛向きかを判定します</div>';
 }
 function genomicVerdictHTML(v) {
   const col = v.role === 'ai' ? '#4ade80' : v.role === 'recipient' ? '#60a5fa' : '#facc15';
   return `<div style="border:1px solid ${col};border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;">
-    <b style="color:${col};">🧬 ${v.label}</b> <span style="color:var(--muted);">（点数 ${v.score}／4）</span><br>
-    <span style="color:var(--muted);">${_stEsc(v.why.join('・'))}${v.strong.length ? '／Aの形質：' + _stEsc(v.strong.join('・')) : ''}</span></div>`;
+    <b style="color:${col};">🧬 ${v.label}</b><br>
+    <span style="color:var(--muted);">${_stEsc(v.why.join('・'))}${v.strong.length ? '<br>H・Aの形質：' + _stEsc(v.strong.join('・')) : ''}${v.weak.length ? '<br>Dの形質（参考）：' + _stEsc(v.weak.join('・')) : ''}</span></div>`;
 }
 function genomicStoryHTML(cow) {
   const g = cow && cow.genomic; if (!g || !g.t) return '';
   const v = genomicVerdict(cow);
-  const gc = x => ({ A: '#4ade80', B: '#60a5fa', C: '#facc15', D: '#f87171' }[x] || 'var(--muted)');
+  const gc = x => ({ H: '#22d3ee', A: '#4ade80', B: '#60a5fa', C: '#facc15', D: '#f87171' }[x] || 'var(--muted)');
   return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:12px;cursor:pointer;" onclick="openEditCow('${_stEsc(cow.id)}')">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;"><b>🧬 ゲノミック評価</b><span style="color:var(--muted);font-size:11px;">${g.date ? fmtDate(g.date) : ''}</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${GEN_TRAITS.map(([k, l]) => { const t = g.t[k]; if (!t) return ''; return `<span style="border:1px solid ${gc(t.g)};border-radius:6px;padding:1px 6px;font-size:11px;"><span style="color:var(--muted);">${l}</span> <b style="color:${gc(t.g)};">${t.g || '—'}</b>${t.v != null ? ' <span style="color:var(--muted);">' + t.v + '</span>' : ''}</span>`; }).join('')}</div>
@@ -12085,11 +12091,11 @@ function _genParse(text) {
   const decs = l => (l.match(/-?\d[.,]\d{3}(?!\d)/g) || []).filter(x => !/^\d{2,}[,]/.test(x)).map(x => Number(x.replace(',', '.')));
   const out = { main: null, extra: null, grades: null, date: '', ids: [] };
   // 育種価：小数3けたの数が6つ以上並ぶ最初の行＝主要6形質、次に4つ以上並ぶ行＝脂肪酸など
-  for (const l of lines) { const d = (l.match(/-?\d\.\d{3}(?!\d)/g) || []).map(Number); if (!out.main && d.length >= 6) { out.main = d.slice(0, 6); continue; } if (out.main && !out.extra && d.length >= 4) { out.extra = d.slice(0, 5); } }
-  if (!out.main) { const all = (t.match(/-?\d\.\d{3}(?!\d)/g) || []).map(Number); if (all.length >= 6) { out.main = all.slice(0, 6); if (all.length >= 10) out.extra = all.slice(6, 11); } }
+  for (const l of lines) { const d = (l.match(/(?<![\d.])-?\d{1,3}\.\d{3}(?!\d)/g) || []).map(Number); if (!out.main && d.length >= 6) { out.main = d.slice(0, 6); continue; } if (out.main && !out.extra && d.length >= 4) { out.extra = d.slice(0, 5); } }
+  if (!out.main) { const all = (t.match(/(?<![\d.])-?\d{1,3}\.\d{3}(?!\d)/g) || []).map(Number); if (all.length >= 6) { out.main = all.slice(0, 6); if (all.length >= 10) out.extra = all.slice(6, 11); } }
   // 区分：A〜Dが6つ並ぶ行（「区分」の行）。縦に1つずつ並んで読めたときは、区分の後ろの6つ
-  for (const l of lines) { const g = l.replace(/BMS|SNP|MUFA/gi, '').match(/(?:^|[\s|｜:：])([ABCD])(?=$|[\s|｜])/g); if (g && g.length >= 6) { out.grades = g.slice(0, 6).map(x => x.trim().replace(/[|｜:：]/g, '')); break; } }
-  if (!out.grades) { const i = t.indexOf('区分'); if (i >= 0) { const g = t.slice(i, i + 200).match(/\b[ABCD]\b/g); if (g && g.length >= 6) out.grades = g.slice(0, 6); } }
+  for (const l of lines) { const g = l.replace(/BMS|SNP|MUFA/gi, '').match(/(?:^|[\s|｜:：])([HABCD])(?=$|[\s|｜])/g); if (g && g.length >= 6) { out.grades = g.slice(0, 6).map(x => x.trim().replace(/[|｜:：]/g, '')); break; } }
+  if (!out.grades) { const i = t.indexOf('区分'); if (i >= 0) { const g = t.slice(i, i + 200).match(/\b[HABCD]\b/g); if (g && g.length >= 6) out.grades = g.slice(0, 6); } }
   const dm = t.match(/評価年月日[^\d令]*令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/) || t.match(/令和\s*(\d+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日/);
   if (dm) out.date = `${2018 + +dm[1]}-${String(dm[2]).padStart(2, '0')}-${String(dm[3]).padStart(2, '0')}`;
   out.ids = [...new Set((t.match(/(?<!\d)\d{5}[\s-]?\d{4}[\s-]?\d(?!\d)/g) || []).map(x => x.replace(/\D/g, '')))];
@@ -12111,7 +12117,7 @@ function genApplyParsed(r, how) {
     if (r.ids.includes(own)) idNote = '<br>✓ 個体識別番号がこの牛と合っています';
     else { const other = cows.find(c => r.ids.includes(String(c.nationalId || '').replace(/\D/g, ''))); idNote = `<br><b style="color:var(--danger);">⚠ 個体識別番号がこの牛と合いません${other ? `（${_stEsc(other.id)} ${_stEsc(cowDisplayName(other.id) || '')} の報告書かもしれません）` : ''}</b>`; }
   }
-  const miss = [!r.main && '育種価', !r.grades && '区分（A〜D）'].filter(Boolean);
+  const miss = [!r.main && '育種価', !r.grades && '区分（H〜D）'].filter(Boolean);
   msg.innerHTML = `<div style="border:1px solid ${got.length ? '#4ade80' : 'var(--danger)'};border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;margin-bottom:8px;">
     ${got.length ? `${how}から ${got.join('・')} を入れました（緑の枠）。報告書と見比べて、違っていたら直してください。` : `${how}から読み取れませんでした。`}
     ${miss.length ? `<br><span style="color:var(--warn);">読めなかった：${miss.join('・')} → 手で入れてください</span>` : ''}${idNote}</div>`;
