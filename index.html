@@ -8869,7 +8869,7 @@ function renderFirstAI(el) {
   const xMin = parous ? 0 : 10, yMin = parous ? 0 : 10;
   const xv = v => L + (W - L - R) * (v - xMin) / (xMax - xMin);
   const yv = v => T + (H - T - B) * (1 - (v - yMin) / (yMax - yMin));
-  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:640px;height:auto;display:block;margin:0 auto;">`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
   const yStep = parous ? (yMax > 160 ? 40 : 20) : 2, xStep = parous ? (xMax > 400 ? 100 : 50) : (xMax - xMin > 16 ? 4 : 2);
   for (let v = Math.ceil(yMin / yStep) * yStep; v <= yMax; v += yStep) svg += `<line x1="${L}" x2="${W - R}" y1="${yv(v)}" y2="${yv(v)}" stroke="rgba(255,255,255,.07)"/><text x="${L - 4}" y="${yv(v) + 3}" font-size="8" fill="#8892b0" text-anchor="end">${v}</text>`;
   for (let v = Math.ceil(xMin / xStep) * xStep; v <= xMax; v += xStep) svg += `<text x="${xv(v)}" y="${H - 12}" font-size="8" fill="#8892b0" text-anchor="middle">${v}</text>`;
@@ -8931,7 +8931,7 @@ function renderFirstAI(el) {
         ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
       </div>
     </div>
-    <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? `<div style="position:relative;max-width:640px;margin:0 auto;">${svg}${pop}</div>` : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
+    <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? `<div style="position:relative;">${svg}${pop}</div>` : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
       <div style="display:flex;flex-wrap:wrap;gap:6px 12px;justify-content:center;align-items:center;font-size:11px;color:var(--muted);padding:4px 0 2px;">
         <span><svg width="12" height="12"><circle cx="6" cy="6" r="4.5" fill="#94a3b8"/></svg> 妊娠中</span>
         <span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="rgba(0,0,0,.25)" stroke="#94a3b8" stroke-width="1.8"/><circle cx="6" cy="6" r="1.6" fill="#94a3b8"/></svg> 妊鑑待ち</span>
