@@ -3769,6 +3769,7 @@ function initApp() {
   try { syncRecipientPlaceholders(); } catch (e) {}
   syncAbortionRecords();
   try { if (repairDonorFlagsOnce()) save(); } catch (e) { console.error('repairDonorFlags', e); }
+  try { if (typeof fillPromotedCowDam === 'function' && fillPromotedCowDam()) save(); } catch (e) { console.error('fillPromotedCowDam', e); }
   try { reconcileCows(null); } catch (e) { console.error('reconcile', e); }
   renderAll();
   initSwipe();
@@ -8830,7 +8831,7 @@ function addRecipientFromSuggest(id) {
 }
 
 // ===== ⏱ 初回授精レポート（今いる牛：分娩後日数 × 分娩〜初回授精日数） =====
-let _faMode = 'parous', _faHide = {}, _faSel = null;
+let _faMode = 'parous', _faHide = {}, _faSel = null, _fcSel = null;
 const FA_GROUPS = [['p1', '初産', '#60a5fa'], ['p2', '2産', '#22d3ee'], ['p3', '3産以上', '#c084fc']];
 // 図の点の形：妊娠中＝塗りつぶし、妊鑑待ち＝輪＋中の点、まだ妊娠していない＝輪だけ
 let _faStFilter = 'all';
@@ -8950,6 +8951,9 @@ function renderFirstAI(el) {
   let pop = '';
   if (sp && !_faHide[sp.g]) {
     const lx = xv(sp.x) / W * 100, ty = yv(sp.y) / H * 100, below = ty < 38;
+    // 押した点の近く（重なっている点）にいる牛も選べるようにする
+    const near = shown.filter(p => Math.hypot(xv(p.x) - xv(sp.x), yv(p.y) - yv(sp.y)) <= 9);
+    const nearHTML = near.length > 1 ? `<div style="padding:6px 8px 0;font-size:10px;color:var(--muted);">ここに重なっている牛（押すと切り替え）</div><div style="display:flex;flex-wrap:wrap;gap:4px;padding:4px 8px 6px;">${near.map(p => `<span onclick="event.stopPropagation();_faSel='${esc(p.id)}';renderAnnual()" style="font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid ${p.id === sp.id ? '#fff' : col(p.g)};color:${p.id === sp.id ? '#fff' : col(p.g)};cursor:pointer;">${esc(p.id)}</span>`).join('')}</div>` : '';
     const cell = (l, v, u) => `<div style="flex:1;text-align:center;padding:6px 4px;border-left:1px solid var(--border);"><div style="font-size:10px;color:var(--muted);">${l}</div><div style="font-size:20px;font-weight:900;font-family:'JetBrains Mono',monospace;">${v}<span style="font-size:11px;font-weight:400;margin-left:2px;">${u}</span></div></div>`;
     const breed = String((cows.find(c => c.id === sp.id) || {}).breed || '');
     pop = `<div onclick="event.stopPropagation();showCowDetail('${esc(sp.id)}')" style="position:absolute;left:clamp(135px, ${lx}%, calc(100% - 135px));width:min(270px, 96%);top:${ty}%;transform:translate(-50%,${below ? '14px' : 'calc(-100% - 14px)'});background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);cursor:pointer;z-index:2;">
@@ -8957,6 +8961,7 @@ function renderFirstAI(el) {
       <div style="display:flex;border-top:1px solid var(--border);margin-left:-1px;">${parous
         ? cell('産次', sp.lac || '—', '産') + cell('分娩後日数', sp.x, '日') + cell('初回授精日', sp.y, '日')
         : cell('品種', esc(breed.replace('和種', '') || '—'), '') + cell('今の月齢', sp.x, 'か月') + cell('初回授精', sp.y, 'か月')}</div>
+      ${nearHTML}
       <div style="font-size:10px;color:var(--muted);text-align:center;padding:3px 0 6px;">${parous ? `分娩 ${fmtDateShort(sp.lc)} → 初回${sp.et ? 'ET ' + fmtDateShort(sp.fd) : 'AI ' + fmtDateShort(sp.fd)}${sp.donorDays ? `（${sp.rawY}日からドナー期間${sp.donorDays}日を引いた）` : ''}` : '初回 ' + fmtDateShort(sp.fd)}・タップで牛を開く</div>
     </div>`;
   }
@@ -8975,7 +8980,7 @@ function renderFirstAI(el) {
       <div style="display:flex;gap:14px;flex-wrap:wrap;">${GROUPS.map(([g, l, c]) => { const a = avg(g), n = D.pts.filter(p => p.g === g).length; return `<div style="cursor:pointer;opacity:${_faHide[g] ? .35 : 1};" onclick="_faHide['${g}']=!_faHide['${g}'];renderAnnual()">
           <div style="font-size:20px;font-weight:900;color:${c};font-family:'JetBrains Mono',monospace;">${a != null ? a : '—'}<span style="font-size:11px;">${parous ? '日' : 'か月'}</span></div>
           <div style="font-size:10px;color:var(--muted);">${l} ${n}頭 ${_faHide[g] ? '（非表示）' : '👁'}</div></div>`; }).join('')}
-        ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dopen','分娩後何日までに受胎させたいか（分娩間隔の目標−妊娠期間285日。空欄で分娩間隔の目標から計算）','日')"><div style="font-size:11px;color:var(--muted);">受胎目標（横）</div><div style="font-size:16px;font-weight:900;color:#f87171;">${xTarget}<span style="font-size:10px;">日</span> ✏</div></div>` : ''}${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
+        ${parous ? `<div style="margin-left:auto;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dopen','分娩後何日までに受胎させたいか（分娩間隔の目標−妊娠期間285日。空欄で分娩間隔の目標から計算）','日')"><div style="font-size:11px;color:var(--muted);">受胎目標（横）</div><div style="font-size:16px;font-weight:900;color:#f87171;">${xTarget}<span style="font-size:10px;">日</span> ✏</div></div>` : ''}${parous ? `<div style="margin-left:14px;text-align:right;cursor:pointer;" onclick="kpiSetTarget('dfs','分娩から初回授精までの目標日数','日')"><div style="font-size:11px;color:var(--muted);">目標日数</div><div style="font-size:18px;font-weight:900;color:#facc15;">${target}<span style="font-size:11px;">日 ✏</span></div></div>` : ''}
       </div>
     </div>
     <div class="ann-card" style="padding:8px 4px 4px;">${shown.length ? `<div style="position:relative;">${svg}${pop}</div>` : '<div style="color:var(--muted);font-size:12px;padding:20px;text-align:center;">表示する牛がいません</div>'}
@@ -9029,7 +9034,7 @@ function renderFirstAI(el) {
       // まだ妊娠していない牛は「今日までの日数」の所＝斜めの線の上に乗る（これより上で受胎することになる）
       csvg += `<line x1="${cxv(0)}" y1="${cyv(0)}" x2="${cxv(Math.min(cxMax, cyMax))}" y2="${cyv(Math.min(cxMax, cyMax))}" stroke="rgba(248,113,113,.25)"/>`;
       cg.forEach(x => {
-        const cx = cxv(x.rawX), cy = cyv(x.y), r = 4.5, c = col(x.g), on = `style="cursor:pointer;" onclick="showCowDetail('${esc(x.id)}')"`;
+        const cx = cxv(x.rawX), cy = cyv(x.y), r = _fcSel === x.id ? 6 : 4.5, c = col(x.g), on = `style="cursor:pointer;" onclick="_fcSel='${esc(x.id)}';renderAnnual()"`;
         const sh = (rr, f, st, sw) => x.et ? `<rect x="${cx - rr}" y="${cy - rr}" width="${rr * 2}" height="${rr * 2}" transform="rotate(45 ${cx} ${cy})" fill="${f}" stroke="${st}" stroke-width="${sw}" ${on}/>` : `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${f}" stroke="${st}" stroke-width="${sw}" ${on}/>`;
         csvg += `<g><title>${esc(x.id)} ${x.concDays != null ? '受胎まで' + x.concDays + '日' : x.st === 'wait' ? '妊鑑待ち（止まれば' + x.y + '日）' : 'まだ妊娠していない（分娩後' + x.rawX + '日）'}</title>`;
         if (x.concDays != null) csvg += sh(r, c, 'none', 0);
@@ -9037,12 +9042,24 @@ function renderFirstAI(el) {
         csvg += '</g>';
       });
       csvg += '</svg>';
+      // 押した点と、そこに重なっている牛の一覧
+      let cpop = '';
+      const cs = _fcSel ? cg.find(x => x.id === _fcSel) : null;
+      if (cs) {
+        const near = cg.filter(x => Math.hypot(cxv(x.rawX) - cxv(cs.rawX), cyv(x.y) - cyv(cs.y)) <= 9).sort((a, b) => (a.id === cs.id ? -1 : b.id === cs.id ? 1 : 0));
+        const lx = cxv(cs.rawX) / cW * 100, ty = cyv(cs.y) / cH * 100, below = ty < 40;
+        const desc = x => x.concDays != null ? `受胎まで <b>${x.concDays}日</b>` : x.st === 'wait' ? `妊鑑待ち（止まれば <b>${x.y}日</b>）` : `まだ妊娠していない（分娩後${x.rawX}日）`;
+        cpop = `<div style="position:absolute;left:clamp(135px, ${lx}%, calc(100% - 135px));top:${ty}%;transform:translate(-50%,${below ? '14px' : 'calc(-100% - 14px)'});width:min(270px, 96%);background:var(--bg2);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.5);z-index:2;">
+          <div style="display:flex;align-items:center;padding:6px 10px;border-bottom:1px solid var(--border);"><span style="flex:1;font-size:11px;color:var(--muted);">${near.length > 1 ? `ここに ${near.length}頭 重なっています` : 'この牛'}（押すと牛を開く）</span><span onclick="_fcSel=null;renderAnnual()" style="color:var(--muted);cursor:pointer;padding:0 4px;">✕</span></div>
+          ${near.map(x => `<div onclick="showCowDetail('${esc(x.id)}')" style="display:flex;gap:8px;align-items:center;padding:7px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05);"><span style="width:8px;height:8px;border-radius:50%;background:${col(x.g)};flex-shrink:0;"></span><span style="font-weight:800;">${esc(x.id)}</span><span style="color:var(--accent);font-size:12px;">${esc(cowDisplayName(x.id) || '')}</span><span style="margin-left:auto;font-size:12px;">${desc(x)}</span></div>`).join('')}
+        </div>`;
+      }
       return `<div class="ann-card" style="margin-top:10px;">
         <div style="font-size:13px;font-weight:800;">🎯 分娩から受胎までの日数</div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">平均（受胎した牛・ドナー期間は引いています）</div>
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px;">${GROUPS.map(([g, l, c]) => { const a = cavg(g), n = cg.filter(x => x.g === g && x.concDays != null).length; return `<div style="opacity:${_faHide[g] ? .35 : 1};"><div style="font-size:20px;font-weight:900;color:${c};font-family:'JetBrains Mono',monospace;">${a != null ? a : '—'}<span style="font-size:11px;">日</span></div><div style="font-size:10px;color:var(--muted);">${l} ${n}頭</div></div>`; }).join('')}</div>
-        ${cg.length ? csvg : ''}
-        <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0 8px;">● 受胎した牛（受胎までの日数）　◎ 妊鑑待ち（止まっていればこの日数）　○ まだ妊娠していない（今日までの日数・斜めの線の上）。点を押すと牛が開きます</div>
+        ${cg.length ? `<div style="position:relative;">${csvg}${cpop}</div>` : ''}
+        <div style="font-size:10px;color:var(--muted);text-align:center;padding:2px 0 8px;">● 受胎した牛（受胎までの日数）　◎ 妊鑑待ち（止まっていればこの日数）　○ まだ妊娠していない（今日までの日数・斜めの線の上）。点を押すと、その牛と重なっている牛が出ます</div>
         <div style="font-size:13px;font-weight:800;">分娩後${xTarget}日以内に受胎した牛</div>
         <div style="font-size:11px;color:var(--muted);">分娩後${xTarget}日を過ぎた牛 ${due.length}頭で判定（ドナー期間は引いています）</div>
         ${due.length ? `<div style="font-size:26px;font-weight:900;color:#4ade80;font-family:'JetBrains Mono',monospace;margin-top:4px;">${pct(ok.length)}<span style="font-size:13px;">%</span> <span style="font-size:12px;color:var(--muted);font-weight:400;">${ok.length}／${due.length}頭</span></div>${bar}
@@ -23689,6 +23706,29 @@ function setCalfStatus(id, status) {
   save(); renderCalves(); renderCowList();
 }
 
+// 子牛の母の名前：受精卵の子はドナー（遺伝上の母）、それ以外は産んだ牛
+function _calfDamName(calf) {
+  if (!calf) return '';
+  if (calf.donor) return String(calf.donor).trim();
+  if (!calf.damId) return '';
+  const m = (typeof getMasterCow === 'function' ? getMasterCow(calf.damId) : null);
+  const c = cows.find(x => x.id === calf.damId) || (typeof retiredCows !== 'undefined' ? retiredCows.find(x => x.id === calf.damId) : null);
+  return (typeof cowDisplayName === 'function' && cowDisplayName(calf.damId)) || (c && c.name) || (m && m.name) || calf.damId;
+}
+// 子牛から個体タブに登録した牛で、母・母の父などが空いていたら子牛の記録から埋める（1回で済む・手で入れた値は変えない）
+function fillPromotedCowDam() {
+  let n = 0;
+  (typeof calves !== 'undefined' ? calves : []).forEach(cf => {
+    const c = cows.find(x => x.id === cf.earTagId || (cf.nationalId && x.nationalId && String(x.nationalId) === String(cf.nationalId) && x.isCustom));
+    if (!c || !c.isCustom) return;
+    if (!c.dam) { const d = _calfDamName(cf); if (d) { c.dam = d; n++; } }
+    if (!c.damId && cf.damId) { c.damId = cf.damId; n++; }
+    if (!c.maternalSire && cf.maternalSire) { c.maternalSire = cf.maternalSire; n++; }
+    if (!c.maternalGrandSire && cf.maternalGrandSire) { c.maternalGrandSire = cf.maternalGrandSire; n++; }
+    if (!c.sire && cf.sire) { c.sire = cf.sire; n++; }
+  });
+  return n;
+}
 function promoteCalfToCow(id) {
   const calf = calves.find(c=>c.id===id);
   if (!calf) return;
@@ -23709,6 +23749,10 @@ function promoteCalfToCow(id) {
     breed: calf.breed || '',
     sire: calf.sire || '',
     maternalSire: calf.maternalSire || '',
+    maternalGrandSire: calf.maternalGrandSire || '',
+    dam: _calfDamName(calf),
+    damId: calf.damId || '',
+    ...(calf.donor || calf.embryoNo || calf.insemType === 'et' ? { birthOrigin: 'et' } : {}),
     events: [],
     isCustom: true,
   });
