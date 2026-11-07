@@ -5678,8 +5678,11 @@ function renderCowList() {
       const R = genomicRanking();
       gb.innerHTML = `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:10px;font-size:12px;line-height:1.7;">
         🧬 ゲノミック評価のある黒毛 <b>${R.n}頭</b>（総合＝枝肉重量とBMSの育種価を、牧場の中でそれぞれ偏差値にして平均）<br>
-        牧場の中で下位 <input type="number" min="0" max="50" value="${genRecipPct()}" style="width:52px;font-size:12px;padding:2px 4px;" onchange="farmTargets.genRecipPct=Math.max(0,Math.min(50,parseInt(this.value)||0));save();renderCowList()"> % を「受け牛向き」にする
-        <span style="color:var(--muted);">（今は${R.cut}頭。${R.n < 5 ? '5頭未満のときは使いません' : '枝肉かBMSがDの牛はこれとは別に受け牛向き'}）</span></div>`;
+        基準牛 <select style="width:auto;font-size:12px;padding:2px 6px;" onchange="farmTargets.genBenchId=this.value;_genRankCache=null;save();renderCowList()">
+          <option value="">（使わない）</option>${cows.filter(c => c.genomic || c.id === R.benchId).map(c => `<option value="${_stEsc(c.id)}" ${c.id === R.benchId ? 'selected' : ''}>${_stEsc(c.id)} ${_stEsc(cowDisplayName(c.id) || '')}</option>`).join('')}</select>
+        より総合が<b style="color:#4ade80;">上ならAI</b>、<b style="color:#60a5fa;">下なら受け牛（ET）</b>
+        ${R.bench ? `<span style="color:var(--muted);">（基準の総合 ${R.bench.idx}。上 ${Object.values(R.map).filter(x => x.above).length}頭・下 ${Object.values(R.map).filter(x => x.below).length}頭。枝肉かBMSがDの牛は基準に関係なく受け牛）</span>`
+          : `<br><span style="color:var(--warn);">⚠ ${R.benchId ? _stEsc(cowDisplayName(R.benchId) || R.benchId) + 'のゲノミック評価（枝肉重量とBMSの育種価）が入っていないので、まだくらべられません。先に基準牛の評価を入れてください' : '基準牛を選んでください'}</span>`}</div>`;
     } else if (gb) gb.remove(); }
   const ageBtn = document.getElementById('cow-age-filter-btn');
   if (ageBtn) {
@@ -12077,16 +12080,25 @@ function genomicVerdict(cow) {
     // 令和8年4月より前の報告書は3段階（A・B・C）で、Cは「平均未満」全部＝今のDも含む
     if (g.date && g.date < '2026-04-01') why.push('※令和8年3月以前の評価のCは、今の区分のCかDか分からない');
   }
-  // 牧場の中で下位○%なら、区分の条件を満たしていても受け牛向きにする
-  let rk = null; try { if (cow.id) rk = genomicRanking().map[cow.id]; } catch (e) {}
-  if (rk && rk.bottom && role !== 'recipient') { role = 'recipient'; why.unshift(`牧場の中で下位${genRecipPct()}%（${rk.n}頭中${rk.rank}位）`); }
-  else if (rk) why.push(`牧場の中で${rk.n}頭中${rk.rank}位`);
+  // 基準牛（おひさ）とくらべる：Dがなければ、基準牛より総合が上ならAI向き、下なら受け牛（ET）向き
+  let R = null, rk = null; try { if (cow.id) { R = genomicRanking(); rk = R.map[cow.id]; } } catch (e) {}
+  if (rk && R.bench && role !== 'recipient') {
+    const bn = cowDisplayName(R.benchId) || R.benchId;
+    if (rk.isBench) { role = 'ai'; why.length = 0; why.push('この牛が基準牛（AIで自分の子を取る）'); }
+    else if (rk.below) { role = 'recipient'; why.length = 0; why.push(`基準牛 ${bn} より総合が下（${rk.idx}＜${R.bench.idx}）→ 受け牛（ET）`); }
+    else { role = 'ai'; why.length = 0; why.push(`基準牛 ${bn} 以上（${rk.idx}≧${R.bench.idx}）→ AI`); }
+  }
+  if (rk) why.push(`牧場の中で${rk.n}頭中${rk.rank}位`);
   const strong = Object.entries(t).filter(([k, v]) => v.g === 'H' || v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   const weak = Object.entries(t).filter(([k, v]) => v.g === 'D' && k !== 'bms' && k !== 'cw').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   return { role, why, strong, weak, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
 }
 // 牧場の中での順位（枝肉重量・BMSの育種価を、ゲノミックのある黒毛の中でそれぞれ偏差値にして平均）
-function genRecipPct() { return (typeof farmTargets !== 'undefined' && farmTargets.genRecipPct != null) ? Number(farmTargets.genRecipPct) : 15; }
+// 基準牛：この牛よりゲノミック総合が上ならAI向き、下なら受け牛（ET）向き。最初は「おひさ」
+function genBenchId() {
+  if (typeof farmTargets !== 'undefined' && farmTargets.genBenchId !== undefined) return farmTargets.genBenchId;
+  const o = cows.find(c => (c.name || '').trim() === 'おひさ'); return o ? o.id : '';
+}
 let _genRankCache = null;
 function genomicRanking() {
   if (_genRankCache && _genRankCache.t > Date.now() - 1500) return _genRankCache.r;
@@ -12096,9 +12108,9 @@ function genomicRanking() {
   const sc = st('cw'), sb = st('bms');
   L.forEach(x => { const zc = sc.sd > 0 ? 50 + (x.cw - sc.m) / sc.sd * 10 : 50, zb = sb.sd > 0 ? 50 + (x.bms - sb.m) / sb.sd * 10 : 50; x.idx = Math.round((zc + zb) / 2 * 10) / 10; });
   L.sort((a, b) => b.idx - a.idx);
-  const n = L.length, cut = n >= 5 ? Math.round(n * genRecipPct() / 100) : 0;
-  const map = {}; L.forEach((x, i) => { map[x.id] = { ...x, rank: i + 1, n, bottom: i >= n - cut }; });
-  const r = { n, cut, map };
+  const n = L.length, bid = genBenchId(), bench = L.find(x => x.id === bid) || null;
+  const map = {}; L.forEach((x, i) => { map[x.id] = { ...x, rank: i + 1, n, below: !!bench && x.id !== bid && x.idx < bench.idx, above: !!bench && x.id !== bid && x.idx >= bench.idx, isBench: x.id === bid }; });
+  const r = { n, map, bench, benchId: bid };
   _genRankCache = { t: Date.now(), r };
   return r;
 }
