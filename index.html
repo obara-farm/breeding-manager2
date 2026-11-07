@@ -2948,7 +2948,13 @@ function openKoubaiForCow(cowId){
     }
   }
   const url = 'https://obara-farm.github.io/kouhaikunDX/?' + params.toString();
-  window.open(url, '_blank');
+  // ホーム画面に追加したアプリやスマホでは window.open が止められることがあるので、リンクを押す形で開き、だめなら同じ画面で開く
+  let w = null;
+  try { w = window.open(url, '_blank'); } catch (e) {}
+  if (!w) {
+    try { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+    catch (e) { location.href = url; }
+  }
 }
 // 肥育成績の母牛別ランキングから、その母牛の個体カードへ飛ぶ
 function jumpToCowCard(cowId){
