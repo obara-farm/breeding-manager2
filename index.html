@@ -733,7 +733,7 @@ body.is-home{padding-bottom:0;}
         <span class="grid-nav-badge" id="cows-alert-badge" style="display:none;">0</span>
       </div>
       <div class="grid-nav-btn gnav-blue" id="gnav-calves" onclick="switchTab('calves')">
-        <span class="nav-icon">🐮</span>
+        <span class="nav-icon"><span style="font-size:.72em;display:inline-block;transform:translateY(.12em)">🐄</span></span>
         <span class="nav-label">子牛</span>
         <span class="grid-nav-badge" id="calves-move-badge" style="background:var(--warn);display:none;">0</span>
       </div>
@@ -2449,7 +2449,8 @@ body.is-home{padding-bottom:0;}
     <input type="hidden" id="qr-cowid">
 
     <!-- 牛情報ヘッダー -->
-    <div id="qr-cow-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:13px;"></div>
+    <div id="qr-cow-info" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;"></div>
+    <button type="button" class="btn btn-secondary" id="qr-note-btn" style="width:100%;margin-bottom:14px;font-size:13px;" onclick="const id=document.getElementById('qr-cowid').value;closeModal('modal-quick-reg');openCowNote(id)">📝 メモ・予定を残す</button>
 
     <div class="form-group" id="qr-event-group" style="margin-bottom:12px;">
       <label>イベント種別</label>
@@ -6331,6 +6332,8 @@ function buildCowStory(cowId) {
     donor_et_takahashi_start: '採卵プログラム開始（高橋式）', pg_rescue: '🚨 PGレスキュー開始',
     estrus_et: '自然発情 → ET予定（発情確認）',
   };
+  // 自然発情→ET／AIのプログラムと同じ日の「発情」は1行にまとめる
+  const _estProgDates = new Set(events.filter(e => e.type === 'estrus_et' || e.type === 'estrus_ai').map(e => e.date));
   events.forEach(e => {
     if (e.type === 'move') {
       items.push({ date: e.date, cat: 'move', color: '#38bdf8', title: `🏠 ${_stEsc(e.to)}へ移動`, badge: null, desc: '', kv: [], memo: e.memo,
@@ -6338,8 +6341,13 @@ function buildCowStory(cowId) {
     } else if (e.type === 'note') {
       items.push({ date: e.date, cat: 'note', color: '#38bdf8', title: '📝 メモ', badge: null, desc: '', kv: [], memo: e.memo,
         acts: isRetired ? [] : [`<button class="st-act" onclick="openCowNote('${_stEsc(cowId)}',${e._idx})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteStoryEvent('${_stEsc(cowId)}',${e._idx})">🗑 削除</button>`] });
+    } else if (e.type === 'estrus_et' || e.type === 'estrus_ai') {
+      const est = events.find(x => x.type === 'estrus' && x.date === e.date && !x.skip);
+      items.push({ date: e.date, cat: 'breed', color: '#facc15', title: e.type === 'estrus_et' ? '🔥 発情 → ET予定（AIせず）' : '🔥 発情 → AI予定', badge: null, desc: '', kv: [], memo: (est && est.memo) || e.memo,
+        acts: isRetired ? [] : [`<button class="st-act del" onclick="deleteStoryEvent('${_stEsc(cowId)}',${e._idx})">🗑 削除</button>`] });
     } else if (e.type === 'estrus') {
-      items.push({ date: e.date, cat: 'breed', color: '#facc15', title: e.skip ? '🔥 発情・授精見送り' : '🌡 発情', badge: null, desc: '', kv: [], memo: e.memo,
+      if (!e.skip && _estProgDates.has(e.date)) return;
+      items.push({ date: e.date, cat: 'breed', color: '#facc15', title: e.skip ? '🔥 発情・授精見送り' : (e.next === 'watch' ? '🔥 発情（様子見）' : e.next === 'ai' ? '🔥 発情 → AI' : '🔥 発情'), badge: null, desc: '', kv: [], memo: e.memo,
         acts: isRetired ? [] : [`<button class="st-act del" onclick="deleteStoryEvent('${_stEsc(cowId)}',${e._idx})">🗑 削除</button>`] });
     } else if (progLabel[e.type]) {
       const kv = [];
@@ -6716,7 +6724,7 @@ function showCowStory(cowId) {
     ${isRet ? '' : `<div class="st-rec">
       <button onclick="stRecord('ai','${esc(cowId)}')">💉<span>AI</span></button>
       <button onclick="stRecord('et','${esc(cowId)}')">🧬<span>ET</span></button>
-      <button onclick="openEstrusSkip('${esc(cowId)}')">🔥<span>見送り</span></button>
+      <button onclick="openEstrusSkip('${esc(cowId)}')">🔥<span>発情</span></button>
       <button onclick="stRecord('preg','${esc(cowId)}')">🔍<span>妊鑑</span></button>
       <button onclick="stRecord('calving','${esc(cowId)}')">🍼<span>分娩</span></button>
       <button onclick="stRecord('med','${esc(cowId)}')">💊<span>治療</span></button>
@@ -7346,7 +7354,7 @@ function renderPregRate(el, Y) {
   const missRow = id => `<div class="pr-miss">
       <span class="tw-chip" onclick="showCowDetail('${esc(id)}')">${nm(id)}</span>
       <span style="flex:1;"></span>
-      <button class="ann-mini" onclick="openEstrusSkip('${esc(id)}','${selC ? selC.s : today()}')">🔥 見送りを記録</button>
+      <button class="ann-mini" onclick="openEstrusSkip('${esc(id)}','${selC ? selC.s : today()}','skip')">🔥 見送りを記録</button>
       <button class="ann-mini" onclick="openHoldForm('${esc(id)}','${selC ? selC.s : today()}')">⏸ 対象外</button>
     </div>`;
   const detail = selC ? `<div class="ann-card" style="margin-top:10px;">
@@ -7387,39 +7395,97 @@ function renderPregRate(el, Y) {
 
 // 🔥 発情を見たが授精を見送った記録
 const ESTRUS_SKIP_REASONS = ['体調不良', '子宮回復待ち', '時期待ち', '廃用予定', 'ドナー予定', 'その他'];
-function openEstrusSkip(cowId, defDate) {
+// 🔥 発情の記録：「発情を記録（このあとET・AI・様子見）」と「授精見送り」を選べる
+function openEstrusSkip(cowId, defDate, mode) {
   document.getElementById('es-modal')?.remove();
   const esc = _stEsc;
   const d = defDate && defDate <= today() ? (defDate > addDays(today(), -60) ? today() : defDate) : today();
   const w = document.createElement('div');
   w.id = 'es-modal';
+  w.dataset.mode = mode === 'skip' ? 'skip' : 'rec';
   w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:16px;';
-  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:400px;">
+  const seg = (k, l) => `<button type="button" class="st-chip es-mode" data-k="${k}" onclick="_esMode('${k}')" style="flex:1;justify-content:center;font-size:13px;padding:8px;">${l}</button>`;
+  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:400px;max-height:92vh;overflow:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-size:15px;font-weight:900;">🔥 発情あり・授精見送り</div>
+      <div style="font-size:15px;font-weight:900;">🔥 発情</div>
       <button class="modal-close" onclick="document.getElementById('es-modal').remove()">✕</button>
     </div>
     <div style="font-size:13px;font-weight:700;margin-bottom:8px;">${esc(cowId)} ${esc(cowDisplayName(cowId) || '')}</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">${seg('rec', '🔥 発情を記録')}${seg('skip', '⏸ 授精見送り')}</div>
     <div class="form-group" style="margin-bottom:10px;"><label>発情を見た日</label><input type="date" id="es-date" value="${esc(d)}"></div>
-    <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">見送った理由</div>
-    <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:10px;" id="es-reasons">${ESTRUS_SKIP_REASONS.map((r, i) => `<button type="button" class="st-chip ${i === 0 ? 'on' : ''}" onclick="document.querySelectorAll('#es-reasons .st-chip').forEach(b=>b.classList.remove('on'));this.classList.add('on')">${r}</button>`).join('')}</div>
+    <div id="es-rec">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">このあと</div>
+      <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:6px;" id="es-next">
+        <button type="button" class="st-chip on" data-k="et" onclick="_esPick('es-next',this)">🧬 ETする（AIせず）</button>
+        <button type="button" class="st-chip" data-k="ai" onclick="_esPick('es-next',this)">💉 AIする</button>
+        <button type="button" class="st-chip" data-k="watch" onclick="_esPick('es-next',this)">👀 記録だけ（様子見）</button>
+      </div>
+      <div id="es-next-hint" style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.6;"></div>
+    </div>
+    <div id="es-skip">
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;">見送った理由</div>
+      <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:10px;" id="es-reasons">${ESTRUS_SKIP_REASONS.map((r, i) => `<button type="button" class="st-chip ${i === 0 ? 'on' : ''}" onclick="_esPick('es-reasons',this)">${r}</button>`).join('')}</div>
+    </div>
     <input type="text" id="es-memo" placeholder="メモ（任意）" style="margin-bottom:12px;">
     <button class="btn btn-primary" style="width:100%;" onclick="saveEstrusSkip('${esc(cowId)}')">記録する</button>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;">発情発見率の計算と、次の発情予測（21日後）に使います</div>
   </div>`;
   document.body.appendChild(w);
+  _esMode(w.dataset.mode);
+}
+function _esPick(groupId, btn) {
+  document.querySelectorAll('#' + groupId + ' .st-chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  if (groupId === 'es-next') _esHint();
+}
+function _esMode(k) {
+  const w = document.getElementById('es-modal'); if (!w) return;
+  w.dataset.mode = k;
+  w.querySelectorAll('.es-mode').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  document.getElementById('es-rec').style.display = k === 'rec' ? '' : 'none';
+  document.getElementById('es-skip').style.display = k === 'skip' ? '' : 'none';
+  _esHint();
+}
+function _esHint() {
+  const el = document.getElementById('es-next-hint'); if (!el) return;
+  const k = document.querySelector('#es-next .st-chip.on')?.dataset.k;
+  el.innerHTML = k === 'et' ? '発情日を0日目として、6日目ゲストロン・7日目移植の予定を作ります（「自然発情 → ET（AIせず）」と同じ）'
+    : k === 'ai' ? 'ストーリーに「発情 → AI」と残します。AIしたら、いつも通り「💉 AI」で授精を記録してください（ここでは授精の記録にはなりません）'
+    : 'ストーリーに発情だけ残します。予定は作りません';
+}
+// 自然発情→ET／AIのプログラムを始める（処置を記録の「自然発情 → ET（AIせず）」「発情確認・即AI」と同じ動き）
+function _startEstrusProgram(cow, kind, date, memo) {
+  const type = 'estrus_et';
+  cow.status = 'program'; cow.estrusDate = date;
+  cow.events.push({ type, date, memo });
+  cow.events.push({ type: 'estrus', date, memo });
+  tasks = tasks.filter(t => !(t.cowId === cow.id && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情'))));
+  const schedule = generateSchedule(type, date, cow.id) || [];
+  schedule.forEach(s => {
+    const existing = s.action.includes('妊娠鑑定') ? null : tasks.find(t => t.cowId === cow.id && t.action === s.action && t.date === s.date);
+    if (!existing) tasks.push({ ...s, cowId: cow.id, memo });
+  });
 }
 function saveEstrusSkip(cowId) {
   const cow = cows.find(c => c.id === cowId);
   if (!cow) return;
+  const w = document.getElementById('es-modal');
+  const mode = w?.dataset.mode || 'skip';
   const date = document.getElementById('es-date').value || today();
-  const reason = document.querySelector('#es-reasons .st-chip.on')?.textContent || 'その他';
   const memo = document.getElementById('es-memo').value.trim();
   cow.events = cow.events || [];
-  cow.events.push({ type: 'estrus', date, skip: true, reason, memo: `発情あり・見送り（${reason}）${memo ? '　' + memo : ''}` });
+  if (mode === 'skip') {
+    const reason = document.querySelector('#es-reasons .st-chip.on')?.textContent || 'その他';
+    cow.events.push({ type: 'estrus', date, skip: true, reason, memo: `発情あり・見送り（${reason}）${memo ? '　' + memo : ''}` });
+  } else {
+    const k = document.querySelector('#es-next .st-chip.on')?.dataset.k || 'watch';
+    if (k === 'et') _startEstrusProgram(cow, 'et', date, memo);
+    else cow.events.push({ type: 'estrus', date, next: k, memo });
+  }
   save();
-  document.getElementById('es-modal')?.remove();
+  w?.remove();
   _rptCache = null;
+  try { renderAll(); } catch (e) {}
   try { if (document.getElementById('page-annual')?.classList.contains('active')) renderAnnual(); } catch (e) {}
   try { const mc = document.getElementById('modal-cow'); if (mc && mc.classList.contains('open')) showCowDetail(cowId); } catch (e) {}
 }
@@ -7436,12 +7502,13 @@ function openCowNote(cowId, evIdx) {
   w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:16px;';
   w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:400px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <div style="font-size:15px;font-weight:900;">📝 ${ev ? 'メモを修正' : 'メモを残す'}</div>
+      <div style="font-size:15px;font-weight:900;">📝 ${ev ? 'メモを修正' : 'メモ・予定を残す'}</div>
       <button class="modal-close" onclick="document.getElementById('note-modal').remove()">✕</button>
     </div>
     <div style="font-size:13px;font-weight:700;margin-bottom:8px;">${esc(cowId)} ${esc(cowDisplayName(cowId) || '')}</div>
     <div class="form-group" style="margin-bottom:10px;"><label>日付</label><input type="date" id="note-date" value="${esc(ev ? ev.date : today())}" oninput="_noteHint()"></div>
     <div class="form-group" style="margin-bottom:6px;"><label>内容</label><textarea id="note-text" rows="3" placeholder="例：削蹄した／子宮洗浄／右後肢を気にしている" style="width:100%;">${esc(ev ? ev.memo : '')}</textarea></div>
+    ${ev ? '' : _noteKindPicker()}
     <div id="note-hint" style="font-size:11px;color:var(--muted);margin-bottom:12px;"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="saveCowNote('${esc(cowId)}',${ev ? evIdx : 'null'})">保存する</button>
   </div>`;
@@ -7449,12 +7516,24 @@ function openCowNote(cowId, evIdx) {
   _noteHint(!!ev);
   setTimeout(() => document.getElementById('note-text')?.focus(), 50);
 }
-function _noteHint(editing) {
+// メモとして残すか、予定（タスク）にするかを選ぶ
+function _noteKindPicker() {
+  return `<div style="display:flex;gap:6px;margin-bottom:8px;" id="note-kind">
+    <button type="button" class="st-chip on" data-k="memo" onclick="_noteKindSet('memo')" style="flex:1;justify-content:center;padding:8px;font-size:13px;">📝 メモとして残す</button>
+    <button type="button" class="st-chip" data-k="task" onclick="_noteKindSet('task')" style="flex:1;justify-content:center;padding:8px;font-size:13px;">📅 予定（タスク）にする</button>
+  </div>`;
+}
+function _noteKind() { return document.querySelector('#note-kind .st-chip.on')?.dataset.k || 'memo'; }
+function _noteKindSet(k) {
+  document.querySelectorAll('#note-kind .st-chip').forEach(b => b.classList.toggle('on', b.dataset.k === k));
+  _noteHint(false);
+}
+function _noteHint(editing, who) {
   const el = document.getElementById('note-hint'); if (!el) return;
-  const d = document.getElementById('note-date')?.value || today();
-  el.innerHTML = d > today() && !editing
-    ? '📅 先の日付なので<b>予定</b>として入ります（今日のタスク・カレンダーに出ます。済んだらチェックするとストーリーに残ります）'
-    : 'ストーリーのその日のところに残ります。受胎率などの成績には使いません';
+  if (editing) { el.innerHTML = 'ストーリーのその日のところに残ります。受胎率などの成績には使いません'; return; }
+  el.innerHTML = _noteKind() === 'task'
+    ? `📅 <b>予定（タスク）</b>として入ります。その日の「今日のタスク」とカレンダーに出て、済んだらチェックします。この${who || '牛'}のストーリーの「今後の予定」にも出ます`
+    : `📝 <b>メモ</b>として、ストーリーのその日のところに残ります（先の日付でもタスクにはなりません）。受胎率などの成績には使いません`;
 }
 function saveCowNote(cowId, evIdx) {
   const cow = cows.find(c => c.id === cowId);
@@ -7465,7 +7544,7 @@ function saveCowNote(cowId, evIdx) {
   cow.events = cow.events || [];
   if (evIdx != null && cow.events[evIdx] && cow.events[evIdx].type === 'note') {
     cow.events[evIdx].date = date; cow.events[evIdx].memo = text;
-  } else if (date > today()) {
+  } else if (_noteKind() === 'task') {
     tasks.push({ id: Math.random().toString(36).slice(2), cowId, date, action: '📝 ' + text, detail: 'メモから入れた予定', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '', fromNote: true });
   } else {
     cow.events.push({ type: 'note', date, memo: text });
@@ -8956,10 +9035,12 @@ function herdBulkNote() {
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px;max-height:60px;overflow:auto;">${T.map(x => _stEsc(x.label)).join('・')}</div>
     <div class="form-group" style="margin-bottom:10px;"><label>日付</label><input type="date" id="note-date" value="${today()}"></div>
     <div class="form-group" style="margin-bottom:6px;"><label>内容</label><textarea id="note-text" rows="2" placeholder="例：5種混合ワクチン／削蹄／除角" style="width:100%;"></textarea></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">今日までなら各牛のストーリーに記録、先の日付なら予定として入ります（子牛は子牛のストーリーに入ります）</div>
+    ${_noteKindPicker()}
+    <div id="note-hint" style="font-size:11px;color:var(--muted);margin-bottom:12px;"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="herdBulkNoteSave()">${T.length}頭に入れる</button>
   </div>`;
   document.body.appendChild(w);
+  _noteHint(false, '牛');
 }
 function herdBulkNoteSave() {
   const T = _herdSelTargets();
@@ -8967,9 +9048,14 @@ function herdBulkNoteSave() {
   const text = document.getElementById('note-text').value.trim();
   if (!text) { appAlert('内容を入れてください'); return; }
   armUndo(`${T.length}頭にメモを入れました`);
+  const asTask = _noteKind() === 'task';
   T.forEach(({ kind, obj }) => {
-    if (kind === 'calf') { obj.notes = obj.notes || []; obj.notes.push({ date, text }); return; }
-    if (date > today()) tasks.push({ id: Math.random().toString(36).slice(2), cowId: obj.id, date, action: '📝 ' + text, detail: 'メモから入れた予定（一括）', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '', fromNote: true });
+    if (kind === 'calf') {
+      if (asTask) tasks.push({ id: Math.random().toString(36).slice(2), cowId: obj.earTagId || obj.id, calfId: obj.id, date, action: '📝 ' + text, detail: 'メモから入れた予定（一括）', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '', fromNote: true });
+      else { obj.notes = obj.notes || []; obj.notes.push({ date, text }); }
+      return;
+    }
+    if (asTask) tasks.push({ id: Math.random().toString(36).slice(2), cowId: obj.id, date, action: '📝 ' + text, detail: 'メモから入れた予定（一括）', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '', fromNote: true });
     else { obj.events = obj.events || []; obj.events.push({ type: 'note', date, memo: text }); }
   });
   save();
@@ -10307,15 +10393,18 @@ function renderDataCheck() {
       <summary class="stats-title" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;margin-bottom:0;">💡 改善が必要な成績（${today().slice(0, 4)}年）${advCount ? `<span style="font-size:11px;font-weight:700;color:var(--warn);">${advCount}件</span>` : ''}<span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:500;">▼ タップで開く</span></summary>
       <div style="margin-top:10px;">${advHTML}</div>
     </details>` : ''}
-    <div class="stats-card">
-      <div class="stats-title">🔢 授精証明書Noのチェック</div>
-      ${certHTML || '<div style="color:var(--muted);font-size:12px;">授精簿の記録がありません</div>'}
-    </div>
-    <div class="stats-card">
-      <div class="stats-title" style="display:flex;justify-content:space-between;"><span>🩺 データの食い違い</span><span style="font-size:11px;font-weight:500;color:${cons.length ? 'var(--warn)' : 'var(--accent)'};">${cons.length}件</span></div>
+    <details class="stats-card adv-fold" ${(() => { try { return localStorage.getItem('chkCertOpen') === '1' ? 'open' : ''; } catch (e) { return ''; } })()} ontoggle="try{localStorage.setItem('chkCertOpen',this.open?'1':'0')}catch(e){}">
+      <summary class="stats-title" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;margin-bottom:0;">🔢 授精証明書Noのチェック<span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:500;">▼ タップで開く</span></summary>
+      <div style="margin-top:10px;">${certHTML || '<div style="color:var(--muted);font-size:12px;">授精簿の記録がありません</div>'}</div>
+    </details>
+    <details class="stats-card adv-fold" ${(() => { try { return localStorage.getItem('chkConsOpen') === '1' ? 'open' : ''; } catch (e) { return ''; } })()} ontoggle="try{localStorage.setItem('chkConsOpen',this.open?'1':'0')}catch(e){}">
+      <summary class="stats-title" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;margin-bottom:0;"><span>🩺 データの食い違い</span><span style="font-size:11px;font-weight:500;color:${cons.length ? 'var(--warn)' : 'var(--accent)'};">${cons.length}件</span><span style="margin-left:auto;font-size:11px;color:var(--muted);font-weight:500;">▼ タップで開く</span></summary>
+      <div style="margin-top:10px;">
       <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">授精簿と妊鑑・分娩・タスクの食い違いを自動で探します。タップでその牛を開きます</div>
       ${consHTML}
-    </div>`;
+
+      </div>
+    </details>`;
 }
 
 // ===== 今日のタスク画面：要注意の牛（表示専用・重いので間引いて計算） =====
@@ -22478,10 +22567,13 @@ function showCalfStory(calfId) {
   // メモ
   (calf.notes || []).forEach((n, i) => items.push({ date: n.date, color: '#38bdf8', title: '📝 メモ', desc: '', kv: [], memo: n.text,
     acts: [`<button class="st-act" onclick="openCalfNote('${esc(calf.id)}',${i})">✏ 修正</button>`, `<button class="st-act del" onclick="deleteCalfNote('${esc(calf.id)}',${i})">🗑 削除</button>`] }));
+  // メモから入れた子牛の予定（タスク）：まだのものは「今後の予定」に、済んだものは記録として並べる
+  tasks.filter(t => t.calfId === calf.id).forEach(t => items.push({ date: t.date, color: t.done ? '#4ade80' : '#f59e0b', title: (t.done ? '✅ ' : '📅 ') + _stEsc(t.action), desc: t.done ? '予定を済ませました' : 'タスク（今日のタスク・カレンダーに出ます）', kv: [], memo: '', taskPending: !t.done,
+    acts: [`<button class="st-act del" onclick="deleteCalfTask('${esc(t.id)}','${esc(calf.id)}')">🗑 削除</button>`] }));
   items.sort((a, b) => b.date.localeCompare(a.date));
   const T = today();
-  const pend = items.filter(it => it.date > T);
-  const past = items.filter(it => it.date <= T);
+  const pend = items.filter(it => it.date > T || it.taskPending);
+  const past = items.filter(it => it.date <= T && !it.taskPending);
   const asCow = cows.find(c => calf.earTagId && c.id === calf.earTagId);
   const dead = !!(calf.deathDate || fd);
   const stJa = dead ? '死亡' : fr ? '出荷済' : asCow ? '親牛に移行' : ({ active: '在籍', moved: '移動済', kept: '自家保留' }[calf.status] || calf.status || '在籍');
@@ -22585,10 +22677,12 @@ function openCalfNote(calfId, idx) {
     </div>
     <div class="form-group" style="margin-bottom:10px;"><label>日付</label><input type="date" id="note-date" value="${esc(n ? n.date : today())}"></div>
     <div class="form-group" style="margin-bottom:6px;"><label>内容</label><textarea id="note-text" rows="3" placeholder="例：除角／去勢／下痢気味" style="width:100%;">${esc(n ? n.text : '')}</textarea></div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;">先の日付にすると、この子牛のストーリーに「予定」として出ます。成績の計算には使いません</div>
+    ${n ? '' : _noteKindPicker()}
+    <div id="note-hint" style="font-size:11px;color:var(--muted);margin-bottom:12px;"></div>
     <button class="btn btn-primary" style="width:100%;" onclick="saveCalfNote('${esc(calfId)}',${n ? idx : 'null'})">保存する</button>
   </div>`;
   document.body.appendChild(w);
+  _noteHint(!!n, '子牛');
 }
 function saveCalfNote(calfId, idx) {
   const calf = calves.find(c => c.id === calfId);
@@ -22597,9 +22691,19 @@ function saveCalfNote(calfId, idx) {
   const text = document.getElementById('note-text').value.trim();
   if (!text) { appAlert('内容を入れてください'); return; }
   calf.notes = calf.notes || [];
-  if (idx != null && calf.notes[idx]) calf.notes[idx] = { date, text }; else calf.notes.push({ date, text });
+  if (idx != null && calf.notes[idx]) calf.notes[idx] = { date, text };
+  else if (_noteKind() === 'task') tasks.push({ id: Math.random().toString(36).slice(2), cowId: calf.earTagId || calf.id, calfId: calf.id, date, action: '📝 ' + text, detail: '子牛のメモから入れた予定', color: '#38bdf8', priority: 'mid', done: false, timeOfDay: '', fromNote: true });
+  else calf.notes.push({ date, text });
   save();
+  try { renderAll(); } catch (e) {}
   document.getElementById('note-modal')?.remove();
+  showCalfStory(calfId);
+}
+async function deleteCalfTask(taskId, calfId) {
+  const t = tasks.find(x => x.id === taskId); if (!t) return;
+  if (!await appConfirm(`${fmtDate(t.date)} の予定「${t.action}」を削除しますか？`)) return;
+  tasks = tasks.filter(x => x.id !== taskId);
+  save(); try { renderAll(); } catch (e) {}
   showCalfStory(calfId);
 }
 async function deleteCalfNote(calfId, idx) {
@@ -29353,7 +29457,7 @@ document.addEventListener('visibilitychange', function() {
   <button id="bb-home" onclick="bbGo('home')"><span class="bi">🏠</span>ホーム</button>
   <button id="bb-today" onclick="bbGo('today')"><span class="bi">📋</span>タスク<span class="bb-badge" id="bb-today-badge" style="display:none;"></span></button>
   <button id="bb-cows" onclick="bbGo('cows')"><span class="bi">🐄</span>個体<span class="bb-badge" id="bb-cows-badge" style="display:none;"></span></button>
-  <button id="bb-calves" onclick="bbGo('calves')"><span class="bi">🐮</span>子牛<span class="bb-badge" id="bb-calves-badge" style="display:none;background:var(--warn);"></span></button>
+  <button id="bb-calves" onclick="bbGo('calves')"><span class="bi"><span style="font-size:.72em;display:inline-block;transform:translateY(.12em)">🐄</span></span>子牛<span class="bb-badge" id="bb-calves-badge" style="display:none;background:var(--warn);"></span></button>
   <button id="bb-more" onclick="bbGo('more')"><span class="bi">☰</span>その他</button>
 </nav>
 </body>
