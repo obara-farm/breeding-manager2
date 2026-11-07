@@ -8882,7 +8882,7 @@ function firstAIData() {
         if (inWin(todayStr)) { donor.push({ id: c.id, x, g, days: dd, now: true }); return; }   // 今まさに採卵ドナーとして使っている
         if (dd > 0) donor.push({ id: c.id, x, g, days: dd, noAI: true });
         // ドナー授精のあと妊鑑待ち・妊娠中の牛は「まだ授精していない」には出さない
-        if (x - dd >= RPT_VWP && !activeHold(c) && !(dd > 0 && _faStatus(c) !== 'open')) notBred.push({ id: c.id, x, g });
+        if (x - dd >= RPT_VWP && !activeHold(c) && _faStatus(c) !== 'preg' && !(dd > 0 && _faStatus(c) !== 'open')) notBred.push({ id: c.id, x, g });
       }
     } else {
       if (lc || (Number(c.lactation) || 0) > 0 || !c.dob) return;
@@ -8990,7 +8990,9 @@ function renderFirstAI(el) {
     </div>
     ${parous ? (() => {
       // 受胎目標（分娩後○日以内に受胎）の達成状況。判定できるのは、分娩後その日数を過ぎた牛だけ
-      const C = D.conc.filter(x => !_faHide[x.g]);
+      // 状態は妊娠中なのに、今回の分娩のあとの受胎の授精が見つからない牛は、図にも割合にも入れずに別に出す（記録の食い違い）
+      const pregUnknown = D.conc.filter(x => !_faHide[x.g] && x.st === 'preg' && x.concDays == null);
+      const C = D.conc.filter(x => !_faHide[x.g] && !(x.st === 'preg' && x.concDays == null));
       const due = C.filter(x => x.x >= xTarget), yet = C.filter(x => x.x < xTarget);
       const ok = due.filter(x => x.concDays != null && x.concDays <= xTarget);
       const late = due.filter(x => x.concDays != null && x.concDays > xTarget);
@@ -9050,6 +9052,10 @@ function renderFirstAI(el) {
           ${row('#60a5fa', 'まだ分からない（妊鑑待ち）', waitL, true)}
           ${row('#f87171', '妊娠していない（長期空胎）', openL, true)}` : '<div style="font-size:12px;color:var(--muted);margin-top:6px;">まだ判定できる牛がいません</div>'}
         <div style="font-size:11px;color:var(--muted);margin-top:6px;">ほかに、分娩後${xTarget}日になっていない牛が${yet.length}頭（うち、もう受胎した牛 ${yetOk.length}頭）</div>
+        ${pregUnknown.length ? `<div style="background:#2a1d05;border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;line-height:1.6;">
+          <b style="color:var(--warn);">⚠ 妊娠中なのに、今回の分娩のあとの受胎の授精が見つからない牛 ${pregUnknown.length}頭</b>（図と割合には入れていません）<br>
+          ${pregUnknown.map(x => { let why = ''; try { const m = buildCowStory(x.id).metrics; why = m.concIns ? `受胎の授精 ${fmtDateShort(m.concIns.date)} が最後の分娩 ${fmtDateShort(m.lastCalving)} より前` : '受胎した授精の記録がない'; } catch (e) {} return `<span class="tw-chip" onclick="showCowDetail('${esc(x.id)}')">${esc(x.id)} ${esc(cowDisplayName(x.id) || '')} <span style="color:var(--warn);">${esc(why)}</span></span>`; }).join('')}
+          <div style="color:var(--muted);font-size:11px;">分娩日か授精の記録のどちらかが違っていると思います。牛を開いて確認してください</div></div>` : ''}
       </div>`;
     })() : ''}
     <div class="st-sec" style="margin-top:12px;color:var(--danger);">${parous ? `まだ授精していない牛（分娩後${RPT_VWP}日以上・繁殖対象外を除く）` : '授精開始月齢を過ぎてまだ授精していない未経産'} ${D.notBred.length}頭</div>
