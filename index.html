@@ -10310,7 +10310,9 @@ function checkCertNumbers(year) {
   const todayStr = today();
   // ドナーAI（採卵目的）も授精証明書の番号を使っているので数に入れる（入れないと、その番号が欠番に見える）。
   // ただし番号が空欄でも「未入力」とは言わない
-  const recs = _allInsemBookWithEdits().filter(r => !_isEtRec(r) && _recYear(r) === year && r.d && r.d <= todayStr)
+  // 術者欄に名前がある授精（TBSなど、ほかの人が授精したもの）は、その人の証明書の番号なので先生の番号の流れには入れない
+  const _otherOp = r => !!String(r.op || '').replace(/在庫反映.*$/, '').replace(/[\s\u3000].*$/, '').trim();
+  const recs = _allInsemBookWithEdits().filter(r => !_isEtRec(r) && !_otherOp(r) && _recYear(r) === year && r.d && r.d <= todayStr)
     .sort((a, b) => a.d.localeCompare(b.d) || (+a.q || 0) - (+b.q || 0));
   const num = r => { const m = String(r.q || '').trim().match(/^\d+$/); return m ? +m[0] : null; };
   const nums = recs.map(num).filter(n => n != null).sort((a, b) => a - b);
