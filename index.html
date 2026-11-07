@@ -7370,10 +7370,21 @@ function donorWindows(cow) {
     const end = addDays(s, 40);
     wins.push([s, end < todayStr ? end : todayStr]);
   });
-  // ドナー授精だけが記録されている場合
-  evs.filter(e => e.donorAI && e.date).forEach(e => {
-    if (wins.some(w => e.date >= w[0] && e.date <= w[1])) return;
-    wins.push([addDays(e.date, -14), addDays(e.date, 21)]);
+  // ドナー授精だけが記録されている場合（牛の記録の印が外れていても、授精簿に印があれば拾う）
+  const dAI = new Set(evs.filter(e => e.donorAI && e.date).map(e => e.date));
+  try {
+    (typeof INSEM_BOOK_DATA !== 'undefined' ? INSEM_BOOK_DATA : []).forEach((r, i) => {
+      const ed = (insemBookEdits || {})['static_' + i] || {};
+      if (!ed._deleted && (ed.t || r.t) === cow.id && staticDonorAIFlags['static_' + i]) dAI.add(ed.d || r.d);
+    });
+    (insemBookRecords || []).forEach((r, i) => {
+      const ed = (insemBookEdits || {})['dynamic_' + i] || {};
+      if (!ed._deleted && (ed.t || r.t) === cow.id && (ed.donorAI !== undefined ? ed.donorAI : r.donorAI)) dAI.add(ed.d || r.d);
+    });
+  } catch (e) {}
+  [...dAI].filter(Boolean).sort().forEach(d => {
+    if (wins.some(w => d >= w[0] && d <= w[1])) return;
+    wins.push([addDays(d, -14), addDays(d, 21)]);
   });
   wins.sort((a, b) => a[0].localeCompare(b[0]));
   const merged = [];
@@ -8316,11 +8327,15 @@ function _advDFS(Y) {
   let donorSkip = 0;
   _rptStories().forEach(x => x.calv.forEach((d, i) => {
     if (!(d >= `${Y - 1}-11-01` && d <= `${Y}-12-31`)) return;
-    const fi = x.insems.find(o => o.date > d && (!x.calv[i + 1] || o.date < x.calv[i + 1]));
+    let wins = []; try { wins = donorWindows(x.c); } catch (e) {}
+    const inWin = dt => wins.some(([a, b]) => dt >= a && dt <= b);
+    const fi = x.insems.find(o => o.date > d && !o.donorAI && !inWin(o.date) && (!x.calv[i + 1] || o.date < x.calv[i + 1]));
     if (!fi || !String(fi.date).startsWith(String(Y))) return;
-    // 分娩後に採卵ドナーとして使った牛は、わざと授精していないので数えない
-    if (donorDaysBetween(x.c, d, fi.date) > 0) { donorSkip++; return; }
-    const days = diffDays(fi.isEt ? addDays(fi.date, -7) : fi.date, d);   // ETは発情の日（移植の7日前）で数える
+    // 分娩後に採卵ドナーとして使った牛は、そのドナー期間の日数を差し引いて数える
+    const fh = fi.isEt ? addDays(fi.date, -7) : fi.date;   // ETは発情の日（移植の7日前）で数える
+    const dd = donorDaysBetween(x.c, d, fh);
+    if (dd > 0) donorSkip++;
+    const days = Math.max(0, diffDays(fh, d) - dd);
     a.push(days);
     if (days > 90) late.push({ id: x.c.id, days });
   }));
@@ -8432,7 +8447,7 @@ function buildAdvice(tab, Y) {
     const dfs = _advDFS(Y);
     if (dfs) {
       const lv = _advLevel('dfs', dfs.avg);
-      if (lv && lv.lv !== 'good') addK('dfs', lv.lv, `分娩から初回授精まで平均 ${Math.round(dfs.avg)}日（真ん中の値は${dfs.median}日）`, `目安 ${lv.target}日以内。${dfs.n}回の分娩のうち${dfs.le60}回は60日以内に授精できていて、「分娩後45日で発情がなければ授精プログラム」という今のやり方は回っています。平均を押し上げているのは、90日を超えた一部の牛（${dfs.over}回）です。${dfs.donorSkip ? `（分娩後に採卵ドナーにした${dfs.donorSkip}回は除いています）` : ''}`, [
+      if (lv && lv.lv !== 'good') addK('dfs', lv.lv, `分娩から初回授精まで平均 ${Math.round(dfs.avg)}日（真ん中の値は${dfs.median}日）`, `目安 ${lv.target}日以内。${dfs.n}回の分娩のうち${dfs.le60}回は60日以内に授精できていて、「分娩後45日で発情がなければ授精プログラム」という今のやり方は回っています。平均を押し上げているのは、90日を超えた一部の牛（${dfs.over}回）です。${dfs.donorSkip ? `（分娩後に採卵ドナーにした${dfs.donorSkip}回は、ドナー期間の日数を引いて数えています）` : ''}`, [
         '下の90日を超えた牛について、プログラムに乗せるのが遅れた理由（体調・子宮回復・時期待ちなど）をストーリーで確認する',
         '理由がある見送りは「🔥見送り」や「⏸繁殖対象外」で記録すると、ここで分けて見られます',
       ], dfs.late.map(x => x.id), '分娩から初回授精まで90日を超えた牛');
@@ -8835,12 +8850,23 @@ function firstAIData() {
       const lac = Number(c.lactation) || (st.calvingList || []).length || 1;
       const g = lac <= 1 ? 'p1' : lac === 2 ? 'p2' : 'p3';
       const x = diffDays(todayStr, lc);
-      const first = ins.find(i => i.date > lc);
-      const end = first ? first.date : todayStr;
-      if (donorDaysBetween(c, lc, end) > 0) { donor.push({ id: c.id, x, g }); return; }
-      // ETは移植日ではなく、その発情（移植の7日前）を初回授精の日とする（AIと同じ物差しにする）
-      if (first) { const fdHeat = first.isEt ? addDays(first.date, -7) : first.date; pts.push({ id: c.id, x, y: diffDays(fdHeat, lc), g, et: first.isEt, lc, fd: first.date, fdHeat, lac, st: _faStatus(c) }); }
-      else if (x >= RPT_VWP && !activeHold(c)) notBred.push({ id: c.id, x, g });
+      // 採卵ドナーとして使った期間の授精（ドナー授精）は初回授精に数えず、その期間の日数を差し引いて数える
+      let wins = []; try { wins = donorWindows(c); } catch (e) {}
+      const inWin = d => wins.some(([a, b]) => d >= a && d <= b);
+      const first = ins.find(i => i.date > lc && !inWin(i.date));
+      if (first) {
+        // ETは移植日ではなく、その発情（移植の7日前）を初回授精の日とする（AIと同じ物差しにする）
+        const fdHeat = first.isEt ? addDays(first.date, -7) : first.date;
+        const dd = donorDaysBetween(c, lc, fdHeat);
+        if (dd > 0) donor.push({ id: c.id, x, g, days: dd });
+        pts.push({ id: c.id, x, y: Math.max(0, diffDays(fdHeat, lc) - dd), g, et: first.isEt, lc, fd: first.date, fdHeat, lac, st: _faStatus(c), donorDays: dd, rawY: diffDays(fdHeat, lc) });
+      } else {
+        const dd = donorDaysBetween(c, lc, todayStr);
+        if (inWin(todayStr)) { donor.push({ id: c.id, x, g, days: dd, now: true }); return; }   // 今まさに採卵ドナーとして使っている
+        if (dd > 0) donor.push({ id: c.id, x, g, days: dd, noAI: true });
+        // ドナー授精のあと妊鑑待ち・妊娠中の牛は「まだ授精していない」には出さない
+        if (x - dd >= RPT_VWP && !activeHold(c) && !(dd > 0 && _faStatus(c) !== 'open')) notBred.push({ id: c.id, x, g });
+      }
     } else {
       if (lc || (Number(c.lactation) || 0) > 0 || !c.dob) return;
       const x = Math.round(diffDays(todayStr, c.dob) / 30.4 * 10) / 10;
@@ -8910,7 +8936,7 @@ function renderFirstAI(el) {
       <div style="display:flex;border-top:1px solid var(--border);margin-left:-1px;">${parous
         ? cell('産次', sp.lac || '—', '産') + cell('分娩後日数', sp.x, '日') + cell('初回授精日', sp.y, '日')
         : cell('品種', esc(breed.replace('和種', '') || '—'), '') + cell('今の月齢', sp.x, 'か月') + cell('初回授精', sp.y, 'か月')}</div>
-      <div style="font-size:10px;color:var(--muted);text-align:center;padding:3px 0 6px;">${parous ? `分娩 ${fmtDateShort(sp.lc)} → 初回${sp.et ? 'ET ' + fmtDateShort(sp.fd) : 'AI ' + fmtDateShort(sp.fd)}` : '初回 ' + fmtDateShort(sp.fd)}・タップで牛を開く</div>
+      <div style="font-size:10px;color:var(--muted);text-align:center;padding:3px 0 6px;">${parous ? `分娩 ${fmtDateShort(sp.lc)} → 初回${sp.et ? 'ET ' + fmtDateShort(sp.fd) : 'AI ' + fmtDateShort(sp.fd)}${sp.donorDays ? `（${sp.rawY}日からドナー期間${sp.donorDays}日を引いた）` : ''}` : '初回 ' + fmtDateShort(sp.fd)}・タップで牛を開く</div>
     </div>`;
   }
   const selHTML = sp ? `<div class="ann-card" style="margin-top:8px;display:flex;gap:8px;align-items:center;">
@@ -8943,7 +8969,7 @@ function renderFirstAI(el) {
     </div>
     <div class="st-sec" style="margin-top:12px;color:var(--danger);">${parous ? `まだ授精していない牛（分娩後${RPT_VWP}日以上・繁殖対象外を除く）` : '授精開始月齢を過ぎてまだ授精していない未経産'} ${D.notBred.length}頭</div>
     <div>${D.notBred.sort((a, b) => b.x - a.x).map(chip).join('') || '<span style="font-size:12px;color:var(--muted);">いません</span>'}</div>
-    ${parous && D.donor.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;">※ 分娩後に採卵ドナーとして使った ${D.donor.length}頭（${D.donor.map(d => esc(d.id)).join('・')}）は、わざと授精していないので図から外しています。</div>` : ''}
+    ${parous && D.donor.length ? `<div style="font-size:10px;color:var(--muted);margin-top:8px;">※ 分娩後に採卵ドナーとして使った牛は、ドナー期間の日数を差し引いて数えています：${D.donor.map(d => esc(d.id) + '（' + (d.now ? '今ドナー中・図に出さない' : d.noAI ? 'ドナー後まだ授精なし' : d.days + '日引く') + '）').join('・')}</div>` : ''}
     <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.6;">※ ${parous ? '縦（↑）＝分娩から初回授精までにかかった日数。横（→）＝分娩してから今日までに何日たったか（右にある点ほど前に分娩した牛）。今いる経産牛の、いちばん新しい分娩について出しています。ETは移植日ではなく、その発情の日（移植の7日前）で数えます。' : '縦（↑）＝初回授精をした月齢。横（→）＝今の月齢。今いる未経産牛について出しています。'}</div>`;
 }
 
