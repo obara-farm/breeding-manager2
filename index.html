@@ -761,32 +761,32 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
   <!-- 成績・在庫 -->
   <div class="nav-section">
     <div class="nav-section-label">📊 成績・在庫</div>
-    <div class="nav-section-row cols-3">
+    <div class="nav-section-row cols-4">
       <div class="grid-nav-btn gnav-orange" id="gnav-stats" onclick="switchTab('stats')">
         <span class="nav-icon">📊</span>
         <span class="nav-label">繁殖成績</span>
       </div>
-      <div class="grid-nav-btn gnav-orange" id="gnav-annual" onclick="switchTab('annual')">
-        <span class="nav-icon">📒</span>
-        <span class="nav-label">年間まとめ</span>
-      </div>
       <div class="grid-nav-btn gnav-orange" id="gnav-fattening" onclick="switchTab('fattening')">
         <span class="nav-icon">🥩</span>
         <span class="nav-label">肥育成績</span>
+      </div>
+      <div class="grid-nav-btn gnav-purple" id="gnav-collection" onclick="switchTab('collection')">
+        <span class="nav-icon">🌱</span>
+        <span class="nav-label">採卵記録</span>
+        <span class="grid-nav-badge" id="collection-pending-badge" style="display:none;background:var(--warn);">0</span>
+      </div>
+      <div class="grid-nav-btn gnav-gray" id="gnav-insembook" onclick="switchTab('insembook')">
+        <span class="nav-icon">📋</span>
+        <span class="nav-label">授精簿</span>
       </div>
       <div class="grid-nav-btn gnav-orange" id="gnav-semen" onclick="switchTab('semen')">
         <span class="nav-icon">🥚</span>
         <span class="nav-label">種・胚在庫</span>
         <span class="grid-nav-badge" id="semen-low-badge" style="display:none;">0</span>
       </div>
-      <div class="grid-nav-btn gnav-gray" id="gnav-insembook" onclick="switchTab('insembook')">
-        <span class="nav-icon">📋</span>
-        <span class="nav-label">授精簿</span>
-      </div>
-      <div class="grid-nav-btn gnav-purple" id="gnav-collection" onclick="switchTab('collection')">
-        <span class="nav-icon">🌱</span>
-        <span class="nav-label">採卵記録</span>
-        <span class="grid-nav-badge" id="collection-pending-badge" style="display:none;background:var(--warn);">0</span>
+      <div class="grid-nav-btn gnav-orange" id="gnav-annual" onclick="switchTab('annual')">
+        <span class="nav-icon">📒</span>
+        <span class="nav-label">年間まとめ</span>
       </div>
     </div>
   </div>
@@ -3129,6 +3129,7 @@ function loadData() {
   insemBookEdits   = JSON.parse(_store.getItem('insemBookEdits') || '{}');
   try { resetInsemSnap(); } catch (e) {}   // 読み直した授精簿は「今直した」扱いにしない
   staticDonorAIFlags = JSON.parse(_store.getItem('staticDonorAIFlags') || '{}');
+  _sdfSnap = null;
   collectionRecordsNew = JSON.parse(_store.getItem('collectionRecordsNew') || '[]');
   transferBook      = JSON.parse(_store.getItem('transferBook') || '[]');
   donorAIRecords    = JSON.parse(_store.getItem('donorAIRecords') || '[]');
@@ -3316,6 +3317,45 @@ function stampChangedInsem() {
   if (_ibrSnap.length > insemBookRecords.length) _ibrSnap.length = insemBookRecords.length;
 }
 // 修正内容（insemBookEdits）：行ごとに新しい方。どちらも時刻が無い古い行は今まで通り手元を優先
+// 昔の授精簿のドナー授精の印（staticDonorAIFlags）：端末ごとに古い内容で上書きされないよう、印ごとに直した時刻を持つ
+let _sdfSnap = null;
+function stampDonorFlags() {
+  if (typeof staticDonorAIFlags === 'undefined') return;
+  const cur = Object.entries(staticDonorAIFlags).filter(([k]) => k !== '_mt');
+  if (!_sdfSnap) { _sdfSnap = new Map(cur.map(([k, v]) => [k, !!v])); return; }
+  const now = Date.now();
+  cur.forEach(([k, v]) => { if (_sdfSnap.get(k) !== !!v) { staticDonorAIFlags._mt = staticDonorAIFlags._mt || {}; staticDonorAIFlags._mt[k] = now; _sdfSnap.set(k, !!v); } });
+}
+// 採卵記録を保存したときに外れてしまっていたドナー授精の印を、採卵記録の授精日から1回だけ付け直す（採卵後PGなしの記録は除く）
+function repairDonorFlagsOnce() {
+  if (typeof farmTargets === 'undefined' || farmTargets._donorFlagFix1) return 0;
+  let n = 0;
+  (typeof collectionRecordsNew !== 'undefined' ? collectionRecordsNew : []).forEach(cr => {
+    if (!cr.donorId || cr.pg === false) return;
+    const ds = [...new Set([...(cr.aiDates || []).map(a => a.date), cr.aiDate].filter(Boolean))];
+    ds.forEach(d => {
+      insemBookRecords.forEach(r => { if (r.t === cr.donorId && r.d === d && !r.donorAI) { r.donorAI = true; n++; } });
+      (typeof INSEM_BOOK_DATA !== 'undefined' ? INSEM_BOOK_DATA : []).forEach((r, i) => {
+        const dd = ((insemBookEdits || {})['static_' + i] || {}).d || r.d;
+        if (r.t === cr.donorId && dd === d && !staticDonorAIFlags['static_' + i]) { staticDonorAIFlags['static_' + i] = true; n++; }
+      });
+      const cow = cows.find(c => c.id === cr.donorId);
+      (cow && cow.events || []).forEach(e => { if (e.type === 'ai_done' && e.date === d && !e.donorAI) { e.donorAI = true; n++; } });
+    });
+  });
+  farmTargets._donorFlagFix1 = true;
+  return n;
+}
+function mergeDonorFlagsJSON(remoteStr, localStr) {
+  let R, L; try { R = JSON.parse(remoteStr || '{}') || {}; L = JSON.parse(localStr || '{}') || {}; } catch (e) { return remoteStr; }
+  const rm = R._mt || {}, lm = L._mt || {}, out = { _mt: { ...rm } };
+  new Set([...Object.keys(R), ...Object.keys(L)].filter(k => k !== '_mt')).forEach(k => {
+    const rt = rm[k] || 0, lt = lm[k] || 0;
+    if (rt || lt) { if (lt > rt) { out[k] = !!L[k]; out._mt[k] = lt; } else out[k] = !!R[k]; }
+    else out[k] = !!R[k] || !!L[k];   // 時刻のない古い印は、どちらかに付いていれば残す
+  });
+  return JSON.stringify(out);
+}
 function mergeInsemEditsJSON(remoteStr, localStr) {
   let R, L;
   try { R = JSON.parse(remoteStr || '{}') || {}; L = JSON.parse(localStr || '{}') || {}; } catch (e) { return remoteStr; }
@@ -3463,6 +3503,7 @@ function save() {
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
   try { stampChangedInsem(); } catch (e) { console.error('stampChangedInsem', e); }
+  try { stampDonorFlags(); } catch (e) { console.error('stampDonorFlags', e); }
   if (!_firebaseReady) {
     // Firebase初期ロード前はlocalStorageのみに書き込み（Firebaseは上書きしない）
     _store.setItem('cows', JSON.stringify(cows));
@@ -3720,6 +3761,7 @@ function initApp() {
   migrateTakahashiTaskText();
   try { syncRecipientPlaceholders(); } catch (e) {}
   syncAbortionRecords();
+  try { if (repairDonorFlagsOnce()) save(); } catch (e) { console.error('repairDonorFlags', e); }
   try { reconcileCows(null); } catch (e) { console.error('reconcile', e); }
   renderAll();
   initSwipe();
@@ -8584,7 +8626,11 @@ function reproProblem(c) {
   if (!c) return null;
   let st; try { st = buildCowStory(c.id); } catch (e) { return null; }
   const lc = (st.metrics && st.metrics.lastCalving) || c.calvingDate;
-  const L = (st.insems || []).filter(i => !i.donorAI && (!lc || i.date > lc));
+  // 採卵ドナーとして使っていた期間の授精（過剰排卵のあとのAI）は数えず、ドナー期間が終わってから数え直す
+  let wins = []; try { wins = donorWindows(c); } catch (e) {}
+  const inDonor = d => wins.some(([a, b]) => d >= a && d <= b);
+  const lastDonorEnd = wins.map(w => w[1]).filter(d => d <= today()).sort().pop() || '';
+  const L = (st.insems || []).filter(i => !i.donorAI && !inDonor(i.date) && (!lc || i.date > lc) && i.date > lastDonorEnd);
   let aiFails = 0;
   for (const i of [...L].reverse()) {
     if (i.result === 'pos') break;
@@ -8640,7 +8686,7 @@ function openCullSettings() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="flex:1;font-size:13px;">分娩後の空胎日数</span><input type="number" min="0" id="rp-open" value="${P.open}" style="width:70px;"><span style="font-size:12px;color:var(--muted);min-width:40px;">日以上</span></div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;"><span style="flex:1;font-size:13px;">AIの連続不受胎（リピートブリーダー）</span><input type="number" min="0" id="rp-repeat" value="${P.repeat}" style="width:70px;"><span style="font-size:12px;color:var(--muted);min-width:40px;">回以上</span></div>
     <button type="button" class="btn btn-primary" style="width:100%;" onclick="saveCullSettings()">保存</button>`;
-  openModal('modal-cull');
+  document.body.appendChild(document.getElementById('modal-cull')); openModal('modal-cull');
 }
 function saveCullSettings() {
   const g = id => Math.max(0, parseInt(document.getElementById(id).value) || 0);
@@ -9458,7 +9504,7 @@ function vetSuggestRules() {
 function openVetRules() {
   _vetRulesLoad();
   if (!_vetData) { try { startVetSync(); } catch (e) {} }
-  openModal('modal-vetrules'); renderVetRules();
+  document.body.appendChild(document.getElementById('modal-vetrules')); openModal('modal-vetrules'); renderVetRules();
 }
 function _vetDrugOpts(sel) {
   const dr = Object.entries((_vetData && _vetData.drugs) || {}).sort((a, b) => String(a[1].name || '').localeCompare(String(b[1].name || ''), 'ja'));
@@ -9603,7 +9649,7 @@ function showVetAutoSheet() {
       <button type="button" class="btn btn-secondary" style="flex:1;" onclick="vetAutoSkip()">記録しない</button>
       <button type="button" class="btn btn-primary" style="flex:2;" onclick="vetAutoOk()">💊 記録する</button>
     </div>`;
-  openModal('modal-vetauto');
+  document.body.appendChild(document.getElementById('modal-vetauto')); openModal('modal-vetauto');
 }
 const _isCidr = id => { const d = _vetData && _vetData.drugs && _vetData.drugs[id]; return !!d && /CIDR|シダー|サイダー|プリッド|PRID/i.test(d.name || ''); };
 function _cidrReuseDefault(t) { return /ドナー/.test((t.action || '') + (t.detail || '')) ? false : (farmTargets && farmTargets.cidrReuse === true); }
@@ -18401,19 +18447,8 @@ function saveCollection() {
     }
     // cultureResult === 'discard' の場合はタスクを生成しない（廃棄処理済み）
   });
-  // 採卵記録に紐づいたAI日のdonorAIフラグをOFF（PG投与有無に関わらず）
-  const _allAIDates = [...(rec.aiDates||[]).map(a=>a.date), ...(rec.aiDate?[rec.aiDate]:[])];
-  if (_allAIDates.length > 0) {
-    const donorCow = cows.find(c=>c.id===donorId);
-    _allAIDates.forEach(aiD => {
-      const r = insemBookRecords.find(r => r.t === donorId && r.d === aiD && r.donorAI);
-      if (r) r.donorAI = false;
-      if (donorCow) {
-        const ev = (donorCow.events||[]).find(e => e.type==='ai_done' && e.date===aiD && e.donorAI);
-        if (ev) ev.donorAI = false;
-      }
-    });
-  }
+  // （以前はここで、採卵記録に紐づいたAI日のドナー授精の印を外していた。印が勝手に消える原因だったのでやめた。
+  //   採卵後にPGを打たず妊娠を狙う場合だけ、下で印を外す）
 
   // ドナー牛のスケジュール処理（PG投与なし = 妊鑑タスク生成）
   if (!pg && aiDate) {
@@ -29412,6 +29447,11 @@ function initFirebaseSync() {
           _store.setItem(k, mergeCowsJSON(rv, _store.getItem(k)));
           return;
         }
+        if (k === 'staticDonorAIFlags') {
+          const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
+          _store.setItem(k, mergeDonorFlagsJSON(rv, _store.getItem(k)));
+          return;
+        }
         if (k === 'insemBookEdits') {
           // 行ごとに新しく直した方を残す（_mt）
           const rv = typeof remote[k] === 'string' ? remote[k] : JSON.stringify(remote[k]);
@@ -29506,6 +29546,12 @@ function initFirebaseSync() {
           }
           // 自分のエコーでないものだけ上書き
           if (_lastSentSnapshot[k] === rv) return;
+          if (k === 'staticDonorAIFlags') {
+            const merged = mergeDonorFlagsJSON(rv, _store.getItem(k));
+            _store.setItem(k, merged);
+            _lastSentSnapshot[k] = merged;
+            return;
+          }
           // insemBookEditsは行ごとに新しく直した方を残す
           if (k === 'insemBookEdits') {
             const merged = mergeInsemEditsJSON(rv, _store.getItem(k));
