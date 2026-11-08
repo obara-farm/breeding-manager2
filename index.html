@@ -5298,6 +5298,7 @@ function recordPreg(cowId, taskId, result) {
       const isEtByEvent = !insemRec && cow.events.some(e => e.type === 'et_done' && e.date === insemDateFromTask);
       const isEt = insemRec ? (insemRec.insemType === 'et' || !!insemRec.isET) : isEtByEvent;
       dueDate = addDays(insemDateFromTask, isEt ? 278 : 285);
+      dueDate = laterConceptionDue(cowId, insemDateFromTask) || dueDate;
     } else {
       // fallback: eventsから陽性対応のAI/ETを探す（旧ロジック）
       const lastEt = [...cow.events].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
@@ -11095,7 +11096,9 @@ function reconcileCow(c) {
   const m = st && st.metrics;
   if (c.status === 'pregnant' && m && m.concIns && m.dueDate && !c.dueManual && !(c._dueOk && c._dueOk === c.dueDate) && c.dueDate !== m.dueDate
       // 大きくずれている（21日超）ときは授精の記録漏れの可能性があるので自動では変えず、データ点検で確認してもらう
-      && (!c.dueDate || Math.abs(diffDays(c.dueDate, m.dueDate)) <= 21)) {   // データ点検で「問題ない」にした予定日も変えない
+      && (!c.dueDate || Math.abs(diffDays(c.dueDate, m.dueDate)) <= 21
+        // 古い授精（そのあとにまた授精している）から数えた予定日で、計算のほうが新しい授精なら直す
+        || (m.dueDate > c.dueDate && dueFromSupersededInsem(c)))) {   // データ点検で「問題ない」にした予定日も変えない
     c.dueDate = m.dueDate;
     const due = tasks.find(t => t.cowId === c.id && !t.done && t.action === '分娩予定');
     if (due) { due.date = m.dueDate; due.detail = `分娩予定日: ${fmtDate(m.dueDate)}`; }
@@ -11184,6 +11187,23 @@ function openMiscarriageFor(cowId, date, cause) {
   }, 60);
 }
 let _reconPending = new Set(), _reconTimer = null, _reconBusy = false;
+// 古い授精を「陽性」にしても、そのあとにした授精が受胎していれば、分娩予定日はあとの授精から数える
+// （例：1/9 AI のあと 2/23・3/18 にも授精して 3/18 が受胎 → 予定日は 3/18＋285日）
+function laterConceptionDue(cowId, insemDate) {
+  try {
+    const m = buildCowStory(cowId).metrics;
+    if (m && m.concIns && m.dueDate && insemDate && m.concIns.date > insemDate) { const c = cows.find(x => x.id === cowId); return c && c.twin ? addDays(m.dueDate, 10) : m.dueDate; }   // 双子の前倒しは呼び出し側でする
+  } catch (e) {}
+  return null;
+}
+// 保存されている予定日が「あとにまた授精した古い授精」から数えたものか
+function dueFromSupersededInsem(c) {
+  if (!c || !c.dueDate) return false;
+  const ins = (c.events || []).filter(e => ['ai_done', 'et_done', 'estrus_ai', 'estrus_et'].includes(e.type) && !e.donorAI).map(e => e.date).sort();
+  const lastCalv = (c.events || []).filter(e => e.type === 'calving').map(e => e.date).sort().pop() || c.calvingDate || '';
+  return ins.some(d => d > lastCalv && ins.some(x => x > addDays(d, 5))
+    && [278, 285, 268, 275].some(n => Math.abs(diffDays(c.dueDate, addDays(d, n))) <= 1));
+}
 function reconcileCows(ids) {
   if (_reconBusy) return;
   _reconBusy = true;
@@ -15279,6 +15299,7 @@ function recordPregFromInsemBook(cowId, date, result, triggerEl, aiDate) {
       const isEtByEvent = !insemRec && (cow.events||[]).some(e => e.type === 'et_done' && e.date === aiDate);
       const isEt = insemRec ? (insemRec.insemType === 'et' || !!insemRec.isET) : isEtByEvent;
       dueDate = addDays(aiDate, isEt ? 278 : 285);
+      dueDate = laterConceptionDue(cowId, aiDate) || dueDate;
     } else {
       // fallback: eventsから最新AI/ETを探す
       const lastEt = [...(cow.events||[])].sort((a,b)=>b.date.localeCompare(a.date)).find(e=>e.type==='et_done');
