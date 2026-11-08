@@ -23597,12 +23597,15 @@ function renderCalves() {
                 const hasPregRes = lastAiEt&&(dm.events||[]).some(e=>(e.type==='preg_positive'||e.type==='preg_negative')&&e.date>lastAiEt.date);
                 const lastNeg = lastAiEt&&hasPregRes&&[...(dm.events||[])].filter(e=>e.type==='preg_negative'&&e.date>lastAiEt.date).sort((a,b)=>b.date.localeCompare(a.date))[0];
                 const hasNewAiAfterNeg = lastNeg&&(dm.events||[]).some(e=>['ai_done','et_done'].includes(e.type)&&!e.donorAI&&e.date>lastNeg.date);
-                const isPregWaiting = (dm.status==='open'||dm.status==='program')&&lastAiEt&&(!hasPregRes||hasNewAiAfterNeg);
-                const isDonorCow = dm.isDonor||(dm.events||[]).some(e=>['donor_et_start','donor_et_pretreat_start','donor_et_takahashi_start'].includes(e.type));
+                // 母の状態は個体カードと同じ判定（cowDisplayStatus）を使う
+                // （前はドナーをしたことがある牛を、移植後でも「プログラム中」にしていた）
+                const _ds = cowDisplayStatus(dm);
                 const openDays = dm.calvingDate ? diffDays(todayStr, dm.calvingDate) : null;
-                if(dm.status==='pregnant') return ' <span style="color:#4ade80;font-size:10px;">●妊娠中</span>';
-                if(isPregWaiting && !isDonorCow) return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
-                if(dm.status==='program'||isDonorCow) return ' <span style="color:var(--purple);font-size:10px;">●プログラム中</span>';
+                if(_ds.key==='pregnant') return ' <span style="color:#4ade80;font-size:10px;">●妊娠中</span>';
+                if(_ds.key==='wait') return ' <span style="color:#60a5fa;font-size:10px;">●妊鑑待ち</span>';
+                if(_ds.key==='donor') return ' <span style="color:var(--purple);font-size:10px;">●採卵ドナー</span>';
+                if(_ds.key==='program') return ' <span style="color:var(--purple);font-size:10px;">●プログラム中</span>';
+                if(_ds.abort) return ' <span style="color:var(--warn);font-size:10px;">●'+_ds.label+'</span>';
                 if(openDays!==null && openDays<45){
                   const availDate = addDays(dm.calvingDate, FRESH_AVAIL_DAYS);
                   return ' <span style="color:var(--muted);font-size:10px;">●新鮮分娩 '+availDate.slice(5).replace('-','/')+'から授精可</span>';
