@@ -865,8 +865,10 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
   </div>
   <div style="margin-bottom:12px;">
     <button id="cow-age-filter-btn" onclick="toggleCowAgeFilter()" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🐮 24ヶ月齢未満のみ</button>
+    <button id="cow-pick-btn" onclick="toggleCowPick()" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;margin-left:6px;">☑ 選んでリストに</button>
   </div>
   <div id="cow-list-container"></div>
+  <div id="cow-pick-bar" style="display:none;position:fixed;left:0;right:0;bottom:calc(57px + env(safe-area-inset-bottom));z-index:899;background:var(--bg2,#111827);border-top:2px solid var(--accent2);padding:10px 12px;box-shadow:0 -4px 16px rgba(0,0,0,.5);"></div>
   <div class="empty" id="cow-empty" style="display:none;">
     <div class="empty-icon">🐄</div><div class="empty-text">個体が登録されていません</div>
   </div>
@@ -5702,7 +5704,8 @@ function renderCowList() {
 
   const container = document.getElementById('cow-list-container');
   const empty = document.getElementById('cow-empty');
-  if (!filtered.length) { container.innerHTML=''; empty.style.display=''; return; }
+  window._cowListShown = filtered.map(c => c.id);
+  if (!filtered.length) { container.innerHTML=''; empty.style.display=''; if (typeof renderCowPickBar === 'function') renderCowPickBar(); return; }
   empty.style.display='none';
   const statusLabel = {open:'空胎',pregnant:'妊娠中',program:'プログラム中',fresh:'新鮮分娩'};
   const statusDot = {open:'dot-open',pregnant:'dot-pregnant',program:'dot-program',fresh:'dot-fresh'};
@@ -5931,7 +5934,7 @@ function renderCowList() {
       </details>`;
     })() : '';
 
-    return `<div class="cow-card" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="openEditCow('${cow.id}')">
+    return `<div class="cow-card" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="cowCardClick('${cow.id}')">
       <div class="cow-header">
         <div>
           <div class="cow-id">${cow.id} <span style="font-size:14px;font-family:'Noto Sans JP';font-weight:700;color:var(--text)">${cowName}</span>${breedBadge}${roleBadge}${originBadge}${genBadge}${roleSuggestBadge}${abortionRiskBadge(cow.id)}</div>
@@ -5978,6 +5981,115 @@ function renderCowList() {
       ${alertBanner}
     </div>`;
   }).join('');
+  if (typeof renderCowPickBar === 'function') renderCowPickBar();
+}
+
+// ☑ 個体カードから選んだ牛をリストにする（子牛リストと同じA4の印刷）
+let _cowPick = null;   // null＝選ぶモードでない／Set＝選んだ牛の番号
+function toggleCowPick() {
+  _cowPick = _cowPick ? null : new Set();
+  renderCowList();
+}
+function cowCardClick(id) {
+  if (!_cowPick) { openEditCow(id); return; }
+  if (_cowPick.has(id)) _cowPick.delete(id); else _cowPick.add(id);
+  renderCowPickBar();
+}
+function cowPickAll(on) {
+  if (!_cowPick) return;
+  if (on) (window._cowListShown || []).forEach(id => _cowPick.add(id)); else _cowPick.clear();
+  renderCowPickBar();
+}
+function renderCowPickBar() {
+  const bar = document.getElementById('cow-pick-bar'), btn = document.getElementById('cow-pick-btn');
+  const box = document.getElementById('cow-list-container');
+  if (btn) { btn.textContent = _cowPick ? '✕ 選ぶのをやめる' : '☑ 選んでリストに'; btn.style.background = _cowPick ? 'var(--accent2)' : '#0d2a1a'; btn.style.color = _cowPick ? '#000' : 'var(--accent)'; }
+  if (box) box.style.paddingBottom = _cowPick ? '90px' : '';
+  // カードに選んだ印をつける
+  document.querySelectorAll('#cow-list-container .cow-card').forEach(el => {
+    const id = el.dataset.cowid, on = !!(_cowPick && _cowPick.has(id));
+    let ck = el.querySelector(':scope > .cow-pick-ck');
+    if (!_cowPick) { if (ck) ck.remove(); el.style.outline = ''; return; }
+    if (!ck) { ck = document.createElement('div'); ck.className = 'cow-pick-ck'; ck.style.cssText = 'font-size:13px;font-weight:700;margin-bottom:6px;'; el.prepend(ck); }
+    ck.innerHTML = on ? '<span style="color:var(--accent);">☑ 選んだ</span>' : '<span style="color:var(--muted);">☐ タップで選ぶ</span>';
+    el.style.outline = on ? '3px solid var(--accent2)' : '';
+  });
+  if (!bar) return;
+  if (!_cowPick) { bar.style.display = 'none'; return; }
+  const n = _cowPick.size, shown = (window._cowListShown || []).length;
+  const b = (t, f, st) => `<button onclick="${f}" style="font-size:12px;font-weight:700;padding:8px 10px;white-space:nowrap;border-radius:8px;cursor:pointer;${st}">${t}</button>`;
+  bar.style.display = '';
+  bar.innerHTML = `<div style="display:flex;align-items:center;gap:6px;">
+    <b style="font-size:14px;">${n}頭</b>
+    ${b(`全部（${shown}）`, 'cowPickAll(true)', 'background:var(--bg3);border:1px solid var(--border);color:var(--text);')}
+    ${n ? b('解除', 'cowPickAll(false)', 'background:var(--bg3);border:1px solid var(--border);color:var(--muted);') : ''}
+    ${b('🖨 印刷', 'printCowPickList()', `background:${n ? 'var(--accent2)' : 'var(--bg3)'};border:none;color:${n ? '#000' : 'var(--muted)'};margin-left:auto;`)}
+  </div>`;
+}
+function printCowPickList() {
+  if (!_cowPick || !_cowPick.size) { alert('リストにする牛をカードをタップして選んでください'); return; }
+  // 並び順は画面の並び（並べ替え）のまま
+  const order = (window._cowListShown || []).filter(id => _cowPick.has(id));
+  _cowPick.forEach(id => { if (!order.includes(id)) order.push(id); });
+  const list = order.map(id => cows.find(c => c.id === id)).filter(Boolean);
+  const E = x => (typeof _stEsc === 'function' ? _stEsc(String(x == null ? '' : x)) : String(x == null ? '' : x));
+  const td = today();
+  const hasGen = list.some(c => c.genomic && c.genomic.t);
+  const body = list.map((cow, i) => {
+    const m = getMasterCow(cow.id) || {};
+    const dob = cow.dob || m.dob || '';
+    let age = '';
+    if (dob) { const mo = Math.floor(diffDays(td, dob) / 30.4); age = mo >= 12 ? `${Math.floor(mo / 12)}歳${mo % 12 ? mo % 12 + 'ヶ月' : ''}` : `${mo}ヶ月`; }
+    const nid = cow.nationalId || m.nationalId || '';
+    let st = ''; try { st = cowDisplayStatus(cow).label; } catch (e) { st = cow.status || ''; }
+    const last = [...(cow.events || [])].sort((a, b) => b.date.localeCompare(a.date)).find(e => ['ai_done', 'et_done', 'estrus_ai', 'estrus_et'].includes(e.type));
+    let lastTxt = '';
+    if (last) {
+      const sire = (last.memo || '').replace(/^胚番号:|^精液:/, '').split('／')[0].trim();
+      const isEt = ['et_done', 'estrus_et'].includes(last.type) || (typeof isEmbryoNo === 'function' && isEmbryoNo(sire));
+      lastTxt = `${fmtDate(last.date)} ${isEt ? 'ET' : 'AI'}${sire ? ' ' + sire : ''}${last.donorAI ? '（ドナー）' : ''}`;
+    }
+    const role = cow.role === 'donor' ? 'ドナー' : cow.role === 'recipient' ? '受け牛' : '';
+    const g = cow.genomic && cow.genomic.t;
+    const gtxt = g ? ['cw', 'bms'].map(k => g[k] ? `${k === 'cw' ? '枝肉' : 'BMS'} ${g[k].v != null ? g[k].v : ''}${g[k].g ? '(' + g[k].g + ')' : ''}` : '').filter(Boolean).join('<br>') : '';
+    return `<tr><td class="c">${i + 1}</td><td class="c">${E(cow.id)}</td><td>${E(cowDisplayName(cow.id) || cow.name || '')}</td><td class="c">${E(nid)}</td>
+      <td class="c">${E(cow.breed || '')}</td><td class="c">${dob ? fmtDate(dob) : ''}</td><td class="c">${age}</td><td class="c">${cow.lactation ? cow.lactation + '産' : ''}</td>
+      <td>${E(st)}</td><td class="c">${cow.calvingDate ? fmtDate(cow.calvingDate) : ''}</td><td class="c">${cow.status === 'pregnant' && cow.dueDate ? fmtDate(cow.dueDate) : ''}</td>
+      <td>${E(lastTxt)}</td><td>${E([cow.sire || m.sire, cow.maternalSire || m.maternalSire].filter(Boolean).join(' × '))}</td><td class="c">${role}</td>
+      ${hasGen ? `<td>${gtxt}</td>` : ''}<td>${E(cow.memo || '')}</td></tr>`;
+  }).join('');
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>母牛リスト ${fmtDate(td)}</title>
+    <style>
+      @media print{ @page{size:A4 landscape;margin:10mm;} .noprint{display:none;} }
+      body{font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;color:#111;padding:14px;}
+      h1{font-size:17px;margin:0 0 4px;} .sub{color:#666;font-size:12px;margin-bottom:12px;}
+      table{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11px;}
+      th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;vertical-align:top;}
+      th{background:#f5f5f5;font-size:10px;} .c{text-align:center;white-space:nowrap;}
+      tbody tr:nth-child(even){background:#fafafa;}
+      .btn{background:#2e9e63;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;}
+    </style></head><body>
+    <button class="btn noprint" onclick="window.print()">🖨 このページを印刷</button>
+    <h1>母牛リスト</h1>
+    <div class="sub">作成日: ${fmtDate(td)}　／　${list.length}頭　／　${E(OWN_FARMER || '小原農場')}</div>
+    <table><thead><tr><th>No</th><th>耳標</th><th>名前</th><th>個体識別番号</th><th>品種</th><th>生年月日</th><th>年齢</th><th>産次</th><th>状態</th><th>最終分娩</th><th>分娩予定</th><th>最終AI/ET</th><th>父 × 母の父</th><th>役割</th>${hasGen ? '<th>ゲノミック育種価</th>' : ''}<th>メモ</th></tr></thead>
+    <tbody>${body}</tbody></table>
+    </body></html>`;
+  // 子牛リストと同じ開き方（Safariは別ウィンドウ、それ以外は見えない枠で印刷）
+  if (/^((?!chrome|android|crios|fxios|edg).)*safari/i.test(navigator.userAgent)) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('印刷用ウィンドウを開けませんでした。ポップアップを許可してください。'); return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 700);
+    return;
+  }
+  const old = document.getElementById('cows-print-frame'); if (old) old.remove();
+  const iframe = document.createElement('iframe'); iframe.id = 'cows-print-frame';
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:900px;border:0;opacity:0;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document; doc.open(); doc.write(html); doc.close();
+  const doPrint = () => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) { const w = window.open('', '_blank'); if (w) { w.document.open(); w.document.write(html); w.document.close(); } } };
+  setTimeout(doPrint, 400);
 }
 
 // 母牛詳細内：この牛の過去産子の肥育成績（fatteningRecordsから名前・耳標で照合）
@@ -14410,6 +14522,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 function switchTab(name) {
   try { bbSync(name); } catch (e) {}
+  // 個体の「選んでリストに」は、ほかの画面に移ったら終わる
+  if (name !== 'cows' && typeof _cowPick !== 'undefined' && _cowPick) { _cowPick = null; try { renderCowPickBar(); } catch (e) {} }
   const names = ['today','preg','cows','calves','retired','stats','semen','history','fattening','insembook','collection','calc','calendar','herd','vet','check','annual'];
   // ボタンが統合された画面は、親のボタンを光らせる（一覧表→個体、詳細成績→年間まとめ、計算→カレンダー）
   const navOf = { herd: 'cows', calc: 'calendar' }[name] || name;
