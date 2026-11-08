@@ -7260,7 +7260,7 @@ const ANN_ROWS = [
 let _annTab = 'sum';
 // 年間まとめのタブ（「詳細成績」は元の繁殖成績の画面）
 function annTabsHTML(active) {
-  const TABS = [['sum', '📒 まとめ'], ['preg', '📈 妊娠率'], ['first', '⏱ 初回授精'], ['kpi', '📊 経営指標'], ['dis', '🩺 疾病'], ['stats', '🔬 詳細成績']];
+  const TABS = [['sum', '📒 まとめ'], ['preg', '📈 妊娠率'], ['first', '⏱ 初回授精'], ['kpi', '📊 経営指標'], ['dis', '🩺 疾病'], ['drug', '💊 薬代'], ['stats', '🔬 詳細成績']];
   return `<div class="ann-tabs">${TABS.map(([k, l]) => `<button class="${active === k ? 'on' : ''}" onclick="${k === 'stats' ? "switchTab('stats')" : `_annTab='${k}';switchTab('annual')`}">${l}</button>`).join('')}</div>`;
 }
 function renderAnnual() {
@@ -7283,9 +7283,10 @@ function renderAnnual() {
     else if (_annTab === 'first') renderFirstAI(body);
     else if (_annTab === 'kpi') renderKPI(body, _annYear);
     else if (_annTab === 'dis') renderDisease(body, _annYear);
+    else if (_annTab === 'drug') renderDrugCost(body, _annYear);
     else _renderAnnualSummary(body);
   } catch (e) { console.error(e); body.innerHTML = '<div style="color:var(--danger);font-size:12px;">表示できませんでした：' + _stEsc(e.message) + '</div>'; }
-  if (_annTab !== 'first') { try { const adv = advisorHTML(_annTab, _annYear); if (adv) body.insertAdjacentHTML('afterbegin', adv); } catch (e) { console.error(e); } }
+  if (_annTab !== 'first' && _annTab !== 'drug') { try { const adv = advisorHTML(_annTab, _annYear); if (adv) body.insertAdjacentHTML('afterbegin', adv); } catch (e) { console.error(e); } }
   window._annRenderMs = Math.round(performance.now() - t0);
 }
 function _renderAnnualSummary(el) {
@@ -8409,6 +8410,194 @@ function renderDisease(el, Y) {
       </div>${open ? `<div class="ann-card" style="margin:0 0 6px;">${L.sort((a, b) => a.date.localeCompare(b.date)).map(t => `<div class="ann-item"><span class="ann-d">${esc(fmtDateShort(t.date))}</span><div style="flex:1;"><div style="font-weight:700;">${esc(_disLabel(t.cowId))}</div>${t.memo ? `<div style="font-size:11px;color:var(--muted);">${esc(t.memo)}</div>` : ''}</div></div>`).join('')}</div>` : ''}`;
     }).join('') : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px 0;">この年の治療記録はありません</div>'}
     <div style="font-size:10px;color:var(--muted);margin-top:8px;">※ 薬品管理ツールで記録した治療から集計しています（記録・修正は💊薬品・治療タブで）。</div>`;
+}
+
+// ===== 💊 薬代（薬品管理の出納帳 × 薬の値段） =====
+// 値段は薬品管理の「1本(瓶)あたりの値段」。過去の分も今の値段で計算する
+let _dcState = { scope: 'pay', open: null, mon: 0 };
+// 通帳の振込額（薬品の会社ごと・月ごと）。farmTargets.drugPay = { vendors:[...], amounts:{ 'YYYY-MM': { 会社: 円 } } }
+const DRUG_PAY_VENDORS = ['MPアグロ', 'アグロジャパン', '日本全薬', '大槻理化学', '富士平工業', 'iSeeding', '山田龍之介先生', 'モノタロウ'];
+function _dpData() {
+  farmTargets.drugPay = farmTargets.drugPay || {};
+  const P = farmTargets.drugPay;
+  if (!Array.isArray(P.vendors)) P.vendors = DRUG_PAY_VENDORS.slice();
+  P.amounts = P.amounts || {};
+  return P;
+}
+function dpSet(ym, vendor, val) {
+  const P = _dpData(), n = parseInt(String(val).replace(/[^\d-]/g, ''), 10);
+  P.amounts[ym] = P.amounts[ym] || {};
+  if (n > 0) P.amounts[ym][vendor] = n; else delete P.amounts[ym][vendor];
+  if (!Object.keys(P.amounts[ym]).length) delete P.amounts[ym];
+  save(); renderAnnual();
+}
+function dpAddVendor() {
+  const el = document.getElementById('dp-new'), v = (el && el.value || '').trim();
+  if (!v) return;
+  const P = _dpData();
+  if (!P.vendors.includes(v)) P.vendors.push(v);
+  save(); renderAnnual();
+}
+async function dpRemoveVendor(v) {
+  const P = _dpData();
+  const used = Object.values(P.amounts).some(a => a[v]);
+  if (used) { if (!(await appConfirm(`「${v}」を一覧から外しますか？\n（入れた金額は消えずに集計に残ります）`))) return; }
+  P.vendors = P.vendors.filter(x => x !== v);
+  save(); renderAnnual();
+}
+function _dcBig(d, qty) {   // 内部量（ml/A/包…）→ 値段の単位（本・V・A…）
+  const q = Math.abs(Number(qty) || 0);
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  return (form === 'vial' || form === 'drip') && d.volume > 0 ? q / d.volume : q;
+}
+function _dcFarm(m) {
+  const t = m.treatId && _vetData.treatments ? _vetData.treatments[m.treatId] : null;
+  return String(m.farmName || m.farmer || (t && (t.farmName || t.farmer)) || '').trim();
+}
+function _dcRows(scope) {
+  if (scope === 'pay') {
+    const P = _dpData(), out = [];
+    Object.entries(P.amounts).forEach(([ym, a]) => Object.entries(a || {}).forEach(([v, y]) => {
+      if (Number(y) > 0) out.push({ date: ym + '-15', drugId: v, name: v, cat: '振込', yen: Number(y), noPrice: false, type: 'pay', farm: '' });
+    }));
+    return out;
+  }
+  const V = _vetData, out = [];
+  Object.values(V.movements || {}).forEach(m => {
+    if (!m || !m.date) return;
+    const date = _normYMD(m.date), d = V.drugs[m.drugId];
+    const farm = _dcFarm(m), own = !farm || /小原/.test(farm);
+    let ok = false;
+    if (scope === 'own') ok = (m.type === 'use' && own) || m.type === 'dispose';
+    else if (scope === 'other') ok = (m.type === 'use' && !own) || m.type === 'dispense';
+    else if (scope === 'buy') ok = m.type === 'in' && !/開封済み残量/.test(m.memo || '');
+    if (!ok) return;
+    const price = d && Number(d.price) > 0 ? Number(d.price) : 0;
+    out.push({ date, drugId: m.drugId, name: d ? d.name : String(m.drugId || '不明'), cat: d ? (d.category || 'その他') : 'その他',
+      yen: d && price ? _dcBig(d, m.qty) * price : 0, noPrice: !price, type: m.type, farm });
+  });
+  return out;
+}
+function renderDrugCost(el, Y) {
+  const esc = _stEsc;
+  const S = _dcState;
+  if (!_vetData && S.scope !== 'pay') {
+    try { startVetSync(); } catch (e) {}
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:30px 0;">薬品管理のデータを読み込み中です…</div>';
+    return;
+  }
+  const rows = _dcRows(S.scope);
+  const yen = v => '¥' + Math.round(v).toLocaleString();
+  const man = v => v >= 10000 ? (Math.round(v / 1000) / 10).toLocaleString() + '万' : Math.round(v).toLocaleString();
+  const inY = (L, y) => L.filter(r => r.date.startsWith(String(y)));
+  const sum = L => L.reduce((a, r) => a + r.yen, 0);
+  const cur = inY(rows, Y), prev = inY(rows, Y - 1);
+  const tCur = sum(cur), tPrev = sum(prev);
+  // 前年の同じ時期まで（今年の途中でもくらべられるように）
+  const thisY = +today().slice(0, 4), md = today().slice(4);
+  const prevSame = Y === thisY ? sum(prev.filter(r => r.date.slice(4) <= md)) : tPrev;
+  const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null;
+  const pc = Y === thisY ? pct(tCur, prevSame) : pct(tCur, tPrev);
+  const pcHTML = pc == null ? '' : `<small style="color:${pc > 0 ? 'var(--danger)' : 'var(--accent)'};">${Y === thisY ? '前年同時期より' : '前年より'} ${pc > 0 ? '＋' : ''}${pc}%</small>`;
+  // 月ごとの棒（今年と前年）
+  const mm = (L, m) => sum(L.filter(r => +r.date.slice(5, 7) === m));
+  const mx = Math.max(1, ...Array.from({ length: 12 }, (_, i) => Math.max(mm(cur, i + 1), mm(prev, i + 1))));
+  const W = 360, H = 160, Lx = 30, B = 18, T = 10, bw = (W - Lx - 4) / 12;
+  const yv = v => T + (H - T - B) * (1 - v / mx);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;">`;
+  [0, mx / 2, mx].forEach(v => { svg += `<line x1="${Lx}" x2="${W - 2}" y1="${yv(v)}" y2="${yv(v)}" stroke="rgba(255,255,255,.08)"/><text x="${Lx - 3}" y="${yv(v) + 3}" font-size="8" fill="#8892b0" text-anchor="end">${man(v)}</text>`; });
+  for (let m = 1; m <= 12; m++) {
+    const x = Lx + (m - 1) * bw, a = mm(cur, m), p = mm(prev, m), w = (bw - 4) / 2;
+    svg += `<rect x="${x + 2}" y="${yv(p)}" width="${w}" height="${yv(0) - yv(p)}" rx="1.5" fill="#475569"/>`;
+    svg += `<rect x="${x + 2 + w}" y="${yv(a)}" width="${w}" height="${yv(0) - yv(a)}" rx="1.5" fill="#f59e0b"/>`;
+    if (a) svg += `<text x="${x + 2 + w * 1.5}" y="${yv(a) - 2}" font-size="6.5" fill="#e2e8f0" text-anchor="middle">${man(a)}</text>`;
+    svg += `<text x="${x + bw / 2}" y="${H - 5}" font-size="8" fill="#8892b0" text-anchor="middle">${m}</text>`;
+  }
+  svg += '</svg>';
+  // 年ごとの比較（記録のある年）
+  const ys = [...new Set(rows.map(r => +r.date.slice(0, 4)))].filter(y => y >= thisY - 5).sort((a, b) => a - b);
+  const yTot = ys.map(y => [y, sum(inY(rows, y))]);
+  const ymx = Math.max(1, ...yTot.map(x => x[1]));
+  const yearHTML = yTot.map(([y, v], i) => {
+    const pv = i > 0 ? yTot[i - 1][1] : null, p = pv != null ? pct(v, pv) : null;
+    return `<div class="dis-row" style="cursor:default;${y === Y ? 'background:rgba(245,158,11,.08);' : ''}">
+      <div style="width:56px;font-weight:700;">${y}年${y === thisY ? '<div style="font-size:9px;color:var(--muted);font-weight:400;">途中</div>' : ''}</div>
+      <div style="flex:1;height:10px;background:var(--bg3);border-radius:5px;overflow:hidden;"><div style="height:100%;width:${v / ymx * 100}%;background:${y === Y ? '#f59e0b' : '#64748b'};"></div></div>
+      <div class="ann-n" style="width:86px;">${yen(v)}</div>
+      <div class="ann-n" style="width:48px;font-size:11px;font-weight:400;color:${p == null ? 'var(--muted)' : p > 0 ? 'var(--danger)' : 'var(--accent)'};">${p == null ? '' : (p > 0 ? '＋' : '') + p + '%'}</div>
+    </div>`;
+  }).join('');
+  // 薬ごと（高い順）
+  const by = {}; cur.forEach(r => { (by[r.drugId] = by[r.drugId] || { name: r.name, cat: r.cat, yen: 0, n: 0, L: [] }); by[r.drugId].yen += r.yen; by[r.drugId].n++; by[r.drugId].L.push(r); });
+  const pBy = {}; prev.forEach(r => { pBy[r.drugId] = (pBy[r.drugId] || 0) + r.yen; });
+  const rank = Object.entries(by).filter(([, x]) => x.yen > 0).sort((a, b) => b[1].yen - a[1].yen);
+  // 種類ごと
+  const cBy = {}; cur.forEach(r => { cBy[r.cat] = (cBy[r.cat] || 0) + r.yen; });
+  const cats = Object.entries(cBy).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]);
+  // 値段が入っていない薬
+  const np = {}; cur.filter(r => r.noPrice).forEach(r => { np[r.name] = (np[r.name] || 0) + 1; });
+  const npL = Object.entries(np).sort((a, b) => b[1] - a[1]);
+  const SC = [['pay', '🏦 通帳の振込額'], ['own', '小原牧場で使った分'], ['other', 'ほかの農場の分'], ['buy', '仕入れ（入庫）']];
+  const isPay = S.scope === 'pay';
+  // 振込額の入力（月を選んで、会社ごとに入れる）
+  let payIn = '';
+  if (isPay) {
+    const P = _dpData();
+    if (!S.mon) S.mon = Y === thisY ? +today().slice(5, 7) : 12;
+    const ym = `${Y}-${String(S.mon).padStart(2, '0')}`, A = P.amounts[ym] || {};
+    const vs = [...P.vendors, ...Object.keys(A).filter(v => !P.vendors.includes(v))];
+    const mTot = Object.values(A).reduce((a, b) => a + (Number(b) || 0), 0);
+    const filled = m => !!P.amounts[`${Y}-${String(m).padStart(2, '0')}`];
+    payIn = `<div class="ann-card" style="margin-bottom:12px;">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px;">🏦 振込額を入れる（${Y}年）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">${Array.from({ length: 12 }, (_, i) => i + 1).map(m => `<button onclick="_dcState.mon=${m};renderAnnual()" style="min-width:40px;padding:5px 0;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid ${m === S.mon ? 'var(--accent2)' : 'var(--border)'};background:${m === S.mon ? 'var(--accent2)' : 'var(--bg3)'};color:${m === S.mon ? '#000' : filled(m) ? 'var(--text)' : 'var(--muted)'};">${m}月${filled(m) && m !== S.mon ? '<span style="color:var(--accent);">•</span>' : ''}</button>`).join('')}</div>
+      ${vs.map(v => `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);">
+        <div style="flex:1;min-width:0;font-size:13px;">${esc(v)}</div>
+        <span style="color:var(--muted);font-size:12px;">¥</span>
+        <input type="text" inputmode="numeric" value="${A[v] ? Number(A[v]).toLocaleString() : ''}" placeholder="0" onchange="dpSet('${ym}', ${JSON.stringify(v).replace(/"/g, '&quot;')}, this.value)" style="width:110px;text-align:right;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:14px;">
+        <button onclick="dpRemoveVendor(${JSON.stringify(v).replace(/"/g, '&quot;')})" title="一覧から外す" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;">✕</button>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:13px;padding:6px 0 2px;"><span>${S.mon}月の合計</span><span>${yen(mTot)}</span></div>
+      <div style="display:flex;gap:6px;margin-top:6px;"><input id="dp-new" type="text" placeholder="取引先を追加（例：〇〇薬品）" style="flex:1;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:13px;"><button onclick="dpAddVendor()" style="padding:6px 12px;border-radius:6px;border:none;background:var(--accent2);color:#000;font-weight:700;font-size:12px;cursor:pointer;">＋ 追加</button></div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;">金額を入れて、ほかの所をタップすると保存されます。✕は一覧から外すだけで、入れた金額は消えません。</div>
+    </div>`;
+  }
+  const scopeNote = { pay: '通帳の振込額（会社ごとに月の合計を入れたもの）', own: '自分の牛に使った薬と、廃棄した薬', other: 'ほかの農場の牛への処置と、置き薬で渡した薬', buy: '薬品管理で入庫した薬（仕入れた金額）' }[S.scope];
+  const payMonths = isPay ? new Set(cur.map(r => r.date.slice(5, 7))).size : 0;
+  const months = isPay ? Math.max(1, payMonths) : Y === thisY ? +today().slice(5, 7) : 12;
+  el.innerHTML = `
+    <div class="st-chips" style="flex-wrap:wrap;overflow:visible;margin-bottom:6px;">
+      ${SC.map(([k, l]) => `<button class="st-chip ${S.scope === k ? 'on' : ''}" onclick="_dcState.scope='${k}';_dcState.open=null;renderAnnual()">${l}</button>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">${scopeNote}</div>
+    ${payIn}
+    <div class="ann-rates" style="margin:0 0 10px;grid-template-columns:repeat(3,1fr);">
+      <div><span>${Y}年の薬代</span><b>${yen(tCur)}</b>${pcHTML}</div>
+      <div><span>1か月あたり</span><b>${yen(tCur / months)}</b><small>${isPay ? '入れた' + payMonths + 'か月で割る' : Y === thisY ? months + 'か月で割る' : ''}</small></div>
+      <div><span>${Y === thisY ? '前年の同じ時期まで' : '前年'}</span><b>${yen(prevSame)}</b>${Y === thisY ? `<small>前年1年 ${yen(tPrev)}</small>` : ''}</div>
+    </div>
+    <div class="ann-card" style="padding:8px 6px 4px;">${svg}
+      <div style="display:flex;gap:12px;justify-content:center;font-size:11px;color:var(--muted);padding:2px 0 4px;"><span><span style="color:#f59e0b;">■</span> ${Y}年</span><span><span style="color:#475569;">■</span> ${Y - 1}年</span><span>（月ごと・円）</span></div>
+    </div>
+    <div class="st-sec" style="margin-top:14px;color:var(--muted);">年ごとの比較</div>
+    ${yearHTML || '<div style="color:var(--muted);font-size:12px;padding:8px 0;">記録がありません</div>'}
+    ${cats.length && !isPay ? `<div class="st-sec" style="margin-top:14px;color:var(--muted);">種類ごと（${Y}年）</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;">${cats.map(([c, v]) => `<span class="st-chip" style="cursor:default;">${esc(c)} <b>${yen(v)}</b> <span style="color:var(--muted);">${Math.round(v / tCur * 100)}%</span></span>`).join('')}</div>` : ''}
+    <div class="st-sec" style="margin-top:14px;color:var(--muted);">${isPay ? '取引先ごと' : '薬ごと'}（高い順・${Y}年）</div>
+    ${rank.length ? rank.map(([id, x]) => {
+      const open = S.open === id, pv = pBy[id] || 0;
+      return `<div class="dis-row" onclick="_dcState.open=_dcState.open===${JSON.stringify(id).replace(/"/g, '&quot;')}?null:${JSON.stringify(id).replace(/"/g, '&quot;')};renderAnnual()">
+        <div style="flex:1;min-width:0;"><div style="font-weight:700;">${esc(x.name)} <span class="ann-arrow">${open ? '▲' : '▼'}</span></div><div style="font-size:10px;color:var(--muted);">${isPay ? x.n + 'か月分' : esc(x.cat) + '・' + x.n + '回'}</div></div>
+        <div style="width:80px;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${x.yen / rank[0][1].yen * 100}%;background:#f59e0b;"></div></div>
+        <div class="ann-n" style="width:76px;">${yen(x.yen)}</div>
+        <div class="ann-n" style="width:58px;color:var(--muted);font-weight:400;font-size:10px;">前年${man(pv)}</div>
+      </div>${open ? `<div class="ann-card" style="margin:0 0 6px;">${Array.from({ length: 12 }, (_, i) => i + 1).map(m => { const v = sum(x.L.filter(r => +r.date.slice(5, 7) === m)); return v ? `<div class="ann-item"><span class="ann-d">${m}月</span><div style="flex:1;">${isPay ? '' : x.L.filter(r => +r.date.slice(5, 7) === m).length + '回'}</div><b>${yen(v)}</b></div>` : ''; }).join('')}</div>` : ''}`;
+    }).join('') : '<div style="color:var(--muted);font-size:12px;text-align:center;padding:16px 0;">この年の記録はありません</div>'}
+    ${npL.length ? `<div class="ann-card" style="margin-top:12px;border-left:3px solid var(--warn);">
+      <div style="font-weight:700;font-size:12px;color:var(--warn);margin-bottom:4px;">⚠ 値段が入っていない薬（${Y}年の分は0円で数えています）</div>
+      <div style="font-size:12px;">${npL.map(([n, c]) => `${esc(n)}（${c}回）`).join('、')}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">薬品管理の💊薬品タブで、その薬の「値段」を入れると、ここに入ります。</div></div>` : ''}
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;">${isPay ? '※ 通帳の振込額は、入れた月の分として数えています。年は1月〜12月です。' : `※ 薬品管理の出納帳（入出庫）と、薬品に入れた「1本(瓶)あたりの値段」から計算しています。値段は今の値段で、前の年の分も同じ値段で数えています。年は1月〜12月です。`}</div>`;
 }
 
 // ===== 💡 アドバイザー（記録から課題を見つけて、改善策を出す） =====
@@ -10147,7 +10336,7 @@ function startVetSync() {
         }
         if (document.getElementById('page-herd')?.classList.contains('active')) renderHerdList();
         renderVetSummary();
-        if (document.getElementById('page-annual')?.classList.contains('active') && _annTab === 'dis') renderAnnual();
+        if (document.getElementById('page-annual')?.classList.contains('active') && (_annTab === 'dis' || _annTab === 'drug')) renderAnnual();
       } catch (e) {}
     }, () => {});
   } catch (e) { _vetSyncStarted = false; }
