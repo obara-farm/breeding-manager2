@@ -20053,6 +20053,7 @@ function onOtherFarmPick(){
   const natIdEl = document.getElementById('ofpick-cow-natid');
   if (nameEl) nameEl.value = '';
   if (natIdEl) natIdEl.value = '';
+  const tagEl = document.getElementById('ofpick-cow-eartag'); if (tagEl) tagEl.value = '';
   // 登録機関：農家に保存済みがあればそれ、なければデフォルト（日本あか牛登録協会）
   const orgSel = document.getElementById('ofpick-regorg');
   if (orgSel) orgSel.value = (f.regOrg && ['日本あか牛登録協会','全国和牛登録協会'].includes(f.regOrg)) ? f.regOrg : '日本あか牛登録協会';
@@ -20077,7 +20078,7 @@ function confirmOtherFarmCert(){
     window._etCertRecipient = { name: cowName, nationalId: info.nationalId||'', earTag: info.id||'', dob: dobVal };
   } else {
     // 手入力欄の値を使用（リストにない牛、または長島牧場以外の農家）
-    window._etCertRecipient = { name: manualName, nationalId: manualNatId, dob: dobVal };
+    window._etCertRecipient = { name: manualName, nationalId: manualNatId, earTag: document.getElementById('ofpick-cow-eartag')?.value.trim() || '', dob: dobVal };
   }
   closeModal('modal-otherfarm-pick');
   etCertCounter = 16;
@@ -20133,6 +20134,7 @@ function confirmOtherFarmCert(){
         feeder: farmObj.feeder || '',
         recipientName: rec.name || '',
         recipientNationalId: rec.nationalId || '',
+        recipientEarTag: rec.earTag || '',
         recipientDob: rec.dob || dobVal || '',
         donor: donor, sire: cr.sire || '',
         embryoNo: no,  // 凍結胚の正式番号はそのまま保存（pikerのdata-noから来る値が完全な番号のはず）
@@ -20259,7 +20261,7 @@ function renderTransferBook(){
             <span style="font-size:13px;font-weight:700;color:var(--text);">${t.transferDate?fmtDate(t.transferDate):'<span style="color:var(--danger);">移植日未入力</span>'}</span>
             <div style="display:flex;gap:6px;align-items:center;">${t.damaMoto?'<span style="font-size:10px;border:1px solid var(--warn);color:var(--warn);padding:0 6px;border-radius:4px;font-weight:700;">ダメもと</span>':''}${pregBadge}<span style="font-size:11px;color:var(--muted);">${t.farmName||''}</span></div>
           </div>
-          <div style="font-size:12px;color:var(--text);margin-top:4px;">受け牛: <b>${t.recipientName||'（手入力）'}</b>${t.recipientNationalId?' <span style="font-family:monospace;color:var(--muted);font-size:11px;">'+t.recipientNationalId+'</span>':''}</div>
+          <div style="font-size:12px;color:var(--text);margin-top:4px;">受け牛: ${tbEarTag(t)?'<span style="font-size:11px;background:var(--bg3);border:1px solid var(--border);padding:0 6px;border-radius:4px;margin-right:4px;">耳標 '+_stEsc(tbEarTag(t))+'</span>':''}<b>${t.recipientName||'（手入力）'}</b>${t.recipientNationalId?' <span style="font-family:monospace;color:var(--muted);font-size:11px;">'+t.recipientNationalId+'</span>':''}</div>
           <div style="font-size:12px;color:var(--info);margin-top:2px;">${t.donor||''}${t.sire?' × '+t.sire:''}${t.embryoNo?' <span style="font-family:monospace;color:var(--muted);">／ '+t.embryoNo+'</span>':''} ${typeBadge}</div>
           ${(() => {
             // 妊鑑の起算はアプリ共通の定義に合わせる（AI=授精後45日／ET=移植後38日）
@@ -20301,6 +20303,7 @@ function editTransferBook(id){
   document.getElementById('tb-e-farm').value=t.farmName||'';
   document.getElementById('tb-e-recip').value=t.recipientName||'';
   document.getElementById('tb-e-recipid').value=t.recipientNationalId||'';
+  document.getElementById('tb-e-eartag').value=tbEarTag(t);
   document.getElementById('tb-e-dob').value=t.recipientDob||'';
   document.getElementById('tb-e-donor').value=t.donor||'';
   document.getElementById('tb-e-sire').value=t.sire||'';
@@ -20315,7 +20318,7 @@ function editTransferBook(id){
 }
 function addTransferBookManual(){
   const id='tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-  transferBook.push({ id, transferDate:'', recordedAt:today(), farmName:'', feeder:'', recipientName:'', recipientNationalId:'', recipientDob:'', donor:'', sire:'', embryoNo:'', embryoType:'', regOrg:'日本あか牛登録協会', breed:'褐毛和種', pregResult:'', pregDate:'', vet:'小原千佳', vetLicense:'01L237', colRecId:'' });
+  transferBook.push({ id, transferDate:'', recordedAt:today(), farmName:'', feeder:'', recipientName:'', recipientNationalId:'', recipientEarTag:'', recipientDob:'', donor:'', sire:'', embryoNo:'', embryoType:'', regOrg:'日本あか牛登録協会', breed:'褐毛和種', pregResult:'', pregDate:'', vet:'小原千佳', vetLicense:'01L237', colRecId:'' });
   save();
   editTransferBook(id);
 }
@@ -20329,6 +20332,7 @@ function saveTransferBookEdit(){
   t.farmName=document.getElementById('tb-e-farm').value.trim();
   t.recipientName=document.getElementById('tb-e-recip').value.trim();
   t.recipientNationalId=document.getElementById('tb-e-recipid').value.trim();
+  t.recipientEarTag=document.getElementById('tb-e-eartag').value.trim();
   t.recipientDob=document.getElementById('tb-e-dob').value;
   t.donor=document.getElementById('tb-e-donor').value.trim();
   t.sire=document.getElementById('tb-e-sire').value.trim();
@@ -20358,7 +20362,7 @@ function reissueCertFromTransferBook(){
   window._etCertRegOrg = t.regOrg || '日本あか牛登録協会';
   window._etCertRegNo = farm.regNo || '';
   window._etCertBreed = t.breed || '褐毛和種';
-  window._etCertRecipient = { name: t.recipientName||'', nationalId: t.recipientNationalId||'', dob: t.recipientDob||'' };
+  window._etCertRecipient = { name: t.recipientName||'', nationalId: t.recipientNationalId||'', earTag: tbEarTag(t), dob: t.recipientDob||'' };
   window._etCertMoveDate = t.transferDate || '';
 
   // colRecIdがあれば採卵記録からステージ・ランク・胚種別を正確に取得する
@@ -20408,6 +20412,23 @@ function reissueCertFromTransferBook(){
   etCertCounter = 16;
   openEtCertPreview([rec]);
 }
+// 受け牛の自家耳標（記録になければ、長島牧場などの在籍牛リストから名前・個体識別番号で探す）
+function tbEarTag(t){
+  if (!t) return '';
+  if (t.recipientEarTag) return String(t.recipientEarTag);
+  try {
+    const nid = String(t.recipientNationalId||'').replace(/\D/g,''), nm = String(t.recipientName||'').trim();
+    for (const farm of Object.keys(FARM_DAM_IDS)) {
+      const L = FARM_DAM_IDS[farm] || {};
+      if (nid) { const k = Object.keys(L).find(k => String(L[k].nationalId||'').replace(/\D/g,'') === nid); if (k) return String(L[k].id||''); }
+    }
+    if (nm) for (const farm of Object.keys(FARM_DAM_IDS)) {
+      if (t.farmName && !String(t.farmName).includes(farm) && !farm.includes(String(t.farmName).replace(/牧場|農場/,''))) continue;
+      const v = (FARM_DAM_IDS[farm] || {})[nm]; if (v && v.id) return String(v.id);
+    }
+  } catch (e) {}
+  return '';
+}
 function printTransferBook(){
   if(!transferBook.length){ alert('記録がありません'); return; }
   const todayStr=today();
@@ -20420,6 +20441,7 @@ function printTransferBook(){
     const body=items.map(t=>`<tr>
       <td class="c">${t.transferDate?fmtDate(t.transferDate):''}</td>
       <td>${t.farmName||''}</td>
+      <td class="c">${tbEarTag(t)}</td>
       <td>${t.recipientName||''} ${t.recipientNationalId||''}</td>
       <td>${t.donor||''}${t.sire?' × '+t.sire:''}</td>
       <td class="c">${t.embryoNo||''}</td>
@@ -20427,7 +20449,7 @@ function printTransferBook(){
       <td class="c">${t.pregResult==='+'?'＋':t.pregResult==='-'?'−':''}</td>
       <td>${t.vet||''}</td></tr>`).join('');
     return `<h2>${m?y+'年'+parseInt(m)+'月':k}（${items.length}件）</h2>
-      <table><thead><tr><th>移植年月日</th><th>受け牛の農家</th><th>受け牛（名前・個体番号）</th><th>ドナー×種雄牛</th><th>胚証明書番号</th><th>区分</th><th>妊鑑</th><th>術者</th></tr></thead><tbody>${body}</tbody></table>`;
+      <table><thead><tr><th>移植年月日</th><th>受け牛の農家</th><th>耳標</th><th>受け牛（名前・個体番号）</th><th>ドナー×種雄牛</th><th>胚証明書番号</th><th>区分</th><th>妊鑑</th><th>術者</th></tr></thead><tbody>${body}</tbody></table>`;
   }).join('');
   const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>授精所移植簿 ${fmtDate(todayStr)}</title>
     <style>@media print{@page{size:A4 landscape;margin:10mm;}.noprint{display:none;}}
@@ -29485,8 +29507,9 @@ try {
     <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の農家</label><input type="text" id="tb-e-farm" placeholder="農家名" style="font-size:13px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="tb-e-recip" style="font-size:13px;"></div>
-      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">個体識別番号</label><input type="text" id="tb-e-recipid" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">自家耳標の番号</label><input type="text" id="tb-e-eartag" placeholder="例: 25" style="font-size:13px;"></div>
     </div>
+    <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">個体識別番号</label><input type="text" id="tb-e-recipid" style="font-size:13px;"></div>
     <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">受け牛の生年月日</label><input type="date" id="tb-e-dob" style="font-size:13px;"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
       <div class="form-group" style="margin-bottom:8px;"><label style="font-size:11px;">ドナー母牛</label><input type="text" id="tb-e-donor" style="font-size:13px;"></div>
@@ -30097,6 +30120,7 @@ try {
     <div id="ofpick-cow-manual" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;"><label style="font-size:11px;">受け牛の名前</label><input type="text" id="ofpick-cow-name" placeholder="例: あみか" style="font-size:13px;"></div>
       <div class="form-group" style="margin-bottom:0;"><label style="font-size:11px;">個体識別番号</label><input type="text" id="ofpick-cow-natid" placeholder="例: 1516723933" style="font-size:13px;"></div>
+      <div class="form-group" style="margin-bottom:0;grid-column:1 / -1;"><label style="font-size:11px;">自家耳標の番号</label><input type="text" id="ofpick-cow-eartag" placeholder="例: 25" style="font-size:13px;"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
       <div class="form-group" style="margin-bottom:0;">
