@@ -858,6 +858,7 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
       <option value="age_desc">年齢↓高齢順</option>
       <option value="id_asc">耳標順</option>
       <option value="open_desc">空胎日数↓長い順</option>
+      <option value="gen_bench">🧬 基準牛（おひさ）基準：枝肉もBMSも以上が上</option>
       <option value="gen_idx">🧬 ゲノミック総合 高い順</option>
       <option value="gen_bms">🧬 BMS育種価 高い順</option>
       <option value="gen_cw">🧬 枝肉重量育種価 高い順</option>
@@ -5667,7 +5668,7 @@ function renderCowList() {
   else if (sortKey === 'id_asc')     filtered.sort((a,b) => a.id.localeCompare(b.id));
   else if (sortKey && sortKey.startsWith('gen_')) {
     const R = genomicRanking();
-    const val = c => { const r = R.map[c.id]; if (!r) return -1e9; return sortKey === 'gen_bms' ? r.bms : sortKey === 'gen_cw' ? r.cw : r.idx; };
+    const val = c => { const r = R.map[c.id]; if (!r) return -1e9; return sortKey === 'gen_bms' ? r.bms : sortKey === 'gen_cw' ? r.cw : sortKey === 'gen_bench' && r.bRank ? -r.bRank : r.idx; };
     filtered.sort((a, b) => val(b) - val(a));
   }
   else if (sortKey === 'open_desc') {
@@ -5687,8 +5688,9 @@ function renderCowList() {
         🧬 ゲノミック評価のある黒毛 <b>${R.n}頭</b>（総合＝枝肉重量とBMSの育種価を、牧場の中でそれぞれ偏差値にして平均）<br>
         基準牛 <select style="width:auto;font-size:12px;padding:2px 6px;" onchange="farmTargets.genBenchId=this.value;_genRankCache=null;save();renderCowList()">
           <option value="">（使わない）</option>${cows.filter(c => c.genomic || c.id === R.benchId).map(c => `<option value="${_stEsc(c.id)}" ${c.id === R.benchId ? 'selected' : ''}>${_stEsc(c.id)} ${_stEsc(cowDisplayName(c.id) || '')}</option>`).join('')}</select>
-        より総合が<b style="color:#4ade80;">上ならAI</b>、<b style="color:#60a5fa;">下なら受け牛（ET）</b>
-        ${R.bench ? `<span style="color:var(--muted);">（基準の総合 ${R.bench.idx}。上 ${Object.values(R.map).filter(x => x.above).length}頭・下 ${Object.values(R.map).filter(x => x.below).length}頭。枝肉かBMSがDの牛は基準に関係なく受け牛）</span>`
+        より<b style="color:#4ade80;">枝肉もBMSも上（以上）ならAI</b>、<b style="color:#60a5fa;">どちらかが下なら受け牛（ET）</b>
+        ${R.bench ? `<span style="color:var(--muted);">（基準：枝肉 ${R.bench.cw}・BMS ${R.bench.bms}。両方とも基準以上が上。枝肉かBMSがDの牛は基準に関係なく受け牛）</span>
+          ${sortKey === 'gen_bench' ? `<br>並び：${[[0, '両方以上', '#4ade80'], [1, '基準牛', '#4ade80'], [2, '片方だけ下', '#60a5fa'], [3, '両方下', '#60a5fa'], [4, 'Dあり', '#f87171']].map(([t, l, col]) => { const n = Object.values(R.map).filter(x => x.tier === t).length; return n ? `<span style="color:${col};font-weight:700;">${l} ${n}頭</span>` : ''; }).filter(Boolean).join(' → ')}<span style="color:var(--muted);">（同じ組の中は総合の高い順）</span>` : ''}`
           : `<br><span style="color:var(--warn);">⚠ ${(() => {
               if (!R.benchId) return '基準牛を選んでください';
               const bc = cows.find(c => c.id === R.benchId), nm = _stEsc(cowDisplayName(R.benchId) || R.benchId);
@@ -12434,11 +12436,11 @@ function genomicVerdict(cow) {
   if (rk && R.bench && role !== 'recipient') {
     const bn = cowDisplayName(R.benchId) || R.benchId;
     if (rk.isBench) { role = 'ai'; why.length = 0; why.push('この牛が基準牛（AIで自分の子を取る）'); }
-    else if (rk.below) { role = 'recipient'; why.length = 0; why.push(`基準牛 ${bn} より総合が下（${rk.idx}＜${R.bench.idx}）→ 受け牛（ET）`); }
-    else { role = 'ai'; why.length = 0; why.push(`基準牛 ${bn} 以上（${rk.idx}≧${R.bench.idx}）→ AI`); }
+    else if (rk.below) { role = 'recipient'; why.length = 0; why.push(`基準牛 ${bn} より下の形質がある（${genBenchCmpText(rk, R.bench)}）→ 受け牛（ET）`); }
+    else { role = 'ai'; why.length = 0; why.push(`枝肉もBMSも基準牛 ${bn} 以上（${genBenchCmpText(rk, R.bench)}）→ AI`); }
   }
   if (rk && !R.bench && cow.id !== R.benchId) why.push(R.benchId ? `基準牛 ${cowDisplayName(R.benchId) || R.benchId} の育種価がまだ保存されていないので、くらべていません` : '基準牛が決まっていないので、くらべていません');
-  if (rk) why.push(`牧場の中で${rk.n}頭中${rk.rank}位`);
+  if (rk) why.push(rk.bRank ? `基準牛の並びで${rk.n}頭中${rk.bRank}位（総合では${rk.rank}位）` : `牧場の中で${rk.n}頭中${rk.rank}位`);
   const strong = Object.entries(t).filter(([k, v]) => v.g === 'H' || v.g === 'A').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   const weak = Object.entries(t).filter(([k, v]) => v.g === 'D' && k !== 'bms' && k !== 'cw').map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
   return { role, why, strong, weak, label: role === 'ai' ? 'AI向き（自分の子を取る）' : role === 'recipient' ? '受け牛向き' : '中間' };
@@ -12450,18 +12452,30 @@ function genBenchId() {
   const o = cows.find(c => (c.name || '').trim() === 'おひさ') || cows.find(c => /おひさ/.test(c.name || '') || /おひさ/.test(cowDisplayName(c.id) || '')); return o ? o.id : '';
 }
 let _genRankCache = null;
+// 基準牛とのくらべ方の説明（枝肉・BMSそれぞれ）
+function genBenchCmpText(x, b) {
+  const f = (v, w) => `${v}${v >= w ? '≧' : '＜'}${w}`;
+  return `枝肉 ${f(x.cw, b.cw)}・BMS ${f(x.bms, b.bms)}`;
+}
 function genomicRanking(live) {
   // live：編集画面で入力中の牛（まだ保存していない数字）を、その牛の保存済みの値の代わりに使う
   if (!live && _genRankCache && _genRankCache.t > Date.now() - 1500) return _genRankCache.r;
   const src = live ? cows.filter(c => c.id !== live.id).concat([live]) : cows;
   const L = src.filter(c => c.genomic && c.genomic.t && c.genomic.t.cw && c.genomic.t.bms && typeof c.genomic.t.cw.v === 'number' && typeof c.genomic.t.bms.v === 'number')
-    .map(c => ({ id: c.id, cw: c.genomic.t.cw.v, bms: c.genomic.t.bms.v }));
+    .map(c => ({ id: c.id, cw: c.genomic.t.cw.v, bms: c.genomic.t.bms.v, gD: c.genomic.t.cw.g === 'D' || c.genomic.t.bms.g === 'D' }));
   const st = k => { const v = L.map(x => x[k]); const m = v.reduce((a, b) => a + b, 0) / (v.length || 1); const sd = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / (v.length || 1)); return { m, sd }; };
   const sc = st('cw'), sb = st('bms');
   L.forEach(x => { const zc = sc.sd > 0 ? 50 + (x.cw - sc.m) / sc.sd * 10 : 50, zb = sb.sd > 0 ? 50 + (x.bms - sb.m) / sb.sd * 10 : 50; x.idx = Math.round((zc + zb) / 2 * 10) / 10; });
   L.sort((a, b) => b.idx - a.idx);
   const n = L.length, bid = genBenchId(), bench = L.find(x => x.id === bid) || null;
-  const map = {}; L.forEach((x, i) => { map[x.id] = { ...x, rank: i + 1, n, below: !!bench && x.id !== bid && x.idx < bench.idx, above: !!bench && x.id !== bid && x.idx >= bench.idx, isBench: x.id === bid }; });
+  // 基準牛より上＝枝肉重量もBMSも、両方の育種価が基準牛以上（千佳さんの決め方 2026/11/9）。順位は総合（偏差値の平均）のまま
+  const ok = x => !!bench && x.cw >= bench.cw && x.bms >= bench.bms;
+  const map = {}; L.forEach((x, i) => { map[x.id] = { ...x, rank: i + 1, n, below: !!bench && x.id !== bid && !ok(x), above: !!bench && x.id !== bid && ok(x), isBench: x.id === bid }; });
+  // おひさ基準の並び：両方以上 → 基準牛 → 片方だけ下 → 両方下 → 枝肉かBMSがD（同じ組の中は総合の高い順）
+  if (bench) {
+    const tier = x => x.gD ? 4 : x.id === bid ? 1 : ok(x) ? 0 : (x.cw >= bench.cw || x.bms >= bench.bms) ? 2 : 3;
+    L.map(x => ({ x, t: tier(x) })).sort((a, b) => a.t - b.t || b.x.idx - a.x.idx).forEach((o, i) => { map[o.x.id].tier = o.t; map[o.x.id].bRank = i + 1; });
+  }
   const r = { n, map, bench, benchId: bid };
   if (!live) _genRankCache = { t: Date.now(), r };
   return r;
@@ -12549,12 +12563,12 @@ function calfGenomicVerdict(calf) {
   const cowsN = rk ? rk.n - 1 : 0;
   if (rk) {
     // 今の繁殖牛のうち、この子牛より下の頭数
-    const beat = Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id && x.idx < rk.idx).length;
+    const beat = rk.bRank ? Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id && x.bRank > rk.bRank).length : Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id && x.idx < rk.idx).length;
     if (keep === null) {
       if (R.bench) {
         const bn = cowDisplayName(R.benchId) || R.benchId;
-        keep = rk.idx >= R.bench.idx;
-        why.push(keep ? `基準牛 ${bn} 以上（${rk.idx}≧${R.bench.idx}）→ 保留して後継に` : `基準牛 ${bn} より下（${rk.idx}＜${R.bench.idx}）→ 残しても受け牛になるので肥育へ`);
+        keep = rk.cw >= R.bench.cw && rk.bms >= R.bench.bms;
+        why.push(keep ? `枝肉もBMSも基準牛 ${bn} 以上（${genBenchCmpText(rk, R.bench)}）→ 保留して後継に` : `基準牛 ${bn} より下の形質がある（${genBenchCmpText(rk, R.bench)}）→ 残しても受け牛になるので肥育へ`);
       } else {
         const idxs = Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id).map(x => x.idx).sort((a, b) => a - b);
         const med = idxs.length ? idxs[Math.floor(idxs.length / 2)] : 50;
@@ -12562,7 +12576,7 @@ function calfGenomicVerdict(calf) {
         why.push(`基準牛の評価がないので、繁殖牛の真ん中（${med}）とくらべた：${rk.idx}${keep ? '≧' : '＜'}${med}`);
       }
     }
-    why.push(`今のゲノミックのある黒毛の繁殖牛${cowsN}頭に入れると${rk.rank}位（${beat}頭より上）`);
+    why.push(`今のゲノミックのある黒毛の繁殖牛${cowsN}頭に入れると${rk.bRank ? '基準牛の並びで' + rk.bRank : rk.rank}位（${beat}頭より上）`);
   } else if (keep === null) {
     // 数字がないときは区分だけで見る
     const gp = x => ({ H: 5, A: 4, B: 3, C: 2, D: 1 }[x] || 0);
