@@ -23982,7 +23982,11 @@ function saveMove() {
     calf.moves = calf.moves || [];
     const rec = { date, to, memo }; if (score) rec.score = score;
     calf.moves.push(rec);
-    if (['育成舎①', '育成舎②', '肥育舎', '出荷'].includes(to) && (calf.status || 'active') === 'active') calf.status = 'moved';
+    // 保留（繁殖候補）の子牛も移動済みにする。候補の印は残す（setCalfStatus と同じ考え方）
+    if (['育成舎①', '育成舎②', '肥育舎', '出荷'].includes(to) && ['active', 'kept'].includes(calf.status || 'active')) {
+      if (calf.status === 'kept') calf.isBreedingCandidate = true;
+      calf.status = 'moved';
+    }
     if (to === '出荷') calf.shipDate = date;
   };
   if (m.kind === 'calf') {
