@@ -891,6 +891,8 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
     <button id="calf-filter-pending" onclick="setCalfFilter('pending')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">移動待ち</button>
     <button id="calf-filter-kept" onclick="setCalfFilter('kept')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🌟 保留（繁殖候補）</button>
     <button id="calf-filter-moved" onclick="setCalfFilter('moved')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">移動済み</button>
+    <button id="calf-filter-certTodo" onclick="setCalfFilter('certTodo')" style="background:var(--bg3);color:var(--muted);border:1px solid var(--border);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">📄 証明書まだ</button>
+    <button onclick="markCalfCertIssued()" style="background:#1a0a2a;border:1px dashed var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">✅ チェックした子牛を証明書発行済みに</button>
     <button onclick="goToInsemBookForCalves()" style="background:#1a0a2a;border:1px solid var(--purple);color:var(--purple);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">📄 授精証明書を発行</button>
     <button onclick="printCalvesList()" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;cursor:pointer;">🖨 リストを印刷</button>
   </div>
@@ -2845,7 +2847,7 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
     </div>
     <div style="display:flex;gap:6px;margin-bottom:8px;">
       <button id="br-tab-todo" onclick="setBirthReportView('todo')" style="flex:1;font-size:12px;font-weight:700;padding:6px;border-radius:8px;cursor:pointer;">まだ報告していない</button>
-      <button id="br-tab-done" onclick="setBirthReportView('done')" style="flex:1;font-size:12px;font-weight:700;padding:6px;border-radius:8px;cursor:pointer;">報告済み（最近）</button>
+      <button id="br-tab-done" onclick="setBirthReportView('done')" style="flex:1;font-size:12px;font-weight:700;padding:6px;border-radius:8px;cursor:pointer;">報告済み（1年以内）</button>
     </div>
     <div id="br-list" style="max-height:52vh;overflow:auto;"></div>
     <div id="br-actions" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
@@ -3805,6 +3807,7 @@ function initApp() {
   try { if (repairDonorFlagsOnce()) save(); } catch (e) { console.error('repairDonorFlags', e); }
   try { if (typeof fillPromotedCowDam === 'function' && fillPromotedCowDam()) save(); } catch (e) { console.error('fillPromotedCowDam', e); }
   try { reconcileCows(null); } catch (e) { console.error('reconcile', e); }
+  try { initCalfCertIssuedOnce(); } catch (e) {}
   renderAll();
   initSwipe();
 }
@@ -23224,7 +23227,7 @@ let calfFilter = 'all';
 
 function setCalfFilter(f) {
   calfFilter = f;
-  ['all','pending','kept','moved'].forEach(k => {
+  ['all','pending','kept','moved','certTodo'].forEach(k => {
     const btn = document.getElementById(`calf-filter-${k}`);
     if (!btn) return;
     btn.style.background = k===f ? 'var(--accent2)' : 'var(--bg3)';
@@ -23273,6 +23276,7 @@ function printCalvesList(){
   if (calfFilter === 'pending') list = list.filter(c => c.status === 'active');
   else if (calfFilter === 'kept') list = list.filter(c => c.status === 'kept' || c.isBreedingCandidate);
   else if (calfFilter === 'moved') list = list.filter(c => c.status === 'moved');
+  else if (calfFilter === 'certTodo') list = list.filter(calfNeedsCert);
   const q = (document.getElementById('calf-search')?.value || '').trim().replace(/[-\s]/g,'');
   if (q) list = list.filter(c => cowQueryMatch(q, { id: c.earTagId, name: c.name, nationalId: c.nationalId }));
   if (!list.length) { alert('印刷する子牛がいません'); return; }
@@ -23280,7 +23284,7 @@ function printCalvesList(){
   const todayStr = today();
   const filterLabel = calfFilter === 'pending' ? '移動待ち'
     : calfFilter === 'kept' ? '保留（繁殖候補）'
-    : calfFilter === 'moved' ? '移動済み' : '全て';
+    : calfFilter === 'moved' ? '移動済み' : calfFilter === 'certTodo' ? '授精証明書まだ' : '全て';
 
   // 生月ごとにまとめる（分娩予定表と同じ考え方）
   const monthMap = {};
@@ -23375,6 +23379,7 @@ function renderCalves() {
   if (calfFilter === 'pending') filtered = calves.filter(c => c.status === 'active');
   else if (calfFilter === 'kept') filtered = calves.filter(c => c.status === 'kept' || c.isBreedingCandidate);
   else if (calfFilter === 'moved') filtered = calves.filter(c => c.status === 'moved');
+  else if (calfFilter === 'certTodo') filtered = calves.filter(calfNeedsCert);
 
   // 繁殖候補の年度セレクタを組み立て（生年の年度＝R◯で分類）
   const candYearSel = document.getElementById('calf-cand-year');
@@ -23615,6 +23620,7 @@ function renderCalves() {
               })()}</span>
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
+              ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : ''}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
@@ -23637,6 +23643,7 @@ function renderCalves() {
             ${calf.birthWeightKg ? `<div>生時体重: <strong style="color:var(--text);">${calf.birthWeightKg} kg</strong></div>` : ''}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            <button onclick="event.stopPropagation();toggleCalfCertIssued('${calf.id}')" style="background:${calf.authCertIssued ? 'rgba(139,92,246,.15)' : 'var(--bg3)'};border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">${calf.authCertIssued ? '📄 授精証明書 発行済み ✓（' + fmtDate(calf.authCertIssued) + '）' : '📄 授精証明書を発行済みにする'}</button>
             <button onclick="event.stopPropagation();showCalfStory('${calf.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">📖 ストーリー</button>
             <button onclick="event.stopPropagation();openEditCalfModal('${calf.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">✏ 編集</button>
           </div>
@@ -30539,7 +30546,7 @@ const BIRTH_REPORT_DAYS = 90;   // 生まれてから何日以内の子牛を「
 let _brView = 'todo', _brSel = new Set();
 function birthReportCandidates(view) {
   const from = addDays(today(), -BIRTH_REPORT_DAYS);
-  return calves.filter(c => c.dob && c.status !== 'dead' && (view === 'done' ? (c.birthReportedAt && c.birthReportedAt >= addDays(today(), -60)) : (!c.birthReportedAt && c.dob >= from)))
+  return calves.filter(c => c.dob && c.status !== 'dead' && (view === 'done' ? (c.birthReportedAt && c.birthReportedAt >= addDays(today(), -365)) : (!c.birthReportedAt && c.dob >= from)))
     .sort((a, b) => b.dob.localeCompare(a.dob));
 }
 function _brTwin(c) {
@@ -30580,7 +30587,7 @@ function _brDamNatId(c) {
   return String((cow && cow.nationalId) || '').replace(/\D/g, '');
 }
 function openBirthReport(view) {
-  _brView = view || 'todo';
+  _brView = view || (birthReportCandidates('todo').length ? 'todo' : 'done');
   _brSel = new Set(birthReportCandidates('todo').map(c => c.id));
   const a = document.getElementById('br-bookmarklet');
   if (a) a.setAttribute('href', 'javascript:' + encodeURIComponent(RAKUCHIKU_BOOKMARKLET));
@@ -30656,9 +30663,37 @@ async function markBirthReported() {
   save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves();
 }
 function undoBirthReported(id) { const c = calves.find(x => x.id === id); if (!c) return; delete c.birthReportedAt; save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves(); }
+// ===== 授精証明書の発行済みチェック（子牛ごと） =====
+// 証明書がいる子牛：自分が授精・移植した（授証あり）・死亡していない・まだ発行していない
+function calfNeedsCert(c) {
+  if (!c || c.authCertIssued || c.status === 'dead') return false;
+  try { return _brAuth(c); } catch (e) { return false; }
+}
+function toggleCalfCertIssued(id) {
+  const c = calves.find(x => x.id === id); if (!c) return;
+  if (c.authCertIssued) delete c.authCertIssued; else c.authCertIssued = today();
+  save(); renderCalves();
+}
+function markCalfCertIssued() {
+  const ids = Array.from(document.querySelectorAll('.calf-cert-check:checked')).map(el => el.dataset.calfid);
+  if (!ids.length) { alert('発行済みにする子牛にチェックを入れてください'); return; }
+  const d = today();
+  ids.forEach(id => { const c = calves.find(x => x.id === id); if (c && !c.authCertIssued) c.authCertIssued = d; });
+  save(); renderCalves();
+}
+// 最初の1回だけ：2026/9/30生まれ（r10 みつるの子）までは発行済みにする（千佳さんの指示 2026/11/9）
+function initCalfCertIssuedOnce() {
+  try {
+    if (farmTargets.authCertInit) return;
+    let n = 0;
+    calves.forEach(c => { if (c.dob && c.dob <= '2026-09-30' && !c.authCertIssued) { c.authCertIssued = '2026-11-09'; n++; } });
+    farmTargets.authCertInit = '2026-09-30';
+    save();
+  } catch (e) {}
+}
 function birthReportAlertHTML() {
   const n = birthReportCandidates('todo').length;
-  if (!n) return '';
+  if (!n) return `<div onclick="openBirthReport('done')" style="cursor:pointer;font-size:12px;color:var(--muted);margin-bottom:10px;text-align:right;">🐄 らくちく出生報告（報告済みを見る） ›</div>`;
   return `<div onclick="openBirthReport()" style="cursor:pointer;background:rgba(56,189,248,.08);border:1px solid var(--info);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--info);display:flex;align-items:center;gap:8px;">🐄 出生報告がまだの子牛 <b>${n}頭</b><span style="margin-left:auto;font-size:12px;font-weight:700;">らくちく出生報告 ›</span></div>`;
 }
 
