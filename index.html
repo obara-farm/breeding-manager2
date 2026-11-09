@@ -23993,6 +23993,11 @@ function saveMove() {
     const calf = calves.find(c => c.id === m.id);
     if (m.idx != null && calf.moves && calf.moves[m.idx]) { const r = { date, to: m.to, memo }; if (m.score) r.score = m.score; calf.moves[m.idx] = r; if (m.to === '出荷') calf.shipDate = date; }
     else moveCalf(calf, m.to, m.score);
+    // 「✓ 移動済みにする」ボタンから開いたときは、移動先（牛舎の名前）にかかわらず移動済みにする
+    if (m.forceMoved && calf && ['active', 'kept'].includes(calf.status || 'active')) {
+      if (calf.status === 'kept') calf.isBreedingCandidate = true;
+      calf.status = 'moved';
+    }
   } else {
     const cow = cows.find(c => c.id === m.id);
     cow.events = cow.events || [];
@@ -29389,7 +29394,7 @@ document.addEventListener('click', function(e) {
     const id = calfBtn.dataset.calfid;
     const action = calfBtn.dataset.action;
     if (action === 'keep')    { setCalfStatus(id, 'kept'); return; }
-    if (action === 'moved')   { openMoveDialog('calf', id, '育成舎①'); return; }   // 日付・移動先・体格も残す
+    if (action === 'moved')   { openMoveDialog('calf', id, '育成舎①'); if (window._mv) window._mv.forceMoved = true; return; }   // このボタンから記録したら、移動先にかかわらず移動済みにする   // 日付・移動先・体格も残す
     if (action === 'active')  { setCalfStatus(id, 'active'); return; }
     if (action === 'delete')  { confirmDeleteCalf(id); return; }
     if (action === 'death')   { recordCalfDeath(id); return; }
