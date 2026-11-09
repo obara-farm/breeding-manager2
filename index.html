@@ -10913,6 +10913,20 @@ function checkDataConsistency() {
         buttons: `<button class="st-act" onclick="event.stopPropagation();fixPregMismatch('${_stEsc(c.id)}','${ev.date}','${book === 'pos' ? 'positive' : 'negative'}','${ins.date}')">授精簿に合わせる（${book === 'pos' ? '受胎' : '不受胎'}）</button>`
           + `<button class="st-act" onclick="event.stopPropagation();fixPregMismatch('${_stEsc(c.id)}','${ev.date}','${evr === 'pos' ? 'positive' : 'negative'}','${ins.date}')">妊鑑に合わせる（${evr === 'pos' ? '陽性' : '陰性'}）</button>` });
     });
+    // 0) 同じ日の分娩記録が2件（前回の分娩日のまま保存してしまった二重登録など）
+    {
+      const byDate = {};
+      calvingRecords.filter(r => r.cowId === c.id && r.date).forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+      Object.entries(byDate).forEach(([dt, L]) => {
+        if (L.length < 2) return;
+        const newer = L[L.length - 1];   // あとから入れた方
+        const kids = calves.filter(k => k.calvingRecordId === newer.id).length;
+        out.push({ kind: 'calving', cowId: c.id, title: `${name}：${fmtDate(dt)} の分娩記録が${L.length}件（二重登録）`,
+          detail: `同じ日の分娩記録が${L.length}件あります。前回の分娩日のまま保存すると、こうなります（あとから入れた方：子牛${kids}頭）`,
+          fix: 'あとから入れた方を消して、産次も1つ戻してください。そのあと今回の分娩を正しい日付で記録してください',
+          buttons: `<button class="st-act del" onclick="event.stopPropagation();deleteCalvingEntry('${_stEsc(c.id)}','${newer.id}',null)">あとから入れた方を消す</button>` });
+      });
+    }
     // 1c) 同じ授精に、陰性と陽性の妊鑑記録が両方残っている（押し直し前の記録）
     d.insems.forEach(ins => {
       if (ins.result !== 'pos' && ins.result !== 'neg') return;
@@ -22684,19 +22698,12 @@ function openCowQuickView(cowId, fromTaskDate) {
 }
 
 // ===== 産仔記録 =====
-function openCalvingRecord(cowId, calvingDate, isStillbirth) {
-  { const rp = document.getElementById('cr-rp'); if (rp) rp.checked = false; }
-  const cow = cows.find(c=>c.id===cowId);
-  if (!cow) return;
+// 分娩記録の上の「分娩タイミング」：入れた分娩日と予定日をくらべる（日付を変えたら出し直す）
+function _crTimingRefresh() {
+  const cowId = document.getElementById('cr-cowid').value;
+  const cow = cows.find(c => c.id === cowId); if (!cow) return;
   const name = cowDisplayName(cowId) || cow.name || '';
-  document.getElementById('cr-cowid').value = cowId;
-  document.getElementById('cr-date').value = calvingDate || cow.calvingDate || today();
-  document.getElementById('calving-rec-title').textContent = isStillbirth
-    ? `💀 死産記録 — ${cowId} ${name}`
-    : `🍼 産仔記録 — ${cowId} ${name}`;
-
-  const dueDate = cow.dueDate;
-  const actualDate = calvingDate || cow.calvingDate || today();
+  const dueDate = cow.dueDate, actualDate = document.getElementById('cr-date').value;
   let timingInfo = '';
   if (dueDate && actualDate) {
     const diff = diffDays(actualDate, dueDate);
@@ -22704,10 +22711,29 @@ function openCalvingRecord(cowId, calvingDate, isStillbirth) {
     else if (diff >= 10) timingInfo = `<span style="color:var(--warn);font-weight:700;">遅産（予定より${diff}日遅い）</span>`;
     else timingInfo = `<span style="color:var(--accent);font-weight:700;">正常（予定日±${Math.abs(diff)}日）</span>`;
   }
+  const last = (cow.events || []).filter(e => e.type === 'calving').map(e => e.date).sort().pop() || cow.calvingDate || '';
+  const warn = actualDate && last && actualDate <= last
+    ? `<br><span style="color:var(--danger);font-weight:700;">⚠ 前回の分娩（${fmtDate(last)}）と同じか、それより前の日付です。今回の分娩日を入れてください</span>` : '';
   document.getElementById('cr-cow-info').innerHTML =
     `<strong style="font-family:'JetBrains Mono',monospace">${cowId}</strong> <strong style="color:var(--accent)">${name}</strong>`
     + (timingInfo ? `<br>分娩タイミング: ${timingInfo}` : '')
-    + (dueDate ? `<br><span style="font-size:11px;color:var(--muted)">分娩予定日: ${fmtDate(dueDate)}</span>` : '');
+    + (dueDate ? `<br><span style="font-size:11px;color:var(--muted)">分娩予定日: ${fmtDate(dueDate)}</span>` : '')
+    + warn;
+}
+function openCalvingRecord(cowId, calvingDate, isStillbirth) {
+  { const rp = document.getElementById('cr-rp'); if (rp) rp.checked = false; }
+  const cow = cows.find(c=>c.id===cowId);
+  if (!cow) return;
+  const name = cowDisplayName(cowId) || cow.name || '';
+  document.getElementById('cr-cowid').value = cowId;
+  // 前は日付が空のとき「前回の分娩日」が入っていた（そのまま保存すると去年の分娩と重なって記録が消えたように見える）→ 今日にする
+  document.getElementById('cr-date').value = calvingDate || today();
+  document.getElementById('cr-date').onchange = () => { try { _crTimingRefresh(); } catch (e) {} };
+  document.getElementById('calving-rec-title').textContent = isStillbirth
+    ? `💀 死産記録 — ${cowId} ${name}`
+    : `🍼 産仔記録 — ${cowId} ${name}`;
+
+  _crTimingRefresh();
 
   // フォームリセット
   setCrSize('3');
@@ -22975,6 +23001,13 @@ function saveCalvingRecord() {
   const calvingDate = document.getElementById('cr-date').value || today();
   const memo = document.getElementById('cr-memo').value.trim();
   const isStillbirthSave = memo.includes('死産');
+
+  // 前回の分娩日と同じか前の日付で保存しようとしたら確かめる（去年の分娩日のまま保存してしまう事故の対策）
+  if (cow) {
+    const lastCalv = (cow.events || []).filter(e => e.type === 'calving').map(e => e.date).sort().pop() || cow.calvingDate || '';
+    if (lastCalv && calvingDate <= lastCalv
+      && !confirm(`分娩日が ${fmtDate(calvingDate)} になっています。\n前回の分娩（${fmtDate(lastCalv)}）と同じか、それより前です。\n\n今回の分娩なら「キャンセル」を押して、分娩日を直してください。\n昔の分娩をあとから入れるときだけ「OK」を押してください。`)) return;
+  }
 
   // 死産の重複チェック
   if (isStillbirthSave) {
