@@ -902,6 +902,7 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
       <option value="all">全年度</option>
     </select>
   </div>
+  <div id="calf-kept-summary"></div>
   <div id="calf-list-container"></div>
   <div class="empty" id="calf-empty" style="display:none;">
     <div class="empty-icon">🐮</div>
@@ -12350,6 +12351,7 @@ async function submitQuickReg() {
   closeModal('modal-quick-reg');
 }
 function openEditCow(cowId) {
+  try { calfGenReturnBox(); } catch (e) {}
   const cow = cows.find(c=>c.id===cowId);
   if (!cow) return;
   const master = getMasterCow(cowId);
@@ -12466,6 +12468,7 @@ function genomicRanking(live) {
 }
 function genLiveVerdict() {
   const el = document.getElementById('edit-gen-verdict'); if (!el) return;
+  if (window._genCalfId) { const v = calfGenomicVerdict({ id: window._genCalfId, genomic: _genReadForm() }); el.innerHTML = v ? calfGenomicVerdictHTML(v) : '<div style="font-size:11px;color:var(--muted);">枝肉重量とBMSの育種価と区分を入れると、今の黒毛の繁殖牛とくらべて、保留か肥育かを出します</div>'; return; }
   const g = _genReadForm(), eid = (document.getElementById('edit-cow-id') || {}).value || '';
   const v = genomicVerdict(eid ? { id: eid, genomic: g, _live: true } : { genomic: g });
   el.innerHTML = v ? genomicVerdictHTML(v) : '<div style="font-size:11px;color:var(--muted);">枝肉重量とBMSの区分（H〜D）を入れると、本原登録の条件をもとにAI向きか受け牛向きかを判定します</div>';
@@ -12511,7 +12514,7 @@ function genApplyParsed(r, how) {
   if (r.extra) { GEN_EXTRA.forEach(([k], i) => { const el = document.getElementById('gen-x-' + k); if (el && r.extra[i] != null) el.value = r.extra[i]; }); got.push('脂肪酸など'); }
   if (r.date) { document.getElementById('edit-gen-date').value = r.date; got.push('評価年月日'); }
   // 個体識別番号の確認（報告書の本牛は3つ目の番号）
-  const cow = cows.find(c => c.id === document.getElementById('edit-cow-id').value);
+  const cow = window._genCalfId ? calves.find(c => c.id === window._genCalfId) : cows.find(c => c.id === document.getElementById('edit-cow-id').value);
   const own = String((cow && cow.nationalId) || '').replace(/\D/g, '');
   let idNote = '';
   if (r.ids.length && own) {
@@ -12530,6 +12533,116 @@ function genToggleBox() {
   const box = document.getElementById('edit-genomic-box'); if (!box) return;
   const cow = cows.find(c => c.id === document.getElementById('edit-cow-id').value);
   box.style.display = (/黒/.test(b) || (cow && cow.genomic)) ? '' : 'none';
+}
+// ===== 子牛（黒毛の雌）のゲノミック：今の黒毛の繁殖牛とくらべて、保留か肥育か =====
+// 判定：枝肉重量かBMSがD → 肥育（本原登録の雌の条件を満たさない）
+//       基準牛（おひさ）がいれば、総合が基準牛以上 → 保留、下 → 肥育（残しても受け牛にしかならないため）
+//       基準牛の評価がなければ、繁殖牛の真ん中より上 → 保留、下 → 肥育
+function calfGenomicVerdict(calf) {
+  const g = calf && calf.genomic; if (!g || !g.t || !g.t.cw || !g.t.bms) return null;
+  const gC = g.t.cw.g, gB = g.t.bms.g, hasV = typeof g.t.cw.v === 'number' && typeof g.t.bms.v === 'number';
+  if (!gC && !gB && !hasV) return null;
+  const why = []; let keep = null;
+  if (gC === 'D' || gB === 'D') { keep = false; why.push([gC === 'D' && '枝肉重量がD', gB === 'D' && 'BMSがD'].filter(Boolean).join('・') + '（本原登録の雌の条件を満たさない）'); }
+  let R = null, rk = null;
+  if (hasV) { try { R = genomicRanking({ id: 'calf:' + calf.id, genomic: g }); rk = R.map['calf:' + calf.id]; } catch (e) {} }
+  const cowsN = rk ? rk.n - 1 : 0;
+  if (rk) {
+    // 今の繁殖牛のうち、この子牛より下の頭数
+    const beat = Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id && x.idx < rk.idx).length;
+    if (keep === null) {
+      if (R.bench) {
+        const bn = cowDisplayName(R.benchId) || R.benchId;
+        keep = rk.idx >= R.bench.idx;
+        why.push(keep ? `基準牛 ${bn} 以上（${rk.idx}≧${R.bench.idx}）→ 保留して後継に` : `基準牛 ${bn} より下（${rk.idx}＜${R.bench.idx}）→ 残しても受け牛になるので肥育へ`);
+      } else {
+        const idxs = Object.values(R.map).filter(x => x.id !== 'calf:' + calf.id).map(x => x.idx).sort((a, b) => a - b);
+        const med = idxs.length ? idxs[Math.floor(idxs.length / 2)] : 50;
+        keep = rk.idx >= med;
+        why.push(`基準牛の評価がないので、繁殖牛の真ん中（${med}）とくらべた：${rk.idx}${keep ? '≧' : '＜'}${med}`);
+      }
+    }
+    why.push(`今のゲノミックのある黒毛の繁殖牛${cowsN}頭に入れると${rk.rank}位（${beat}頭より上）`);
+  } else if (keep === null) {
+    // 数字がないときは区分だけで見る
+    const gp = x => ({ H: 5, A: 4, B: 3, C: 2, D: 1 }[x] || 0);
+    keep = gp(gC) >= 3 && gp(gB) >= 3;
+    why.push(keep ? '枝肉重量・BMSがどちらもB以上' : '枝肉重量かBMSがC') ;
+    why.push('育種価の数字を入れると、今の繁殖牛とくらべられます');
+  }
+  const strong = Object.entries(g.t).filter(([k, v]) => v && (v.g === 'H' || v.g === 'A')).map(([k]) => (GEN_TRAITS.find(x => x[0] === k) || [0, k])[1]);
+  return { keep, why, strong, idx: rk ? rk.idx : null, label: keep ? '保留向き（繁殖に残す）' : '肥育向き' };
+}
+function calfGenomicVerdictHTML(v) {
+  const col = v.keep ? '#4ade80' : '#f59e0b';
+  return `<div style="border:1px solid ${col};border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.6;">
+    <b style="color:${col};">🧬 ${v.label}</b><br>
+    <span style="color:var(--muted);">${_stEsc(v.why.join('・'))}${v.strong.length ? '<br>H・Aの形質：' + _stEsc(v.strong.join('・')) : ''}</span></div>`;
+}
+const _isKurogeFemaleCalf = c => c && c.sex === '雌' && (/黒/.test(c.breed || '') || !!c.genomic);
+let _genBoxHome = null;
+function calfGenReturnBox() {
+  const box = document.getElementById('edit-genomic-box');
+  if (_genBoxHome && box && box.parentNode !== _genBoxHome.parent) _genBoxHome.parent.insertBefore(box, _genBoxHome.next);
+  window._genCalfId = null;
+}
+function openCalfGenomic(calfId) {
+  const calf = calves.find(c => c.id === calfId); if (!calf) return;
+  let m = document.getElementById('modal-calf-genomic');
+  if (!m) {
+    m = document.createElement('div'); m.className = 'modal-overlay'; m.id = 'modal-calf-genomic';
+    m.innerHTML = `<div class="modal" style="max-width:min(98vw,560px);">
+      <div class="modal-title"><span id="calf-gen-title">🧬 子牛のゲノミック評価</span><button class="modal-close" onclick="closeCalfGenomic()">✕</button></div>
+      <div id="calf-gen-host"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:6px;" onclick="saveCalfGenomic()">保存する</button></div>`;
+    document.body.appendChild(m);
+  }
+  const box = document.getElementById('edit-genomic-box');
+  if (!_genBoxHome) _genBoxHome = { parent: box.parentNode, next: box.nextSibling };
+  document.getElementById('calf-gen-host').appendChild(box);
+  box.style.display = '';
+  window._genCalfId = calfId;
+  document.getElementById('calf-gen-title').textContent = `🧬 ゲノミック評価 — ${[calf.earTagId, calf.name].filter(Boolean).join(' ') || '子牛'}（母 ${calf.damId || ''}）`;
+  document.getElementById('edit-gen-date').value = (calf.genomic && calf.genomic.date) || '';
+  _genRowsHTML(calf.genomic);
+  document.getElementById('gen-read-msg').innerHTML = ''; document.getElementById('gen-paste').value = ''; document.getElementById('gen-paste-box').style.display = 'none';
+  genLiveVerdict();
+  openModal('modal-calf-genomic');
+}
+function closeCalfGenomic() { closeModal('modal-calf-genomic'); calfGenReturnBox(); }
+function saveCalfGenomic() {
+  const calf = calves.find(c => c.id === window._genCalfId);
+  if (calf) { const g = _genReadForm(); if (g) calf.genomic = g; else delete calf.genomic; save(); }
+  closeCalfGenomic(); renderCalves();
+}
+// 保留（繁殖候補）の内訳：品種ごとに ET産仔・AI産仔・ゲノミックの判定
+function _calfBreedOf(c) {
+  const b = String(c.breed || '');
+  if (b.includes('褐')) return '褐毛';
+  if (b.includes('黒')) return '黒毛';
+  if (b.includes('F1') || b.includes('交雑')) return 'F1';
+  return 'その他';
+}
+function renderCalfKeptSummary(list) {
+  const el = document.getElementById('calf-kept-summary'); if (!el) return;
+  if (calfFilter !== 'kept') { el.innerHTML = ''; return; }
+  const L = list.filter(c => c.status !== 'dead');
+  const isEt = c => c.insemType === 'et' || !!c.embryoNo || !!c.donor;
+  const groups = {};
+  L.forEach(c => { const b = _calfBreedOf(c); (groups[b] = groups[b] || []).push(c); });
+  const order = ['黒毛', '褐毛', 'F1', 'その他'].filter(b => groups[b]);
+  const chip = (t, n, col) => n ? `<span style="font-size:11px;border:1px solid ${col};color:${col};border-radius:10px;padding:1px 8px;">${t} <b>${n}</b></span>` : '';
+  el.innerHTML = `<div style="background:var(--card);border:1px solid var(--accent2);border-radius:12px;padding:10px 14px;margin-bottom:10px;">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;"><b style="font-size:14px;">🌟 保留中 ${L.length}頭</b><span style="font-size:11px;color:var(--muted);">♀${L.filter(c => c.sex === '雌').length}・♂${L.filter(c => c.sex === '雄').length}</span></div>
+    ${order.map(b => { const G = groups[b], et = G.filter(isEt).length, ai = G.length - et;
+      const gk = G.map(c => calfGenomicVerdict(c)).filter(Boolean), gKeep = gk.filter(v => v.keep).length, gFat = gk.length - gKeep;
+      const noGen = b === '黒毛' ? G.filter(c => c.sex === '雌' && !c.genomic).length : 0;
+      return `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:4px 0;border-top:1px solid var(--border);">
+        <b style="width:44px;font-size:13px;">${b}</b><span style="font-size:13px;font-weight:700;">${G.length}頭</span>
+        ${chip('🧬ET', et, 'var(--purple)')}${chip('💉AI', ai, 'var(--info)')}
+        ${chip('ゲノミック 保留向き', gKeep, '#4ade80')}${chip('肥育向き', gFat, '#f59e0b')}${chip('ゲノミックまだ', noGen, 'var(--muted)')}
+      </div>`; }).join('')}
+  </div>`;
 }
 // ゲノミックの判定を役割に反映（カードのバッジから）
 function applyGenomicRole(cowId) {
@@ -23433,6 +23546,7 @@ function renderCalves() {
     filtered = filtered.filter(c => cowQueryMatch(calfSearchVal, { id: c.earTagId, name: c.name, nationalId: c.nationalId }) || (!cowQueryIsCow(calfSearchVal) && _normQ(c.earTagId).includes(_normQ(calfSearchVal))));
   }
 
+  try { renderCalfKeptSummary(filtered); } catch (e) { console.error('keptSummary', e); }
   // 今年（1〜12月）の受精卵産仔集計
   const thisYear = new Date().getFullYear().toString();
   const etCalvesThisYear = calves.filter(c => c.dob && c.dob.startsWith(thisYear) && c.embryoNo);
@@ -23653,6 +23767,7 @@ function renderCalves() {
               })()}</span>
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
+              ${(() => { const v = calf.genomic ? calfGenomicVerdict(calf) : null; return v ? `<span title="ゲノミック：${v.label}" style="font-size:10px;font-weight:700;color:${v.keep ? '#4ade80' : '#f59e0b'};border:1px solid ${v.keep ? '#4ade80' : '#f59e0b'};padding:0 5px;border-radius:4px;">🧬${v.keep ? '保留向き' : '肥育向き'}</span>` : ''; })()}
               ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : ''}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
@@ -23676,6 +23791,7 @@ function renderCalves() {
             ${calf.birthWeightKg ? `<div>生時体重: <strong style="color:var(--text);">${calf.birthWeightKg} kg</strong></div>` : ''}
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+            ${_isKurogeFemaleCalf(calf) ? `<button onclick="event.stopPropagation();openCalfGenomic('${calf.id}')" style="background:var(--bg3);border:1px solid #22d3ee;color:#22d3ee;font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">🧬 ゲノミック評価${calf.genomic ? '（入力済み）' : 'を入れる'}</button>` : ''}
             <button onclick="event.stopPropagation();toggleCalfCertIssued('${calf.id}')" style="background:${calf.authCertIssued ? 'rgba(139,92,246,.15)' : 'var(--bg3)'};border:1px solid var(--purple);color:var(--purple);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">${calf.authCertIssued ? '📄 授精証明書 発行済み ✓（' + fmtDate(calf.authCertIssued) + '）' : '📄 授精証明書を発行済みにする'}</button>
             <button onclick="event.stopPropagation();showCalfStory('${calf.id}')" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:11px;font-weight:700;padding:5px 10px;border-radius:6px;cursor:pointer;">📖 ストーリー</button>
             <button onclick="event.stopPropagation();openEditCalfModal('${calf.id}')" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;">✏ 編集</button>
