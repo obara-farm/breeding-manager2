@@ -850,9 +850,9 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
   <!-- 品種・状態の絞り込みは1行ずつ。入りきらない分は横にスライド -->
   <div id="cow-breed-summary" class="chip-scroll" style="margin-bottom:8px;"></div>
   <div id="cow-status-summary" class="chip-scroll" style="margin-bottom:12px;"></div>
-  <div style="display:flex;gap:8px;margin-bottom:12px;">
-    <input type="text" id="cow-search" placeholder="🔍 番号（例: 15）・耳標（r15）・名前で検索" style="flex:1;min-width:0;width:auto;margin-bottom:0;" oninput="renderCowList()">
-    <select id="cow-sort" onchange="renderCowList()" style="font-size:12px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;flex-shrink:0;width:auto;">
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+    <input type="search" id="cow-search" placeholder="🔍 番号・耳標（r15）・名前・🏷タグで検索" style="flex:1 1 100%;min-width:0;width:100%;margin-bottom:0;font-size:16px;" oninput="renderCowList()">
+    <select id="cow-sort" onchange="renderCowList()" style="font-size:12px;padding:7px 10px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;flex:1 1 auto;width:auto;max-width:100%;">
       <option value="default">登録順</option>
       <option value="age_asc">年齢↑若い順</option>
       <option value="age_desc">年齢↓高齢順</option>
@@ -5550,7 +5550,10 @@ function renderCowList() {
     const m = getMasterCow(c.id);
     const name = m ? m.name : (c.name||'');
     const nationalId = (m ? m.nationalId : c.nationalId) || '';
-    return cowQueryMatch(search, { id: c.id, name, nationalId });
+    if (cowQueryMatch(search, { id: c.id, name, nationalId })) return true;
+    // 🏷 タグでも探す（ストーリーで付けたタグ。一部の文字でも当たる）
+    const q = search.replace(/^[#＃🏷\s]+/, '').toLowerCase();
+    return !!q && (c.tags || []).some(t => String(t).toLowerCase().includes(q));
   }) : cows.filter(c => c.status !== 'retired');
 
   // 品種サマリーボタンを生成
@@ -23444,7 +23447,7 @@ function printCalvesList(){
   const todayStr = today();
   const filterLabel = calfFilter === 'pending' ? '移動待ち'
     : calfFilter === 'kept' ? '保留（繁殖候補）'
-    : calfFilter === 'moved' ? '移動済み' : calfFilter === 'certTodo' ? '証明書まだ（授精・移植）' : '全て';
+    : calfFilter === 'moved' ? '移動済み' : calfFilter === 'certTodo' ? '授精証明書まだ' : '全て';
 
   // 生月ごとにまとめる（分娩予定表と同じ考え方）
   const monthMap = {};
@@ -23782,7 +23785,7 @@ function renderCalves() {
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
               ${(() => { const v = calf.genomic ? calfGenomicVerdict(calf) : null; return v ? `<span title="ゲノミック：${v.label}" style="font-size:10px;font-weight:700;color:${v.keep ? '#4ade80' : '#f59e0b'};border:1px solid ${v.keep ? '#4ade80' : '#f59e0b'};padding:0 5px;border-radius:4px;">🧬${v.keep ? '保留向き' : '肥育向き'}</span>` : ''; })()}
-              ${calf.authCertIssued ? `<span title="${_calfIsEt(calf) ? '移植証明書' : '授精証明書'} 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="${_calfIsEt(calf) ? '移植証明書' : '授精証明書'} まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : (() => { let op = ''; try { op = _brOperator(calf).op; } catch (e) {} return op ? `<span title="${_calfIsEt(calf) ? '移植' : '授精'}したのは ${_stEsc(op)}（証明書はその人が発行）" style="font-size:10px;color:#38bdf8;font-weight:700;border:1px solid #38bdf8;padding:0 5px;border-radius:4px;">👤${_stEsc(op)}${_calfIsEt(calf) ? '移植' : '授精'}</span>` : ''; })()}
+              ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : ''}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
@@ -30837,12 +30840,8 @@ async function markBirthReported() {
 function undoBirthReported(id) { const c = calves.find(x => x.id === id); if (!c) return; delete c.birthReportedAt; save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves(); }
 // ===== 授精証明書の発行済みチェック（子牛ごと） =====
 // 証明書がいる子牛：自分が授精・移植した（授証あり）・死亡していない・まだ発行していない
-function _calfIsEt(c) { return !!c && (c.insemType === 'et' || !!c.embryoNo || !!c.donor); }
 function calfNeedsCert(c) {
   if (!c || c.authCertIssued || c.status === 'dead') return false;
-  // ET産仔は「移植証明書」がいる。出生報告の授証チェック（授精証明書の欄）を外していても対象にする。
-  // 他の人が移植したもの（術者欄に名前がある）だけは除く
-  if (_calfIsEt(c)) { try { return !_brOperator(c).op; } catch (e) { return true; } }
   try { return _brAuth(c); } catch (e) { return false; }
 }
 function toggleCalfCertIssued(id) {
