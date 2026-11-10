@@ -2598,6 +2598,15 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
       </label>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">チェックを入れると妊娠鑑定タスクが生成されません。採卵記録のAI日に連携されます。</div>
     </div>
+    <!-- AI時：モディファイド・ファストバック（授精後5日目CIDR挿入・19日目抜去） -->
+    <div id="qr-fastback-panel" style="display:none;background:#0a1a24;border:1px solid #22d3ee;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:700;color:#22d3ee;">
+        <input type="checkbox" id="qr-fastback-flag" style="width:18px;height:18px;cursor:pointer;">
+        🛡 モディファイド・ファストバックをする
+      </label>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">授精後5日目にCIDR挿入・19日目に抜去・21〜23日目に再発情を重点確認、のタスクを出します（黄体ホルモンを補って胚死滅を防ぐ）。</div>
+      <div id="qr-fastback-hint" style="font-size:12px;color:var(--warn);font-weight:700;margin-top:4px;"></div>
+    </div>
     <!-- ET時：受精卵選択パネル -->
     <div id="qr-embryo-panel" style="display:none;background:#1a0a2a;border:1px solid var(--purple);border-radius:8px;padding:12px;margin-bottom:12px;">
       <div style="font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;">🧬 使用した受精卵</div>
@@ -4289,7 +4298,11 @@ function registerEvent() {
         const pregTask = {cowId,day:45,action:'妊娠鑑定',detail:`AI後45日 (AI日:${fmtDate(implDate)})`,color:'#f59e0b',date:pregCheckDate,priority:'high',id:Math.random().toString(36).slice(2),done:false};
         schedule = [pregTask];
         const reEstrusDate = addDays(implDate, 21);
-        if (reEstrusDate >= todayStr) {
+        const useFastback = !!document.getElementById('qr-fastback-flag')?.checked;
+        if (useFastback) {
+          const ev = cow.events[cow.events.length - 1]; if (ev && ev.type === 'ai_done' && ev.date === implDate) ev.fastback = true;
+          fastbackTasks(cowId, implDate).filter(t => t.date >= todayStr).forEach(t => schedule.push(t));
+        } else if (reEstrusDate >= todayStr) {
           schedule.push({cowId,day:21,action:'再発情確認',detail:`AI後21日目 発情チェック`,color:'#60a5fa',date:reEstrusDate,priority:'mid',id:Math.random().toString(36).slice(2),done:false});
         }
       }
@@ -9027,6 +9040,54 @@ function abortionRiskBadge(cowId, small) {
 }
 // ===== 繁殖障害・廃用の検討 =====
 // 分娩後の空胎日数（ドナー期間を除く）と、最後に受胎してから続いているAIの不受胎回数（ETは数えない）
+// ===== モディファイド・ファストバック =====
+// 授精後5日目にCIDR挿入、19日目に抜去。黄体ホルモンを補って胚死滅を防ぐ。止まらなかった牛は21〜23日目に発情がそろう
+// （藤田真千子のコラム No.34 による。千佳さん採用 2026/11/10）
+function fastbackPanelRefresh(isAI) {
+  const p = document.getElementById('qr-fastback-panel'); if (!p) return;
+  p.style.display = isAI ? '' : 'none';
+  const ck = document.getElementById('qr-fastback-flag'); if (ck) ck.checked = false;
+  const h = document.getElementById('qr-fastback-hint'); if (!h) return;
+  h.textContent = '';
+  if (!isAI) return;
+  const cowId = window._qrCowId || (document.getElementById('reg-cowid') || {}).value || '';
+  const cow = cows.find(c => c.id === cowId);
+  let why = null; try { why = cow ? reproDisorder(cow) : null; } catch (e) {}
+  if (why) h.textContent = `💡 この牛は ${why}。ファストバックを考えてみてください`;
+}
+function fastbackTasks(cowId, aiDate) {
+  const mk = (day, action, detail, color, priority) => ({ id: Math.random().toString(36).slice(2), cowId, day, date: addDays(aiDate, day), action, detail, color, priority, done: false, timeOfDay: '', insemDate: aiDate, fastback: true });
+  return [
+    mk(5, 'CIDR挿入（ファストバック）', `授精後5日目 CIDR挿入（AI日:${fmtDate(aiDate)}）黄体ホルモンを補う`, '#22d3ee', 'high'),
+    mk(19, 'CIDR抜去（ファストバック）', `授精後19日目 CIDR抜去（AI日:${fmtDate(aiDate)}）`, '#22d3ee', 'high'),
+    mk(21, '再発情確認（ファストバック・重点）', `CIDR抜去後 21〜23日目に発情が来ないか重点的に確認（AI日:${fmtDate(aiDate)}）`, '#60a5fa', 'high')
+  ];
+}
+// 繁殖成績：ファストバックあり・なしのAI受胎率（ドナーAIは除く。妊鑑の結果が出たものだけ）
+function fastbackStatsHTML(from, to) {
+  const A = { y: [0, 0], n: [0, 0] };   // [受胎, 結果が出た数]
+  cows.forEach(c => {
+    let st; try { st = buildCowStory(c.id); } catch (e) { return; }
+    const fbDates = new Set((c.events || []).filter(e => e.type === 'ai_done' && e.fastback).map(e => e.date));
+    (st.insems || []).forEach(i => {
+      if (i.isEt || i.donorAI || i.date < from || i.date > to) return;
+      if (!['pos', 'neg', 'neg?'].includes(i.result)) return;
+      const k = fbDates.has(i.date) ? 'y' : 'n';
+      A[k][1]++; if (i.result === 'pos') A[k][0]++;
+    });
+  });
+  if (!A.y[1] && !fbDatesAny()) return '';
+  const pc = x => x[1] ? Math.round(x[0] / x[1] * 100) + '%' : '—';
+  return `<div class="card" style="margin-top:14px;border:1px solid #22d3ee;">
+    <div style="font-size:13px;font-weight:700;color:#22d3ee;margin-bottom:8px;">🛡 モディファイド・ファストバック あり・なしのAI受胎率</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:center;">
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;"><div style="font-size:11px;color:var(--muted);">ファストバックあり</div><div style="font-size:22px;font-weight:800;color:#22d3ee;">${pc(A.y)}</div><div style="font-size:11px;color:var(--muted);">${A.y[0]}/${A.y[1]}頭</div></div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;"><div style="font-size:11px;color:var(--muted);">なし</div><div style="font-size:22px;font-weight:800;">${pc(A.n)}</div><div style="font-size:11px;color:var(--muted);">${A.n[0]}/${A.n[1]}頭</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:6px;">妊鑑の結果が出たAIだけで数えています（ドナーAI・ETは除く）。ファストバックは、もともと止まりにくい牛に使うことが多いので、「なし」より低く出ても効いていないとは限りません。数十頭たまってから見てください。</div>
+  </div>`;
+  function fbDatesAny() { return cows.some(c => (c.events || []).some(e => e.fastback)); }
+}
 function reproProblem(c) {
   if (!c) return null;
   let st; try { st = buildCowStory(c.id); } catch (e) { return null; }
@@ -11740,6 +11801,7 @@ function _addPregTask(cowId, baseDate, type, etRecordId) {
 }
 
 function addEventForCow(cowId, defaultEvent) {
+  window._qrCowId = cowId;
   const cow = cows.find(c=>c.id===cowId);
   const name = cowDisplayName(cowId) || (cow?cow.name:'') || '';
   document.getElementById('qr-cowid').value = cowId;
@@ -11766,6 +11828,7 @@ function addEventForCow(cowId, defaultEvent) {
     document.getElementById('qr-date-label').textContent = defaultEvent === 'ai_done' ? 'AI実施日' : 'ET実施日';
     // AIパネルを直接表示
     document.getElementById('qr-aiet-panel').style.display = '';
+    try { window._qrCowId = cowId; fastbackPanelRefresh(defaultEvent === 'ai_done'); } catch (e) {}
     const opGrp = document.getElementById('qr-operator-group');
     if (opGrp) opGrp.style.display = '';
     document.getElementById('qr-preg-result').value = 'pending';
@@ -12082,6 +12145,7 @@ function onQrEventChange() {
   // ドナーAIチェックボックスパネルはAI時のみ表示
   const donorAiPanel = document.getElementById('qr-donor-ai-panel');
   if (donorAiPanel) donorAiPanel.style.display = isAI ? '' : 'none';
+  try { fastbackPanelRefresh(isAI); } catch (e) {}
 
   if (isAiEt) {
     // デフォルトで「未実施」を選択状態にする
@@ -14025,6 +14089,7 @@ function renderStats() {
         </div>`;
     })()}
   `;
+  try { container.insertAdjacentHTML('beforeend', fastbackStatsHTML(statsDateFrom, statsDateTo)); } catch (e) { console.error('fastbackStats', e); }
 }
 
 // ===== HISTORY =====
