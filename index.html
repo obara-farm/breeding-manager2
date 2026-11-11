@@ -20779,6 +20779,7 @@ function printCertPreview(){
   // 証明書は幅297mm（A4横の全幅）で、内側に余白を持っているためページ余白は0にする
   // 余白を取ると幅が足りず、はみ出した分が次のページに送られてしまう
   printIsolated('cert-preview-container', '証明書', {size:'A4 landscape', margin:'0'});
+  try { _askMarkCalfCertsAfterPrint(); } catch (e) {}
 }
 // 証明書の発行オプション（体外受精胚か／他所の獣医師か）を反映して作り直す
 function applyCertOptions(){
@@ -21849,6 +21850,18 @@ function toggleAllInsemCheck() {
   checks.forEach(c => c.checked = !allChecked);
 }
 
+// 子牛タブから証明書を印刷したら、その子牛を「発行済み」にするか聞く
+function _askMarkCalfCertsAfterPrint() {
+  const ids = (window._calfCertCalfIds || []).filter(id => { const c = calves.find(x => x.id === id); return c && !c.authCertIssued; });
+  if (!ids.length) return;
+  setTimeout(() => {
+    if (!confirm(`子牛タブで選んだ ${ids.length}頭を「授精証明書 発行済み」にしますか？`)) return;
+    const d = today();
+    ids.forEach(id => { const c = calves.find(x => x.id === id); if (c) c.authCertIssued = d; });
+    window._calfCertCalfIds = [];
+    save(); try { renderCalves(); } catch (e) {}
+  }, 1200);
+}
 function printSelectedCerts() {
   const checks = document.querySelectorAll('.insem-cert-check:checked');
   if (!checks.length) { alert('証明書を印刷する行を選択してください（📄チェックボックス）'); return; }
@@ -23850,7 +23863,7 @@ function renderCalves() {
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
               ${(() => { const v = calf.genomic ? calfGenomicVerdict(calf) : null; return v ? `<span title="ゲノミック：${v.label}" style="font-size:10px;font-weight:700;color:${v.keep ? '#4ade80' : '#f59e0b'};border:1px solid ${v.keep ? '#4ade80' : '#f59e0b'};padding:0 5px;border-radius:4px;">🧬${v.keep ? '保留向き' : '肥育向き'}</span>` : ''; })()}
-              ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : ''}
+              ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : (() => { if (calf.status === 'dead') return ''; let op = ''; try { op = _brOperator(calf).op; } catch (e) {} return `<span title="ほかの術者が授精・移植した子牛なので、こちらで証明書は出しません" style="font-size:10px;color:var(--muted);border:1px solid var(--border);padding:0 5px;border-radius:4px;">📄不要${op ? '（術者 ' + _stEsc(op) + '）' : ''}</span>`; })()}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
@@ -24399,6 +24412,7 @@ function goToInsemBookForCalves() {
 
   // ハイライト対象を記録
   window._calfCertHighlights = targets.map(t => ({ damId: t.damId, date: t.insemDate }));
+  window._calfCertCalfIds = checked.map(el => el.dataset.calfid).filter(Boolean);   // 印刷したあと「発行済み」にするため
   window._calfCertYear = yearStr;
 
   // 授精簿タブに移動して年度セット・検索欄に母牛IDをセット
@@ -30911,7 +30925,8 @@ function calfNeedsCert(c) {
 }
 function toggleCalfCertIssued(id) {
   const c = calves.find(x => x.id === id); if (!c) return;
-  if (c.authCertIssued) delete c.authCertIssued; else c.authCertIssued = today();
+  // 取り消すときは false にする（「まだ」とはっきり分かるように。下の自動の印付けで戻らない）
+  if (c.authCertIssued) c.authCertIssued = false; else c.authCertIssued = today();
   save(); renderCalves();
 }
 function markCalfCertIssued() {
@@ -30922,13 +30937,14 @@ function markCalfCertIssued() {
   save(); renderCalves();
 }
 // 最初の1回だけ：2026/9/30生まれ（r10 みつるの子）までは発行済みにする（千佳さんの指示 2026/11/9）
+// 開くたびに見る：古い版の端末が子牛の一覧を上書きして印が消えても、9/30生まれまでは発行済みに戻す
+// （千佳さんが「取り消し」にした子牛＝ false は、そのままにする）
 function initCalfCertIssuedOnce() {
   try {
-    if (farmTargets.authCertInit) return;
     let n = 0;
-    calves.forEach(c => { if (c.dob && c.dob <= '2026-09-30' && !c.authCertIssued) { c.authCertIssued = '2026-11-09'; n++; } });
-    farmTargets.authCertInit = '2026-09-30';
-    save();
+    calves.forEach(c => { if (c.dob && c.dob <= '2026-09-30' && c.authCertIssued === undefined) { c.authCertIssued = '2026-11-09'; n++; } });
+    if (!farmTargets.authCertInit) { farmTargets.authCertInit = '2026-09-30'; n++; }
+    if (n) save();
   } catch (e) {}
 }
 function birthReportAlertHTML() {
