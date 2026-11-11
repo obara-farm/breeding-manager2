@@ -1072,6 +1072,8 @@ body:not(.is-home) #undo-toast{bottom:calc(76px + env(safe-area-inset-bottom));}
           <span style="color:var(--muted);font-weight:700;text-align:center;font-size:13px;">×</span>
           <input type="text" id="calf-maternal-grand-sire" placeholder="重川6の4" style="background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:7px 4px;color:var(--text);font-size:12px;text-align:center;outline:none;width:100%;">
         </div>
+        <!-- 母牛（生みの親）の個体識別番号と、母牛の画面へ -->
+        <div id="calf-dam-link" style="margin-top:6px;"></div>
       </div>
     </div>
 
@@ -23863,7 +23865,7 @@ function renderCalves() {
               ${isEtCalf && calf.donor ? `<span style="font-size:11px;color:var(--purple);font-weight:700;">ドナー: ${calf.donor}${calf.sire?' × '+calf.sire:''}</span>` : ''}
               ${statusBadge}${etBadge}
               ${(() => { const v = calf.genomic ? calfGenomicVerdict(calf) : null; return v ? `<span title="ゲノミック：${v.label}" style="font-size:10px;font-weight:700;color:${v.keep ? '#4ade80' : '#f59e0b'};border:1px solid ${v.keep ? '#4ade80' : '#f59e0b'};padding:0 5px;border-radius:4px;">🧬${v.keep ? '保留向き' : '肥育向き'}</span>` : ''; })()}
-              ${calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : (() => { if (calf.status === 'dead') return ''; let op = ''; try { op = _brOperator(calf).op; } catch (e) {} return `<span title="ほかの術者が授精・移植した子牛なので、こちらで証明書は出しません" style="font-size:10px;color:var(--muted);border:1px solid var(--border);padding:0 5px;border-radius:4px;">📄不要${op ? '（術者 ' + _stEsc(op) + '）' : ''}</span>`; })()}
+              ${(() => { let op = ''; try { op = calf.status !== 'dead' && calf.authCertManual !== true ? _brOperator(calf).op : ''; } catch (e) {} return op ? `<span title="ほかの術者が授精・移植した子牛なので、こちらで証明書は出しません" style="font-size:10px;color:var(--muted);border:1px solid var(--border);padding:0 5px;border-radius:4px;">📄不要（術者 ${_stEsc(op)}）</span>` : ''; })() || (calf.authCertIssued ? `<span title="授精証明書 発行済み" style="font-size:10px;color:var(--purple);font-weight:700;background:rgba(139,92,246,.12);border:1px solid var(--purple);padding:0 5px;border-radius:4px;">📄済</span>` : calfNeedsCert(calf) ? `<span title="授精証明書 まだ" style="font-size:10px;color:var(--warn);font-weight:700;border:1px dashed var(--warn);padding:0 5px;border-radius:4px;">📄まだ</span>` : (() => { if (calf.status === 'dead') return ''; let op = ''; try { op = _brOperator(calf).op; } catch (e) {} return `<span title="ほかの術者が授精・移植した子牛なので、こちらで証明書は出しません" style="font-size:10px;color:var(--muted);border:1px solid var(--border);padding:0 5px;border-radius:4px;">📄不要${op ? '（術者 ' + _stEsc(op) + '）' : ''}</span>`; })())}
               ${isEtCalf && calf.embryoNo ? `<span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;background:rgba(139,92,246,.1);padding:1px 5px;border-radius:4px;">${calf.embryoNo}</span>` : ''}
             </div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px;">
@@ -24768,6 +24770,27 @@ function onCalfDobChangeUpdatePrefix() {
 }
 
 function openEditCalf(id) { openEditCalfModal(id); }
+// 子牛の編集：母牛の10桁の個体識別番号を出して、押したら母牛のストーリーへ
+function calfDamLinkRefresh() {
+  const box = document.getElementById('calf-dam-link'); if (!box) return;
+  const damId = (document.getElementById('calf-dam-id-hidden') || {}).value || '';
+  const all = cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : []);
+  const cow = all.find(c => c.id === damId);
+  if (!damId) { box.innerHTML = ''; return; }
+  const m = (typeof getMasterCow === 'function' && getMasterCow(damId)) || {};
+  const nid = String((cow && cow.nationalId) || m.nationalId || '').replace(/\D/g, '');
+  const retired = cow && !cows.includes(cow);
+  box.innerHTML = `<button type="button" onclick="goToDamFromCalf('${_stEsc(damId)}')" style="width:100%;display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--accent2);border-radius:8px;padding:7px 10px;cursor:pointer;color:var(--text);text-align:left;">
+      <span style="font-size:11px;color:var(--muted);">母牛</span>
+      <b style="font-size:13px;">${_stEsc(damId)} ${_stEsc(cowDisplayName(damId) || '')}</b>
+      <span style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.5px;">${nid ? nid : '<span style="color:var(--warn);font-size:11px;">個体識別番号なし</span>'}</span>
+      <span style="margin-left:auto;color:var(--accent);font-size:12px;font-weight:700;">${retired ? '廃用済み' : '母牛へ ›'}</span>
+    </button>`;
+}
+function goToDamFromCalf(damId) {
+  closeModal('modal-calf-edit');
+  try { showCowStory(damId); } catch (e) { switchTab('cows'); const s = document.getElementById('cow-search'); if (s) { s.value = damId; renderCowList(); } }
+}
 
 function openEditCalfModal(id) {
   const calf = calves.find(c=>c.id===id);
@@ -24778,6 +24801,8 @@ function openEditCalfModal(id) {
   const damNameVal = cowDisplayName(calf.damId) || calf.damId || '';
   document.getElementById('calf-dam-name').value = damNameVal;
   document.getElementById('calf-dam-id-hidden').value = calf.damId || '';
+  calfDamLinkRefresh();
+  document.getElementById('calf-dam-name').onchange = () => setTimeout(calfDamLinkRefresh, 50);
   document.getElementById('calf-dob').value = calf.dob || '';
   document.getElementById('calf-sire').value = calf.sire || '';
   document.getElementById('calf-maternal-sire').value = calf.maternalSire || '';
@@ -30942,7 +30967,7 @@ function markCalfCertIssued() {
 function initCalfCertIssuedOnce() {
   try {
     let n = 0;
-    calves.forEach(c => { if (c.dob && c.dob <= '2026-09-30' && c.authCertIssued === undefined) { c.authCertIssued = '2026-11-09'; n++; } });
+    calves.forEach(c => { if (c.dob && c.dob <= '2026-09-30' && c.authCertIssued === undefined) { let own = true; try { own = _brAuth(c); } catch (e) {} if (own) { c.authCertIssued = '2026-11-09'; n++; } } });
     if (!farmTargets.authCertInit) { farmTargets.authCertInit = '2026-09-30'; n++; }
     if (n) save();
   } catch (e) {}
