@@ -3522,6 +3522,109 @@ function normalizePregEvents(cow) {
   return changed;
 }
 
+// ===== 🔬 妊娠鑑定は 30日・45日・60日 の3回（妊娠日数＝AIは授精日から、ETは移植日の7日前から数える） =====
+const PREG_STAGES = [30, 45, 60];
+function _pregIsEt(cow, insemDate) {
+  const book = [...(typeof INSEM_BOOK_DATA !== 'undefined' ? INSEM_BOOK_DATA : []), ...(typeof insemBookRecords !== 'undefined' ? insemBookRecords : [])]
+    .find(r => r && r.t === cow.id && r.d === insemDate);
+  if (book) return book.insemType === 'et' || !!book.isET;
+  return (cow.events || []).some(e => (e.type === 'et_done' || e.type === 'estrus_et') && e.date === insemDate);
+}
+function _pregBase(cow, insemDate) { return _pregIsEt(cow, insemDate) ? addDays(insemDate, -7) : insemDate; }
+function _pregStageOf(t) { return t && t.pregStage ? t.pregStage : null; }
+// ① 1回目の妊鑑（30日）の日付をそろえる ② 陽性のあと 45日・60日 の再妊鑑を1つずつ出す
+function syncPregStages() {
+  let changed = false; const td = today();
+  // ① 1回目：まだ段階が決まっていない未完了の「妊娠鑑定」を、妊娠30日（ETは移植後23日）にそろえる
+  tasks.forEach(t => {
+    if (t.done || t.pregStage) return;
+    const act = String(t.action || '');
+    if (!/妊娠鑑定/.test(act) || /再妊娠鑑定/.test(act)) return;
+    const cow = cows.find(c => c.id === t.cowId);
+    if (!cow || cow.status === 'pregnant') return;
+    let ins = t.insemDate;
+    if (!ins && t.date) {
+      const cand = (cow.events || []).filter(e => ['ai_done', 'et_done', 'estrus_ai', 'estrus_et'].includes(e.type) && !e.donorAI
+        && diffDays(t.date, e.date) >= 14 && diffDays(t.date, e.date) <= 80).map(e => e.date).sort();
+      ins = cand.length ? cand[cand.length - 1] : null;
+    }
+    if (!ins) return;
+    const isEt = _pregIsEt(cow, ins);
+    let nd = addDays(isEt ? addDays(ins, -7) : ins, PREG_STAGES[0]);
+    if (nd < td && t.date && t.date > td) nd = td;   // 前の決まり（45日）で先に入っていた予定が、新しい決まりでは過ぎている → 今日にする
+    t.insemDate = ins; t.date = nd; t.pregStage = PREG_STAGES[0]; t.day = isEt ? PREG_STAGES[0] - 7 : PREG_STAGES[0];
+    t.detail = isEt ? `ET後${PREG_STAGES[0] - 7}日・妊娠${PREG_STAGES[0]}日 (ET日:${fmtDate(ins)})` : `AI後${PREG_STAGES[0]}日 (AI日:${fmtDate(ins)})`;
+    changed = true;
+  });
+  // ② 再妊鑑：陽性が出た牛は、次の段階（45日→60日）の妊鑑を1つだけ出す
+  cows.forEach(c => {
+    let want = null;
+    if (c.status === 'pregnant') {
+      const pos = (c.events || []).filter(e => e.type === 'preg_positive' && e.insemDate).sort((a, b) => (a.date || '').localeCompare(b.date || '')).pop();
+      const unc = pos ? _pregLastUnclear(c.id, pos.insemDate) : null;
+      if (pos && unc && unc > pos.date) {
+        // 陽性のあと「？保留」→ 次の段階（60日を過ぎていれば2週間後）にもう一度
+        const nx = _pregNextAfter(c, pos.insemDate, unc);
+        want = { st: nx.st || 60, d: nx.d, ins: pos.insemDate, id: `prc_${c.id}_${pos.insemDate}_q${unc}`, isEt: _pregIsEt(c, pos.insemDate), n: nx.st ? PREG_STAGES.indexOf(nx.st) + 1 : 0, unclear: true };
+      } else if (pos) {
+        const base = _pregBase(c, pos.insemDate);
+        const g = diffDays(pos.date, base);
+        for (const st of PREG_STAGES.slice(1)) {
+          if (g >= st - 2) continue;                 // その段階はもう見た
+          const d = addDays(base, st);
+          if (diffDays(td, d) > 14) continue;        // 2週間以上前に過ぎた段階は出さない（次の段階へ）
+          want = { st, d, ins: pos.insemDate, id: `prc_${c.id}_${pos.insemDate}_${st}`, isEt: _pregIsEt(c, pos.insemDate), n: PREG_STAGES.indexOf(st) + 1 };
+          break;
+        }
+      }
+    }
+    // 要らなくなった再妊鑑（空胎・分娩・流産・別の段階）を消す
+    const before = tasks.length;
+    tasks = tasks.filter(t => !(t.cowId === c.id && !t.done && /再妊娠鑑定/.test(String(t.action || '')) && (!want || t.id !== want.id)));
+    if (tasks.length !== before) changed = true;
+    if (want && !tasks.some(t => t.id === want.id)) {
+      tasks.push({ id: want.id, cowId: c.id, date: want.d, day: want.st, action: '🔬 再妊娠鑑定',
+        detail: `${want.unclear ? '？保留の再確認・' : ''}妊娠${want.st}日の確認${want.n ? `（${want.n}回目）` : ''}・早期胚死滅がないか (${want.isEt ? 'ET' : 'AI'}日:${fmtDate(want.ins)})`,
+        color: '#f59e0b', priority: 'high', done: false, timeOfDay: '', insemDate: want.ins, pregStage: want.st });
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+// ？保留（はっきりしない）：結果は付けずに、次の段階（45日→60日、60日なら2週間後）でもう一度見る
+function _pregNextAfter(cow, ins, checkDate) {
+  const base = _pregBase(cow, ins); const g = diffDays(checkDate, base);
+  for (const st of PREG_STAGES.slice(1)) if (g < st - 2) return { st, d: addDays(base, st), key: String(st), label: `妊娠${st}日` };
+  return { st: null, d: addDays(checkDate, 14), key: 'u' + checkDate, label: '2週間後' };
+}
+function _pregLastUnclear(cowId, ins) {
+  return tasks.filter(t => t.cowId === cowId && t.done && t.pregResult === 'unclear' && t.insemDate === ins && t.pregResultDate)
+    .map(t => t.pregResultDate).sort().pop() || null;
+}
+function recordPregUnclear(cowId, taskId) {
+  const cow = cows.find(c => c.id === cowId); const t = tasks.find(x => x.id === taskId);
+  if (!cow || !t) return;
+  const td = today();
+  const m = (t.detail || '').match(/[AETIai]+日[:：]\s*(\d{4}[\/\-]\d{2}[\/\-]\d{2})/);
+  const ins = t.insemDate || (m ? m[1].replace(/\//g, '-') : null) || insemForPreg(cowId, td) || null;
+  t.done = true; t.doneAt = new Date().toISOString(); t.pregResult = 'unclear'; t.pregResultDate = td;
+  if (ins) t.insemDate = ins;
+  if (ins && cow.status !== 'pregnant') {
+    const nx = _pregNextAfter(cow, ins, td);
+    const id = `pru_${cowId}_${ins}_q${td}`;
+    const isEt = _pregIsEt(cow, ins);
+    tasks = tasks.filter(x => !(x.cowId === cowId && !x.done && /妊娠鑑定/.test(String(x.action || '')) && x.id !== id));
+    if (!tasks.some(x => x.id === id)) tasks.push({ id, cowId, date: nx.d, day: nx.st || 0, action: '妊娠鑑定',
+      detail: `？保留の再確認（${nx.label}） (${isEt ? 'ET' : 'AI'}日:${fmtDate(ins)})`, color: '#f59e0b', priority: 'high',
+      done: false, timeOfDay: '', insemDate: ins, pregStage: nx.st || 60, pregRecheckOf: 'unclear' });
+  }
+  save(); renderAll();
+  const pp = document.getElementById('page-preg');
+  if (pp && pp.classList.contains('active')) renderPregList();
+  window._insembookPregDirty = true;
+}
+
 // ドナーの「【受卵牛】CIDR挿入…」は受卵牛を登録するための枠。登録した受卵牛のその日の処置が全部済んだら、枠も済みにする
 // （済みにしないと、受卵牛を全部チェックしても翌日「未処置」として残ってしまう）。受卵牛のチェックを外したら枠も戻す
 function syncRecipientPlaceholders() {
@@ -3559,6 +3662,7 @@ function save() {
   try { syncRpInsemTasks(); } catch (e) { console.error('syncRpInsemTasks', e); }
   try { if (typeof stampDoneTasks === 'function') stampDoneTasks(); } catch (e) { console.error('stampDoneTasks', e); }
   try { cows.forEach(normalizePregEvents); } catch (e) { console.error('normalizePregEvents', e); }
+  try { syncPregStages(); } catch (e) { console.error('syncPregStages', e); }
   try { if (typeof _undoCheckOnSave === 'function') _undoCheckOnSave(); } catch (e) {}
   try { if (typeof _histOnSave === 'function') _histOnSave(); } catch (e) { console.error('history', e); }
   try { stampChangedCows(); } catch (e) { console.error('stampChangedCows', e); }
@@ -3828,6 +3932,7 @@ function initApp() {
   try { reconcileCows(null); } catch (e) { console.error('reconcile', e); }
   try { initCalfCertIssuedOnce(); } catch (e) {}
   try { if (repairMissingPregTasks()) save(); } catch (e) { console.error('repairPreg', e); }
+  try { cows.forEach(normalizePregEvents); if (syncPregStages()) save(); } catch (e) { console.error('pregStages', e); }
   renderAll();
   initSwipe();
 }
@@ -4109,8 +4214,8 @@ function updateAiEtPregPanel() {
   const implDate = document.getElementById('ai-et-impl-date').value;
   if (!implDate) return;
   const isAI = ev === 'ai_done';
-  // 妊鑑予定日 = AI後45日、ET後38日（受精後7日で採卵のため）
-  const pregCheckDate = addDays(implDate, isAI ? 45 : 38);
+  // 妊鑑予定日 = 妊娠30日（AI後30日、ET後23日：受精後7日で採卵のため）
+  const pregCheckDate = addDays(implDate, isAI ? 30 : 23);
   const todayStr = today();
   const hint = document.getElementById('ai-et-preg-date-hint');
   hint.innerHTML = `妊鑑予定日: <strong style="color:var(--warn)">${fmtDate(pregCheckDate)}</strong>`;
@@ -4755,6 +4860,7 @@ function renderGrouped(taskList) {
             <div style="display:flex;gap:6px;margin-top:6px;">
               <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','positive')" onclick="recordPregFromTask('${t.cowId}','${t.id}','positive')" style="background:${t.pregResult==='positive'?'#14532d':'#0d2a1a'};border:2px solid ${t.pregResult==='positive'?'#22c55e':'var(--accent2)'};color:${t.pregResult==='positive'?'#fff':'var(--accent)'};font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='positive'?'✓ 陽性 ✔':'✓ 陽性'}</button>
               <button ontouchend="event.preventDefault();event.stopPropagation();recordPregFromTask('${t.cowId}','${t.id}','negative')" onclick="recordPregFromTask('${t.cowId}','${t.id}','negative')" style="background:${t.pregResult==='negative'?'#7f1d1d':'#1a0808'};border:2px solid ${t.pregResult==='negative'?'#ef4444':'var(--danger)'};color:${t.pregResult==='negative'?'#fff':'#fca5a5'};font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">${t.pregResult==='negative'?'✗ 陰性 ✔':'✗ 陰性'}</button>
+          ${!t.pregResult ? `<button ontouchend="event.preventDefault();event.stopPropagation();recordPregUnclear('${t.cowId}','${t.id}')" onclick="event.stopPropagation();recordPregUnclear('${t.cowId}','${t.id}')" style="background:var(--bg3);border:2px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;">？ 保留</button>` : ''}
               <button ontouchend="event.preventDefault();event.stopPropagation();openFixPreg('${t.cowId}','${t.id}')" onclick="openFixPreg('${t.cowId}','${t.id}')" style="background:none;border:2px solid var(--warn);color:var(--warn);font-size:11px;padding:6px 10px;border-radius:7px;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,0);">🔄</button>
             </div>` : ''}
             ${isDonorAITask ? `
@@ -5010,6 +5116,104 @@ function initSwipe() {
 }
 
 // ===== PREG CHECK =====
+// ===== 🩺 繁殖検診リスト（2週間ごと）：次の検診日に診る牛をまとめる =====
+const EXAM_POSTPARTUM_DAYS = 30;   // 分娩後この日数を過ぎて、まだ授精していない牛を「分娩後」に出す
+const EXAM_PROGRAM_DAYS = 45;      // 分娩後45日を過ぎても授精していなければプログラムを検討
+function examSettings() {
+  const ft = (typeof farmTargets !== 'undefined' && farmTargets) ? farmTargets : {};
+  const ex = ft.exam || {};
+  return { next: ex.next || today(), interval: +ex.interval || 14 };
+}
+function setExamNext(d) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return;
+  if (typeof farmTargets === 'undefined') return;
+  farmTargets.exam = Object.assign({}, farmTargets.exam || {}, { next: d, interval: examSettings().interval });
+  save(); renderPregList();
+}
+async function finishExam() {
+  const ex = examSettings();
+  const nx = addDays(ex.next, ex.interval);
+  if (!(await appConfirm(`検診おわりにして、次の検診日を ${fmtDate(nx)}（${ex.interval}日後）にしますか？`))) return;
+  setExamNext(nx);
+}
+function _examLastCalving(c) {
+  const ds = [...(c.events || []).filter(e => e.type === 'calving').map(e => e.date), c.calvingDate].filter(Boolean).sort();
+  return ds.length ? ds[ds.length - 1] : null;
+}
+function renderExamHTML(pq) {
+  const ex = examSettings();
+  const X = ex.next, X2 = addDays(X, ex.interval);
+  const hit = id => !pq || cowQueryMatch(pq, { id, name: cowDisplayName(id), nationalId: (cows.find(c => c.id === id) || {}).nationalId });
+  const nm = id => `<span onclick="showCowDetail('${id}')" style="cursor:pointer;"><span style="font-weight:800;">${_stEsc(id)}</span> <span style="color:var(--accent);">${_stEsc(cowDisplayName(id) || '')}</span></span>`;
+  const row = (inner, right, warn) => `<div style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);${warn ? 'background:rgba(245,158,11,.08);' : ''}"><div style="flex:1;min-width:0;">${inner}</div>${right ? `<div style="flex-shrink:0;">${right}</div>` : ''}</div>`;
+  const box = (title, n, body, note) => `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;">
+    <div style="padding:9px 12px;background:var(--bg3);font-size:13px;font-weight:800;">${title} <span style="color:var(--muted);font-weight:700;">${n}頭</span></div>
+    ${note ? `<div style="padding:6px 12px;font-size:11px;color:var(--muted);">${note}</div>` : ''}
+    ${body || '<div style="padding:12px;font-size:12px;color:var(--muted);text-align:center;">いません</div>'}</div>`;
+  const used = new Set();
+  // ① 妊娠鑑定（検診日までに予定日が来る妊鑑・再妊鑑）
+  const pt = tasks.filter(t => !t.done && !t.pregResult && /妊娠鑑定/.test(String(t.action || '')) && t.date && t.date <= X && hit(t.cowId) && cows.some(c => c.id === t.cowId))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const nextRound = tasks.filter(t => !t.done && !t.pregResult && /妊娠鑑定/.test(String(t.action || '')) && t.date > X && t.date <= X2).length;
+  const pregBody = pt.map(t => {
+    used.add(t.cowId);
+    const c = cows.find(x => x.id === t.cowId);
+    const ins = t.insemDate || null;
+    const base = ins ? _pregBase(c, ins) : null;
+    const g = base ? diffDays(X, base) : null;
+    const isEt = ins ? _pregIsEt(c, ins) : false;
+    const stage = t.pregStage || (/再妊娠鑑定/.test(t.action) ? 60 : 30);
+    const lbl = (t.pregRecheckOf === 'unclear' || /？保留/.test(t.detail || '')) ? `？保留の再確認（${stage}日）` : stage === 30 ? '1回目（30日）' : stage === 45 ? '2回目（45日）' : '3回目（60日）';
+    return row(`${nm(t.cowId)}<div style="font-size:11px;margin-top:2px;"><span style="color:var(--warn);font-weight:700;">🔬 ${lbl}</span><br>${g !== null ? `検診日に妊娠${g}日` : ''}${ins ? `　<span style="color:var(--muted);">${isEt ? 'ET' : 'AI'} ${fmtDateShort(ins)}</span>` : ''}</div>`,
+      `<div style="display:flex;gap:4px;"><button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="positive" style="background:#0d2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:11px;font-weight:700;padding:5px 9px;border-radius:6px;cursor:pointer;">✓陽性</button><button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="negative" style="background:#1a0808;border:1px solid var(--danger);color:#fca5a5;font-size:11px;font-weight:700;padding:5px 9px;border-radius:6px;cursor:pointer;">✗陰性</button><button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="unclear" style="background:var(--bg3);border:1px solid var(--warn);color:var(--warn);font-size:11px;font-weight:700;padding:5px 8px;border-radius:6px;cursor:pointer;">？保留</button></div>`,
+      t.date < today());
+  }).join('');
+  // ② 分娩後（分娩後30日を過ぎて、まだ授精・プログラムをしていない）
+  const pp = [];
+  cows.forEach(c => {
+    if (used.has(c.id) || !hit(c.id)) return;
+    let st = {}; try { st = cowDisplayStatus(c); } catch (e) {}
+    if (!['fresh', 'open'].includes(st.key)) return;
+    const cd = _examLastCalving(c);
+    if (!cd) return;
+    const ev = c.events || [];
+    if (ev.some(e => e.date > cd && (['ai_done', 'et_done', 'estrus_ai', 'estrus_et'].includes(e.type) || PROG_START_TYPES.includes(e.type)))) return;
+    const dd = diffDays(X, cd);
+    if (dd < EXAM_POSTPARTUM_DAYS) return;
+    pp.push({ c, cd, dd });
+  });
+  pp.sort((a, b) => b.dd - a.dd);
+  const ppBody = pp.map(({ c, cd, dd }) => { used.add(c.id); return row(`${nm(c.id)}<div style="font-size:11px;margin-top:2px;">分娩 ${fmtDateShort(cd)}　検診日に<span style="font-weight:700;">分娩後${dd}日</span>${dd > EXAM_PROGRAM_DAYS ? '　<span style="color:var(--warn);font-weight:700;">45日超え・プログラム検討</span>' : ''}</div>`, '', dd > EXAM_PROGRAM_DAYS); }).join('');
+  // ③ 空胎（陰性・流れた・授精待ち）
+  const op = [];
+  cows.forEach(c => {
+    if (used.has(c.id) || !hit(c.id)) return;
+    let st = {}; try { st = cowDisplayStatus(c); } catch (e) {}
+    if (st.key !== 'open') return;
+    const ev = c.events || [];
+    const lastNeg = ev.filter(e => e.type === 'preg_negative').map(e => e.date).sort().pop() || null;
+    const cd = _examLastCalving(c);
+    const hasHistory = cd || ev.some(e => ['ai_done', 'et_done', 'estrus_ai'].includes(e.type));
+    if (!hasHistory) return;   // 授精も分娩もしたことがない育成牛は出さない
+    const since = [lastNeg, cd].filter(Boolean).sort().pop();
+    op.push({ c, st, lastNeg, cd, open: cd ? diffDays(X, cd) : null, since });
+  });
+  op.sort((a, b) => (b.open || 0) - (a.open || 0));
+  const opBody = op.map(({ c, st, lastNeg, cd, open }) => row(`${nm(c.id)}<div style="font-size:11px;margin-top:2px;">${st.abort ? `<span style="color:var(--warn);">${_stEsc(st.label)}</span>` : (lastNeg && (!cd || lastNeg > cd) ? `陰性 ${fmtDateShort(lastNeg)}` : '空胎')}${open !== null ? `　分娩後${open}日` : ''}</div>`, '', open !== null && open > 100)).join('');
+  const total = pt.length + pp.length + op.length;
+  return `<div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="font-size:13px;font-weight:800;">🩺 次の検診日</div>
+        <input type="date" value="${X}" onchange="setExamNext(this.value)" style="font-size:16px;padding:4px 6px;">
+        <div style="font-size:12px;color:var(--muted);">診る牛 <span style="color:var(--text);font-weight:800;">${total}頭</span></div>
+      </div>
+      <button onclick="finishExam()" style="margin-top:8px;width:100%;padding:9px;font-size:13px;font-weight:700;border-radius:8px;border:1px solid var(--accent2);background:#0d2a1a;color:var(--accent);cursor:pointer;">✅ 検診おわり → 次回を ${fmtDate(X2)} にする</button>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;">妊鑑は妊娠30日・45日・60日の3回（ETは移植の7日前から数えます）。陽性を記録すると次の妊鑑が自動で入ります。</div>
+    </div>
+    ${box('🔬 妊娠鑑定', pt.length, pregBody, nextRound ? `次の検診（${fmtDateShort(X2)}）に回る妊鑑：${nextRound}頭` : '')}
+    ${box('🐄 分娩後', pp.length, ppBody, `分娩後${EXAM_POSTPARTUM_DAYS}日を過ぎて、まだ授精していない牛`)}
+    ${box('⚠ 空胎', op.length, opBody, '陰性・流れた・授精待ちの牛（プログラム中・妊鑑待ちは除く）')}`;
+}
 function renderPregList() {
   const todayStr = today();
   const pregTasks = tasks.filter(t => !t.done && !t.pregResult && t.action.includes('妊娠鑑定'));
@@ -5041,7 +5245,7 @@ function renderPregList() {
   });
 
   const hasAny = pregWaiting.length || dueCows.length;
-  if (!hasAny) { container.innerHTML=''; empty.style.display=''; return; }
+  if (!hasAny && currentSub !== 'exam') { container.innerHTML=''; empty.style.display=''; return; }
   // 🔍 検索（年間の頭数はそのまま、一覧だけ絞り込む）
   const pq = (document.getElementById('preg-search')?.value || '').trim();
   const pqText = pq && !cowQueryIsCow(pq) ? _normQ(pq) : '';
@@ -5076,6 +5280,11 @@ function renderPregList() {
     <button onclick="window._pregSubTab='calving';renderPregList();" style="flex:1;padding:9px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;border:none;background:${calvingBg};color:${calvingColor};">
       📅 月別お産予定${dueCows.length ? ` (${dueCows.length})` : ''}
     </button>
+  </div>
+  <div style="display:flex;gap:8px;margin:-4px 0 12px;">
+    <button onclick="window._pregSubTab='exam';renderPregList();" style="flex:1;padding:9px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;border:none;background:${currentSub==='exam'?'var(--info)':'var(--bg3)'};color:${currentSub==='exam'?'#000':'var(--muted)'};">
+      🩺 繁殖検診リスト（2週間ごと）
+    </button>
   </div>`;
 
   const waitingHTML = pregWaiting.length ? pregWaiting.map(({t, lastAiEt, isEt, daysSince, daysToPreg, sireStr}) => {
@@ -5096,6 +5305,7 @@ function renderPregList() {
         <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
           <button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="positive" style="background:${t.pregResult==='positive'?'#14532d':'#0d2a1a'};border:2px solid ${t.pregResult==='positive'?'#22c55e':'var(--accent2)'};color:${t.pregResult==='positive'?'#fff':'var(--accent)'};font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;">${t.pregResult==='positive'?'✓ 陽性 ✔':'✓ 陽性'}</button>
           <button class="preg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" data-result="negative" style="background:${t.pregResult==='negative'?'#7f1d1d':'#1a0808'};border:2px solid ${t.pregResult==='negative'?'#ef4444':'var(--danger)'};color:${t.pregResult==='negative'?'#fff':'#fca5a5'};font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;">${t.pregResult==='negative'?'✗ 陰性 ✔':'✗ 陰性'}</button>
+          ${!t.pregResult ? `<button ontouchend="event.preventDefault();event.stopPropagation();recordPregUnclear('${t.cowId}','${t.id}')" onclick="event.stopPropagation();recordPregUnclear('${t.cowId}','${t.id}')" style="background:var(--bg3);border:2px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;">？ 保留</button>` : ''}
           ${t.pregResult ? `<button class="fixpreg-btn" data-cowid="${t.cowId}" data-taskid="${t.id}" style="background:none;border:2px solid var(--warn);color:var(--warn);font-size:11px;padding:4px 8px;border-radius:7px;cursor:pointer;">🔄 修正</button>` : ''}
         </div>
       </div>
@@ -5174,7 +5384,7 @@ function renderPregList() {
     </div>`;
   }).join('')) : `<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px;">${pq ? '「' + _stEsc(pq) + '」に当てはまる妊娠中の牛はいません' : '妊娠中の牛はいません'}</div>`);
 
-  container.innerHTML = tabBar + (currentSub==='waiting' ? waitingHTML : calvingHTML);
+  container.innerHTML = tabBar + (currentSub==='exam' ? renderExamHTML(pq) : currentSub==='waiting' ? waitingHTML : calvingHTML);
 }
 
 // 🗓 年間の分娩頭数：月をタップ → その月の分娩予定へジャンプ（予定がない月は、その月に生まれた子牛を表示）
@@ -11787,8 +11997,8 @@ function repairMissingPregTasks() {
     if (evs.some(e => ['preg_positive', 'preg_negative', 'abortion', 'miscarriage', 'calving', 'donor_et_start', 'donor_et_pretreat_start', 'donor_et_takahashi_start', 'cidr_ai_start', 'et_recipient'].includes(e.type) && e.date > ins.date)) return;
     if (tasks.some(t => t.cowId === c.id && /妊娠鑑定|妊鑑/.test(t.action || '') && (!t.done || (t.date >= ins.date)))) return;
     const isEt = ins.type === 'et_done';
-    const d = addDays(ins.date, isEt ? 38 : 45);
-    tasks.push({ id: Math.random().toString(36).slice(2), cowId: c.id, day: isEt ? 38 : 45, date: d, action: '妊娠鑑定', detail: `${isEt ? 'ET' : 'AI'}後${isEt ? 38 : 45}日 (${isEt ? 'ET' : 'AI'}日:${fmtDate(ins.date)}) ※自動で足し直した妊鑑`, color: '#f59e0b', priority: 'high', done: false, insemDate: ins.date, autoRepaired: true });
+    const d = addDays(ins.date, isEt ? 23 : 30);
+    tasks.push({ id: Math.random().toString(36).slice(2), cowId: c.id, day: isEt ? 23 : 30, date: d, action: '妊娠鑑定', detail: `${isEt ? 'ET' : 'AI'}後${isEt ? 23 : 30}日 (${isEt ? 'ET' : 'AI'}日:${fmtDate(ins.date)}) ※自動で足し直した妊鑑`, color: '#f59e0b', priority: 'high', done: false, insemDate: ins.date, autoRepaired: true });
     n++;
   });
   return n;
@@ -14543,7 +14753,8 @@ document.addEventListener('click', function(e) {
   const pregBtn = e.target.closest('.preg-btn');
   if (pregBtn) {
     e.stopPropagation();
-    recordPregFromTask(pregBtn.dataset.cowid, pregBtn.dataset.taskid, pregBtn.dataset.result);
+    if (pregBtn.dataset.result === 'unclear') recordPregUnclear(pregBtn.dataset.cowid, pregBtn.dataset.taskid);
+    else recordPregFromTask(pregBtn.dataset.cowid, pregBtn.dataset.taskid, pregBtn.dataset.result);
     return;
   }
   const fixBtn = e.target.closest('.fixpreg-btn');
@@ -15748,9 +15959,9 @@ function getPregCellHtml(cowId, date, isDonorAI) {
       : '';
     // 再妊鑑ボタンは早期妊鑑（40日より前に見たもの）で、かつ対応する60日再妊鑑タスクがまだ残っている場合にだけ出す
     const openRecheckTask = tasks.find(t => t.cowId === cowId && !t.done && t.action.includes('再妊娠鑑定') && t.insemDate === date);
-    const early = isEarlyCheck && !!openRecheckTask;
+    const early = !!openRecheckTask;
     const recheckHtml = early
-      ? `<button ontouchend="event.preventDefault();event.stopPropagation();recheckPreg('${cowId}','${date}')" onclick="event.stopPropagation();recheckPreg('${cowId}','${date}')" style="background:#2a1a00;border:1px solid var(--warn);color:var(--warn);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;cursor:pointer;margin-top:3px;white-space:nowrap;-webkit-tap-highlight-color:rgba(0,0,0,0);">⚠早期・再妊鑑</button><div style="font-size:8px;color:var(--warn);margin-top:1px;white-space:nowrap;">${fmtDateShort(openRecheckTask.date)}に60日鑑定</div>`
+      ? `<button ontouchend="event.preventDefault();event.stopPropagation();recheckPreg('${cowId}','${date}')" onclick="event.stopPropagation();recheckPreg('${cowId}','${date}')" style="background:#2a1a00;border:1px solid var(--warn);color:var(--warn);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;cursor:pointer;margin-top:3px;white-space:nowrap;-webkit-tap-highlight-color:rgba(0,0,0,0);">🔬 再妊鑑</button><div style="font-size:8px;color:var(--warn);margin-top:1px;white-space:nowrap;">${fmtDateShort(openRecheckTask.date)}に${openRecheckTask.pregStage || 60}日鑑定</div>`
       : '';
     return `<div style="display:flex;flex-direction:column;align-items:center;">
       <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
@@ -15769,7 +15980,7 @@ function getPregCellHtml(cowId, date, isDonorAI) {
   }
   // 未記録→妊鑑予定日＋戻り発情の目安を表示
   const isETRec = bookRec?.insemType === 'et' || bookRec?.isET;
-  const pd2 = addDays(date, isETRec ? 38 : 45);
+  const pd2 = addDays(date, isETRec ? 23 : 30);
   // 戻り発情：ETは移植の7日前が発情日なので、そこから21日周期で回帰する
   const estrusBase = isETRec ? addDays(date, -7) : date;
   const re1 = addDays(estrusBase, 21), re2 = addDays(estrusBase, 42);
