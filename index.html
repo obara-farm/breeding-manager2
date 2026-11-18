@@ -3248,10 +3248,24 @@ const _store = (() => {
     d.innerHTML = '⚠ この端末の保存場所がいっぱいで、いま入れた内容が保存できていません。電波のある所でページを開き直してください。直らないときは千佳さんに連絡してください。 <button onclick="this.parentNode.remove()" style="margin-left:6px;background:#fff;color:#7f1d1d;border:none;border-radius:6px;padding:2px 8px;font-weight:700;">閉じる</button>';
     (document.body || document.documentElement).appendChild(d);
   }
+  const watchLost = (k, oldS, newS) => {
+    try {
+      if (!oldS || oldS === newS) return;
+      const O = JSON.parse(oldS), N = JSON.parse(newS); if (!Array.isArray(O) || !Array.isArray(N)) return;
+      const nm = new Map(N.map(x => [x && x.id, x])); const lost = [];
+      if (k === 'tasks') O.forEach(o => { if (o && o.done) { const x = nm.get(o.id); if (x && !x.done && !x._undoneAt) lost.push(o.id); } });
+      if (k === 'cows') O.forEach(o => { const x = nm.get(o && o.id); if (!x) return; const mv = e => e && e.type === 'move' ? e.date + '>' + e.to : null; const xs = new Set((x.events || []).map(mv).filter(Boolean)); const g = (o.events || []).map(mv).filter(z => z && !xs.has(z)).length + (o.tags || []).filter(t => !(x.tags || []).includes(t)).length; if (g) lost.push(o.id); });
+      if (lost.length) {
+        const stk = String((new Error()).stack || '').split('\n').slice(2, 9).map(l => l.replace(/https?:\/\/[^\s)]*/g, '').trim()).join(' / ');
+        const L = JSON.parse(ls.getItem('syncLostLog') || '[]'); L.push({ t: new Date().toISOString(), k, step: 'local', n: lost.length, ids: lost.slice(0, 6), stk }); ls.setItem('syncLostLog', JSON.stringify(L.slice(-40)));
+      }
+    } catch (e) {}
+  };
   const st = {
     getItem: k => ls.getItem(k),
     removeItem: k => ls.removeItem(k),
     setItem(k, v) {
+      if (k === 'tasks' || k === 'cows') watchLost(k, ls.getItem(k), v);
       if (k === 'changeLog') v = _histCapStr(v);
       try { ls.setItem(k, v); return; } catch (e) { if (!isQuota(e)) throw e; }
       free(k);
@@ -5425,6 +5439,7 @@ function toggleTask(id) {
   if (!task) return;
   task.done = !task.done;
   task._mt = Date.now();   // ほかの端末とまとめるとき、後からチェックした方を使う
+  if (!task.done) task._undoneAt = task._mt; else delete task._undoneAt;   // 自分で外したときだけ、外したことをほかの端末にも伝える
   // 除角・去勢の予定 → その子牛に印を付ける（外したら印も戻す）
   if (task.calfFlag && _CALF_FLAG[task.calfFlag]) {
     const cf = calves.find(c => c.id === task.calfId), f = _CALF_FLAG[task.calfFlag];
@@ -12819,6 +12834,7 @@ async function openSyncDiag() {
       L.push(`${k}: ${rv === lv ? '✓ 同じ' : '× ちがう'}（${note}）・base ${(() => { const b = window._syncBaseOf ? window._syncBaseOf(k) : null; return b ? (b.f ? 'あり(欄ごと)' : 'あり') : 'なし'; })()}`);
     }
   } catch (e) { L.push('クラウドを読めませんでした'); }
+  try { const LL = JSON.parse(localStorage.getItem('syncLostLog') || '[]').slice(-12); L.push('--- 消えかけた記録 ' + LL.length + '件'); LL.forEach(e => L.push(`${String(e.t).slice(5, 19).replace('T', ' ')} ${e.k} ${e.step} ${e.n || e.kept || e.lost || ''} ${(e.ids || []).join(',')} ${e.stk || ''}${e.lvSame != null ? ' lvSame=' + e.lvSame : ''}`)); } catch (e) {}
   try { closeModal('modal-confirm'); } catch (e) {}
   document.getElementById('diag-modal')?.remove();
   const w = document.createElement('div'); w.id = 'diag-modal';
@@ -33285,7 +33301,45 @@ function _syncLegacyMerge(k, rv, lv) {
 // クラウドの値と手元の値をまとめる（base があれば3方向、なければ前からのやり方）
 function _syncReconcile(k, rv, lv) {
   if (k === 'changeLog') { const r = _syncReconcile0(k, rv, lv); return r == null ? r : _histCapStr(r); }
-  return _syncReconcile0(k, rv, lv);
+  let m = _syncReconcile0(k, rv, lv);
+  try { if (k === 'tasks' || k === 'cows') m = _syncKeepChecks(k, rv, lv, m); } catch (e) { console.error(e); }
+  return m;
+}
+// ★ 2026/11/18：まとめた結果で、クラウドにある「チェック（済み）」「移動」「タグ」が消えるときは、記録に残す。
+//   タスクのチェックは、手元で自分で外した（_undoneAt が新しい）とき以外は消さない
+function _syncLostLog(entry) {
+  try { const L = JSON.parse(localStorage.getItem('syncLostLog') || '[]'); L.push(Object.assign({ t: new Date().toISOString() }, entry)); localStorage.setItem('syncLostLog', JSON.stringify(L.slice(-40))); } catch (e) {}
+}
+function _syncKeepChecks(k, rv, lv, m) {
+  if (m == null || m === rv) return m;
+  let R, M, Lc; try { R = JSON.parse(rv); M = JSON.parse(m); Lc = lv ? JSON.parse(lv) : []; } catch (e) { return m; }
+  if (!Array.isArray(R) || !Array.isArray(M)) return m;
+  const mm = new Map(M.map(x => [x && x.id, x])), lm = new Map((Lc || []).map(x => [x && x.id, x]));
+  if (k === 'tasks') {
+    const fixed = [];
+    R.forEach(r => {
+      if (!r || !r.done) return;
+      const x = mm.get(r.id); if (!x || x.done) return;
+      const l = lm.get(r.id);
+      if (x._undoneAt && x._undoneAt > (r._mt || 0)) return;   // 手元で、あとから自分で外した
+      x.done = r.done; if (r.doneAt) x.doneAt = r.doneAt; if (r._mt && (!x._mt || r._mt > x._mt)) x._mt = r._mt; delete x._undoneAt;
+      fixed.push(r.id + (l ? (l.done ? '' : '(手元は未)') : '(手元に無)'));
+    });
+    if (fixed.length) { _syncLostLog({ k, step: 'merge', kept: fixed.length, ids: fixed.slice(0, 8) }); return JSON.stringify(M); }
+  }
+  if (k === 'cows') {
+    const lost = [];
+    R.forEach(r => {
+      const x = mm.get(r && r.id); if (!x) return;
+      const mv = e => e && e.type === 'move' ? e.date + '>' + e.to : null;
+      const rs = (r.events || []).map(mv).filter(Boolean), xs = new Set((x.events || []).map(mv).filter(Boolean));
+      const gone = rs.filter(z => !xs.has(z));
+      const tg = (r.tags || []).filter(t => !(x.tags || []).includes(t));
+      if (gone.length || tg.length) lost.push(r.id + (gone.length ? ' 移動' + gone.length : '') + (tg.length ? ' タグ' + tg.length : ''));
+    });
+    if (lost.length) _syncLostLog({ k, step: 'merge', lost: lost.length, ids: lost.slice(0, 8), lvSame: lv === _syncedStr[k] });
+  }
+  return m;
 }
 function _syncReconcile0(k, rv, lv) {
   if (lv == null || lv === rv) return rv;
@@ -33308,7 +33362,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026111805';
+const APP_BUILD = '2026111806';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -33437,8 +33491,16 @@ function saveToFirebase() {
         const v = snap.val(), vs = typeof v === 'string' ? v : JSON.stringify(v);
         const now = _store.getItem(k);
         if (now === lv && vs !== lv) { _store.setItem(k, vs); reload = true; }   // ほかの端末の記録が混ざった → 手元にも入れる
+        else if (now !== lv && vs !== lv) {
+          // ★ 2026/11/18：送っている間に手元がまた変わった。クラウドに混ざったほかの端末の記録（チェック・移動など）を、
+          //   手元の新しい中身にもまとめてから base を進める（前は手元に入れないまま base だけ進めて、次に送ったとき消していた）
+          const m2 = _syncReconcile(k, vs, now);
+          if (m2 !== now) { _store.setItem(k, m2); reload = true; }
+          setTimeout(() => { try { saveToFirebase(); } catch (e) {} }, 100);
+        }
         else if (now !== lv) setTimeout(() => { try { saveToFirebase(); } catch (e) {} }, 100);   // 送っている間に手元がまた変わった
-        if (_storeOK(k, vs) || (now !== lv)) _syncSetBase(k, vs); else _syncDropBase(k);
+        const cur2 = _store.getItem(k);
+        if (cur2 === vs || _storeOK(k, cur2)) _syncSetBase(k, vs); else _syncDropBase(k);
         done();
       }, false);
     });
