@@ -781,6 +781,7 @@ html.feat-barnlist .view-seg button{padding:5px 8px;}
     <div style="background:#0a2a1a;border:1px solid var(--accent2);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
       <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">📥 クラウドのバックアップから、消えた授精簿の行を戻す</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">毎日クラウドに取っているバックアップ（8日分）と今の授精簿を比べ、今は無い行だけを戻します。今ある行はそのままです。</div>
+      <button onclick="closeModal('modal-settings');openSyncDiag()" style="margin-bottom:6px;background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">🔎 同期のようすを調べる（版・保存場所）</button>
       <button onclick="closeModal('modal-settings');openLostRecover()" style="margin-bottom:6px;background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">🩹 消えた移動・タグ・チェックを取り戻す</button>
       <button onclick="closeModal('modal-settings');openIbRestore()" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">☁ バックアップを調べる</button>
       <button onclick="closeModal('modal-settings');openInvRestore()" style="margin-top:6px;background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">☁ 消えた在庫の記録（使用・入荷など）を戻す</button>
@@ -12796,6 +12797,39 @@ async function runIbRestore() {
   document.getElementById('ibr-modal')?.remove();
   const more = [evN ? `ストーリーの記録 ${evN}件` : '', stN ? `妊娠中・分娩予定 ${stN}頭` : '', tkN ? `予定 ${tkN}件` : '', inv ? `在庫 ${inv}本` : '', etN ? `移植の記録 ${etN}件` : ''].filter(Boolean);
   appAlert(`授精簿に${n}行戻しました` + (more.length ? `\nいっしょに戻したもの：${more.join('・')}` : ''));
+}
+// ★ 2026/11/18：同期のようすを調べる（この端末の版・保存場所・手元とクラウドが同じか）。結果はコピーして送れる
+async function openSyncDiag() {
+  const L = [];
+  const ua = navigator.userAgent || '';
+  L.push('端末: ' + (/iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : '?') + (window.matchMedia && matchMedia('(display-mode: standalone)').matches ? '（ホーム画面のアプリ）' : '（ブラウザ）'));
+  let cb = '?'; try { const db = window._fbDb, p = window._DATA_PATH; if (db && p) { cb = (await db.ref(p + '/_appBuild').once('value')).val() || '-'; } } catch (e) {}
+  let total = 0, n = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); total += (localStorage.getItem(k) || '').length + k.length; n++; } } catch (e) {}
+  let free = '?'; try { const big = 'x'.repeat(500000); localStorage.setItem('_diag_probe', big); localStorage.removeItem('_diag_probe'); free = 'あと50万字以上入る'; } catch (e) { try { localStorage.removeItem('_diag_probe'); } catch (_) {} free = '⚠ ほぼいっぱい'; }
+  L.push('この端末の版: ' + window.APP_BUILD + ' ／ いちばん新しい版: ' + cb + (cb > window.APP_BUILD ? '　⚠ この端末は古い版です' : ''));
+  L.push('保存場所: ' + Math.round(total / 1000) + '千字（' + n + '項目）・' + free + (window._storeFull ? '・⚠ 保存できなかったことがある' : ''));
+  L.push('同期: ' + ((document.getElementById('sync-status') || {}).textContent || '?') + (window._fbOnline === false ? '（電波なし）' : ''));
+  try {
+    const db = window._fbDb, p = window._DATA_PATH;
+    for (const k of ['cows', 'tasks', 'calves', 'insemBookRecords']) {
+      let rv = null; try { const v = (await db.ref(p + '/' + k).once('value')).val(); rv = v == null ? null : (typeof v === 'string' ? v : JSON.stringify(v)); } catch (e) {}
+      const lv = _store.getItem(k);
+      let note = '';
+      try { const R = JSON.parse(rv || '[]'), Lc = JSON.parse(lv || '[]'); const ik = x => (x && x.id != null) ? 'i:' + x.id : JSON.stringify(x); const rm = new Map(R.map(x => [ik(x), JSON.stringify(x)])); let diff = 0; Lc.forEach(x => { if (rm.get(ik(x)) !== JSON.stringify(x)) diff++; }); note = `手元${Lc.length}件・クラウド${R.length}件・ちがう${diff}件`; } catch (e) { note = '?'; }
+      L.push(`${k}: ${rv === lv ? '✓ 同じ' : '× ちがう'}（${note}）・base ${(() => { const b = window._syncBaseOf ? window._syncBaseOf(k) : null; return b ? (b.f ? 'あり(欄ごと)' : 'あり') : 'なし'; })()}`);
+    }
+  } catch (e) { L.push('クラウドを読めませんでした'); }
+  try { closeModal('modal-confirm'); } catch (e) {}
+  document.getElementById('diag-modal')?.remove();
+  const w = document.createElement('div'); w.id = 'diag-modal';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:12px;';
+  const txt = L.join('\n');
+  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:520px;max-height:92vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>🔎 同期のようす</b><button class="modal-close" onclick="document.getElementById('diag-modal').remove()">✕</button></div>
+    <pre id="diag-txt" style="white-space:pre-wrap;font-size:12px;line-height:1.7;background:var(--bg3);border-radius:8px;padding:10px;margin:0 0 10px;">${_stEsc(txt)}</pre>
+    <button class="btn btn-primary" style="width:100%;" onclick="try{navigator.clipboard.writeText(document.getElementById('diag-txt').textContent);this.textContent='コピーしました';}catch(e){}">📋 コピー（チャットに貼って送ってください）</button>
+  </div>`;
+  document.body.appendChild(w);
 }
 // ★ 2026/11/18：同期で消えてしまった「牛舎の移動」「タグ」「タスクのチェック」を取り戻す。
 //   変更履歴（どの端末で何を変えたか・3日分）と、クラウドの毎日のバックアップ（3日分）にあって、今は無いものだけを一覧にする
@@ -33091,7 +33125,7 @@ const _syncItemKey = x => (x && typeof x === 'object' && x.id != null) ? 'i:' + 
 // ★ 2026/11/18：牛・子牛・タスクなどは、1頭（1件）の中の欄ごとにも指紋を取っておく。
 //   両方の端末で同じ牛を変えたとき、牛まるごと新しい方にするのではなく、欄ごと（移動・授精などの記録は1件ずつ）にまとめる。
 //   （前は、止まっていた端末が古い中身のまま自動の直しで全部の牛を変えて送ると、ほかの端末で入れた移動などが全部消えていた）
-const _SYNC_FIELD_KEYS = ['cows', 'calves', 'tasks', 'retiredCows', 'calvingRecords'];
+const _SYNC_FIELD_KEYS = ['cows', 'calves', 'retiredCows', 'calvingRecords'];   // タスクは数が多いので1件ずつ（済みのチェックは別に守っている）
 function _syncFieldDigest(x) {
   const f = {};
   Object.keys(x).forEach(p => {
@@ -33114,8 +33148,18 @@ function _syncDigest(str, k) {
 }
 function _syncSetBase(k, str) {
   _syncedStr[k] = str;
-  try { _syncBase[k] = _syncDigest(str, k); localStorage.setItem('_syncBase', JSON.stringify(_syncBase)); } catch (e) {}
+  _syncBase[k] = _syncDigest(str, k);
+  _syncSaveBase();
 }
+// ★ 2026/11/18：base（そろえた時の指紋）が端末に保存できないときは、古い base を残さない。
+//   古い base が残ると、次に開いたとき「手元で消した・戻した」と取りちがえて、ほかの端末で入れた記録（チェック・移動など）を消してしまう
+function _syncSaveBase() {
+  try { localStorage.setItem('_syncBase', JSON.stringify(_syncBase)); }
+  catch (e) { try { localStorage.removeItem('_syncBase'); } catch (_) {} console.warn('同期：base を保存できませんでした（保存場所がいっぱい）'); }
+}
+function _syncDropBase(k) { delete _syncBase[k]; delete _syncedStr[k]; _syncSaveBase(); }
+// 手元に書いたものが本当に保存されたか
+function _storeOK(k, v) { try { return _store.getItem(k) === v; } catch (e) { return false; } }
 // 3方向マージ。base は指紋（_syncDigest）
 function syncMerge3(k, base, remoteStr, localStr) {
   if (remoteStr === localStr) return localStr;
@@ -33264,7 +33308,9 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026111804';
+const APP_BUILD = '2026111805';
+window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
+window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
   const b = remote && remote._appBuild ? String(remote._appBuild) : '';
   if (b && b > APP_BUILD) {
@@ -33318,7 +33364,8 @@ function initFirebaseSync() {
         const lv = _store.getItem(k);
         const merged = _syncReconcile(k, rv, lv);
         _store.setItem(k, merged);
-        _syncSetBase(k, rv);                 // クラウドの値を base にする（まとめた差はこのあと送る）
+        if (_storeOK(k, merged)) _syncSetBase(k, rv);   // クラウドの値を base にする（まとめた差はこのあと送る）
+        else _syncDropBase(k);                           // 端末に保存できなかった → base を進めない
         if (merged !== rv) needPush = true;
       });
     }
@@ -33346,8 +33393,9 @@ function initFirebaseSync() {
         if (rv === _syncedStr[k]) return;               // 自分が送った値（エコー）か、変わっていない
         const lv = _store.getItem(k);
         const merged = _syncReconcile(k, rv, lv);
-        _syncSetBase(k, rv);
         if (merged !== lv) { _store.setItem(k, merged); changed = true; }
+        if (_storeOK(k, merged)) _syncSetBase(k, rv);   // 手元に保存できたときだけ base を進める
+        else { _syncDropBase(k); return; }
         if (merged !== rv) push = true;                 // 手元の変更が残っている → あとで送る
       });
       if (changed) { _syncAfterLocalChange(); }
@@ -33387,10 +33435,10 @@ function saveToFirebase() {
       }, (err, committed, snap) => {
         if (err || !committed || !snap) { if (err) { console.error('Firebase update error:', k, err); failed = true; } done(); return; }
         const v = snap.val(), vs = typeof v === 'string' ? v : JSON.stringify(v);
-        _syncSetBase(k, vs);
         const now = _store.getItem(k);
         if (now === lv && vs !== lv) { _store.setItem(k, vs); reload = true; }   // ほかの端末の記録が混ざった → 手元にも入れる
         else if (now !== lv) setTimeout(() => { try { saveToFirebase(); } catch (e) {} }, 100);   // 送っている間に手元がまた変わった
+        if (_storeOK(k, vs) || (now !== lv)) _syncSetBase(k, vs); else _syncDropBase(k);
         done();
       }, false);
     });
@@ -34697,6 +34745,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <div onclick="openBirthReport()"><span>🐄 らくちく出生報告</span><span style="color:${br ? '#f59e0b' : '#64748b'};font-weight:${br ? 700 : 400};">${br ? br + '頭まだ ›' : '›'}</span></div>
         <div onclick="nuiPrintMenu()"><span>🖨 お産予定・授精簿の印刷</span><span style="color:#64748b;">›</span></div>
         <div onclick="openLostRecover()"><span>🩹 消えた移動・タグ・チェックを取り戻す</span><span style="color:#64748b;">›</span></div>
+        <div onclick="openSyncDiag()"><span>🔎 同期のようすを調べる</span><span style="color:#64748b;">${'版 ' + String(window.APP_BUILD || '').slice(-4)} ›</span></div>
         <div onclick="openIbRestore()"><span>☁ 消えた授精簿の行を戻す（バックアップから）</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('history')"><span>📝 変更履歴</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('calc')"><span>🧮 発情・分娩の日を計算</span><span style="color:#64748b;">›</span></div>
