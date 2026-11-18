@@ -781,6 +781,7 @@ html.feat-barnlist .view-seg button{padding:5px 8px;}
     <div style="background:#0a2a1a;border:1px solid var(--accent2);border-radius:10px;padding:12px 14px;margin-bottom:10px;">
       <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">📥 クラウドのバックアップから、消えた授精簿の行を戻す</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">毎日クラウドに取っているバックアップ（8日分）と今の授精簿を比べ、今は無い行だけを戻します。今ある行はそのままです。</div>
+      <button onclick="closeModal('modal-settings');openLostRecover()" style="margin-bottom:6px;background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">🩹 消えた移動・タグ・チェックを取り戻す</button>
       <button onclick="closeModal('modal-settings');openIbRestore()" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">☁ バックアップを調べる</button>
       <button onclick="closeModal('modal-settings');openInvRestore()" style="margin-top:6px;background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">☁ 消えた在庫の記録（使用・入荷など）を戻す</button>
       <button onclick="closeModal('modal-settings');openInvMissing()" style="margin-top:6px;background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:7px 14px;border-radius:8px;cursor:pointer;width:100%;">📦 在庫に入っていない授精・移植を調べる</button>
@@ -12642,8 +12643,8 @@ function _ibrList() {
   const box = document.getElementById('ibr-list'); if (!r) { box.innerHTML = ''; return; }
   if (!r.miss.length) { box.innerHTML = '<div style="font-size:13px;color:var(--accent);">✓ このバックアップにあって今は無い行はありません</div>'; return; }
   box.innerHTML = `<div style="display:flex;gap:6px;margin-bottom:6px;"><button class="st-act" onclick="document.querySelectorAll('#ibr-list .ibr').forEach(c=>c.checked=true)">すべて選ぶ</button><button class="st-act" onclick="document.querySelectorAll('#ibr-list .ibr').forEach(c=>c.checked=false)">すべて外す</button></div>
-    <div style="max-height:50vh;overflow:auto;">${r.miss.slice().sort((a, b) => String(b.d).localeCompare(String(a.d))).map(x => `<label style="display:flex;gap:6px;align-items:center;font-size:12px;padding:4px 2px;border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0;font-weight:400;color:var(--text);">
-      <input type="checkbox" class="ibr" data-i="${r.miss.indexOf(x)}" checked> <span style="font-family:'JetBrains Mono',monospace;">${_stEsc(fmtDate(x.d))}</span> <b>${_stEsc(x.t)}</b> ${_stEsc(x.s || '')} <span style="color:var(--muted);">${_stEsc([x.n && 'No.' + x.n, x.m].filter(Boolean).join(' '))}</span></label>`).join('')}</div>`;
+    <div style="max-height:50vh;overflow:auto;">${r.miss.slice().sort((a, b) => String(b.d).localeCompare(String(a.d))).map(x => `<label style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-start;font-size:13px;padding:8px 2px;border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0;font-weight:400;color:var(--text);">
+      <input type="checkbox" class="ibr" data-i="${r.miss.indexOf(x)}" style="width:18px;height:18px;flex:none;margin:2px 0 0;"> <span style="flex:1;min-width:0;text-align:left;"><span style="font-family:'JetBrains Mono',monospace;white-space:nowrap;">${_stEsc(fmtDate(x.d))}</span> <b style="white-space:nowrap;">${_stEsc(x.t)}</b> <span style="white-space:nowrap;">${_stEsc(x.s || '')}</span><br><span style="font-size:11px;color:var(--muted);">${_stEsc([x.n && 'No.' + x.n, x.m].filter(Boolean).join(' '))}</span></span></label>`).join('')}</div>`;
 }
 // ★ 2026/11/17：精液・受精卵の在庫の記録（使用・譲渡・入荷など）を、毎日のクラウドのバックアップから戻す。
 //   今は無い記録だけを一覧にして、チェックした記録を戻す（在庫の本数も、その記録の分だけ合わせる）
@@ -12714,20 +12715,164 @@ function runInvRestore() {
   document.getElementById('invr-modal')?.remove();
   appAlert(`在庫の記録を${pick.length}件戻しました`);
 }
-function runIbRestore() {
+// ★ 2026/11/18：授精簿の行を消すと、牛のストーリー（授精・移植・妊鑑の結果）、分娩予定、在庫の使用記録もいっしょに消える。
+//   行を戻すときは、同じ日のバックアップから、その行に関係する記録もいっしょに戻す（今ある記録はそのまま・二重にしない）
+async function runIbRestore() {
   const d = document.getElementById('ibr-date').value, r = (_ibRestoreData || []).find(x => x.d === d); if (!r) return;
   const pick = [...document.querySelectorAll('#ibr-list .ibr')].filter(c => c.checked).map(c => r.miss[+c.dataset.i]).filter(Boolean);
   if (!pick.length) { appAlert('戻す行を選んでください'); return; }
+  const db = window._fbDb, key = String(window._DATA_PATH || '').split('/').pop();
+  const bk = {};
+  for (const k of ['cows', 'tasks', 'semenInventory', 'embryoInventory', 'etRecords']) {
+    try { const v = (await db.ref(`backups/${key}/${d}/${k}`).once('value')).val(); bk[k] = v ? (typeof v === 'string' ? JSON.parse(v) : v) : null; } catch (e) { bk[k] = null; }
+  }
   armUndo(`授精簿の行を${pick.length}行戻しました`);
-  let n = 0;
-  let inv = 0;
-  pick.forEach(x => { const c = JSON.parse(JSON.stringify(x)); delete c.id; c._mt = Date.now(); insemBookRecords.push(c); n++;
-    // 戻した行の精液・受精卵を在庫にも反映（もう在庫の記録があるものは二重にしない）
-    try { if (!/在庫反映なし/.test(c.op || '') && !_invHasUse(c) && syncInsemInventoryForRecord(c)) inv++; } catch (e) {} });
+  const INS = ['ai_done', 'et_done', 'estrus_ai', 'estrus_et'];
+  const evSig = e => [e.type, e.date, e.memo || '', e.insemDate || ''].join('|');
+  let n = 0, inv = 0, evN = 0, stN = 0, tkN = 0, etN = 0;
+  const touched = new Set();
+  pick.forEach(x => {
+    const c = JSON.parse(JSON.stringify(x)); delete c.id; c._mt = Date.now(); insemBookRecords.push(c); n++;
+    // ① 牛のストーリー：その日の授精・移植と、その授精の妊鑑の結果
+    const bc = (bk.cows || []).find(o => o && o.id === x.t), cc = cows.find(o => o.id === x.t);
+    if (bc && cc) {
+      cc.events = cc.events || [];
+      const have = new Set(cc.events.map(evSig));
+      const nextIns = (bc.events || []).filter(e => INS.includes(e.type) && e.date > x.d).map(e => e.date).sort()[0] || '9999';
+      (bc.events || []).forEach(e => {
+        const rel = (INS.includes(e.type) && e.date === x.d) ||
+          (['preg_positive', 'preg_negative'].includes(e.type) && (e.insemDate === x.d || (!e.insemDate && e.date >= x.d && e.date < nextIns && e.date <= addDays(x.d, 280))));
+        if (rel && !have.has(evSig(e))) { cc.events.push(JSON.parse(JSON.stringify(e))); have.add(evSig(e)); evN++; touched.add(cc.id); }
+      });
+      cc.events.sort((p, q) => String(p.date || '').localeCompare(String(q.date || '')));
+    }
+    // ② 在庫の使用記録：バックアップにあった、その日・その牛の使用記録を戻す
+    const s0 = x.s || '';
+    const isET = x.insemType === 'et' || isEmbryoNo(s0) || new RegExp('^' + ANY_LIC_RE).test(s0) || s0.includes('×');
+    const arrB = bk[isET ? 'embryoInventory' : 'semenInventory'], arrC = isET ? embryoInventory : semenInventory;
+    let invDone = false;
+    (arrB || []).forEach(bi => {
+      const ci = arrC.find(i => i.id === bi.id); if (!ci) return;
+      (bi.history || []).forEach(h => {
+        if (h.date !== x.d || !['use', 'transfer'].includes(h.type) || h.cowId !== x.t) return;
+        if (!isET && bi.name !== s0) return;
+        const hs = JSON.stringify(h);
+        if ((ci.history || []).some(y => JSON.stringify(y) === hs)) { invDone = true; return; }
+        ci.history = ci.history || []; ci.history.push(JSON.parse(hs));
+        ci.history.sort((p, q) => String(p.date || '').localeCompare(String(q.date || '')));
+        ci.stock = (ci.stock || 0) - (+h.count || 1); inv++; invDone = true;
+      });
+    });
+    if (!invDone) { try { if (!/在庫反映なし/.test(c.op || '') && !_invHasUse(c) && syncInsemInventoryForRecord(c)) inv++; } catch (e) {} }
+    // ③ 移植の記録
+    if (isET && Array.isArray(bk.etRecords)) {
+      bk.etRecords.filter(e => e && e.date === x.d && e.cowId === x.t).forEach(e => {
+        const es = JSON.stringify(e);
+        if (!etRecords.some(y => JSON.stringify(y) === es)) { etRecords.push(JSON.parse(es)); etN++; }
+      });
+    }
+  });
+  // ④ 妊娠中・分娩予定：消したせいで空胎に戻った牛だけ、バックアップの状態に戻す（その後に新しい授精があれば戻さない）
+  touched.forEach(id => {
+    const cc = cows.find(o => o.id === id), bc = (bk.cows || []).find(o => o && o.id === id);
+    if (!cc || !bc) return;
+    const bLast = (bc.events || []).filter(e => INS.includes(e.type)).map(e => e.date).sort().pop() || '';
+    const newer = (cc.events || []).some(e => INS.includes(e.type) && e.date > bLast);
+    if (!newer && cc.status === 'open' && bc.status && bc.status !== 'open') { cc.status = bc.status; if (bc.dueDate) cc.dueDate = bc.dueDate; stN++; }
+    else if (bc.dueDate && !cc.dueDate && cc.status === 'pregnant') { cc.dueDate = bc.dueDate; stN++; }
+    // 分娩予定・産室移動・妊鑑・再発情の予定（まだ済んでいないもの）
+    const ids = new Set(tasks.map(t => t.id));
+    (bk.tasks || []).forEach(t => {
+      if (!t || t.cowId !== id || t.done || ids.has(t.id)) return;
+      const a = t.action || '';
+      const preg = a === '分娩予定' || a === '🏠 産室移動';
+      if (!(preg || a.includes('妊娠鑑定') || a.includes('再発情'))) return;
+      if (preg && !(cc.status === 'pregnant' && cc.dueDate === bc.dueDate)) return;
+      tasks.push(JSON.parse(JSON.stringify(t))); tkN++;
+    });
+  });
   try { ensureInsemIds(); resetInsemSnap(); } catch (e) {}
   save(); try { renderAll(); } catch (e) {}
   document.getElementById('ibr-modal')?.remove();
-  appAlert(`授精簿に${n}行戻しました` + (inv ? `（在庫にも${inv}本反映）` : ''));
+  const more = [evN ? `ストーリーの記録 ${evN}件` : '', stN ? `妊娠中・分娩予定 ${stN}頭` : '', tkN ? `予定 ${tkN}件` : '', inv ? `在庫 ${inv}本` : '', etN ? `移植の記録 ${etN}件` : ''].filter(Boolean);
+  appAlert(`授精簿に${n}行戻しました` + (more.length ? `\nいっしょに戻したもの：${more.join('・')}` : ''));
+}
+// ★ 2026/11/18：同期で消えてしまった「牛舎の移動」「タグ」「タスクのチェック」を取り戻す。
+//   変更履歴（どの端末で何を変えたか・3日分）と、クラウドの毎日のバックアップ（3日分）にあって、今は無いものだけを一覧にする
+let _lostData = null;
+async function openLostRecover() {
+  const from = new Date(Date.now() - 3 * 86400000).toISOString();
+  const srcCows = [], srcCalves = [], srcTasks = [];
+  try { _histLoad().filter(e => e && e.t >= from && e.after).forEach(e => { if (e.k === 'cows') srcCows.push({ o: e.after, from: '変更履歴 ' + (e.dev || '') }); if (e.k === 'calves') srcCalves.push({ o: e.after, from: '変更履歴 ' + (e.dev || '') }); }); } catch (e) {}
+  const db = window._fbDb, key = String(window._DATA_PATH || '').split('/').pop();
+  if (db && key) {
+    appAlert('バックアップを調べています…');
+    for (let i = 0; i <= 3; i++) {
+      const d = addDays(today(), -i);
+      for (const k of ['cows', 'calves', 'tasks']) {
+        try {
+          const v = (await db.ref(`backups/${key}/${d}/${k}`).once('value')).val(); if (!v) continue;
+          const L = typeof v === 'string' ? JSON.parse(v) : v; if (!Array.isArray(L)) continue;
+          (k === 'cows' ? srcCows : k === 'calves' ? srcCalves : srcTasks).push(...L.map(o => ({ o, from: fmtDate(d) + 'のバックアップ' })));
+        } catch (e) {}
+      }
+    }
+    try { closeModal('modal-confirm'); } catch (e) {}
+  }
+  const items = [], seen = new Set();
+  const add = (kind, id, label, data, from) => { const u = kind + '|' + id + '|' + JSON.stringify(data); if (seen.has(u)) return; seen.add(u); items.push({ kind, id, label, data, from }); };
+  srcCows.forEach(({ o, from }) => {
+    const c = cows.find(x => x.id === o.id); if (!c) return;
+    (o.events || []).filter(e => e && e.type === 'move').forEach(e => { if (!(c.events || []).some(x => x.type === 'move' && x.date === e.date && x.to === e.to)) add('cowMove', c.id, `${c.id} ${cowDisplayName(c.id) || ''}　${fmtDate(e.date)} → ${e.to}`, e, from); });
+    (o.tags || []).forEach(t => { if (!(c.tags || []).includes(t)) add('tag', c.id, `${c.id} ${cowDisplayName(c.id) || ''}　🏷 ${t}`, t, from); });
+  });
+  srcCalves.forEach(({ o, from }) => {
+    const c = calves.find(x => x.id === o.id); if (!c) return;
+    (o.moves || []).forEach(m => { if (m && !(c.moves || []).some(x => x.date === m.date && x.to === m.to)) add('calfMove', c.id, `子牛 ${c.earTagId || c.id}　${fmtDate(m.date)} → ${m.to}`, m, from); });
+    (o.tags || []).forEach(t => { if (!(c.tags || []).includes(t)) add('calfTag', c.id, `子牛 ${c.earTagId || c.id}　🏷 ${t}`, t, from); });
+  });
+  srcTasks.forEach(({ o, from }) => {
+    if (!o || !o.done) return; const t = tasks.find(x => x.id === o.id); if (!t || t.done) return;
+    add('taskDone', t.id, `${fmtDate(t.date)} ${t.cowId}　${t.action}`, null, from);
+  });
+  _lostData = items;
+  document.getElementById('lost-modal')?.remove();
+  const G = [['cowMove', '🏠 牛舎の移動（親牛）'], ['calfMove', '🏠 牛舎の移動（子牛）'], ['tag', '🏷 タグ（親牛）'], ['calfTag', '🏷 タグ（子牛）'], ['taskDone', '✓ タスクのチェック']];
+  const w = document.createElement('div'); w.id = 'lost-modal';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:12px;';
+  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:16px;width:100%;max-width:560px;max-height:92vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>🩹 消えた移動・タグ・チェックを取り戻す</b><button class="modal-close" onclick="document.getElementById('lost-modal').remove()">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6;">ここ3日の変更履歴とクラウドのバックアップにあって、今は無いものです。わざと消したものはチェックを外してください。</div>
+    ${items.length ? G.map(([k, l]) => { const L = items.map((x, i) => ({ x, i })).filter(o => o.x.kind === k); if (!L.length) return '';
+      return `<div style="font-size:13px;font-weight:700;margin:12px 0 4px;">${l}（${L.length}）　<button class="st-act" onclick="document.querySelectorAll('.lost-${k}').forEach(c=>c.checked=true)">全部</button> <button class="st-act" onclick="document.querySelectorAll('.lost-${k}').forEach(c=>c.checked=false)">外す</button></div>
+        <div style="max-height:30vh;overflow:auto;">${L.map(({ x, i }) => `<label style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-start;font-size:13px;padding:6px 2px;border-bottom:1px solid var(--border);text-transform:none;letter-spacing:0;font-weight:400;color:var(--text);"><input type="checkbox" class="lost-${k} lost-c" data-i="${i}" checked style="width:18px;height:18px;flex:none;margin:2px 0 0;"><span style="text-align:left;">${_stEsc(x.label)}<br><span style="font-size:11px;color:var(--muted);">${_stEsc(x.from)}</span></span></label>`).join('')}</div>`; }).join('')
+      + `<button class="btn btn-primary" style="width:100%;margin-top:12px;" onclick="runLostRecover()">チェックしたものを戻す</button>`
+      : '<div style="font-size:13px;color:var(--accent);">✓ 消えているものは見つかりませんでした</div>'}
+  </div>`;
+  document.body.appendChild(w);
+}
+function runLostRecover() {
+  const L = _lostData || [];
+  const pick = [...document.querySelectorAll('#lost-modal .lost-c')].filter(c => c.checked).map(c => L[+c.dataset.i]).filter(Boolean);
+  if (!pick.length) { appAlert('戻すものを選んでください'); return; }
+  armUndo(`消えた記録を${pick.length}件戻しました`);
+  const now = Date.now();
+  pick.forEach(x => {
+    if (x.kind === 'cowMove' || x.kind === 'tag') {
+      const c = cows.find(o => o.id === x.id); if (!c) return;
+      if (x.kind === 'cowMove') { c.events = c.events || []; if (!c.events.some(e => e.type === 'move' && e.date === x.data.date && e.to === x.data.to)) { c.events.push(JSON.parse(JSON.stringify(x.data))); c.events.sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))); } }
+      else { c.tags = c.tags || []; if (!c.tags.includes(x.data)) c.tags.push(x.data); }
+    } else if (x.kind === 'calfMove' || x.kind === 'calfTag') {
+      const c = calves.find(o => o.id === x.id); if (!c) return;
+      if (x.kind === 'calfMove') { c.moves = c.moves || []; if (!c.moves.some(m => m.date === x.data.date && m.to === x.data.to)) c.moves.push(JSON.parse(JSON.stringify(x.data))); }
+      else { c.tags = c.tags || []; if (!c.tags.includes(x.data)) c.tags.push(x.data); }
+    } else if (x.kind === 'taskDone') {
+      const t = tasks.find(o => o.id === x.id); if (t && !t.done) { t.done = true; t._mt = now; }
+    }
+  });
+  save(); try { renderAll(); } catch (e) {}
+  document.getElementById('lost-modal')?.remove();
+  appAlert(`${pick.length}件戻しました`);
 }
 // ★ 2026/11/17：授精簿の行に対応する在庫の使用記録があるか（syncInsemInventoryForRecord と同じ見方）
 function _invHasUse(rec) {
@@ -22159,10 +22304,13 @@ function deleteInsemRecord(src, idx) {
       var cow = cows.find(function(c) { return c.id === cowId; });
       if (cow && cow.events) {
         // 授精記録に対応する妊鑑結果を特定して削除
+        // ★ 2026/11/18：この授精のあとに別の授精・移植があるときは、そのあとの妊娠（分娩予定・状態）にはさわらない
+        var nextInsDate = (cow.events||[]).filter(function(e) { return ['ai_done','et_done','estrus_ai','estrus_et'].includes(e.type) && e.date > date; }).map(function(e) { return e.date; }).sort()[0] || '9999';
         var pregToDelete = (cow.events||[]).find(function(e) {
           return (e.type==='preg_positive'||e.type==='preg_negative') &&
-            (e.insemDate === date || (!e.insemDate && e.date >= date && e.date <= addDays(date, 280)));
+            (e.insemDate === date || (!e.insemDate && e.date >= date && e.date < nextInsDate && e.date <= addDays(date, 280)));
         });
+        var isLatestIns = nextInsDate === '9999';
         cow.events = cow.events.filter(function(ev) {
           if (ev.date !== date) return true;
           var evType = isET ? 'et_done' : 'ai_done';
@@ -22171,17 +22319,19 @@ function deleteInsemRecord(src, idx) {
         // 妊鑑結果も削除
         if (pregToDelete) {
           cow.events = cow.events.filter(function(e) { return e !== pregToDelete; });
-          // 分娩予定・産室移動タスクも削除
-          tasks = tasks.filter(function(t) {
-            return !(t.cowId === cowId && !t.done && (t.action === '分娩予定' || t.action === '🏠 産室移動'));
-          });
-          cow.dueDate = null;
+          // 分娩予定・産室移動タスクも削除（いちばん新しい授精のときだけ）
+          if (isLatestIns) {
+            tasks = tasks.filter(function(t) {
+              return !(t.cowId === cowId && !t.done && (t.action === '分娩予定' || t.action === '🏠 産室移動'));
+            });
+            cow.dueDate = null;
+          }
         }
         // ステータスをopenに戻す（次のイベントがなければ）
         var hasActiveEvent = (cow.events||[]).some(function(ev) {
-          return ['ai_done','et_done','cidr_ai_start','et_recipient','donor_et_start'].includes(ev.type) && ev.date >= date;
+          return ['ai_done','et_done','cidr_ai_start','et_recipient','donor_et_start','calving','abortion'].includes(ev.type) && ev.date >= date;
         });
-        if (!hasActiveEvent) cow.status = 'open';
+        if (!hasActiveEvent && isLatestIns) cow.status = 'open';
       }
 
       // 3. 妊鑑タスク・再発情タスクを削除
@@ -22200,7 +22350,8 @@ function deleteInsemRecord(src, idx) {
         semenInventory.forEach(function(inv) {
           if (!inv.history) return;
           inv.history = inv.history.filter(function(h) {
-            var isThis = (h.type === 'use' || h.type === 'transfer') && h.date === date && (h.cowId === cowId || (inv.name === sire.trim()));
+            // ★ 2026/11/18：同じ日に同じ精液を使った別の牛の記録まで消さない
+            var isThis = (h.type === 'use' || h.type === 'transfer') && h.date === date && inv.name === sire.trim() && (h.cowId === cowId || !h.cowId);
             if (isThis) inv.stock = (inv.stock||0) + (h.count||1);
             return !isThis;
           });
@@ -32035,6 +32186,7 @@ try {
     <button id="ib-sync-all-btn" onclick="syncInsemBookToCows()" style="background:#0a1a2a;border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">📥 種付け記録に反映</button>
     <button onclick="toggleInsemBookPreg()" id="insembook-preg-btn" style="background:var(--bg3);border:1px solid var(--border);color:var(--muted);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">🔬 妊鑑</button>
     <span id="insembook-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+    <button onclick="openIbRestore()" style="background:#0a2a1a;border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;">☁ 消えた行を戻す</button>
   </div>
   <div id="insembook-only" style="display:none;background:#2a0a0a;border:1px solid var(--danger);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:13px;align-items:center;gap:10px;"></div>
   <div id="insembook-sync-result" style="display:none;background:#0a1a2a;border:1px solid var(--info);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;color:var(--info);"></div>
@@ -32936,16 +33088,33 @@ function _syncHash(str) {   // 32bit FNV-1a
   return (h >>> 0).toString(36);
 }
 const _syncItemKey = x => (x && typeof x === 'object' && x.id != null) ? 'i:' + x.id : 'h:' + _syncHash(JSON.stringify(x));
+// ★ 2026/11/18：牛・子牛・タスクなどは、1頭（1件）の中の欄ごとにも指紋を取っておく。
+//   両方の端末で同じ牛を変えたとき、牛まるごと新しい方にするのではなく、欄ごと（移動・授精などの記録は1件ずつ）にまとめる。
+//   （前は、止まっていた端末が古い中身のまま自動の直しで全部の牛を変えて送ると、ほかの端末で入れた移動などが全部消えていた）
+const _SYNC_FIELD_KEYS = ['cows', 'calves', 'tasks', 'retiredCows', 'calvingRecords'];
+function _syncFieldDigest(x) {
+  const f = {};
+  Object.keys(x).forEach(p => {
+    if (p === '_mt') return;
+    const v = x[p];
+    f[p] = Array.isArray(v) ? v.map(e => _syncHash(JSON.stringify(e))) : _syncHash(JSON.stringify(v));
+  });
+  return f;
+}
 // 値の指紋：配列なら1件ずつ、オブジェクトならキーごと、それ以外は丸ごと
-function _syncDigest(str) {
+function _syncDigest(str, k) {
   let v; try { v = JSON.parse(str); } catch (e) { return { t: 's', h: _syncHash(String(str)) }; }
-  if (Array.isArray(v)) { const m = {}; v.forEach(x => { m[_syncItemKey(x)] = _syncHash(JSON.stringify(x)); }); return { t: 'a', m }; }
+  if (Array.isArray(v)) {
+    const m = {}; v.forEach(x => { m[_syncItemKey(x)] = _syncHash(JSON.stringify(x)); });
+    if (k && _SYNC_FIELD_KEYS.includes(k)) { const fm = {}; v.forEach(x => { if (x && typeof x === 'object' && !Array.isArray(x)) fm[_syncItemKey(x)] = _syncFieldDigest(x); }); return { t: 'a', m, f: fm }; }
+    return { t: 'a', m };
+  }
   if (v && typeof v === 'object') { const m = {}; Object.keys(v).forEach(k => { m[k] = _syncHash(JSON.stringify(v[k])); }); return { t: 'o', m }; }
   return { t: 's', h: _syncHash(String(str)) };
 }
 function _syncSetBase(k, str) {
   _syncedStr[k] = str;
-  try { _syncBase[k] = _syncDigest(str); localStorage.setItem('_syncBase', JSON.stringify(_syncBase)); } catch (e) {}
+  try { _syncBase[k] = _syncDigest(str, k); localStorage.setItem('_syncBase', JSON.stringify(_syncBase)); } catch (e) {}
 }
 // 3方向マージ。base は指紋（_syncDigest）
 function syncMerge3(k, base, remoteStr, localStr) {
@@ -32965,8 +33134,38 @@ function syncMerge3(k, base, remoteStr, localStr) {
     }
     return l;
   };
+  // 両方で同じ1件を変えたとき：欄ごとにまとめる（配列の欄は1件ずつ：足した方は残し、消した方は消す）
+  const mergeArr = (ra, la, bArr) => {
+    const bset = new Set(bArr || []), rh = ra.map(H), lh = la.map(H), rs = new Set(rh), ls = new Set(lh), out = [], seen = new Set();
+    la.forEach((x, i) => { const h = lh[i]; if (seen.has(h)) return; seen.add(h); if (bset.has(h) && !rs.has(h)) return; out.push(x); });
+    ra.forEach((x, i) => { const h = rh[i]; if (seen.has(h)) return; seen.add(h); if (bset.has(h) && !ls.has(h)) return; out.push(x); });
+    return out;
+  };
+  const mergeItem = (r, l, bf) => {
+    if (!bf || !(r && l && typeof r === 'object' && typeof l === 'object') || Array.isArray(r) || Array.isArray(l)) return pickBoth(r, l);
+    const win = pickBoth(r, l), o = {};
+    new Set([...Object.keys(l), ...Object.keys(r)]).forEach(p => {
+      if (p === '_mt') return;
+      const inR = p in r, inL = p in l, rv = r[p], lv = l[p];
+      const rh = inR ? H(rv) : undefined, lh = inL ? H(lv) : undefined, b = bf[p];
+      if (rh === lh) { if (inL) o[p] = lv; return; }
+      if (Array.isArray(b) && (!inR || Array.isArray(rv)) && (!inL || Array.isArray(lv))) {
+        const m = mergeArr(inR ? rv : [], inL ? lv : [], b);
+        if (p === 'events' || p === 'moves') m.sort((x, y) => String((x && x.date) || '').localeCompare(String((y && y.date) || '')));
+        if (m.length || (inL && inR)) o[p] = m;
+        return;
+      }
+      const bh = Array.isArray(b) ? undefined : b;
+      if (bh === undefined) { if (!inR) { o[p] = lv; return; } if (!inL) { o[p] = rv; return; } }
+      if (bh !== undefined && bh === lh) { if (inR) o[p] = rv; return; }   // 手元はこの欄を変えていない → クラウドの方
+      if (bh !== undefined && bh === rh) { if (inL) o[p] = lv; return; }   // クラウドはこの欄を変えていない → 手元の方
+      if (p in win) o[p] = win[p];                                         // 同じ欄を両方で変えた → 後から変えた方
+    });
+    const mt = Math.max(r._mt || 0, l._mt || 0); if (mt) o._mt = mt;
+    return o;
+  };
   if (Array.isArray(R) && Array.isArray(L) && (!base || base.t === 'a')) {
-    const bm = (base && base.m) || null;
+    const bm = (base && base.m) || null, bfm = (base && base.f) || null;
     const rmap = new Map(); R.forEach(x => rmap.set(_syncItemKey(x), x));
     const out = [], seen = new Set();
     L.forEach(lx => {
@@ -32977,7 +33176,7 @@ function syncMerge3(k, base, remoteStr, localStr) {
         if (lh === rh) out.push(lx);
         else if (bh !== undefined && bh === lh) out.push(rx);        // 手元は変えていない → クラウドの方
         else if (bh !== undefined && bh === rh) out.push(lx);        // クラウドは変えていない → 手元の方
-        else out.push(pickBoth(rx, lx));                             // 両方で変えた
+        else out.push(bfm && bfm[key] ? mergeItem(rx, lx, bfm[key]) : pickBoth(rx, lx));   // 両方で変えた → 欄ごとにまとめる
       } else {
         if (bh !== undefined && bh === lh) {                         // ほかの端末で消した（手元は変えていない）→ 消す
           if (TB && !_ibTombOK(TB, lx, key)) { console.warn('同期：授精簿の行が無くなっていたが、消した記録が無いので残しました', lx.d, lx.t, lx.s); out.push(lx); }
@@ -33048,7 +33247,7 @@ function _syncReconcile0(k, rv, lv) {
   if (lv == null || lv === rv) return rv;
   if (_syncedStr[k] !== undefined && lv === _syncedStr[k]) return rv;     // 手元はそろえた時のまま → クラウドの方
   const base = _syncBase[k];
-  if (base && base.t && _syncHash(lv) && JSON.stringify(_syncDigest(lv)) === JSON.stringify(base)) return rv;   // 手元は変えていない
+  if (base && base.t && _syncHash(lv) && JSON.stringify(_syncDigest(lv, k)) === JSON.stringify(base)) return rv;   // 手元は変えていない
   return base ? syncMerge3(k, base, rv, lv) : _syncLegacyMerge(k, rv, lv);
 }
 function _syncAfterLocalChange() {
@@ -33065,7 +33264,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026111737';
+const APP_BUILD = '2026111804';
 function _checkAppBuild(remote, dbRef) {
   const b = remote && remote._appBuild ? String(remote._appBuild) : '';
   if (b && b > APP_BUILD) {
@@ -34497,6 +34696,8 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <div onclick="switchTab('insembook')"><span>📄 ${document.documentElement.classList.contains('no-etcert') ? '授精証明書' : '授精証明書・移植証明書'}</span><span style="color:#64748b;">›</span></div>
         <div onclick="openBirthReport()"><span>🐄 らくちく出生報告</span><span style="color:${br ? '#f59e0b' : '#64748b'};font-weight:${br ? 700 : 400};">${br ? br + '頭まだ ›' : '›'}</span></div>
         <div onclick="nuiPrintMenu()"><span>🖨 お産予定・授精簿の印刷</span><span style="color:#64748b;">›</span></div>
+        <div onclick="openLostRecover()"><span>🩹 消えた移動・タグ・チェックを取り戻す</span><span style="color:#64748b;">›</span></div>
+        <div onclick="openIbRestore()"><span>☁ 消えた授精簿の行を戻す（バックアップから）</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('history')"><span>📝 変更履歴</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('calc')"><span>🧮 発情・分娩の日を計算</span><span style="color:#64748b;">›</span></div>
         <div onclick="openModal('modal-settings')"><span>⚙ 設定・データ管理</span><span style="color:#64748b;">›</span></div>
