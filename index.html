@@ -7981,9 +7981,11 @@ function showCowStory(cowId) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
           <div style="font-size:14px;font-weight:900;color:var(--warn);">${ex.icon} ${cow.shipDate ? '出荷済' : fatt ? '廃用肥育中' : (cow.retireExit && cow.retireExit !== 'other' ? '廃用（' + ex.label + '）' : '廃用')}</div>
           ${fatt && !cow.shipDate ? `<button class="st-act" onclick="recordRetiredShip('${esc(cowId)}')">🚚 出荷を記録</button>` : ''}
+          ${fatt && cow.shipDate ? `<button class="st-act" onclick="openRetiredPrice('${esc(cowId)}')">💴 ${retiredPriceText(cow) ? '売れた値段を直す' : '売れた値段を入れる'}</button>` : ''}
         </div>
         <div style="font-size:12px;color:var(--text);margin-top:4px;line-height:1.7;">
           廃用日 <b>${fmtDate(cow.retireDate)}</b>${cow.reason ? `・理由 <b style="color:var(--warn);">${esc(cow.reason)}</b>` : ''}<br>
+          ${fatt && cow.shipDate && retiredPriceText(cow) ? `💴 <b>${esc(retiredPriceText(cow))}</b><br>` : ''}
           ${fatt ? `廃用肥育 <b>${days}日${cow.shipDate ? '' : '目'}</b>${cow.shipDate ? `・出荷 <b>${fmtDate(cow.shipDate)}</b>` : cow.shipPlan ? `・出荷予定 <b>${fmtDate(cow.shipPlan)}</b>（あと${diffDays(cow.shipPlan, today())}日）` : '・出荷予定 未設定'}` : ''}
         </div>
       </div>
@@ -26579,6 +26581,39 @@ const SCORE_STAGES = ['育成舎①', '育成舎②', '出荷'];
 function getBarns() { const b = (typeof farmTargets !== 'undefined' && farmTargets && farmTargets._barns) || null; const cb = window.FARM_CFG && window.FARM_CFG.barns; return Array.isArray(b) && b.length ? b : Array.isArray(cb) && cb.length ? cb : DEFAULT_BARNS; }
 function cowMoves(cow) { return (cow.events || []).map((e, i) => ({ ...e, _idx: i })).filter(e => e.type === 'move').sort((a, b) => a.date.localeCompare(b.date)); }
 function cowLocation(cow) { const m = cowMoves(cow); return m.length ? m[m.length - 1].to : ''; }
+// ★ 2026/11/20：体格（1小〜5大）をあとから直す。生まれた時と、育成舎①・育成舎②・出荷へ移したときの体格
+function editCalfScores(calfId) {
+  const calf = calves.find(c => c.id === calfId); if (!calf) return;
+  const rows = [{ k: 'birth', label: '生まれた時', date: calf.dob, v: +(calf.weight || calf.size) || 0 }]
+    .concat((calf.moves || []).map((m, i) => ({ k: i, label: m.to, date: m.date, v: +m.score || 0, stage: SCORE_STAGES.includes(m.to) })).filter(r => r.stage || r.v));
+  window._ces = { id: calfId, v: Object.fromEntries(rows.map(r => [r.k, r.v])) };
+  const btns = r => [1, 2, 3, 4, 5].map(n => `<button type="button" data-ces="${r.k}" data-n="${n}" onclick="_cesSet('${r.k}',${n})" style="width:40px;height:40px;border-radius:9px;font-weight:900;font-size:15px;cursor:pointer;border:1px solid ${r.v === n ? 'var(--accent2)' : 'var(--border)'};background:${r.v === n ? 'var(--accent2)' : 'transparent'};color:${r.v === n ? '#000' : 'var(--text)'};">${n}</button>`).join('');
+  document.getElementById('confirm-title').innerHTML = `✏ 体格を直す — ${_stEsc(calf.earTagId || '耳標なし')}`;
+  document.getElementById('confirm-body').innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">1小〜5大。同じ数字をもう一度押すと空にします。</div>
+    ${rows.map(r => `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--border);"><div style="flex:1;min-width:0;"><b>${_stEsc(r.label)}</b><div style="font-size:11px;color:var(--muted);">${r.date ? fmtDate(r.date) : ''}</div></div>${btns(r)}</div>`).join('')}
+    ${rows.length === 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:6px;">育成舎①・育成舎②・出荷へ移すと、そのときの体格もここで直せます。</div>' : ''}`;
+  const ok = document.getElementById('confirm-ok-btn');
+  ok.textContent = '保存する'; ok.style.cssText = '';
+  ok.onclick = () => {
+    const V = window._ces.v;
+    Object.entries(V).forEach(([k, v]) => {
+      if (k === 'birth') {
+        if (v) calf.weight = v; else delete calf.weight;
+        // 分娩の記録の体格も合わせる（双子で1つの記録を分けているときは子牛の方だけ）
+        const rec = calvingRecords.find(r => r.id === calf.calvingRecordId);
+        if (rec && calves.filter(c => c.calvingRecordId === calf.calvingRecordId).length <= 1) { if (v) rec.sizeScore = v; else delete rec.sizeScore; }
+      } else { const m = (calf.moves || [])[+k]; if (m) { if (v) m.score = v; else delete m.score; } }
+    });
+    save(); closeModal('modal-confirm');
+    try { renderAll(); } catch (e) {}
+    showCalfStory(calfId);
+  };
+  openModal('modal-confirm');
+}
+function _cesSet(k, n) {
+  const V = window._ces.v; V[k] = V[k] === n ? 0 : n;
+  document.querySelectorAll(`[data-ces="${k}"]`).forEach(b => { const on = +b.dataset.n === V[k]; b.style.background = on ? 'var(--accent2)' : 'transparent'; b.style.color = on ? '#000' : 'var(--text)'; b.style.borderColor = on ? 'var(--accent2)' : 'var(--border)'; });
+}
 function calfMoves(calf) { return (calf.moves || []).map((m, i) => ({ ...m, _idx: i })).sort((a, b) => a.date.localeCompare(b.date)); }
 function calfLocation(calf) { const m = calfMoves(calf); return m.length ? m[m.length - 1].to : ''; }
 // 子牛の体格の移り変わり（育成舎①・育成舎②・出荷の節目だけ。生時の体格は評価に入れない）
@@ -26955,9 +26990,10 @@ function showCalfStory(calfId) {
       ${calf.nationalId ? `個体識別番号 <span style="color:var(--text);font-family:'JetBrains Mono',monospace;">${esc(calf.nationalId)}</span><br>` : ''}
       ${[calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).length ? `🐄 血統 <span style="color:var(--text);font-weight:500;">${esc([calf.sire, calf.maternalSire, calf.maternalGrandSire].filter(Boolean).join(' × '))}</span>` : ''}
     </div>` : ''}
-    ${(() => { const v = calfVerdict(calf); const sc = calfScores(calf); if (!sc.length) return '';
+    ${(() => { const v = calfVerdict(calf); const sc = calfScores(calf); const bs = +(calf.weight || calf.size) || 0; if (!sc.length && !bs) return '';
       return `<div style="background:var(--bg3);border:1px solid ${v && v.bad ? (v.final ? '#ef4444' : '#f59e0b') : 'var(--border)'};border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:12px;">
-        <b>体格の移り変わり</b>：${sc.map(x => `${esc(x.stage)} <b>${x.score}</b>`).join(' → ')}
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;"><span><b>体格の移り変わり</b>：${bs ? '生時 <b>' + bs + '</b>' + (sc.length ? ' → ' : '') : ''}${sc.map(x => `${esc(x.stage)} <b>${x.score}</b>`).join(' → ')}</span>
+        <button class="st-act" style="flex-shrink:0;" onclick="editCalfScores('${esc(calf.id)}')">✏ 直す</button></div>
         ${v && v.bad ? `<div style="color:${v.final ? '#ef4444' : '#f59e0b'};margin-top:3px;">${v.final ? '🚫 出荷時の体格が' + v.score + '。母 ' + esc(calf.damId || '') + ' × ' + esc(calf.sire || '') + ' は相性が悪いとみなします' : '⚠ ' + esc(v.stage) + 'で体格' + v.score + '（途中の評価）'}${v.ill ? '（治療歴あり：病気の影響かも）' : ''}</div>` : ''}
         ${v && v.declining && !v.bad ? '<div style="color:var(--warn);margin-top:3px;">伸びが悪い（だんだん下がっている）</div>' : ''}
       </div>`; })()}
@@ -32307,6 +32343,7 @@ function renderRetiredList() {
  <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button onclick="showCowDetail('${cow.id}')" style="background:var(--bg3);border:1px solid var(--info);color:var(--info);font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">📖 ストーリー</button>
           ${cow.retireExit === 'fatten' && !cow.shipDate ? `<button onclick="recordRetiredShip('${cow.id}')" style="background:var(--bg3);border:1px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">🚚 出荷を記録</button>` : ''}
+          ${cow.retireExit === 'fatten' && cow.shipDate ? `<button onclick="openRetiredPrice('${cow.id}')" style="background:var(--bg3);border:1px solid var(--warn);color:var(--warn);font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">💴 ${retiredPriceText(cow) ? '値段を直す' : '売れた値段'}</button>` : ''}
           <button onclick="restoreRetiredCow('${cow.id}')" style="background:var(--bg3);border:1px solid var(--accent2);color:var(--accent);font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;cursor:pointer;">↩ 個体タブに戻す</button>
           <button onclick="deleteRetiredCow('${cow.id}')" style="background:none;border:1px solid var(--danger);color:var(--danger);font-size:12px;padding:6px 12px;border-radius:8px;cursor:pointer;">🗑 完全削除</button>
         </div>
@@ -32447,8 +32484,17 @@ function recordRetiredShip(cowId) {
     renderRetiredList();
     const mc = document.getElementById('modal-cow');
     if (mc && mc.classList.contains('open')) showCowDetail(cowId);
+    // ★ 2026/11/20：続けて売れた値段（枝肉成績）を入れる画面を開く（あとからでも入れられる）
+    if (typeof nuiFatForm === 'function') { try { closeModal('modal-cow'); } catch (e) {} nuiFatForm('ret', cowId); }
   };
   openModal('modal-confirm');
+}
+// 廃用肥育の売れた値段・枝肉成績を入れる／直す（肥育と同じ画面）
+function openRetiredPrice(cowId) { if (typeof nuiFatForm !== 'function') return; try { closeModal('modal-cow'); } catch (e) {} nuiFatForm('ret', cowId); }
+function retiredPriceText(cow) {
+  try { const n = String(cow.nationalId || (getMasterCow(cow.id) || {}).nationalId || '').replace(/\D/g, ''); if (!n) return '';
+    const r = (fatteningRecords || []).find(x => String(x.nationalId || '').replace(/\D/g, '') === n); if (!r) return '';
+    return [r.meatGrade || '', r.weight != null ? '枝重' + r.weight + 'kg' : '', r.unitPrice ? '単価' + r.unitPrice + '円' : '', r.amount ? Math.round(r.amount).toLocaleString() + '円' : ''].filter(Boolean).join('・'); } catch (e) { return ''; }
 }
 
 function deleteRetiredCow(cowId) {
@@ -33686,7 +33732,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112005';
+const APP_BUILD = '2026112006';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -35228,7 +35274,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const calcAmt = rec && rec.weight && rec.unitPrice ? Math.round(rec.weight * rec.unitPrice) : null;
     FS.amtManual = !!(rec && rec.amount != null && rec.amount !== calcAmt);   // 前に手で直した金額があれば、手で入れる欄を開いておく
     FS.sd = sd; FS.dob = src.dob || ''; FS.sire = kind === 'calf' ? (src.sire || '') : ''; FS.sexT = kind === 'calf' ? (src.sex === '雄' ? '去勢' : src.sex === '雌' ? '♀' : '') : '経産';
-    scrShow(`${backBtn('nuiFatQuit()', '閉じる')}<span style="font-size:17px;font-weight:900;">🥩 枝肉成績</span>${FQ ? `<span style="font-size:13px;color:#fbbf24;font-weight:700;">${qi + 1}／${FQ.length}頭目</span>` : ''}`,
+    scrShow(`${backBtn('nuiFatQuit()', '閉じる')}<span style="font-size:17px;font-weight:900;">${kind === 'ret' ? '💴 売れた値段・枝肉成績' : '🥩 枝肉成績'}</span>${FQ ? `<span style="font-size:13px;color:#fbbf24;font-weight:700;">${qi + 1}／${FQ.length}頭目</span>` : ''}`,
       `<div style="padding:12px 14px 30px;">
         <div class="nui-card" style="padding:10px 14px;">
           <div><span class="nui-mono" style="font-weight:900;font-size:20px;color:#4ade80;">${esc(tag)}</span>${n ? ` <span class="nui-nid">${esc(nid5(n))}</span>` : ''} <span style="font-size:16px;font-weight:700;">${esc(src.name || nm(tag) || '')}</span></div>
