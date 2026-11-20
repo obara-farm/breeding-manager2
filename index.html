@@ -33802,7 +33802,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112012';
+const APP_BUILD = '2026112013';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -35311,7 +35311,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       ${CP.done && iss ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;flex-shrink:0;" onclick="event.stopPropagation();nuiCpUndo('${k}')">まだに戻す</button>` : ''}</div>`;
   }
   function cpFoot() {
-    if (CP.tab === 'req') return `<div style="font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">ほかの術者が授精した子です。こちらで証明書は出さずに、その術者に送ってもらいます。<br>頼んだら「📨 頼んだ」、届いたら「✓ 届いた」を押すと一覧から消えます。</div>`;
+    if (CP.tab === 'req') return `<div style="font-size:12px;color:#94a3b8;text-align:center;line-height:1.6;">ほかの術者が授精した子です。こちらで証明書は出さずに、その術者に送ってもらいます。<br>「📄 依頼リスト」で術者に送る表を作れます（印刷、または印刷の画面から PDF にして送れます）。<br>頼んだら「📨 頼んだ」、届いたら「✓ 届いた」を押すと一覧から消えます。</div>`;
     const n = CP.sel.size, blank = CP.tab === 'ai' && !CP.done ? cpBlank().length : 0;
     return `${blank ? `<button onclick="nuiCpFill()" style="width:100%;height:42px;border-radius:10px;border:1.5px solid #b45309;background:#1a0f00;color:#fbbf24;font-size:14px;font-weight:700;margin-bottom:8px;font-family:inherit;cursor:pointer;">No. を続き番号で入れる（${blank}か所）</button>` : ''}
       <button id="cp-print" onclick="nuiCpPrint()" ${n ? '' : 'disabled'} style="width:100%;height:52px;border-radius:12px;border:none;background:${n ? '#16a34a' : '#1e2333'};color:${n ? '#fff' : '#64748b'};font-size:17px;font-weight:900;font-family:inherit;cursor:${n ? 'pointer' : 'default'};">📄 ${n ? n + '枚を印刷する' : '印刷するものを選んでください'}</button>
@@ -35335,7 +35335,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       list = G.map(g => { const notAsked = g.L.filter(it => !it.c.certReqAsked && !it.c.certReqGot).length;
         return `<div class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;">
           <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;flex-wrap:wrap;"><span style="flex:1;min-width:0;font-size:15px;"><b>術者 ${esc(g.op)}</b> <span style="font-size:12px;color:#94a3b8;">${g.L.length}頭</span></span>
-          ${CP.done ? '' : `<button class="nui-chip" onclick="nuiCpReqText('${jsq(g.op)}')">📋 頼む文をコピー</button>${notAsked ? `<button class="nui-chip" onclick="nuiCpReq('${jsq(g.op)}','askAll')">📨 全部頼んだ</button>` : ''}`}</div>
+          ${CP.done ? '' : `<button class="nui-chip" onclick="nuiCpReqList('${jsq(g.op)}')">📄 依頼リスト</button>${notAsked ? `<button class="nui-chip" onclick="nuiCpReq('${jsq(g.op)}','askAll')">📨 全部頼んだ</button>` : ''}`}</div>
           <div style="padding:0 10px;">${g.L.map(cpRowHTML).join('')}</div></div>`; }).join('');
     }
     else if (CP.tab === 'egg') {
@@ -35405,6 +35405,29 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       else if (act === 'got') c.certReqGot = d;
       else if (act === 'undo') c.certReqGot = false; }
     save(); vCert(true);
+  };
+  // 術者に送る依頼リスト（表）。印刷するか、印刷画面から PDF にして送る
+  window.nuiCpReqList = function (op) {
+    const L = cpItems('req', false).filter(it => it.op === op); if (!L.length) return;
+    const F = (window.FARM_CFG && FARM_CFG.farm) || {};
+    const fd = d => { if (!d) return ''; const [y, m, dd] = d.split('-'); return `${y}/${+m}/${+dd}`; };
+    const td = 'border:1px solid #000;padding:5px 6px;font-size:10.5pt;';
+    const rows = L.map((it, i) => { const c = it.c, cow = cows.find(x => x.id === c.damId) || (typeof retiredCows !== 'undefined' ? retiredCows : []).find(x => x.id === c.damId) || {};
+      return `<tr><td style="${td}text-align:center;">${i + 1}</td><td style="${td}white-space:nowrap;">${esc(damNameOf(c.damId, c) || '')}</td><td style="${td}font-family:monospace;">${esc(cow.nationalId || '')}</td>
+        <td style="${td}white-space:nowrap;">${it.et ? '移植' : '授精'} ${esc(fd(c.insemDate))}</td><td style="${td}white-space:nowrap;">${esc(c.sire || (it.row && it.row.s) || '')}</td>
+        <td style="${td}white-space:nowrap;">${esc(fd(c.dob))}</td><td style="${td}font-family:monospace;">${esc(c.nationalId || '')}</td><td style="${td}white-space:nowrap;">${it.et ? '移植証明書' : '授精証明書'}</td></tr>`; }).join('');
+    const kinds = L.every(it => it.et) ? '移植証明書' : L.some(it => it.et) ? '授精証明書・移植証明書' : '授精証明書';
+    let box = $('cp-req-print'); if (!box) { box = document.createElement('div'); box.id = 'cp-req-print'; box.style.display = 'none'; document.body.appendChild(box); }
+    box.innerHTML = `<div style="width:190mm;padding:12mm 10mm;box-sizing:border-box;font-family:'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;color:#000;">
+      <div style="text-align:right;font-size:10.5pt;">${esc(fd(today()))}</div>
+      <div style="font-size:13pt;margin-top:4mm;">${esc(op)}　様</div>
+      <div style="text-align:center;font-size:16pt;font-weight:700;margin:8mm 0 6mm;">${kinds} 送付のお願い</div>
+      <div style="font-size:10.5pt;line-height:1.8;margin-bottom:5mm;">下記の子牛の${kinds}を送っていただけますよう、お願いいたします。</div>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">${['No', '母牛', '母牛の個体識別番号', '授精・移植日', '種雄牛', '子牛の生年月日', '子牛の個体識別番号', '証明書'].map(h => `<th style="${td}font-size:9.5pt;">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+      <div style="font-size:10.5pt;margin-top:4mm;">以上 ${L.length}頭</div>
+      <div style="font-size:10.5pt;margin-top:10mm;line-height:1.8;text-align:right;">${esc(F.name || '')}${F.owner ? '　' + esc(F.owner) : ''}<br>${esc(F.address || '')}</div>
+    </div>`;
+    printIsolated('cp-req-print', kinds + '送付のお願い', { size: 'A4 portrait', margin: '0', pageWidth: '210mm' });
   };
   window.nuiCpReqText = async function (op) {
     const L = cpItems('req', false).filter(it => it.op === op);
