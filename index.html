@@ -28147,6 +28147,23 @@ function filterQrEmbryoSelect(q) {
   });
 }
 
+// ★ 2026/11/21：使った胚番号。前は在庫の記録に「胚番号:」と書いてあるものしか数えず、「移植 01L237R8-0004」のような記録を見落として、
+//   使った胚まで「まだ使っていない」に出ていた。在庫の記録に胚番号が書いてあれば、書き方によらず使ったものとする
+function _usedEmbryoNos(e, details) {
+  const nos = (details || []).map(d => d.no).filter(Boolean);
+  const used = new Set();
+  (e.history || []).filter(h => ['use', 'transfer', 'discard'].includes(h.type) && h.memo).forEach(h => {
+    const m = String(h.memo).match(/胚番号:([^\s\/]+)/); if (m) used.add(m[1]);
+    nos.forEach(n => { if (String(h.memo).includes(n)) used.add(n); });
+  });
+  return [...used];
+}
+// 同じ胚番号を2回使ったことになっている記録（在庫の数がずれる原因）
+function _dupEmbryoUses(e, details) {
+  const nos = (details || []).map(d => d.no).filter(Boolean), cnt = {};
+  (e.history || []).filter(h => ['use', 'transfer', 'discard'].includes(h.type) && h.memo).forEach(h => { nos.forEach(n => { if (String(h.memo).includes(n)) cnt[n] = (cnt[n] || 0) + 1; }); });
+  return Object.entries(cnt).filter(([, c]) => c > 1).map(([n]) => n);
+}
 function onQrEmbryoSelectChange() {
   const selId = document.getElementById('qr-embryo-select').value;
   const infoEl = document.getElementById('qr-embryo-info');
@@ -28166,10 +28183,7 @@ function onQrEmbryoSelectChange() {
       const details = e.embryoDetails || getSheet2DetailsForLot(e.lot);
       if (details && details.length && e.type === 'frozen') {
         // 使用済み胚番号を取得（history.cowIdがある = 使用済み）
-        const usedNos = (e.history||[])
-          .filter(h => (h.type==='use'||h.type==='transfer'||h.type==='discard') && h.memo)
-          .map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; })
-          .filter(Boolean);
+        const usedNos = _usedEmbryoNos(e, details);
         const available = details.filter(d => d.no && !usedNos.includes(d.no));
         const all = details.filter(d => d.no);
         if (all.length > 0) {
@@ -34126,7 +34140,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112118';
+const APP_BUILD = '2026112119';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -36288,7 +36302,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
   function etNos(e) {   // 凍結胚の、まだ使っていない胚番号
     if (!e || e.type !== 'frozen') return [];
     let details = e.embryoDetails; try { if (!details || !details.length) details = getSheet2DetailsForLot(e.lot); } catch (er) {}
-    const used = (e.history || []).filter(h => ['use', 'transfer', 'discard'].includes(h.type) && h.memo).map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; }).filter(Boolean);
+    const used = _usedEmbryoNos(e, details);
     return (details || []).filter(d => d.no && !used.includes(d.no));
   }
   function vET() {
@@ -36302,7 +36316,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const nos = sel ? etNos(sel) : [];
     const old = E.date && diffDays(T, E.date) >= 30;   // 30日以上前の移植なら、妊鑑の結果も入れられる
     const lotBtn = e => { const on = E.lot === e.id; return `<button class="nui-etlot" data-s="${esc([e.dam, e.sire, e.lot, ...etNos(e).map(d => d.no)].join(' ').toLowerCase())}" onclick="nuiET({lot:'${jsq(e.id)}',no:'',ext:false})" style="display:flex;justify-content:space-between;align-items:center;min-height:46px;padding:6px 12px;border-radius:10px;border:1.5px solid ${on ? '#a78bfa' : '#2a3050'};background:${on ? '#1c1230' : '#1e2333'};color:${on ? '#c4b5fd' : '#e2e8f0'};font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;gap:8px;">
-      <span>${on ? '✓ ' : ''}${esc(e.dam ? e.dam + ' × ' : '')}${esc(e.sire || '')}<br><span style="font-size:11px;color:#94a3b8;font-weight:400;">${esc(e.lot || '')} ${e.type === 'frozen' ? '凍結' : '新鮮'}</span></span><span style="font-size:12px;color:#94a3b8;white-space:nowrap;">のこり ${e.stock}本</span></button>`; };
+      <span>${on ? '✓ ' : ''}× ${esc(e.sire || '')}<span style="font-size:12px;color:#94a3b8;font-weight:400;">　${esc(e.lot || '')} ${e.type === 'frozen' ? '凍結' : '新鮮'}</span></span><span style="font-size:12px;color:#94a3b8;white-space:nowrap;">のこり ${e.stock}本</span></button>`; };
     scrShow(`${backBtn("nuiBackAct()")}<span style="font-size:17px;font-weight:900;color:#4ade80;">💉 種付け・移植</span><span style="font-size:15px;"><span class="nui-mono" style="font-weight:700;">${esc(c.id)}</span> ${esc(nm(c.id))}</span>`,
       `<div style="padding:12px 14px 30px;display:flex;flex-direction:column;gap:14px;">
         <div class="nui-seg"><button onclick="nuiAct('ai')">💉 AI・自然交配</button><button class="on">🧬 移植（ET）</button></div>
@@ -36312,7 +36326,16 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
           <div style="display:flex;gap:6px;margin-top:6px;"><button class="${chip(E.time === 0)}" onclick="nuiET({time:0})">☀ 朝</button><button class="${chip(E.time === 1)}" onclick="nuiET({time:1})">🌙 夕</button></div></div>
         <div class="nui-box"><div class="nui-lb">🧬 受精卵（在庫から）</div>
           ${L.length > 6 ? `<input class="nui-in" style="margin-bottom:8px;" placeholder="🔍 ドナー・種雄牛・胚番号でさがす" oninput="nuiEtFind(this.value)">` : ''}
-          ${L.length ? `<div style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;">${L.map(lotBtn).join('')}</div>` : '<div style="font-size:13px;color:#64748b;">在庫の受精卵はありません</div>'}
+          ${L.length ? (() => {
+            const G = []; L.forEach(e => { const k = e.dam || '（ドナー未設定）'; let g = G.find(x => x.k === k); if (!g) G.push(g = { k, L: [] }); g.L.push(e); });
+            return `<div style="display:flex;flex-direction:column;gap:6px;">${G.map(g => { const open = (E.openDam || {})[g.k] || g.L.some(e => e.id === E.lot); const tot = g.L.reduce((t, e) => t + (Number(e.stock) || 0), 0);
+              const sires = [...new Set(g.L.map(e => e.sire).filter(Boolean))].join('・');
+              return `<div class="nui-etgrp" data-s="${esc([g.k, ...g.L.map(e => [e.sire, e.lot, ...etNos(e).map(d => d.no)].join(' '))].join(' ').toLowerCase())}">
+                <button onclick="nuiEtDam('${jsq(g.k)}')" style="display:flex;align-items:center;gap:8px;width:100%;min-height:46px;padding:6px 12px;border-radius:10px;border:1px solid ${g.L.some(e => e.id === E.lot) ? '#a78bfa' : '#2a3050'};background:#171b26;color:#e2e8f0;font-size:14px;font-weight:900;cursor:pointer;font-family:inherit;text-align:left;">
+                  <span style="flex:1;">🐄 ${esc(g.k)}<br><span style="font-size:11px;color:#94a3b8;font-weight:400;">× ${esc(sires)}・${g.L.length}ロット</span></span><span style="font-size:12px;color:#94a3b8;white-space:nowrap;">計 ${tot}本 ${open ? '▲' : '▼'}</span></button>
+                <div class="nui-etgl" style="display:${open ? 'flex' : 'none'};flex-direction:column;gap:6px;margin:6px 0 4px 12px;">${g.L.map(lotBtn).join('')}</div></div>`; }).join('')}</div>`; })() : '<div style="font-size:13px;color:#64748b;">在庫の受精卵はありません</div>'}
+          ${sel && nos.length && nos.length !== Number(sel.stock) ? (() => { let dup = []; try { dup = _dupEmbryoUses(sel, sel.embryoDetails || getSheet2DetailsForLot(sel.lot)); } catch (e) {}
+            return `<div style="font-size:12px;color:#fbbf24;background:#1a1508;border:1px solid #b45309;border-radius:8px;padding:8px 10px;margin-top:10px;line-height:1.6;">⚠ 在庫の数（${sel.stock}本）と、まだ使っていない胚番号（${nos.length}個）が合いません。${dup.length ? `${dup.map(esc).join('・')} は、使った記録が2回入っています（1本多くへっています）。` : '使ったのに記録されていない胚があるかもしれません。'}受精卵の在庫で確かめてください。</div>`; })() : ''}
           ${sel && nos.length ? `<div class="nui-lb" style="margin-top:10px;">胚番号（まだ使っていないもの ${nos.length}個）</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${nos.map(d => `<button class="nui-chip${E.no === d.no ? ' on' : ''}" onclick="nuiET({no:'${jsq(d.no)}'})">${esc(d.no)}${d.cane ? ' [' + esc(d.cane) + ']' : ''}${d.rank ? ' ' + esc(d.rank) : ''}</button>`).join('')}</div>` : ''}
           <button onclick="nuiET({ext:${!E.ext},lot:'',no:''})" style="margin-top:10px;width:100%;min-height:42px;border-radius:10px;border:1px dashed ${E.ext ? '#a78bfa' : '#475569'};background:${E.ext ? '#1c1230' : 'transparent'};color:${E.ext ? '#c4b5fd' : '#cbd5e1'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">✏ 在庫にない受精卵（ほかの農家・購入など）${E.ext ? ' ▲' : ' ▼'}</button>
           ${E.ext ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
@@ -36335,7 +36358,15 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       `<button class="nui-save" onclick="nuiSaveET()">💾 記録する</button><div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;">再発情の確認と妊鑑の予定も自動で入ります</div>`);
   }
   window.S_nuiEt = (k, v) => { if (S.et) S.et[k] = v; };
-  window.nuiEtFind = q => { q = String(q || '').trim().toLowerCase(); document.querySelectorAll('#nui-scr .nui-etlot').forEach(b => { b.style.display = !q || b.dataset.s.includes(q) || b.classList.contains('on') ? '' : 'none'; }); };
+  window.nuiEtFind = q => {
+    q = String(q || '').trim().toLowerCase();
+    document.querySelectorAll('#nui-scr .nui-etgrp').forEach(g => {
+      const hit = !q || g.dataset.s.includes(q); g.style.display = hit ? '' : 'none';
+      const gl = g.querySelector('.nui-etgl'); if (q && hit && gl) gl.style.display = 'flex';
+      g.querySelectorAll('.nui-etlot').forEach(b => { b.style.display = !q || b.dataset.s.includes(q) || g.dataset.s.split(' ')[0] === q ? '' : 'none'; });
+    });
+  };
+  window.nuiEtDam = k => { const E = S.et; E.openDam = E.openDam || {}; const was = (E.openDam[k] != null) ? E.openDam[k] : etLots().some(e => (e.dam || '（ドナー未設定）') === k && e.id === E.lot); E.openDam[k] = !was; nuiET({}); };
   window.nuiET = function (o) {
     const E = S.et; Object.assign(E, o);
     if ('day' in o) { if (o.day === 0) E.date = today(); if (o.day === 1) E.date = addDays(today(), -1); }
