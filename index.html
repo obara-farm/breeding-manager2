@@ -5481,11 +5481,19 @@ function toggleTask(id) {
   task.done = !task.done;
   task._mt = Date.now();   // ほかの端末とまとめるとき、後からチェックした方を使う
   if (!task.done) task._undoneAt = task._mt; else delete task._undoneAt;   // 自分で外したときだけ、外したことをほかの端末にも伝える
+  if (!task.done) delete task.skipped;
   // 除角・去勢の予定 → その子牛に印を付ける（外したら印も戻す）
   if (task.calfFlag && _CALF_FLAG[task.calfFlag]) {
     const cf = calves.find(c => c.id === task.calfId), f = _CALF_FLAG[task.calfFlag];
     if (cf) { if (task.done) { cf[task.calfFlag] = true; cf[f.date] = cf[f.date] || today(); } else { cf[task.calfFlag] = false; delete cf[f.date]; } }
   }
+  // ★ 2026/11/21：ゲストロン・E2（オバホルモン）は打たないこともあるので、「投与した／しなかった」を選ぶ
+  if (task.done && !task._doseOk && window.nuiDoseChoice && /ゲストロン|E2|オバホルモン|エストラジオール/.test(task.action + ' ' + (task.detail || ''))) {
+    task.done = false; delete task._undoneAt;
+    window.nuiDoseChoice(task.id);
+    return;
+  }
+  delete task._doseOk;
   if (task.done) {
     task.doneAt = new Date().toISOString();
 
@@ -7737,7 +7745,7 @@ function buildCowStory(cowId) {
     const memos = [...new Set(uniq.map(t => t.memo).filter(Boolean))];
     items.push({
       date: d, cat: 'treat', color: '#60a5fa', title: '💊 処置', badge: null,
-      desc: uniq.map(t => _stEsc(t.action)).join('<br>'), descHtml: true, kv: [], memo: memos.join(' / '),
+      desc: uniq.map(t => t.skipped ? `<s style="color:var(--muted);">${_stEsc(t.action)}</s> <b style="color:var(--warn);">🚫 非投与</b>` : _stEsc(t.action)).join('<br>'), descHtml: true, kv: [], memo: memos.join(' / '),
       acts: uniq.map(t => `<button class="st-act del" onclick="deleteSingleTask('${t.id}')">🗑 ${_stEsc(t.action.slice(0, 14))}${t.action.length > 14 ? '…' : ''}</button>`),
     });
   });
@@ -13644,6 +13652,16 @@ function checkDataConsistency() {
         buttons: gs.map(g => calvingEntryButtons(c.id, g.dates)).join('') });
     }
   });
+  // ★ 2026/11/21：「プログラム中」なのに、まだ済んでいない予定がひとつもない牛
+  cows.forEach(c => {
+    let k = ''; try { k = cowDisplayStatus(c).key; } catch (e) {}
+    if (k !== 'program' && c.status !== 'program') return;
+    if (tasks.some(t => t.cowId === c.id && !t.done)) return;
+    const st = [...(c.events || [])].filter(e => PROG_START_TYPES.includes(e.type)).sort((a, b) => b.date.localeCompare(a.date))[0];
+    out.push({ kind: 'status', cowId: c.id, title: `${c.id} ${cowDisplayName(c.id) || ''}：プログラム中なのに、予定がひとつもない`,
+      detail: st ? `${fmtDate(st.date)} に始めたプログラムの予定が残っていません` : 'プログラムを始めた記録もありません',
+      fix: '牛の画面で「プログラムを入れ直す」か「空胎に戻す」を選んでください' });
+  });
   // 「問題ない」にした項目は出さない
   for (let i = out.length - 1; i >= 0; i--) {
     const x = out[i]; const cw = x.cowId && cows.find(c => c.id === x.cowId);
@@ -15020,6 +15038,13 @@ async function submitQuickReg() {
   if (!event) { alert('イベント種別を選択してください'); return; }
   if (!date)  { alert('日付を入力してください'); return; }
   if (!validateDate(date, cowId, event)) return;
+  // ★ 2026/11/21：分娩したあと、授精・移植の記録がないのに「妊娠確定」を入れようとしたら確かめる（前の妊娠の確定を、分娩のあとに押してしまう事故）
+  if (event === 'preg_positive') {
+    const cwP = cows.find(c => c.id === cowId);
+    const lastCalv = cwP && [...(cwP.events || [])].filter(e => e.type === 'calving' && e.date <= date).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const insAfter = lastCalv && (cwP.events || []).some(e => ['ai_done', 'et_done', 'estrus_ai'].includes(e.type) && e.date > lastCalv.date && e.date <= date);
+    if (lastCalv && !insAfter && !(await appConfirm(`${fmtDate(lastCalv.date)} に分娩しています。そのあとに授精・移植の記録がありません。\n\n前の妊娠の「確定」を押していませんか？\n本当に妊娠確定にしますか？`))) { _submitting = false; const sb = document.getElementById('submit-quick-reg-btn'); if (sb) { sb.disabled = false; sb.textContent = '登録してスケジュールを生成 →'; } return; }
+  }
 
   // 妊鑑待ちの牛に新たな種付け・プログラムを組もうとした場合の警告
   // （受胎しているのにPG等を打つと流産させてしまう事故を防ぐ）
@@ -33980,7 +34005,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112110';
+const APP_BUILD = '2026112112';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -36330,6 +36355,25 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       sch.replaceWith(card);
       dt.parentNode.insertBefore(card, dt.nextSibling);
     }
+    // ★ プログラム中なのに予定がひとつもない → どういう状態か出して、どうするか選べるようにする
+    try {
+      const k = cowDisplayStatus(c).key;
+      if ((k === 'program' || c.status === 'program') && !tasks.some(t => t.cowId === id && !t.done)) {
+        const st = [...(c.events || [])].filter(e => PROG_START_TYPES.includes(e.type)).sort((a, b) => b.date.localeCompare(a.date))[0];
+        const LB = { cidr_ai_start: 'CIDRプログラム（AI）', et_recipient: 'ETレシピエント', estrus_et: '自然発情→ET', estrus_ai: '発情→AI', donor_et_start: '採卵（自然発情）', donor_et_pretreat_start: '採卵（前処置）', donor_et_takahashi_start: '採卵（高橋式）' };
+        const lastDone = tasks.filter(t => t.cowId === id && t.done && st && t.date >= st.date).sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+        const w = document.createElement('div');
+        w.style.cssText = 'background:#1a1508;border:1.5px solid #b45309;border-radius:12px;padding:12px;margin:10px 0;';
+        w.innerHTML = `<div style="font-size:14px;font-weight:900;color:#fbbf24;margin-bottom:6px;">⚠ プログラム中なのに、これからの予定がありません</div>
+          <div style="font-size:13px;color:#e2e8f0;line-height:1.7;">${st ? `${esc(fmtDate(st.date))} に「${esc((st.type === 'et_recipient' && st.protocol === 'takahashi' ? 'ETレシピエント（高橋式）' : LB[st.type]) || 'プログラム')}」を始めています。` : 'プログラムを始めた記録がありません。'}${lastDone ? `<br>最後に済んだ予定：${esc(fmtDate(lastDone.date))} ${esc(lastDone.action)}` : ''}</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:4px;">予定が消えたか、途中でやめた可能性があります。</div>
+          <div style="display:flex;gap:8px;margin-top:10px;">
+            <button onclick="closeModal('modal-cow');addEventForCow('${jsq(id)}','')" style="flex:1;height:42px;border-radius:10px;border:1px solid #2a3050;background:#1e2333;color:#e2e8f0;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">📅 プログラムを入れ直す</button>
+            <button onclick="closeModal('modal-cow');addEventForCow('${jsq(id)}','open')" style="flex:1;height:42px;border-radius:10px;border:1px solid #2a3050;background:#1e2333;color:#e2e8f0;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;">⭕ 空胎に戻す</button>
+          </div>`;
+        dt.parentNode.insertBefore(w, dt.nextSibling);
+      }
+    } catch (e) { console.error('nuiProgNoTask', e); }
     // 記録ボタンは下の「この牛に記録する」1つに
     const btn = document.createElement('div'); btn.className = 'nui-cowrec';
     btn.innerHTML = `<button onclick="closeModal('modal-cow');nuiRec('${jsq(id)}')">➕ この牛に記録する</button>`;
@@ -36680,6 +36724,26 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       (typeof tasks !== 'undefined' ? tasks : []).forEach(t => { if (t.cowId === ES.id && !t.done && String(t.action || '').startsWith('胚移植（ET）') && Math.abs(diffDays(t.date, ES.date)) <= 10) { t.done = true; t.doneAt = today(); t.etSkip = ES.r; } });
       ES = null; save(); scrClose(); renderAll();
     }
+  };
+
+  // 💉 ゲストロン・E2 の予定をチェックしたとき：投与した／しなかった
+  window.nuiDoseChoice = function (taskId) {
+    const t = tasks.find(x => x.id === taskId); if (!t) return;
+    scrShow(`${backBtn('nuiClose()', 'やめる')}<span style="font-size:17px;font-weight:900;">💉 ${esc(t.action)}</span>`,
+      `<div style="padding:16px 14px;">
+        <div style="font-size:15px;margin-bottom:6px;"><b class="nui-mono">${esc(t.cowId)}</b> <span style="color:#4ade80;font-weight:700;">${esc(nm(t.cowId))}</span></div>
+        <div style="font-size:13px;color:#94a3b8;margin-bottom:14px;">${esc(fmtDate(t.date))}　${esc(t.detail || '')}</div>
+        <button onclick="nuiDose('${jsq(taskId)}',1)" style="width:100%;min-height:56px;border-radius:12px;border:1.5px solid #22c55e;background:#14532d;color:#4ade80;font-size:17px;font-weight:900;margin-bottom:10px;cursor:pointer;font-family:inherit;">💉 投与した</button>
+        <button onclick="nuiDose('${jsq(taskId)}',0)" style="width:100%;min-height:56px;border-radius:12px;border:1.5px solid #b45309;background:#1a1508;color:#fbbf24;font-size:17px;font-weight:900;cursor:pointer;font-family:inherit;">🚫 投与しなかった（非投与）</button>
+        <div style="font-size:12px;color:#64748b;margin-top:12px;line-height:1.6;">どちらでも、この予定は済みになります。「非投与」はストーリーに「🚫 非投与」と残ります。</div>
+      </div>`, '');
+  };
+  window.nuiDose = function (taskId, gave) {
+    const t = tasks.find(x => x.id === taskId); if (!t) { nuiClose(); return; }
+    nuiClose();
+    if (gave) { t._doseOk = true; delete t.skipped; toggleTask(taskId); return; }
+    t.done = true; t.skipped = true; t.doneAt = new Date().toISOString(); t._mt = Date.now(); delete t._undoneAt;
+    save(); try { renderAll(); } catch (e) {}
   };
 
   // ---------- 🎯 受胎率のタブ：受胎率（記録ベース）と月別受胎率だけ開いておき、ほかはたたむ ----------
