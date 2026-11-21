@@ -16161,7 +16161,7 @@ function _rptEmbMemo(memo, nos) {
        .replace(/^\s*(移植|譲渡|採卵|外部農家牛へ移植（譲渡）)\s*/, ' ')
        .replace(/（譲渡先[:：]\s*([^）]+)）/, '$1へ')
        .replace(/(^|[^-:：\w])\d{2}[A-Z]\d{2}[A-Z]\d(?![-\w])/g, '$1 ')                                   // ロットの番号（26H21B1 など）は胚番号でわかるので消す
-       .replace(/凍結\s*\d+\s*本\s*(（[^）]*別途記録[^）]*）)?/g, ' ❄凍結胚 ')           // 「凍結7本（同採卵の新鮮5本は別途記録）」→「❄凍結胚」（新鮮胚と同じ書き方）
+       .replace(/凍結\s*\d+\s*本\s*(（[^）]*別途記録[^）]*）)?/g, ' ❄️凍結胚 ')           // 「凍結7本（同採卵の新鮮5本は別途記録）」→「❄凍結胚」（新鮮胚と同じ書き方）
        .replace(/譲受（([^）]+)）/g, '$1より').replace(/(^|\s)譲受(?=\s|$)/g, ' ')
        .replace(/（新鮮胚）/g, ' 🌱新鮮胚 ')
        .replace(/[（(]\s*[）)]/g, '').replace(/\s*[／/]\s*$/g, '').replace(/^\s*[／/]\s*/, '').replace(/\s+/g, ' ').trim();
@@ -34563,7 +34563,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112201';
+const APP_BUILD = '2026112202';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -35453,7 +35453,8 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       const [txt, col] = d < 0 ? ['予定日' + (-d) + '日超過', '#ef4444'] : d === 0 ? ['今日 ' + md(c.dueDate), '#f59e0b'] : ['あと' + d + '日 ' + md(c.dueDate), d <= 7 ? '#f59e0b' : '#94a3b8'];
       return `<div class="nui-near" onclick="showCowDetail('${jsq(c.id)}')">
         <span style="min-width:0;"><span class="nui-mono" style="font-weight:700;">${esc(c.id)}</span> <span style="color:#4ade80;">${esc(nm(c.id))}</span> <span style="font-size:11px;color:#64748b;">${esc(insLabel(dueIns(c), true))}</span></span>
-        <span style="font-size:13px;font-weight:700;color:${col};white-space:nowrap;">${txt}</span></div>`;
+        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;"><span style="font-size:13px;font-weight:700;color:${col};white-space:nowrap;">${txt}</span>
+        <button class="nui-chip" style="font-size:12px;padding:5px 10px;white-space:nowrap;" onclick="event.stopPropagation();nuiRec('${jsq(c.id)}','calv')">🍼 分娩を記録</button></span></div>`;
     }).join('');
     // 要確認（たたんでおく）
     const lines = [];
@@ -36026,7 +36027,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     return (ok.length ? Math.max(...ok) : 0) + 1;
   }
   function cpEmbryos(col) {   // updateEggCart と同じ並び（番号はカートの idx になる）
-    const fr = (col.frozenEmbryos || []).map(e => ({ e, k: '❄凍結' })), fs = (col.freshEmbryos || []).map(e => ({ e, k: '🌱新鮮' }));
+    const fr = (col.frozenEmbryos || []).map(e => ({ e, k: '❄️凍結' })), fs = (col.freshEmbryos || []).map(e => ({ e, k: '🌱新鮮' }));
     const cu = (col.cultureEmbryos || []).filter(e => e.cultureResult === 'freeze' || e.cultureResult === 'et').map(e => ({ e: { ...e, no: e.embryoNo, cane: e.caneNo, stage: e.cultureStage || e.stage, rank: e.cultureRank || e.rank }, k: '🧫培養' }));
     return fr.concat(fs).concat(cu).map((x, i) => ({ idx: i, no: String(x.e.no || x.e.embryoNo || ''), cane: x.e.cane || x.e.caneNo || '', stage: x.e.stage || '', rank: x.e.rank || '', kind: x.k })).filter(x => x.no);
   }
@@ -36054,13 +36055,14 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       return L.sort((a, b) => (a.dob || '').localeCompare(b.dob || '')).map(c => ({ key: c.id, c, row: cpRowOf(c, B) }));
     }
     const out = [];
-    (collectionRecordsNew || []).filter(col => (col.date || '') >= yAgo()).sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(col => {
+    // ★ 2026/11/22：受精卵は、発行済みも全部のせる（再発行するため）。まだのものには todo の印
+    (collectionRecordsNew || []).filter(col => done ? (col.date || '') >= yAgo() : true).sort((a, b) => (b.date || '').localeCompare(a.date || '')).forEach(col => {
       const D = col.eggCertDone || {};
-      cpEmbryos(col).forEach(x => { const iss = !!D[x.no] || (col.date || '') < CERT_FROM; if (done ? iss : !iss) out.push({ key: col.id + '|' + x.idx, col, x, iss: D[x.no] || '' }); });
+      cpEmbryos(col).forEach(x => { const iss = !!D[x.no] || (col.date || '') < CERT_FROM; if (done && !iss) return; out.push({ key: col.id + '|' + x.idx, col, x, iss: D[x.no] || (iss ? 'old' : ''), todo: !iss }); });
     });
     return out;
   }
-  function cpCount(tab) { try { return cpItems(tab, false).length; } catch (e) { return 0; } }
+  function cpCount(tab) { try { const L = cpItems(tab, false); return tab === 'egg' ? L.filter(it => it.todo).length : L.length; } catch (e) { return 0; } }
   window.nuiCertTodo = () => cpCount('ai') + (cpOn.et() ? cpCount('et') : 0) + (cpOn.egg() ? cpCount('egg') : 0);
   const cpBox = on => `<span class="cp-bx" style="flex-shrink:0;width:24px;height:24px;border-radius:6px;border:2px solid ${on ? '#22c55e' : '#475569'};background:${on ? '#16a34a' : 'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:900;">${on ? '✓' : ''}</span>`;
   const cpIn = (r, f, lab, w, ph) => { const q = String(r[f] || '').trim(); return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#94a3b8;" onclick="event.stopPropagation()">${esc(lab)}<input ${f === 'q' ? 'inputmode="numeric"' : ''} value="${esc(q)}" placeholder="${ph}" onchange="nuiCpQ('${r._src}',${r._idx},this,'${f}')" style="width:${w}px;height:32px;margin:0;border-radius:8px;border:1.5px solid ${q ? '#2a3050' : '#f59e0b'};background:${q ? '#0f1117' : '#1a0f00'};color:#e2e8f0;font-size:14px;font-weight:700;text-align:center;font-family:inherit;padding:0 4px;"></label>`; };
@@ -36070,8 +36072,9 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     if (CP.tab === 'egg') {
       const x = it.x;
       return `<div class="cp-r" data-k="${esc(it.key)}" onclick="nuiCpT('${k}')" style="display:flex;align-items:center;gap:10px;padding:9px 4px 9px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;">${cpBox(on)}
-        <span style="flex:1;min-width:0;"><span class="nui-mono" style="font-weight:700;">${esc(x.no)}</span> <span style="font-size:12px;color:#94a3b8;">${esc([x.kind, x.cane, [x.stage, x.rank].filter(Boolean).join('/')].filter(Boolean).join('・'))}</span>${CP.done && it.iss ? `<br><span style="font-size:11px;color:#64748b;">${esc(md(it.iss))} 発行</span>` : ''}</span>
-        ${CP.done && it.iss ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();nuiCpUndo('${k}')">まだに戻す</button>` : ''}</div>`;
+        <span style="flex:1;min-width:0;"><span class="nui-mono" style="font-weight:700;">${esc(x.no)}</span> <span style="font-size:12px;color:#94a3b8;">${esc([x.kind, x.cane, [x.stage, x.rank].filter(Boolean).join('/')].filter(Boolean).join('・'))}</span></span>
+        <span style="font-size:11px;flex-shrink:0;color:${it.todo ? '#fbbf24' : '#64748b'};">${it.todo ? 'まだ' : it.iss === 'old' ? '発行済み' : esc(md(it.iss)) + ' 発行'}</span>
+        ${CP.done && it.iss && it.iss !== 'old' ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();nuiCpUndo('${k}')">まだに戻す</button>` : ''}</div>`;
     }
     if (CP.tab === 'req') {
       const c = it.c, sire = c.sire || (it.row && it.row.s) || '';
@@ -36115,7 +36118,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const n = CP.sel.size, blank = CP.tab === 'ai' && !CP.done ? cpBlank().length : 0;
     return `${blank ? `<button onclick="nuiCpFill()" style="width:100%;height:42px;border-radius:10px;border:1.5px solid #b45309;background:#1a0f00;color:#fbbf24;font-size:14px;font-weight:700;margin-bottom:8px;font-family:inherit;cursor:pointer;">No. を続き番号で入れる（${blank}か所）</button>` : ''}
       <button id="cp-print" onclick="nuiCpPrint()" ${n ? '' : 'disabled'} style="width:100%;height:52px;border-radius:12px;border:none;background:${n ? '#16a34a' : '#1e2333'};color:${n ? '#fff' : '#64748b'};font-size:17px;font-weight:900;font-family:inherit;cursor:${n ? 'pointer' : 'default'};">📄 ${n ? n + '枚を印刷する' : '印刷するものを選んでください'}</button>
-      <div style="font-size:11px;color:#64748b;text-align:center;margin-top:6px;">${CP.done ? '発行済みのものをもう一度印刷できます' : '印刷すると発行済みになり、この一覧から消えます'}</div>`;
+      <div style="font-size:11px;color:#64748b;text-align:center;margin-top:6px;">${CP.done ? '発行済みのものをもう一度印刷できます' : CP.tab === 'egg' ? '印刷すると「発行済み」になります（発行済みのロットは ▼ で開いて再発行）' : '印刷すると発行済みになり、この一覧から消えます'}</div>`;
   }
   function cpBlank() {   // 番号が空の授精簿の行（同じ行は1回）
     const seen = new Set(), out = [];
@@ -36141,8 +36144,11 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     else if (CP.tab === 'egg') {
       const G = []; I.forEach(it => { const g = G[G.length - 1]; if (g && g.col === it.col) g.L.push(it); else G.push({ col: it.col, L: [it] }); });
       list = G.map(g => { const inf = _getCollectionEmbryos(g.col.id); const d0 = inf.items[0] || {}; const all = g.L.every(it => CP.sel.has(it.key));
+        const todoN = g.L.filter(it => it.todo).length, fold = !CP.done && !todoN && !g.L.some(it => CP.sel.has(it.key));
+        if (fold) return `<details class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;"><summary style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;cursor:pointer;list-style:none;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}　<span style="font-size:12px;color:#64748b;">${g.L.length}個・全部発行済み</span></span><span style="font-size:12px;color:#94a3b8;">再発行 ▼</span></summary>
+          <div style="display:flex;justify-content:flex-end;padding:8px 12px 0;"><button class="nui-chip" onclick="nuiCpG('${jsq(g.col.id)}')">全部えらぶ</button></div>${g.L.map(cpRowHTML).join('')}</details>`;
         return `<div class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;">
-          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}<br><span style="font-size:11px;color:#64748b;">${esc(g.col.lot || '')}・${g.L.length}個</span></span>
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}<br><span style="font-size:11px;color:#64748b;">${esc(g.col.lot || '')}・${g.L.length}個${todoN ? `・<span style="color:#fbbf24;">まだ ${todoN}個</span>` : '・全部発行済み'}</span></span>
           <button class="nui-chip${all ? ' on' : ''}" onclick="nuiCpG('${jsq(g.col.id)}')">${all ? '✓ 全部' : '全部えらぶ'}</button></div>${g.L.map(cpRowHTML).join('')}</div>`; }).join('');
     } else list = `<div class="nui-card" style="padding:0 10px;">${I.map(cpRowHTML).join('')}</div>`;
     const other = CP.tab === 'et' && !CP.done ? `<details style="margin-top:16px;"><summary style="cursor:pointer;font-size:13px;color:#94a3b8;">🐄 他の農家へ出した胚の移植証明書 ▼</summary>
@@ -36153,7 +36159,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       `<div style="padding:12px 14px 30px;">
         ${tabs.length > 1 ? `<div class="nui-seg" style="margin-bottom:10px;">${tabs.map(([k, l]) => { const n = cpCount(k); return `<button class="${CP.tab === k ? 'on' : ''}" onclick="nuiCpTab('${k}')">${l}${n ? ` <span style="color:#fbbf24;">${n}</span>` : ''}</button>`; }).join('')}</div>` : ''}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? (aiCertOnInsem() ? '授精証明書がまだの授精（授精した日に出します）' : '授精証明書がまだの子牛') : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書がまだの胚')}${I.length ? `　${I.length}${CP.tab === 'egg' ? '個' : CP.tab === 'ai' && aiCertOnInsem() ? '件' : '頭'}` : ''}</span>
+          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? (aiCertOnInsem() ? '授精証明書がまだの授精（授精した日に出します）' : '授精証明書がまだの子牛') : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書（発行済みの胚も選んで再発行できます）')}${I.length && CP.tab !== 'egg' ? `　${I.length}${CP.tab === 'egg' ? '個' : CP.tab === 'ai' && aiCertOnInsem() ? '件' : '頭'}` : ''}</span>
           ${I.length && CP.tab !== 'req' ? `<button class="nui-chip" onclick="nuiCpAll()">${I.filter(it => okKeys.has(it.key)).every(it => CP.sel.has(it.key)) && CP.sel.size ? '選ぶのをやめる' : '全部えらぶ'}</button>` : ''}</div>
         ${CP.tab === 'et' && !CP.done ? '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">証明書の番号は今までどおり自動で付きます</div>' : ''}
         ${list}${other}
@@ -36173,7 +36179,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     cpRefreshFoot();
   };
   window.nuiCpAll = function () {
-    const keys = cpItems(CP.tab, CP.done).filter(it => CP.tab === 'egg' || it.row).map(it => it.key);
+    const keys = cpItems(CP.tab, CP.done).filter(it => CP.tab === 'egg' ? (CP.done || it.todo) : it.row).map(it => it.key);   // 受精卵は「まだ」のものだけ（再発行はロットごとに選ぶ）
     const all = keys.length && keys.every(k => CP.sel.has(k));
     CP.sel = all ? new Set() : new Set(keys); vCert(true);
   };
