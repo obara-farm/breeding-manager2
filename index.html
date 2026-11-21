@@ -33978,7 +33978,7 @@ function setSyncStatus(state) {
 const SYNC_KEYS = ['delMarks','cows','tasks','calves','calvingRecords','retiredCows','semenInventory','embryoInventory',
   'collectionRecords','collectionRecordsNew','etRecords','fatteningRecords',
   'insemBookDelLog','insemBookRecords','insemBookEdits','staticDonorAIFlags','donorAIRecords','pendingEtList',
-  'pendingUseRecords','transferBook','lastCalfNatIdPrefix','miscarriageRecords','fattenDeaths','farmTargets','data_version','changeLog'];
+  'pendingUseRecords','transferBook','lastCalfNatIdPrefix','memoChips','miscarriageRecords','fattenDeaths','farmTargets','data_version','changeLog'];
 let _syncedStr = {};     // クラウドとそろっている値（文字列）。この端末が最後に送った／受け取った値
 let _syncBase = (() => { try { return JSON.parse(localStorage.getItem('_syncBase') || '{}') || {}; } catch (e) { return {}; } })();   // { key: 指紋 }
 let _lastSentSnapshot = _syncedStr;   // 昔の名前（ほかの所から参照されていても動くように）
@@ -34292,7 +34292,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112124';
+const APP_BUILD = '2026112125';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -35896,7 +35896,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     save(); vCert(true);
   };
   window.nuiCpFill = async function () {
-    const Bl = cpBlank(); if (!Bl.length) return;
+    const Bl = cpBlank().slice().sort((a, b) => String(a.d || '').localeCompare(String(b.d || '')) || String(a.t || '').localeCompare(String(b.t || ''))); if (!Bl.length) return;
     let n = cpNextNo(cpBook());
     const plan = Bl.map(r => ({ r, q: String(n++) }));
     const yes = await appConfirm(`No. が空の ${Bl.length}か所に、今の最後の番号の続きを入れます。\n\n` + plan.slice(0, 15).map(p => `${fmtDate(p.r.d)} ${p.r.t} → ${p.q}`).join('\n') + (plan.length > 15 ? `\n…ほか${plan.length - 15}か所` : '') + '\n\n入れますか？');
@@ -36360,7 +36360,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <div style="min-width:0;"><span class="nui-mono" style="font-weight:900;font-size:20px;color:#4ade80;">${esc(c.id)}</span> <span style="font-size:16px;font-weight:700;">${esc(nm(c.id))}</span><div style="font-size:12px;color:#94a3b8;">${esc(li ? insLabel(li) + ' ・ ' + diffDays(today(), li.date) + '日前' : cowSub(c))}</div></div>${stTag(c)}</div></div>
       <div style="padding:10px 14px 4px;">${steps(2)}</div>
       <div style="padding:10px 14px 30px;">
-        <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">この牛によく使う</div>
+        <div style="font-size:12px;font-weight:700;color:#94a3b8;margin-bottom:6px;">今の状態でよく使う</div>
         <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">${FAV.map(x => { const a = ACT[x]; return `<div class="nui-tile nui-n" style="border-width:2px;border-color:#22c55e;padding:16px 10px;" onclick="nuiAct('${x}')"><div style="font-size:30px;">${a[0]}</div><div style="font-size:16px;font-weight:900;">${a[1]}</div><div style="font-size:11px;color:#94a3b8;">${esc(favSub[x] || '')}</div></div>`; }).join('')}</div>
         <div style="font-size:12px;font-weight:700;color:#94a3b8;margin:14px 0 6px;">そのほか</div>
         <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;">${rest.map(x => { const a = ACT[x]; return `<div class="nui-tile nui-n" style="padding:12px 2px;" onclick="nuiAct('${x}')"><div class="i">${a[0]}</div><div style="font-size:12px;font-weight:700;">${a[1]}</div></div>`; }).join('')}</div>
@@ -36388,7 +36388,6 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const chip = (on) => `nui-ch${on ? ' on' : ''}`;
     const days = [['今日 ' + md(T), 0], ['昨日 ' + md(addDays(T, -1)), 1], ['📅 ' + (A.day === 2 ? md(A.date) : '日付'), 2]];
     const note = A.count > 1 ? `⚠ 授精簿に${A.count}行できます（証明書は1本に1枚）・在庫も${A.count}本へります` : '授精簿に1行・在庫が1本へります';
-    const CH = ['GnRH投与', '角AI', '粘液 透明', '粘液 白っぽい'];
     scrShow(`${backBtn("nuiBackAct()")}<span style="font-size:17px;font-weight:900;color:#4ade80;">💉 種付け・移植</span><span style="font-size:15px;"><span class="nui-mono" style="font-weight:700;">${esc(c.id)}</span> ${esc(nm(c.id))}</span>`,
       `<div style="padding:12px 14px 30px;display:flex;flex-direction:column;gap:14px;">
         <div class="nui-seg"><button class="on">💉 AI・自然交配</button><button onclick="nuiAIet()">🧬 移植（ET）</button></div>
@@ -36416,8 +36415,8 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <button onclick="nuiAI({donor:${!A.donor}})" style="display:flex;align-items:flex-start;gap:10px;text-align:left;width:100%;padding:12px;border-radius:12px;border:1.5px solid ${A.donor ? '#f59e0b' : '#2a3050'};background:${A.donor ? '#1a1508' : '#171b26'};color:#e2e8f0;cursor:pointer;font-family:inherit;">
           <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;border:2px solid ${A.donor ? '#f59e0b' : '#475569'};background:${A.donor ? '#b45309' : 'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;">${A.donor ? '✓' : ''}</span>
           <span style="flex:1;"><b style="font-size:14px;">🐄 ドナーAI（採卵のための授精）</b><br><span style="font-size:12px;color:#94a3b8;">妊鑑の予定は作りません。採卵記録のAI日につながります</span></span></button>
-        <details class="nui-box" ${A.chips.length || A.memo ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 メモ・ホルモン（なくてもOK） ▼</summary>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">${CH.map(x => `<button class="nui-chip${A.chips.includes(x) ? ' on' : ''}" onclick="nuiAIChip('${x}')">${x}</button>`).join('')}</div>
+        <details class="nui-box" ${A.chips.length || A.memo || CHED === 'ai' ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 メモ・ホルモン（なくてもOK） ▼</summary>
+          ${chipBlock('ai', A.chips, 'nuiAIChip')}
           <input class="nui-in" style="margin-top:8px;" placeholder="そのほかのメモ" value="${esc(A.memo)}" oninput="S_nuiMemo(this.value)"></details>
       </div>`,
       `<button class="nui-save" onclick="nuiSaveAI()">💾 記録する</button><div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;">再発情の確認と妊鑑（30日・45日）の予定も自動で入ります</div>`);
@@ -36430,6 +36429,32 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const A = S.ai; Object.assign(A, o);
     if ('day' in o) { if (o.day === 0) A.date = today(); if (o.day === 1) A.date = addDays(today(), -1); }
     const sb = document.querySelector('#nui-scr .sb'), y = sb ? sb.scrollTop : 0; vAI(); const sb2 = document.querySelector('#nui-scr .sb'); if (sb2) sb2.scrollTop = y;
+  };
+  // ★ 2026/11/21：メモのワンタッチボタン（足す・名前を直す・消す）。全部の端末で同じになるよう同期する
+  const CHIP_DEF = { ai: ['GnRH投与', '角AI', '粘液 透明', '粘液 白っぽい'], calv: ['介助', '難産', '逆子', '胎盤停滞'] };
+  let CHED = '';
+  function chipList(kind) { try { const o = JSON.parse(_store.getItem('memoChips') || '{}') || {}; if (Array.isArray(o[kind])) return o[kind]; } catch (e) {} return CHIP_DEF[kind].slice(); }
+  function chipSave(kind, L) { let o = {}; try { o = JSON.parse(_store.getItem('memoChips') || '{}') || {}; } catch (e) {} o[kind] = L; _store.setItem('memoChips', JSON.stringify(o)); try { window.save(); } catch (e) {} }
+  const chipRedraw = kind => { if (kind === 'calv') window.nuiCV({}); else window.nuiAI({}); };
+  function chipBlock(kind, sel, fn) {
+    const L = chipList(kind);
+    if (CHED === kind) return `<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
+      <div style="font-size:12px;color:#94a3b8;">ボタンの文字を直す・✕で消す・下で足す（ほかの端末にも同じボタンが出ます）</div>
+      ${L.map((x, i) => `<div style="display:flex;gap:6px;"><input class="nui-in" style="flex:1;" value="${esc(x)}" aria-label="ボタン${i + 1}の文字" onchange="nuiChipEd('${kind}',${i},this.value)"><button class="nui-chip" style="flex:none;" aria-label="${esc(x)}を消す" onclick="nuiChipEd('${kind}',${i},null)">✕</button></div>`).join('')}
+      <div style="display:flex;gap:6px;"><input id="nui-chip-new" class="nui-in" style="flex:1;" placeholder="足すボタンの文字（例：CIDR抜去）" onkeydown="if(event.key==='Enter')nuiChipEd('${kind}',-1,this.value)"><button class="nui-chip" style="flex:none;" onclick="nuiChipEd('${kind}',-1,document.getElementById('nui-chip-new').value)">＋ 足す</button></div>
+      <div style="display:flex;gap:6px;"><button class="nui-chip on" style="flex:1;" onclick="nuiChipEdit('')">✓ 終わる</button><button class="nui-chip" style="flex:none;" onclick="nuiChipEd('${kind}',-2,null)">はじめのボタンに戻す</button></div></div>`;
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">${L.map(x => `<button class="nui-chip${sel.includes(x) ? ' on' : ''}" onclick="${fn}('${esc(jsq(x))}')">${esc(x)}</button>`).join('')}<button class="nui-chip" style="border-style:dashed;color:#94a3b8;" onclick="nuiChipEdit('${kind}')">✏ ボタンを直す</button></div>`;
+  }
+  window.nuiChipEdit = function (kind) { const was = CHED; CHED = kind; chipRedraw(kind || was); };
+  window.nuiChipEd = function (kind, i, v) {
+    let L = chipList(kind);
+    if (i === -2) L = CHIP_DEF[kind].slice();
+    else { const t = v == null ? null : String(v).trim().slice(0, 20);
+      if (i === -1) { if (!t || L.includes(t)) { chipRedraw(kind); return; } L.push(t); }
+      else if (t == null || t === '') L.splice(i, 1);
+      else if (!L.some((y, j) => y === t && j !== i)) L[i] = t; }
+    chipSave(kind, L); chipRedraw(kind);
+    if (i === -1) setTimeout(() => { const n = document.getElementById('nui-chip-new'); if (n) n.focus(); }, 30);
   };
   window.nuiAIChip = function (x) { const A = S.ai; A.chips = A.chips.includes(x) ? A.chips.filter(y => y !== x) : [...A.chips, x]; nuiAI({}); };
   window.nuiSaveAI = async function () {
@@ -36583,7 +36608,6 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const kinds = [['生きている', '#22c55e', '#14532d', '#4ade80'], ['死産', '#ef4444', '#7f1d1d', '#f87171'], ['虚弱', '#f59e0b', '#78350f', '#f59e0b']].map(([l, bd, bg, fg], i) => { const on = C.kind === i; return `<button onclick="nuiCV({kind:${i}})" style="flex:1;height:44px;border-radius:8px;font-size:14px;font-weight:700;border:1px solid ${on ? bd : '#2a3050'};background:${on ? bg : '#1e2333'};color:${on ? fg : '#e2e8f0'};cursor:pointer;font-family:inherit;">${l}</button>`; }).join('');
     // ★ 2026/11/20：体格は5段階（1小〜5大）。育成舎・出荷の体格と同じ物差し
     const sizes = [['1', '小'], ['2', ''], ['3', '中'], ['4', ''], ['5', '大']].map(([v, l]) => { const on = C.size === v; return `<button onclick="nuiCV({size:'${v}'})" style="flex:1;height:50px;border-radius:8px;background:${on ? '#14532d' : '#1e2333'};border:1px solid ${on ? '#22c55e' : '#2a3050'};color:${on ? '#4ade80' : '#e2e8f0'};font-weight:800;cursor:pointer;font-family:inherit;line-height:1.1;"><span style="font-size:17px;">${v}</span>${l ? `<br><span style="font-size:10px;font-weight:700;opacity:.8;">${l}</span>` : ''}</button>`; }).join('');
-    const CH = ['介助', '難産', '逆子', '胎盤停滞'];
     const days = [['今日 ' + md(T), 0], ['昨日 ' + md(addDays(T, -1)), 1], ['📅 ' + (C.day === 2 ? md(C.date) : '日付'), 2]];
     scrShow(`${backBtn("nuiBackAct()")}<span style="font-size:17px;font-weight:900;color:#c4a5f5;">🍼 分娩</span><span style="font-size:15px;"><span class="nui-mono" style="font-weight:700;">${esc(c.id)}</span> ${esc(nm(c.id))}</span>`,
       `<div style="margin:12px 14px 0;background:#1c1230;border:1px solid #5b3a8a;border-radius:12px;padding:10px 14px;font-size:13px;color:#c4a5f5;">${c.dueDate ? '予定 ' + md(c.dueDate) + ' ・ ' : ''}${esc(li ? insLabel(li).replace(/ \d+\/\d+/, '') : '授精の記録なし')} ・ 父は授精の記録から自動で入ります</div>
@@ -36597,8 +36621,8 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
           ${C.twin ? `<div style="font-size:12px;color:#94a3b8;margin:8px 0 6px;">2頭目</div><div style="display:flex;gap:6px;">${sexB('sex2', C.sex2)}</div>` : ''}</div>
         <div class="nui-box"><label for="nui-tag" class="nui-lb">子牛の耳標</label><input id="nui-tag" class="nui-in" placeholder="あとでもOK" value="${esc(C.tag)}" oninput="S_nuiTag(this.value)"></div>
         <div class="nui-box"><div class="nui-lb">体格（1小〜5大）</div><div style="display:flex;gap:6px;">${sizes}</div></div>
-        <details class="nui-box" ${C.chips.length || C.memo ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 お産のようす・メモ（なくてもOK） ▼</summary>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">${CH.map(x => `<button class="nui-chip${C.chips.includes(x) ? ' on' : ''}" onclick="nuiCVChip('${x}')">${x}</button>`).join('')}</div>
+        <details class="nui-box" ${C.chips.length || C.memo || CHED === 'calv' ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 お産のようす・メモ（なくてもOK） ▼</summary>
+          ${chipBlock('calv', C.chips, 'nuiCVChip')}
           <input class="nui-in" style="margin-top:8px;" placeholder="そのほかのメモ" value="${esc(C.memo)}" oninput="S_nuiCMemo(this.value)"></details>
       </div>`,
       `<button class="nui-save" onclick="nuiSaveCalv()">💾 記録する</button><div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;">母牛は「分娩後」、子牛は子牛の一覧へ。🐄 らくちく出生報告の準備もすぐできます</div>`);
@@ -37358,7 +37382,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
   window.nuiIbFill = async function () {
     const y = ($('insembook-year') || {}).value; if (!y) return;
     let cert; try { cert = checkCertNumbers(y); } catch (e) { appAlert('調べられませんでした'); return; }
-    const B = (cert.issues.blank || []).slice().sort((a, b) => a.d.localeCompare(b.d));
+    const B = (cert.issues.blank || []).slice().sort((a, b) => a.d.localeCompare(b.d) || String(a.t || '').localeCompare(String(b.t || '')));   // 授精簿の並び（日付→牛）と同じ順
     if (!B.length) { appAlert('No. が入っていない行はありません'); return; }
     const nums = cert.recs.map(r => String(r.q || '').trim()).filter(q => /^\d+$/.test(q)).map(Number).sort((a, b) => a - b);
     const med = nums.length ? nums[Math.floor(nums.length / 2)] : 0;
