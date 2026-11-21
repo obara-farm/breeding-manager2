@@ -34126,7 +34126,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112114';
+const APP_BUILD = '2026112118';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -35190,6 +35190,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       if (!cowOf(S.cow)) { S.v = 'cow'; return vCow(); }
       if (S.v === 'act') return vAct();
       if (S.v === 'ai') return vAI();
+      if (S.v === 'et') return vET();
       if (S.v === 'calv') return vCalv();
     } catch (e) { console.error('nuiRec', e); scrClose(); appAlert('画面を開けませんでした：' + e.message); }
   }
@@ -36142,7 +36143,25 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     still: ['💔', '流死産', 'nui-r', ''], memo: ['📝', 'メモ', 'nui-y', ''],
     retire: ['🚫', '廃用・死亡', 'nui-r', '売却・死亡・廃棄も'], measure: ['📏', '体測', 'nui-y', '胸囲・体高・体長'], ship: ['🚚', '出荷', 'nui-y', '']
   };
-  window.nuiAIet = function () { const id = S.cow; scrClose(); addEventForCow(id, 'et_done'); };
+  window.nuiAIet = function () { S.v = 'et'; S.et = null; render(); };
+  // ★ 2026/11/21：予定のチェックやストーリーから「AI・移植を記録」を開いたときも、新しい画面にする（古い画面に行かない）
+  //   呼んだ側があとから入れる日付・メモ（予定の日など）は、すぐあとで新しい画面に写す
+  const _aefc = window.addEventForCow || (typeof addEventForCow === 'function' ? addEventForCow : null);
+  if (_aefc) window.addEventForCow = function (cowId, ev) {
+    if (window._nuiFill || (ev !== 'ai_done' && ev !== 'et_done') || !cowOf(cowId)) return _aefc.apply(this, arguments);
+    const d0 = ($('qr-date') || {}).value, m0 = ($('qr-memo') || {}).value;
+    if ($('qr-date')) $('qr-date').value = ''; if ($('qr-memo')) $('qr-memo').value = '';
+    S.cow = cowId; S.intent = null; S.v = ev === 'et_done' ? 'et' : 'ai'; S.ai = null; S.et = null; render();
+    setTimeout(() => {
+      const d = ($('qr-date') || {}).value, m = ($('qr-memo') || {}).value;
+      const st = S.v === 'et' ? S.et : S.ai; if (!st) return;
+      let ch = false;
+      if (d && d !== today()) { st.date = d; st.day = d === addDays(today(), -1) ? 1 : 2; ch = true; }
+      if (m) { st.memo = m; ch = true; }
+      if (ch) { if (S.v === 'et') nuiET({}); else nuiAI({}); }
+      if ($('qr-date')) $('qr-date').value = d0 || ''; if ($('qr-memo')) $('qr-memo').value = m0 || '';
+    }, 0);
+  };
   window.nuiAct = function (k) {
     const id = S.cow;
     if (k === 'ai') { S.v = 'ai'; S.ai = null; return render(); }
@@ -36191,7 +36210,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       const li = lastIns(c); const L = semenList(c.id).filter(s => (s.stock || 0) > 0);
       let pre = '';
       try { const t = tasks.find(x => x.cowId === c.id && !x.done && x.date <= T && /授精|AI/.test(x.action || '') && x.memo); const m = t && String(t.memo).match(/精液:([^／\s]+)/); if (m) { const s = L.find(x => x.name === m[1]); if (s) pre = s.id; } } catch (e) {}
-      S.ai = { day: 0, date: T, time: new Date().getHours() < 12 ? 0 : 1, semen: pre, manual: '', count: 1, op: '', chips: [], memo: '', showAll: false };
+      S.ai = { day: 0, date: T, time: new Date().getHours() < 12 ? 0 : 1, semen: pre, manual: '', count: 1, op: '', chips: [], memo: '', showAll: false, fb: false, donor: false };
     }
     const A = S.ai;
     const all = semenList(c.id), inStock = all.filter(s => (s.stock || 0) > 0);
@@ -36210,7 +36229,8 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <div class="nui-box"><div class="nui-lb">🥚 精液（在庫から ・ この牛の品種だけ）</div>
           <div style="display:flex;flex-direction:column;gap:6px;">${L.map(s => { const on = A.semen === s.id; return `<button onclick="nuiAI({semen:'${jsq(s.id)}',manual:''})" style="display:flex;justify-content:space-between;align-items:center;height:46px;padding:0 12px;border-radius:8px;font-size:15px;font-weight:700;text-align:left;border:1px solid ${on ? '#22c55e' : '#2a3050'};background:${on ? '#14532d' : '#1e2333'};color:${on ? '#4ade80' : '#e2e8f0'};cursor:pointer;font-family:inherit;"><span>${on ? '✓' : '　'} ${esc(s.name)}</span><span style="font-size:12px;font-weight:500;color:${(s.stock || 0) <= 3 ? '#f59e0b' : '#94a3b8'};">のこり ${s.stock || 0}本</span></button>`; }).join('') || '<div style="font-size:12px;color:#94a3b8;">在庫に精液がありません</div>'}</div>
           ${inStock.length < all.length ? `<button class="nui-chip" style="margin-top:8px;" onclick="nuiAI({showAll:${!A.showAll}})">${A.showAll ? '在庫のあるものだけ' : '在庫0本のものも出す'}</button>` : ''}
-          <input class="nui-in" style="margin-top:8px;" placeholder="✏ 在庫にない精液（種雄牛名を手入力）" value="${esc(A.manual)}" oninput="S_nuiManual(this.value)"></div>
+          <div class="nui-lb" style="margin-top:12px;">✏ 在庫にない精液（農家さんの持ち込み・ほかから借りたものなど）</div>
+          <input class="nui-in" placeholder="種雄牛名を手入力（在庫はへりません）" value="${esc(A.manual)}" oninput="S_nuiManual(this.value)"></div>
         <div style="display:flex;gap:10px;">
           <div class="nui-box" style="flex:1;"><div class="nui-lb">本数</div><div style="display:flex;align-items:center;">
             <button aria-label="1本へらす" onclick="nuiAI({count:Math.max(1,${A.count}-1)})" style="width:44px;height:44px;border-radius:10px;border:1px solid #2a3050;background:#1e2333;color:#e2e8f0;font-size:22px;cursor:pointer;">−</button>
@@ -36219,6 +36239,13 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
           <div class="nui-box" style="flex:1;"><label for="nui-op" class="nui-lb">術者</label><input id="nui-op" class="nui-in" placeholder="空欄＝自分" value="${esc(A.op)}" oninput="S_nuiOp(this.value)"></div>
         </div>
         <div style="font-size:12px;color:${A.count > 1 ? '#f59e0b' : '#64748b'};margin-top:-6px;">${note}</div>
+        ${(() => { let why = null; try { why = reproDisorder(c); } catch (e) {}
+          return `<button onclick="nuiAI({fb:${!A.fb}})" style="display:flex;align-items:flex-start;gap:10px;text-align:left;width:100%;padding:12px;border-radius:12px;border:1.5px solid ${A.fb ? '#22d3ee' : '#2a3050'};background:${A.fb ? '#0a1a24' : '#171b26'};color:#e2e8f0;cursor:pointer;font-family:inherit;">
+            <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;border:2px solid ${A.fb ? '#22d3ee' : '#475569'};background:${A.fb ? '#0e7490' : 'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;">${A.fb ? '✓' : ''}</span>
+            <span style="flex:1;"><b style="font-size:14px;">🛡 モディファイド・ファストバックをする</b><br><span style="font-size:12px;color:#94a3b8;">授精後5日目にCIDR挿入、19日目に抜去。21〜23日目に再発情を重点的に確認する予定も入ります</span>${why ? `<br><span style="font-size:12px;color:#fbbf24;font-weight:700;">💡 この牛は ${esc(why)}。ファストバックを考えてみてください</span>` : ''}</span></button>`; })()}
+        <button onclick="nuiAI({donor:${!A.donor}})" style="display:flex;align-items:flex-start;gap:10px;text-align:left;width:100%;padding:12px;border-radius:12px;border:1.5px solid ${A.donor ? '#f59e0b' : '#2a3050'};background:${A.donor ? '#1a1508' : '#171b26'};color:#e2e8f0;cursor:pointer;font-family:inherit;">
+          <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;border:2px solid ${A.donor ? '#f59e0b' : '#475569'};background:${A.donor ? '#b45309' : 'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;">${A.donor ? '✓' : ''}</span>
+          <span style="flex:1;"><b style="font-size:14px;">🐄 ドナーAI（採卵のための授精）</b><br><span style="font-size:12px;color:#94a3b8;">妊鑑の予定は作りません。採卵記録のAI日につながります</span></span></button>
         <details class="nui-box" ${A.chips.length || A.memo ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 メモ・ホルモン（なくてもOK） ▼</summary>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">${CH.map(x => `<button class="nui-chip${A.chips.includes(x) ? ' on' : ''}" onclick="nuiAIChip('${x}')">${x}</button>`).join('')}</div>
           <input class="nui-in" style="margin-top:8px;" placeholder="そのほかのメモ" value="${esc(A.memo)}" oninput="S_nuiMemo(this.value)"></details>
@@ -36240,13 +36267,102 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     if (!A.semen && !A.manual.trim()) { appAlert('精液を選ぶか、種雄牛名を入れてください'); return; }
     if (!A.date) { appAlert('日付を入れてください'); return; }
     scrClose();
-    addEventForCow(id, 'ai_done');
+    { let n = 0; while (typeof _submitting !== 'undefined' && _submitting && n++ < 30) await new Promise(r => setTimeout(r, 100)); }   // 前の記録の送信中なら少し待つ（2秒の二重送信よけで、黙って記録されないのを防ぐ）
+    window._nuiFill = true; try { addEventForCow(id, 'ai_done'); } finally { window._nuiFill = false; }
     $('qr-date').value = A.date; try { onQrDateChange(); } catch (e) {}
     if (A.semen) { const sel = $('qr-semen-select'); sel.value = A.semen; try { onQrSemenSelectChange(); } catch (e) {} }
     else { $('qr-semen-name-input').value = A.manual.trim(); try { onQrSemenNameInput(); } catch (e) {} }
     $('qr-semen-count').value = A.count;
     $('qr-operator').value = A.op.trim();
     $('qr-memo').value = [A.time === 0 ? 'AM' : 'PM', ...A.chips, A.memo.trim()].filter(Boolean).join(' ');
+    { const fb = $('qr-fastback-flag'); if (fb) fb.checked = !!A.fb; }   // ★ 2026/11/21：新しい画面にもファストバックを
+    { const dn = $('qr-donor-ai-flag'); if (dn) dn.checked = !!A.donor; }
+    await submitQuickReg();
+    if (!$('modal-quick-reg').classList.contains('open')) { try { showCowDetail(id); } catch (e) {} }
+  };
+  // ---------- 🧬 移植（ET）：AI と同じつくり ----------
+  function etLots() {
+    return (typeof embryoInventory !== 'undefined' ? embryoInventory : []).filter(e => (Number(e.stock) || 0) > 0)
+      .sort((a, b) => (a.dam || '').localeCompare(b.dam || '', 'ja') || String(b.collectionDate || b.lot || '').localeCompare(String(a.collectionDate || a.lot || '')));
+  }
+  function etNos(e) {   // 凍結胚の、まだ使っていない胚番号
+    if (!e || e.type !== 'frozen') return [];
+    let details = e.embryoDetails; try { if (!details || !details.length) details = getSheet2DetailsForLot(e.lot); } catch (er) {}
+    const used = (e.history || []).filter(h => ['use', 'transfer', 'discard'].includes(h.type) && h.memo).map(h => { const m = h.memo.match(/胚番号:([^\s\/]+)/); return m ? m[1] : null; }).filter(Boolean);
+    return (details || []).filter(d => d.no && !used.includes(d.no));
+  }
+  function vET() {
+    const c = cowOf(S.cow), T = today();
+    if (!S.et) S.et = { day: 0, date: T, time: new Date().getHours() < 12 ? 0 : 1, lot: '', no: '', mDam: '', mSire: '', mNo: '', count: 1, op: '', memo: '', preg: '', ext: false };
+    const E = S.et;
+    const chip = (on) => `nui-ch${on ? ' on' : ''}`;
+    const days = [['今日 ' + md(T), 0], ['昨日 ' + md(addDays(T, -1)), 1], ['📅 ' + (E.day === 2 ? md(E.date) : '日付'), 2]];
+    const L = etLots();
+    const sel = L.find(e => e.id === E.lot);
+    const nos = sel ? etNos(sel) : [];
+    const old = E.date && diffDays(T, E.date) >= 30;   // 30日以上前の移植なら、妊鑑の結果も入れられる
+    const lotBtn = e => { const on = E.lot === e.id; return `<button class="nui-etlot" data-s="${esc([e.dam, e.sire, e.lot, ...etNos(e).map(d => d.no)].join(' ').toLowerCase())}" onclick="nuiET({lot:'${jsq(e.id)}',no:'',ext:false})" style="display:flex;justify-content:space-between;align-items:center;min-height:46px;padding:6px 12px;border-radius:10px;border:1.5px solid ${on ? '#a78bfa' : '#2a3050'};background:${on ? '#1c1230' : '#1e2333'};color:${on ? '#c4b5fd' : '#e2e8f0'};font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-align:left;gap:8px;">
+      <span>${on ? '✓ ' : ''}${esc(e.dam ? e.dam + ' × ' : '')}${esc(e.sire || '')}<br><span style="font-size:11px;color:#94a3b8;font-weight:400;">${esc(e.lot || '')} ${e.type === 'frozen' ? '凍結' : '新鮮'}</span></span><span style="font-size:12px;color:#94a3b8;white-space:nowrap;">のこり ${e.stock}本</span></button>`; };
+    scrShow(`${backBtn("nuiBackAct()")}<span style="font-size:17px;font-weight:900;color:#4ade80;">💉 種付け・移植</span><span style="font-size:15px;"><span class="nui-mono" style="font-weight:700;">${esc(c.id)}</span> ${esc(nm(c.id))}</span>`,
+      `<div style="padding:12px 14px 30px;display:flex;flex-direction:column;gap:14px;">
+        <div class="nui-seg"><button onclick="nuiAct('ai')">💉 AI・自然交配</button><button class="on">🧬 移植（ET）</button></div>
+        <div class="nui-box"><div class="nui-lb">いつ</div>
+          <div style="display:flex;gap:6px;">${days.map(([l, i]) => `<button class="${chip(E.day === i)}" onclick="nuiET({day:${i}})">${l}</button>`).join('')}</div>
+          ${E.day === 2 ? `<input type="date" class="nui-in" style="margin-top:6px;" value="${E.date}" onchange="nuiET({date:this.value})">` : ''}
+          <div style="display:flex;gap:6px;margin-top:6px;"><button class="${chip(E.time === 0)}" onclick="nuiET({time:0})">☀ 朝</button><button class="${chip(E.time === 1)}" onclick="nuiET({time:1})">🌙 夕</button></div></div>
+        <div class="nui-box"><div class="nui-lb">🧬 受精卵（在庫から）</div>
+          ${L.length > 6 ? `<input class="nui-in" style="margin-bottom:8px;" placeholder="🔍 ドナー・種雄牛・胚番号でさがす" oninput="nuiEtFind(this.value)">` : ''}
+          ${L.length ? `<div style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto;">${L.map(lotBtn).join('')}</div>` : '<div style="font-size:13px;color:#64748b;">在庫の受精卵はありません</div>'}
+          ${sel && nos.length ? `<div class="nui-lb" style="margin-top:10px;">胚番号（まだ使っていないもの ${nos.length}個）</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${nos.map(d => `<button class="nui-chip${E.no === d.no ? ' on' : ''}" onclick="nuiET({no:'${jsq(d.no)}'})">${esc(d.no)}${d.cane ? ' [' + esc(d.cane) + ']' : ''}${d.rank ? ' ' + esc(d.rank) : ''}</button>`).join('')}</div>` : ''}
+          <button onclick="nuiET({ext:${!E.ext},lot:'',no:''})" style="margin-top:10px;width:100%;min-height:42px;border-radius:10px;border:1px dashed ${E.ext ? '#a78bfa' : '#475569'};background:${E.ext ? '#1c1230' : 'transparent'};color:${E.ext ? '#c4b5fd' : '#cbd5e1'};font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;">✏ 在庫にない受精卵（ほかの農家・購入など）${E.ext ? ' ▲' : ' ▼'}</button>
+          ${E.ext ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:8px;">
+            <input class="nui-in" placeholder="ドナー（母）例: おひさ（b81）" value="${esc(E.mDam)}" oninput="S_nuiEt('mDam',this.value)">
+            <input class="nui-in" placeholder="種雄牛（父）例: 福勝鶴" value="${esc(E.mSire)}" oninput="S_nuiEt('mSire',this.value)">
+            <input class="nui-in" placeholder="胚番号（わかれば）例: 01L237R7-0032" value="${esc(E.mNo)}" oninput="S_nuiEt('mNo',this.value)"></div>` : ''}</div>
+        <div style="display:flex;gap:10px;">
+          <div class="nui-box" style="flex:1;"><div class="nui-lb">本数</div><div style="display:flex;align-items:center;">
+            <button aria-label="1本へらす" onclick="nuiET({count:Math.max(1,${E.count}-1)})" style="width:44px;height:44px;border-radius:10px;border:1px solid #2a3050;background:#1e2333;color:#e2e8f0;font-size:22px;cursor:pointer;">−</button>
+            <span class="nui-mono" style="flex:1;text-align:center;font-size:22px;font-weight:900;">${E.count}</span>
+            <button aria-label="1本ふやす" onclick="nuiET({count:Math.min(3,${E.count}+1)})" style="width:44px;height:44px;border-radius:10px;border:1px solid #2a3050;background:#1e2333;color:#e2e8f0;font-size:22px;cursor:pointer;">＋</button></div></div>
+          <div class="nui-box" style="flex:1;"><label for="nui-etop" class="nui-lb">術者</label><input id="nui-etop" class="nui-in" placeholder="空欄＝自分" value="${esc(E.op)}" oninput="S_nuiEt('op',this.value)"></div>
+        </div>
+        ${old ? `<div class="nui-box"><div class="nui-lb">妊娠鑑定の結果（${diffDays(T, E.date)}日前の移植なので、わかっていれば）</div><div style="display:flex;gap:6px;">
+          ${[['', 'まだ'], ['positive', '✓ 陽性'], ['negative', '✕ 陰性']].map(([v, l]) => `<button class="${chip(E.preg === v)}" onclick="nuiET({preg:'${v}'})">${l}</button>`).join('')}</div></div>` : ''}
+        <details class="nui-box" ${E.memo ? 'open' : ''}><summary style="cursor:pointer;font-size:13px;font-weight:700;">📝 メモ（なくてもOK） ▼</summary>
+          <input class="nui-in" style="margin-top:8px;" placeholder="黄体の大きさなど" value="${esc(E.memo)}" oninput="S_nuiEt('memo',this.value)"></details>
+        <button onclick="openEtSkip('${jsq(c.id)}','${E.date}')" style="width:100%;min-height:44px;border-radius:10px;border:1px solid #475569;background:transparent;color:#cbd5e1;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;">🚫 移植しなかった（理由を残す）</button>
+      </div>`,
+      `<button class="nui-save" onclick="nuiSaveET()">💾 記録する</button><div style="font-size:11px;color:#94a3b8;text-align:center;margin-top:8px;">再発情の確認と妊鑑の予定も自動で入ります</div>`);
+  }
+  window.S_nuiEt = (k, v) => { if (S.et) S.et[k] = v; };
+  window.nuiEtFind = q => { q = String(q || '').trim().toLowerCase(); document.querySelectorAll('#nui-scr .nui-etlot').forEach(b => { b.style.display = !q || b.dataset.s.includes(q) || b.classList.contains('on') ? '' : 'none'; }); };
+  window.nuiET = function (o) {
+    const E = S.et; Object.assign(E, o);
+    if ('day' in o) { if (o.day === 0) E.date = today(); if (o.day === 1) E.date = addDays(today(), -1); }
+    if (diffDays(today(), E.date) < 30) E.preg = '';
+    const sb = document.querySelector('#nui-scr .sb'), y = sb ? sb.scrollTop : 0; vET(); const sb2 = document.querySelector('#nui-scr .sb'); if (sb2) sb2.scrollTop = y;
+  };
+  window.nuiSaveET = async function () {
+    const E = S.et, id = S.cow;
+    const sel = etLots().find(e => e.id === E.lot);
+    if (!sel && !(E.mSire.trim() || E.mDam.trim() || E.mNo.trim())) { appAlert('受精卵を選ぶか、「在庫にない受精卵」に種雄牛などを入れてください'); return; }
+    if (sel && etNos(sel).length && !E.no) { appAlert('胚番号を選んでください'); return; }
+    if (!E.date) { appAlert('日付を入れてください'); return; }
+    scrClose();
+    { let n = 0; while (typeof _submitting !== 'undefined' && _submitting && n++ < 30) await new Promise(r => setTimeout(r, 100)); }   // 前の記録の送信中なら少し待つ（2秒の二重送信よけで、黙って記録されないのを防ぐ）
+    window._nuiFill = true; try { addEventForCow(id, 'et_done'); } finally { window._nuiFill = false; }
+    $('qr-date').value = E.date; try { onQrDateChange(); } catch (e) {}
+    if (sel) {
+      $('qr-embryo-select').value = sel.id; try { onQrEmbryoSelectChange(); } catch (e) {}
+      if (E.no) { const ns = $('qr-embryo-no-select'); ns.value = E.no; try { onQrEmbryoNoSelectChange(); } catch (e) {} }
+    } else {
+      $('qr-embryo-dam-input').value = E.mDam.trim(); $('qr-embryo-name-input').value = E.mSire.trim(); try { onQrEmbryoNameInput(); } catch (e) {}
+      if (E.mNo.trim()) $('qr-embryo').value = E.mNo.trim();
+    }
+    const cnt = $('qr-embryo-count'); if (cnt) cnt.value = E.count;
+    $('qr-operator').value = E.op.trim();
+    $('qr-memo').value = [!sel && E.mNo.trim() ? '胚No.' + E.mNo.trim() : '', E.time === 0 ? 'AM' : 'PM', E.memo.trim()].filter(Boolean).join(' ');
+    try { setQrPreg(E.preg || 'pending'); } catch (e) {}
     await submitQuickReg();
     if (!$('modal-quick-reg').classList.contains('open')) { try { showCowDetail(id); } catch (e) {} }
   };
