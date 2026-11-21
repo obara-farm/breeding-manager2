@@ -29241,13 +29241,12 @@ function _rptGroupRows(entries, oldHtmls, isEmbryo, inventory) {
     const cowStr = Object.keys(cc).map(c => `<span style="color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;">${_stEsc(c)}</span> ${_stEsc(cowDisplayName(c) || '')}${cc[c] > 1 ? '×' + cc[c] : ''}`).join('・');
     const restStr = [...g.rests].join('　');
     const dest = [cowStr ? '→ ' + cowStr : '', restStr && (g.type === 'transfer' || g.type === 'use') && !cowStr ? '→ ' + _stEsc(restStr) : (restStr ? `<span style="color:var(--muted);">${_stEsc(restStr)}</span>` : ''), g.ops.size ? `<span style="color:var(--muted);">術者 ${_stEsc([...g.ops].join('・'))}</span>` : ''].filter(Boolean).join('　');
-    return `<div onclick="_rptEdit('${gid}')" style="display:flex;align-items:center;gap:10px;padding:9px 10px;background:${_rptZebra(i)};cursor:pointer;border-bottom:1px solid var(--bg);font-size:12px;">
-      <span style="width:44px;flex-shrink:0;color:var(--muted);">${_stEsc(md2(g.date))}</span>
-      <span style="width:84px;flex-shrink:0;font-weight:700;color:${_RPT_TC[g.type] || 'var(--text)'};">${tl}</span>
-      <span style="width:150px;flex-shrink:0;color:var(--text);">${_stEsc(g.name)}</span>
-      <span style="width:42px;flex-shrink:0;text-align:right;color:var(--text);font-weight:700;">${g.count}${unit}</span>
-      <span style="flex:1;min-width:0;color:var(--text);">${dest}</span>
-      <span style="flex-shrink:0;">${_rptChips(g.nos)}</span>
+    return `<div class="rpt-r" onclick="_rptEdit('${gid}')" style="background:${_rptZebra(i)};cursor:pointer;">
+      <span class="rpt-dt">${_stEsc(md2(g.date))}</span>
+      <span class="rpt-ty" style="color:${_RPT_TC[g.type] || 'var(--text)'};">${tl}</span>
+      <span class="rpt-nm">${_stEsc(g.name)}</span>
+      <span class="rpt-ct">${g.count}${unit}</span>
+      <span class="rpt-ds">${dest}${g.nos.length ? ' <span class="rpt-no">' + _rptChips(g.nos) + '</span>' : ''}</span>
     </div>`;
   }).join('') + `</div>`;
 }
@@ -29283,13 +29282,13 @@ function _rptLotView(year) {
       let left = '';
       if (isEmb) { try { let det = it.embryoDetails; if (!det || !det.length) det = getSheet2DetailsForLot(it.lot); const { recv, used } = _embUseCounts(it, det); const rem = Object.keys(recv).filter(n => (used[n] || 0) < recv[n]); if (rem.length) left = `<div style="margin-top:6px;font-size:11px;color:var(--muted);">まだ使っていない胚番号：${rem.map(n => `<span style="font-family:'JetBrains Mono',monospace;color:var(--purple);">${_stEsc(n)}</span>`).join('　')}</div>`; } catch (e) {} }
       const hist = (it.history || []).slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || ''))).map((h, j) => { const nos = isEmb ? _rptEmbNos(h.memo) : []; const rest = isEmb ? _rptEmbMemo(h.memo, nos) : String(h.memo || ''); const tl = { restock: '🤝 譲受', carryover: '📦 繰越', selfcollect: '🥚 生産', use: isEmb ? '🧬 使用' : '💉 使用', transfer: '📤 譲渡', discard: '🗑 廃棄' }[h.type] || h.type;
-        return `<div style="display:flex;gap:10px;padding:6px 8px;background:${_rptZebra(j)};font-size:12px;"><span style="width:84px;color:var(--muted);">${_stEsc(fmtDate(h.date || ''))}</span><span style="width:70px;font-weight:700;color:${_RPT_TC[h.type] || 'var(--text)'};">${tl}</span><span style="width:36px;text-align:right;">${Number(h.count) || 0}</span><span style="flex:1;">${h.cowId ? `<span style="color:var(--accent);font-weight:700;">${_stEsc(h.cowId)}</span> ` : ''}${_rptChips(nos)} ${_stEsc(rest)}</span></div>`; }).join('');
+        return `<div class="rpt-r" style="background:${_rptZebra(j)};"><span class="rpt-dt2">${_stEsc(fmtDate(h.date || ''))}</span><span class="rpt-ty" style="color:${_RPT_TC[h.type] || 'var(--text)'};">${tl}</span><span class="rpt-ct">${Number(h.count) || 0}</span><span class="rpt-ds">${h.cowId ? `<span style="color:var(--accent);font-weight:700;">${_stEsc(h.cowId)}</span> ` : ''}${_rptChips(nos)} ${_stEsc(rest)}</span></div>`; }).join('');
       return `<details style="background:${_rptZebra(i)};border-bottom:1px solid var(--bg);"><summary style="display:flex;align-items:center;gap:10px;padding:10px;cursor:pointer;list-style:none;">
         <span style="width:20px;font-weight:900;color:${bad ? '#fbbf24' : 'var(--accent)'};">${bad ? '⚠' : '✓'}</span>
         <span style="flex:1;min-width:0;"><b>${_stEsc(nm)}</b>${it.lot ? ` <span style="color:var(--muted);font-size:12px;">（${_stEsc(it.lot)}）</span>` : ''}<br><span style="font-size:11px;color:var(--muted);">${_stEsc(parts)}${bad ? `　→ 記録では ${rec}${isEmb ? '個' : '本'} ／ <span style="color:#fbbf24;">在庫 ${Number(it.stock) || 0}${isEmb ? '個' : '本'}</span>` : ''}</span></span>
-        <span style="font-size:18px;font-weight:900;">${Number(it.stock) || 0}<span style="font-size:11px;font-weight:400;color:var(--muted);">${isEmb ? '個' : '本'}</span></span>
-        <span style="color:var(--info);font-size:11px;">くわしく ▶</span></summary>
-        <div style="padding:0 10px 10px 40px;">${hist}${left}</div></details>`;
+        <span style="font-size:18px;font-weight:900;white-space:nowrap;">${Number(it.stock) || 0}<span style="font-size:11px;font-weight:400;color:var(--muted);">${isEmb ? '個' : '本'}</span></span>
+        <span style="color:var(--info);font-size:11px;white-space:nowrap;">▶</span></summary>
+        <div class="rpt-hist">${hist}${left}</div></details>`;
     };
     const bad = L.filter(x => x.bad).length, zero = L.filter(x => !x.bad && !(Number(x.it.stock) > 0));
     const main = L.filter(x => x.bad || Number(x.it.stock) > 0);
@@ -29331,7 +29330,7 @@ function _rptNoView() {
       : last.type === 'transfer' ? (last.usage ? `${last.usage}で移植済み（${cowOf(last) || '牛の記録なし'}）` : `譲渡済み（${cowOf(last) || _rptEmbMemo(last.memo, _rptEmbNos(last.memo)).replace(/ケーン[:：]\S+/, '').trim() || '行き先の記録なし'}）`) : '廃棄済み') : '在庫にあるはず';
     return `<div style="margin-top:14px;"><div style="font-size:14px;"><span style="font-family:'JetBrains Mono',monospace;color:var(--purple);font-weight:700;">${_stEsc(n)}</span>　<b>${_stEsc((it.dam ? it.dam + '×' : '') + (it.sire || ''))}</b> <span style="color:var(--muted);font-size:12px;">（${_stEsc(it.lot || '')}）</span></div>
       <div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:6px;">${H.map((h, j) => { const nos = _rptEmbNos(h.memo); const lotLv = !nos.includes(n); const rest = _rptEmbMemo(h.memo, nos);
-        return `<div style="display:flex;gap:10px;padding:7px 10px;background:${_rptZebra(j)};font-size:12px;${lotLv ? 'opacity:.75;' : ''}"><span style="width:84px;color:var(--muted);">${_stEsc(fmtDate(h.date || ''))}</span><span style="width:70px;font-weight:700;color:${_RPT_TC[h.type] || 'var(--text)'};">${tl(h)}</span><span style="flex:1;">${h.cowId ? `→ <span style="color:var(--accent);font-weight:700;">${_stEsc(h.cowId)}</span> ${_stEsc(cowDisplayName(h.cowId) || '')}　` : ''}${_stEsc(rest)}${lotLv ? `<span style="color:var(--muted);">（ロットに${h.count || ''}${h.count ? '個' : ''}入った記録）</span>` : ''}</span></div>`; }).join('')}</div>
+        return `<div class="rpt-r" style="background:${_rptZebra(j)};${lotLv ? 'opacity:.75;' : ''}"><span class="rpt-dt2">${_stEsc(fmtDate(h.date || ''))}</span><span class="rpt-ty" style="color:${_RPT_TC[h.type] || 'var(--text)'};">${tl(h)}</span><span class="rpt-ds">${h.cowId ? `→ <span style="color:var(--accent);font-weight:700;">${_stEsc(h.cowId)}</span> ${_stEsc(cowDisplayName(h.cowId) || '')}　` : ''}${_stEsc(rest)}${lotLv ? `<span style="color:var(--muted);">（ロットに${h.count || ''}${h.count ? '個' : ''}入った記録）</span>` : ''}</span></div>`; }).join('')}</div>
       <div style="font-size:12px;color:#fbbf24;margin-top:4px;">今：${_stEsc(where)}</div></div>`;
   }).join('');
   return box + out + (hits.length > 20 ? `<div style="font-size:12px;color:var(--muted);margin-top:8px;">ほか ${hits.length - 20}件（もう少しくわしく入れてください）</div>` : '') + '</div>';
@@ -29665,6 +29664,19 @@ function renderReport() {
     container.innerHTML = "<div style='text-align:center;color:var(--muted);padding:30px;'>精液・受精卵を登録して取引を記録すると集計されます。</div>";
     return;
   }
+  if (!document.getElementById('rpt-css')) { const st = document.createElement('style'); st.id = 'rpt-css'; st.textContent = `
+    .rpt-r{display:flex;align-items:baseline;gap:10px;padding:9px 10px;border-bottom:1px solid var(--bg);font-size:12px;line-height:1.5;}
+    .rpt-dt{width:44px;flex-shrink:0;color:var(--muted);} .rpt-dt2{width:84px;flex-shrink:0;color:var(--muted);}
+    .rpt-ty{width:84px;flex-shrink:0;font-weight:700;white-space:nowrap;} .rpt-nm{width:150px;flex-shrink:0;color:var(--text);}
+    .rpt-ct{width:42px;flex-shrink:0;text-align:right;font-weight:700;color:var(--text);white-space:nowrap;}
+    .rpt-ds{flex:1;min-width:0;color:var(--text);word-break:normal;overflow-wrap:anywhere;} .rpt-no{display:inline-block;margin-left:4px;}
+    .rpt-hist{padding:0 10px 10px 40px;}
+    @media (max-width:720px){
+      .rpt-r{flex-wrap:wrap;gap:4px 8px;padding:9px 10px;font-size:13px;}
+      .rpt-dt,.rpt-dt2{width:auto;} .rpt-ty{width:auto;} .rpt-nm{width:auto;flex:1;min-width:0;} .rpt-ct{width:auto;}
+      .rpt-ds{flex-basis:100%;padding-left:2px;} .rpt-ds:empty{display:none;}
+      .rpt-hist{padding:0 6px 10px 6px;}
+    }`; document.head.appendChild(st); }
   const _v = window._rptView || 'month';
   const _tabs = `<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">${[['month','① 月ごと（報告用）'],['lot','② ロットごと（在庫の確認）'],['no','③ 胚番号でさがす']].map(([k,l]) => `<button onclick="window._rptView='${k}';renderReport()" style="padding:8px 14px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;border:1px solid ${_v===k?'#22c55e':'var(--border)'};background:${_v===k?'#14532d':'var(--bg2)'};color:${_v===k?'#4ade80':'var(--muted)'};">${l}</button>`).join('')}</div>`;
   if (_v === 'lot') { container.innerHTML = _tabs + _rptLotView(selectedYear); return; }
@@ -34521,7 +34533,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112130';
+const APP_BUILD = '2026112131';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
