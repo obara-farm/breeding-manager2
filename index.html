@@ -3742,6 +3742,13 @@ function repairEtSemenMisuse() {
 // ★ 2026/11/17：採卵プログラム中の牛のAIは、印がなくても「ドナーAI」とみなして印を付ける（2026/10/01以降）。
 //   ・採卵プログラムを始めて5〜25日後のAI　・その日（前後1日）に「ドナー」の処置予定がある　・AIの0〜10日後に採卵記録がある
 //   印が付くと、妊鑑の予定は作らず、受胎率にも入らない（そのAIの、まだの妊鑑・再発情の予定は消す）
+// ★ 2026/11/21：そのAIが採卵のための授精と言えるか（やめていない採卵プログラムを30日以内に始めている、またはAIの0〜10日後に採卵記録がある）
+function _donorAIBacked(cow, d) {
+  const ev = (cow && cow.events) || [];
+  if (ev.some(x => DONOR_PROG_TYPES.includes(x.type) && x.date <= d && x.date >= addDays(d, -30) && !(x._retired && (!x.stoppedAt || x.stoppedAt <= d)))) return true;
+  const cols = (typeof collectionRecordsNew !== 'undefined' ? collectionRecordsNew : []).concat(typeof collectionRecords !== 'undefined' ? collectionRecords : []);
+  return cols.some(r => r && r.donorId === (cow && cow.id) && r.date >= d && r.date <= addDays(d, 10));
+}
 function autoFlagDonorAI() {
   let changed = false;
   const cols = (typeof collectionRecordsNew !== 'undefined' ? collectionRecordsNew : []).concat(typeof collectionRecords !== 'undefined' ? collectionRecords : []);
@@ -3754,7 +3761,8 @@ function autoFlagDonorAI() {
       if ((insemBookRecords || []).some((r, i) => r.t === c.id && r.d === d && ((insemBookEdits || {})['dynamic_' + i] || {}).donorAI === false)) return;
       // 採卵をやめたプログラム（採卵中止・通常AIに切り替え）は数えない
       const inProg = ev.some(x => /^donor_et_/.test(x.type || '') && x.date >= addDays(d, -25) && x.date <= addDays(d, -5) && !(x._retired && (!x.stoppedAt || x.stoppedAt <= d)));
-      const hasTask = (tasks || []).some(t => t.cowId === c.id && /^ドナー/.test(t.action || '') && /授精|AI/.test(t.action || '') && Math.abs(diffDays(t.date, d)) <= 1);
+      // ドナーの授精の予定があっても、採卵プログラムを30日以内に始めていなければ数えない（昔のプログラムの残りで普通のAIに印が付いていた）
+      const hasTask = _donorAIBacked(c, d) && (tasks || []).some(t => t.cowId === c.id && /^ドナー/.test(t.action || '') && /授精|AI/.test(t.action || '') && Math.abs(diffDays(t.date, d)) <= 1);
       const hasCol = cols.some(r => r && r.donorId === c.id && r.date >= d && r.date <= addDays(d, 10));
       if (!inProg && !hasTask && !hasCol) return;
       e.donorAI = true;
@@ -7390,7 +7398,8 @@ function cowDisplayStatus(cow) {
   const lastNeg = lastAiEt && ev.find(e => e.type === 'preg_negative' && e.date > lastAiEt.date);
   const newAiAfterNeg = lastNeg && ev.some(e => ['ai_done', 'et_done'].includes(e.type) && !e.donorAI && e.date > lastNeg.date);
   const isDonorCow = cow.isDonor || ev.some(e => DONOR_PROG_TYPES.includes(e.type) && !e._retired);
-  const lastIsDonorAI = lastAiEt && lastAiEt.donorAI === true;
+  // 最後の授精がドナーAI：採卵プログラム中（30日以内に開始）か採卵記録があるとき、または手で印を付けたときだけ「採卵ドナー」にする
+  const lastIsDonorAI = lastAiEt && lastAiEt.donorAI === true && (lastAiEt.donorAIManual === true || _donorAIBacked(cow, lastAiEt.date));
   // 採卵ドナー：最後に始めたプログラムが採卵、または最後の授精がドナーAI（その後に分娩していない）
   // 採卵をやめた（_retired）プログラムは数えない。同じ日なら普通のプログラムを優先
   const lastProg = ev.filter(e => PROG_START_TYPES.includes(e.type) && !e._retired)
@@ -22995,7 +23004,8 @@ function toggleDonorAIFlag(src, idx) {
     if (wasOn) {
       const cow = cows.find(c => c.id === cowId);
       if (cow) {
-        const ev = (cow.events||[]).find(e => e.type === 'ai_done' && e.date === date && e.donorAI);
+        const ev = (cow.events||[]).find(e => ['ai_done','estrus_ai'].includes(e.type) && e.date === date && e.donorAI);
+        (cow.events||[]).forEach(e => { if (['ai_done','estrus_ai'].includes(e.type) && e.date === date) e.donorAIManual = false; });   // 手で外した → 自動で付け直さない
         if (ev) {
           ev.donorAI = false;
           const isET = rec.insemType === 'et' || rec.isET;
@@ -23011,8 +23021,8 @@ function toggleDonorAIFlag(src, idx) {
       tasks = tasks.filter(t => !(t.cowId===cowId && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= date));
       const cow3 = cows.find(c => c.id === cowId);
       if (cow3) {
-        const ev3 = (cow3.events||[]).find(e => e.type === 'ai_done' && e.date === date && !e.donorAI);
-        if (ev3) ev3.donorAI = true;
+        const ev3 = (cow3.events||[]).find(e => ['ai_done','estrus_ai'].includes(e.type) && e.date === date && !e.donorAI);
+        if (ev3) { ev3.donorAI = true; ev3.donorAIManual = true; }
       }
     }
     save(); renderInsemBook(); renderAll();
@@ -23024,7 +23034,8 @@ function toggleDonorAIFlag(src, idx) {
   if (wasOn) {
     const cow = cows.find(c => c.id === rec.t);
     if (cow) {
-      const ev = (cow.events||[]).find(e => e.type === 'ai_done' && e.date === rec.d && e.donorAI);
+      const ev = (cow.events||[]).find(e => ['ai_done','estrus_ai'].includes(e.type) && e.date === rec.d && e.donorAI);
+      (cow.events||[]).forEach(e => { if (['ai_done','estrus_ai'].includes(e.type) && e.date === rec.d) e.donorAIManual = false; });   // 手で外した → 自動で付け直さない
       if (ev) {
         ev.donorAI = false;
         // 妊鑑タスクを生成
@@ -23054,8 +23065,8 @@ function toggleDonorAIFlag(src, idx) {
     tasks = tasks.filter(t => !(t.cowId===rec.t && !t.done && (t.action.includes('妊娠鑑定') || t.action.includes('再発情')) && t.date >= rec.d));
     const cow2 = cows.find(c => c.id === rec.t);
     if (cow2) {
-      const ev2 = (cow2.events||[]).find(e => e.type === 'ai_done' && e.date === rec.d && !e.donorAI);
-      if (ev2) ev2.donorAI = true;
+      const ev2 = (cow2.events||[]).find(e => ['ai_done','estrus_ai'].includes(e.type) && e.date === rec.d && !e.donorAI);
+      if (ev2) { ev2.donorAI = true; ev2.donorAIManual = true; }
     }
   }
   save();
@@ -24880,7 +24891,20 @@ function toggleAllInsemCheck() {
 }
 
 // 子牛タブから証明書を印刷したら、その子牛を「発行済み」にするか聞く
+function _setInsemCertAt(src, idx, d) {
+  if (src === 'dynamic') { const r = insemBookRecords[idx]; if (!r) return; r.certAt = d; const ed = insemBookEdits['dynamic_' + idx]; if (ed && 'certAt' in ed) ed.certAt = d; }
+  else { const k = src + '_' + idx; insemBookEdits[k] = insemBookEdits[k] || {}; insemBookEdits[k].certAt = d; }
+}
 function _askMarkCalfCertsAfterPrint() {
+  if (aiCertOnInsem()) {   // 授精簿から印刷した行を、発行済みにする
+    const R = (window._lastCertRows || []).slice(); window._lastCertRows = [];
+    if (!R.length) return;
+    setTimeout(async () => {
+      if (!await appConfirm(`印刷できましたか？\n「はい」で ${R.length}枚を「授精証明書 発行済み」にします。`)) return;
+      const d = today(); R.forEach(r => _setInsemCertAt(r.src, r.idx, d)); save(); try { renderInsemBook(); } catch (e) {}
+    }, 1200);
+    return;
+  }
   const ids = (window._calfCertCalfIds || []).filter(id => { const c = calves.find(x => x.id === id); return c && !c.authCertIssued; });
   if (!ids.length) return;
   setTimeout(() => {
@@ -24894,6 +24918,7 @@ function _askMarkCalfCertsAfterPrint() {
 function printSelectedCerts() {
   const checks = document.querySelectorAll('.insem-cert-check:checked');
   if (!checks.length) { alert('証明書を印刷する行を選択してください（📄チェックボックス）'); return; }
+  window._lastCertRows = Array.from(checks).map(c => ({ src: c.dataset.src, idx: parseInt(c.dataset.idx) }));
 
   // 選択行を日付昇順で並び替え
   const selected = Array.from(checks).map(c => {
@@ -34292,7 +34317,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112125';
+const APP_BUILD = '2026112127';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -34588,8 +34613,13 @@ async function markBirthReported() {
 function undoBirthReported(id) { const c = calves.find(x => x.id === id); if (!c) return; delete c.birthReportedAt; save(); renderBirthReport(); if (typeof renderCalves === 'function') renderCalves(); }
 // ===== 授精証明書の発行済みチェック（子牛ごと） =====
 // 証明書がいる子牛：自分が授精・移植した（授証あり）・死亡していない・まだ発行していない
+// ★ 2026/11/21：授精証明書を「授精した日」に出す農場（長島牧場）。設定 aiCertWhen: 'insem' | 'calf'（書かなければ長島は授精の日）
+//   授精簿の1行ごとに発行済み（certAt）を付ける。子牛が生まれたときには証明書は出さない
+const AI_CERT_INSEM_FROM = '2026-11-21';   // この日から後の授精を「まだ」に出す（前の分はもう出してある）
+function aiCertOnInsem() { const C = window.FARM_CFG || {}; return C.aiCertWhen ? C.aiCertWhen === 'insem' : C.farmId === 'nagashima'; }
 function calfNeedsCert(c) {
   if (!c || c.authCertIssued || c.status === 'dead') return false;
+  if (aiCertOnInsem()) return false;
   try { return _brAuth(c); } catch (e) { return false; }
 }
 function toggleCalfCertIssued(id) {
@@ -35757,6 +35787,12 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
   const yAgo = () => addDays(today(), -365);
   function cpItems(tab, done) {
     const B = cpBook();
+    if (tab === 'ai' && aiCertOnInsem()) {   // 授精した日に出す農場：授精簿の行ごと
+      const T = today(), opOf = r => String(r.op || '').replace(/在庫反映.*$/, '').trim();
+      return B.filter(r => r.d && r.d >= (done ? yAgo() : AI_CERT_INSEM_FROM) && r.d <= T && !cpIsEtRow(r) && !opOf(r) && (done ? !!r.certAt : !r.certAt))
+        .sort((a, b) => a.d.localeCompare(b.d) || String(a.t || '').localeCompare(String(b.t || '')))
+        .map(r => ({ key: r._src + ':' + r._idx, row: r, ai: [r], c: null, ins: true }));
+    }
     if (tab === 'ai') {
       const L = calves.filter(c => c.status !== 'dead' && (done ? c.authCertIssued && (String(c.authCertIssued) >= yAgo() || (c.dob || '') >= yAgo()) : calfNeedsCert(c)));
       return L.sort((a, b) => (a.dob || '').localeCompare(b.dob || '')).map(c => ({ key: c.id, c, row: cpRowOf(c, B), ai: cpAiRows(c, B), et: cpIsEtCalf(c) }));
@@ -35802,6 +35838,16 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <span style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">${c.certReqGot
           ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;" onclick="nuiCpReq('${k}','undo')">まだに戻す</button>`
           : `${c.certReqAsked ? '' : `<button class="nui-chip" onclick="nuiCpReq('${k}','ask')">📨 頼んだ</button>`}<button class="nui-chip" onclick="nuiCpReq('${k}','got')">✓ 届いた</button>`}</span></div>`;
+    }
+    if (it.ins) {   // 授精した日に出す農場：授精簿の1行
+      const r = it.row;
+      return `<div class="cp-r" data-k="${esc(it.key)}" onclick="nuiCpT('${k}')" style="display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid rgba(255,255,255,.06);cursor:pointer;">${cpBox(on)}
+        <span style="flex:1;min-width:0;">
+          <span class="nui-mono" style="font-weight:700;font-size:15px;">${esc(r.t || '')}</span> <span style="color:#4ade80;font-weight:700;">${esc(nm(r.t) || r.c || '')}</span>
+          <div style="font-size:12px;color:#94a3b8;margin-top:1px;">${esc(['授精 ' + md(r.d), r.s || ''].filter(Boolean).join('・'))}${CP.done && r.certAt ? `・<span style="color:#64748b;">${esc(md(r.certAt))} 発行</span>` : ''}</div>
+          <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:8px;">${qIn(r)}</div>
+        </span>
+        ${CP.done && r.certAt ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;flex-shrink:0;" onclick="event.stopPropagation();nuiCpUndo('${k}')">まだに戻す</button>` : ''}</div>`;
     }
     const c = it.c, ok = !!it.row, sire = c.sire || (it.row && it.row.s) || '';
     const iss = CP.tab === 'ai' ? c.authCertIssued : c.etCertIssued;
@@ -35861,7 +35907,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       `<div style="padding:12px 14px 30px;">
         ${tabs.length > 1 ? `<div class="nui-seg" style="margin-bottom:10px;">${tabs.map(([k, l]) => { const n = cpCount(k); return `<button class="${CP.tab === k ? 'on' : ''}" onclick="nuiCpTab('${k}')">${l}${n ? ` <span style="color:#fbbf24;">${n}</span>` : ''}</button>`; }).join('')}</div>` : ''}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? '授精証明書がまだの子牛' : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書がまだの胚')}${I.length ? `　${I.length}${CP.tab === 'egg' ? '個' : '頭'}` : ''}</span>
+          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? (aiCertOnInsem() ? '授精証明書がまだの授精（授精した日に出します）' : '授精証明書がまだの子牛') : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書がまだの胚')}${I.length ? `　${I.length}${CP.tab === 'egg' ? '個' : CP.tab === 'ai' && aiCertOnInsem() ? '件' : '頭'}` : ''}</span>
           ${I.length && CP.tab !== 'req' ? `<button class="nui-chip" onclick="nuiCpAll()">${I.filter(it => okKeys.has(it.key)).every(it => CP.sel.has(it.key)) && CP.sel.size ? '選ぶのをやめる' : '全部えらぶ'}</button>` : ''}</div>
         ${CP.tab === 'et' && !CP.done ? '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">証明書の番号は今までどおり自動で付きます</div>' : ''}
         ${list}${other}
@@ -35957,6 +36003,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
   window.nuiCpUndo = async function (k) {
     if (!await appConfirm('「まだ」に戻して、一覧に出しますか？')) return;
     if (CP.tab === 'egg') { const [cid, i] = k.split('|'); const col = collectionRecordsNew.find(c => c.id === cid); const x = col && cpEmbryos(col).find(e => e.idx === +i); if (x && col.eggCertDone) delete col.eggCertDone[x.no]; }
+    else if (CP.tab === 'ai' && aiCertOnInsem() && String(k).includes(':')) { const [src, i] = String(k).split(':'); _setInsemCertAt(src, +i, ''); }
     else { const c = calves.find(x => x.id === k); if (c) { if (CP.tab === 'ai') c.authCertIssued = false; else c.etCertIssued = false; } }
     save(); vCert(true);
   };
@@ -35991,6 +36038,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       if (!await appConfirm(`印刷できましたか？\n「はい」で ${n}枚を発行済みにして、一覧から消します。`)) return;
       const d = today();
       if (h.kind === 'egg') h.L.forEach(o => { const col = collectionRecordsNew.find(c => c.id === o.cid); if (col) { col.eggCertDone = col.eggCertDone || {}; col.eggCertDone[o.no] = d; } });
+      else if (h.kind === 'ai' && aiCertOnInsem()) h.ids.forEach(k => { const [src, i] = String(k).split(':'); _setInsemCertAt(src, +i, d); });
       else h.ids.forEach(id => { const c = calves.find(x => x.id === id); if (c) { if (h.kind === 'ai') c.authCertIssued = d; else c.etCertIssued = d; } });
       save();
       try { renderCalves(); } catch (e) {}
@@ -36474,7 +36522,22 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     { const dn = $('qr-donor-ai-flag'); if (dn) dn.checked = !!A.donor; }
     await submitQuickReg();
     if (!$('modal-quick-reg').classList.contains('open')) { try { showCowDetail(id); } catch (e) {} }
+    if (aiCertOnInsem() && !A.op.trim() && !A.donor) setTimeout(() => certOffer(id, A.date), 600);
   };
+  // ★ 2026/11/21：授精した日に証明書を出す農場：記録したら「授精証明書を作る」を出す（押さなければ10秒で消える）
+  function certOffer(id, d) {
+    const keys = cpItems('ai', false).filter(it => it.row.t === id && it.row.d === d).map(it => it.key);
+    if (!keys.length) return;
+    document.getElementById('cert-offer')?.remove();
+    const w = document.createElement('div'); w.id = 'cert-offer';
+    w.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(84px + env(safe-area-inset-bottom));z-index:9400;background:#1a1f2e;border:1px solid #2a3050;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.5);max-width:520px;margin:0 auto;';
+    w.innerHTML = `<span style="flex:1;font-size:14px;color:#e2e8f0;">📄 ${esc(id)} の授精証明書</span><button style="height:42px;padding:0 14px;border-radius:10px;border:none;background:#16a34a;color:#fff;font-size:15px;font-weight:900;font-family:inherit;cursor:pointer;">今つくる</button><button aria-label="閉じる" style="height:42px;width:42px;border-radius:10px;border:1px solid #2a3050;background:none;color:#94a3b8;font-size:16px;cursor:pointer;">✕</button>`;
+    const [go, x] = w.querySelectorAll('button');
+    go.onclick = () => { w.remove(); try { closeModal('modal-cow'); } catch (e) {} nuiCert('ai'); CP.sel = new Set(keys); vCert(); };
+    x.onclick = () => w.remove();
+    document.body.appendChild(w);
+    setTimeout(() => { if (w.isConnected) w.remove(); }, 10000);
+  }
   // ---------- 🧬 移植（ET）：AI と同じつくり ----------
   function etLots() {
     const all = [...cows, ...(typeof retiredCows !== 'undefined' ? retiredCows : [])];
