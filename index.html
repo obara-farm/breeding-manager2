@@ -6482,7 +6482,12 @@ function cowCalvingIntervalText(cow) {
   return p.length ? `<div class="nui-cc-key" style="font-size:12px;color:var(--muted);">📏 分娩間隔 ${p.join(' ・ ')}</div>` : '';
 }
 // タグの札の色（同じタグはいつも同じ色）。個体カードを描くときに使うので、ここで先に決めておく
+// ★ 2026/11/22：タグの色を選べる（黄・赤・水・白）。選んでいないタグは今までどおり名前から自動で決まる色
+const TAG_COLORS = { y: ['黄', '#fbbf24', '#1f1600'], r: ['赤', '#f87171', '#2a0f0f'], b: ['水', '#22d3ee', '#06232a'], w: ['白', '#e2e8f0', '#1e2333'] };
+function tagColorOf(t) { try { return ((typeof farmTargets !== 'undefined' && farmTargets._tagColors) || {})[t] || ''; } catch (e) { return ''; } }
 function nuiTagStyle(t) {
+  const sel = TAG_COLORS[tagColorOf(t)];
+  if (sel) return `color:${sel[1]};background:${sel[2]};border-color:${sel[1]}66;`;
   const PAL = [['#fbbf24', '#1f1600'], ['#4ade80', '#0d2a1a'], ['#c4a5f5', '#1c1230'], ['#22d3ee', '#06232a'], ['#f472b6', '#2a0f1f'], ['#fb923c', '#1a0f00'], ['#a3e635', '#16210a'], ['#e2e8f0', '#1e2333']];
   let h = 0; String(t).split('').forEach(ch => { h = (h * 31 + ch.charCodeAt(0)) >>> 0; });
   const [fg, bg] = PAL[h % PAL.length]; return `color:${fg};background:${bg};border-color:${fg}66;`;
@@ -11069,12 +11074,13 @@ function openTagEditor(kind, key) {
     document.getElementById('confirm-body').innerHTML = `
       <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">タップで付け外し。新しいタグは下の欄に入力して追加</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-        ${known.map(t => `<button class="st-chip ${cur.has(t) ? 'on' : ''}" data-tag="${_stEsc(t)}">${_stEsc(t)}</button>`).join('') || '<span style="font-size:12px;color:var(--muted);">まだタグがありません</span>'}
+        ${known.map(t => `<button class="st-chip ${cur.has(t) ? 'on' : ''}" data-tag="${_stEsc(t)}" style="${nuiTagStyle(t)}${cur.has(t) ? 'box-shadow:0 0 0 2px #4ade80;' : 'opacity:.75;'}">${cur.has(t) ? '✓ ' : ''}${_stEsc(t)}</button>`).join('') || '<span style="font-size:12px;color:var(--muted);">まだタグがありません</span>'}
       </div>
       <div style="display:flex;gap:6px;">
         <input type="text" id="tag-new-input" placeholder="例: 自然分娩、共励会候補" style="flex:1;font-size:13px;">
         <button class="btn btn-secondary" id="tag-add-btn" style="margin-top:0;white-space:nowrap;">追加</button>
-      </div>`;
+      </div>
+      <div style="margin-top:12px;"><a href="#" onclick="event.preventDefault();closeModal('modal-confirm');openTagManager()" style="font-size:13px;color:var(--info);">⚙ タグの色・名前の変更・消すは「タグの管理」 ›</a></div>`;
     document.querySelectorAll('#confirm-body [data-tag]').forEach(b => b.onclick = () => { const t = b.dataset.tag; cur.has(t) ? cur.delete(t) : cur.add(t); draw(); });
     document.getElementById('tag-add-btn').onclick = () => {
       const v = document.getElementById('tag-new-input').value.trim();
@@ -11095,6 +11101,50 @@ function openTagEditor(kind, key) {
     if (kind === 'calf' && mc && mc.classList.contains('open') && window._openCalfStoryId === key) showCalfStory(key);
   };
   openModal('modal-confirm');
+}
+
+// ===== ★ 2026/11/22：🏷 タグの管理（色・名前を変える・全部の牛から消す） =====
+function _tagHolders() { return cows.concat(typeof retiredCows !== 'undefined' ? retiredCows : [], typeof calves !== 'undefined' ? calves : []); }
+function openTagManager() {
+  let w = document.getElementById('tag-mgr');
+  if (!w) { w = document.createElement('div'); w.id = 'tag-mgr'; w.className = 'modal-overlay open'; w.style.zIndex = '9200'; w.onclick = e => { if (e.target === w) closeTagManager(); }; document.body.appendChild(w); }
+  const cnt = {}; _tagHolders().forEach(c => (c.tags || []).forEach(t => cnt[t] = (cnt[t] || 0) + 1));
+  const names = Object.keys(cnt).sort((a, b) => a.localeCompare(b, 'ja'));
+  const E = _stEsc, J = x => String(x).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  w.innerHTML = `<div class="modal" style="max-width:520px;padding:0;overflow:hidden;">
+    <div class="modal-title" style="padding:14px 16px;margin:0;border-bottom:1px solid var(--border);"><span>🏷 タグの管理</span><button class="modal-close" onclick="closeTagManager()">✕</button></div>
+    <div style="max-height:70vh;overflow:auto;">${names.length ? names.map((t, i) => { const cur = tagColorOf(t);
+      return `<div style="padding:12px 14px;background:${i % 2 ? 'var(--bg3)' : 'var(--bg2)'};">
+        <div><span class="nui-tagc" style="${nuiTagStyle(t)}display:inline-block;font-size:13px;font-weight:700;border:1px solid;border-radius:999px;padding:2px 10px;">${E(t)}</span><span style="font-size:12px;color:var(--muted);margin-left:6px;">${cnt[t]}頭</span>${cur ? '' : '<span style="font-size:11px;color:var(--muted);margin-left:6px;">（色は自動）</span>'}</div>
+        <div style="display:flex;gap:8px;margin-top:9px;align-items:center;flex-wrap:wrap;">
+          ${Object.entries(TAG_COLORS).map(([k, [l, fg]]) => `<button onclick="setTagColor('${E(J(t))}','${k}')" aria-label="${l}" style="width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:${fg};color:#000;font-size:12px;font-weight:900;cursor:pointer;${cur === k ? 'outline:3px solid #4ade80;outline-offset:2px;' : ''}">${l}</button>`).join('')}
+          <span style="margin-left:auto;display:flex;gap:6px;"><button class="btn btn-secondary" style="margin:0;font-size:12px;padding:6px 10px;" onclick="renameTagAll('${E(J(t))}')">✏ 名前</button><button class="btn btn-secondary" style="margin:0;font-size:12px;padding:6px 10px;color:var(--danger);border-color:#7f1d1d;" onclick="deleteTagAll('${E(J(t))}')">🗑 消す</button></span>
+        </div></div>`; }).join('') : '<div style="padding:20px;color:var(--muted);font-size:13px;">まだタグがありません。牛の「…」→「タグを付ける・直す」で作れます。</div>'}</div>
+    <div style="padding:10px 14px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);">色はすぐ全部の牛の札に反映されます（ほかの端末にも）。「消す」「名前」は全部の牛に効きます。まちがえたら「元に戻す」で戻せます。</div>
+  </div>`;
+}
+function closeTagManager() { document.getElementById('tag-mgr')?.remove(); try { renderAll(); } catch (e) {} }
+function setTagColor(t, k) {
+  farmTargets._tagColors = farmTargets._tagColors || {};
+  if (farmTargets._tagColors[t] === k) delete farmTargets._tagColors[t]; else farmTargets._tagColors[t] = k;   // 同じ色をもう一度押すと自動の色に戻る
+  save(); openTagManager();
+}
+async function renameTagAll(t) {
+  const v = await appPrompt(`「${t}」の新しい名前`, t);
+  if (v == null) return; const n = String(v).trim(); if (!n || n === t) return;
+  const H = _tagHolders().filter(c => (c.tags || []).includes(t));
+  armUndo(`タグ「${t}」を「${n}」に変えました（${H.length}頭）`);
+  H.forEach(c => { c.tags = [...new Set(c.tags.map(x => x === t ? n : x))]; c._mt = Date.now(); });
+  const C = farmTargets._tagColors || {}; if (C[t] && !C[n]) C[n] = C[t]; delete C[t];
+  save(); openTagManager();
+}
+async function deleteTagAll(t) {
+  const H = _tagHolders().filter(c => (c.tags || []).includes(t));
+  if (!await appConfirm(`タグ「${t}」を、付いている ${H.length}頭 から外しますか？\n（まちがえたら「元に戻す」で戻せます）`)) return;
+  armUndo(`タグ「${t}」を${H.length}頭から外しました`);
+  H.forEach(c => { c.tags = c.tags.filter(x => x !== t); if (!c.tags.length) delete c.tags; c._mt = Date.now(); });
+  if (farmTargets._tagColors) delete farmTargets._tagColors[t];
+  save(); openTagManager();
 }
 
 // ===== 牛群リスト：今の頭数・一括記録・CSV =====
@@ -11228,7 +11278,7 @@ function renderHerdList() {
     if (key === 'days') return fmtAgeDays(v, true);
     if (key === 'months') return r.ageDays != null ? fmtAgeDays(r.ageDays, false) : '—';
     if (key === 'openDays') return v != null ? `<span style="color:${v > 90 ? 'var(--danger)' : v > 60 ? 'var(--warn)' : 'inherit'};font-weight:700;">${v}</span>` : '—';
-    if (key === 'tags') return `${[...(r.tags || []).map(t => `<span class="herd-tag">${esc(t)}</span>`), ...(r.autoTags || []).map(t => `<span class="herd-tag auto">${esc(t)}</span>`)].join('')}<button class="herd-tagbtn" onclick="event.stopPropagation();openTagEditor('${r.kind}','${esc(r.key)}')">🏷</button>`;
+    if (key === 'tags') return `${[...(r.tags || []).map(t => `<span class="herd-tag" style="${nuiTagStyle(t)}">${esc(t)}</span>`), ...(r.autoTags || []).map(t => `<span class="herd-tag auto">${esc(t)}</span>`)].join('')}<button class="herd-tagbtn" onclick="event.stopPropagation();openTagEditor('${r.kind}','${esc(r.key)}')">🏷</button>`;
     return v == null || v === '' ? '—' : esc(v);
   };
   const lists = [...HERD_PRESETS, ...(_herdLists || [])];
@@ -34564,7 +34614,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112204';
+const APP_BUILD = '2026112206';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
@@ -36063,7 +36113,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     });
     return out;
   }
-  function cpCount(tab) { try { const L = cpItems(tab, false); return tab === 'egg' ? L.filter(it => it.todo).length : L.length; } catch (e) { return 0; } }
+  function cpCount(tab) { try { const L = cpItems(tab, false); return tab === 'egg' ? 0 : L.length; } catch (e) { return 0; } }   // 受精卵は「まだ」という考えがないので数を出さない
   window.nuiCertTodo = () => cpCount('ai') + (cpOn.et() ? cpCount('et') : 0) + (cpOn.egg() ? cpCount('egg') : 0);
   const cpBox = on => `<span class="cp-bx" style="flex-shrink:0;width:24px;height:24px;border-radius:6px;border:2px solid ${on ? '#22c55e' : '#475569'};background:${on ? '#16a34a' : 'transparent'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:900;">${on ? '✓' : ''}</span>`;
   const cpIn = (r, f, lab, w, ph) => { const q = String(r[f] || '').trim(); return `<label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#94a3b8;" onclick="event.stopPropagation()">${esc(lab)}<input ${f === 'q' ? 'inputmode="numeric"' : ''} value="${esc(q)}" placeholder="${ph}" onchange="nuiCpQ('${r._src}',${r._idx},this,'${f}')" style="width:${w}px;height:32px;margin:0;border-radius:8px;border:1.5px solid ${q ? '#2a3050' : '#f59e0b'};background:${q ? '#0f1117' : '#1a0f00'};color:#e2e8f0;font-size:14px;font-weight:700;text-align:center;font-family:inherit;padding:0 4px;"></label>`; };
@@ -36074,7 +36124,6 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       const x = it.x;
       return `<div class="cp-r" data-k="${esc(it.key)}" onclick="nuiCpT('${k}')" style="display:flex;align-items:center;gap:10px;padding:9px 4px 9px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;">${cpBox(on)}
         <span style="flex:1;min-width:0;"><span class="nui-mono" style="font-weight:700;">${esc(x.no)}</span> <span style="font-size:12px;color:#94a3b8;">${esc([x.kind, x.cane, [x.stage, x.rank].filter(Boolean).join('/')].filter(Boolean).join('・'))}</span></span>
-        <span style="font-size:11px;flex-shrink:0;color:${it.todo ? '#fbbf24' : '#64748b'};">${it.todo ? 'まだ' : it.iss === 'old' ? '発行済み' : esc(md(it.iss)) + ' 発行'}</span>
         ${CP.done && it.iss && it.iss !== 'old' ? `<button class="nui-chip" style="font-size:11px;padding:4px 8px;" onclick="event.stopPropagation();nuiCpUndo('${k}')">まだに戻す</button>` : ''}</div>`;
     }
     if (CP.tab === 'req') {
@@ -36119,7 +36168,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     const n = CP.sel.size, blank = CP.tab === 'ai' && !CP.done ? cpBlank().length : 0;
     return `${blank ? `<button onclick="nuiCpFill()" style="width:100%;height:42px;border-radius:10px;border:1.5px solid #b45309;background:#1a0f00;color:#fbbf24;font-size:14px;font-weight:700;margin-bottom:8px;font-family:inherit;cursor:pointer;">No. を続き番号で入れる（${blank}か所）</button>` : ''}
       <button id="cp-print" onclick="nuiCpPrint()" ${n ? '' : 'disabled'} style="width:100%;height:52px;border-radius:12px;border:none;background:${n ? '#16a34a' : '#1e2333'};color:${n ? '#fff' : '#64748b'};font-size:17px;font-weight:900;font-family:inherit;cursor:${n ? 'pointer' : 'default'};">📄 ${n ? n + '枚を印刷する' : '印刷するものを選んでください'}</button>
-      <div style="font-size:11px;color:#64748b;text-align:center;margin-top:6px;">${CP.done ? '発行済みのものをもう一度印刷できます' : CP.tab === 'egg' ? '印刷すると「発行済み」になります（発行済みのロットは ▼ で開いて再発行）' : '印刷すると発行済みになり、この一覧から消えます'}</div>`;
+      <div style="font-size:11px;color:#64748b;text-align:center;margin-top:6px;">${CP.done ? '発行済みのものをもう一度印刷できます' : CP.tab === 'egg' ? '選んだ胚の受精卵証明書を印刷します' : '印刷すると発行済みになり、この一覧から消えます'}</div>`;
   }
   function cpBlank() {   // 番号が空の授精簿の行（同じ行は1回）
     const seen = new Set(), out = [];
@@ -36145,9 +36194,12 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     else if (CP.tab === 'egg') {
       const G = []; I.forEach(it => { const g = G[G.length - 1]; if (g && g.col === it.col) g.L.push(it); else G.push({ col: it.col, L: [it] }); });
       list = G.map(g => { const inf = _getCollectionEmbryos(g.col.id); const d0 = inf.items[0] || {}; const all = g.L.every(it => CP.sel.has(it.key));
-        const todoN = g.L.filter(it => it.todo).length, fold = !CP.done && !todoN && !g.L.some(it => CP.sel.has(it.key));
-        if (fold) return `<details class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;"><summary style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;cursor:pointer;list-style:none;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}　<span style="font-size:12px;color:#64748b;">${g.L.length}個・全部発行済み</span></span><span style="font-size:12px;color:#94a3b8;">再発行 ▼</span></summary>
-          <div style="display:flex;justify-content:flex-end;padding:8px 12px 0;"><button class="nui-chip" onclick="nuiCpG('${jsq(g.col.id)}')">全部えらぶ</button></div>${g.L.map(cpRowHTML).join('')}</details>`;
+        // ★ 2026/11/22：受精卵は「まだ・発行済み」が無いので、全部たたんでおく（開いて選んで発行）。ドナー・種雄牛・ロットでさがせる
+        const q = String(CP.eq || '').trim();
+        if (q && ![d0.dam, d0.sire, g.col.sire, g.col.lot, g.col.donorId].some(v => String(v || '').includes(q))) return '';
+        const selN = g.L.filter(it => CP.sel.has(it.key)).length;
+        if (!CP.done) return `<details class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;" ${selN || CP.eggOpen === g.col.id ? 'open' : ''} ontoggle="if(this.open)window._nuiEggOpen('${jsq(g.col.id)}')"><summary style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;cursor:pointer;list-style:none;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}<br><span style="font-size:11px;color:#64748b;">${esc(g.col.lot || '')}・${g.L.length}個${selN ? `・<span style="color:#4ade80;">${selN}個えらんだ</span>` : ''}</span></span><span style="font-size:12px;color:#94a3b8;white-space:nowrap;">発行 ▼</span></summary>
+          <div style="display:flex;justify-content:flex-end;padding:8px 12px 0;"><button class="nui-chip${all ? ' on' : ''}" onclick="nuiCpG('${jsq(g.col.id)}')">${all ? '✓ 全部えらんだ' : '全部えらぶ'}</button></div>${g.L.map(cpRowHTML).join('')}</details>`;
         return `<div class="nui-card" style="padding:0;margin-bottom:10px;overflow:hidden;">
           <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#171b26;"><span style="flex:1;min-width:0;"><b>${esc(md(g.col.date || ''))}</b> <span style="color:#4ade80;font-weight:700;">${esc(d0.dam || '')}</span> × ${esc(d0.sire || g.col.sire || '')}<br><span style="font-size:11px;color:#64748b;">${esc(g.col.lot || '')}・${g.L.length}個${todoN ? `・<span style="color:#fbbf24;">まだ ${todoN}個</span>` : '・全部発行済み'}</span></span>
           <button class="nui-chip${all ? ' on' : ''}" onclick="nuiCpG('${jsq(g.col.id)}')">${all ? '✓ 全部' : '全部えらぶ'}</button></div>${g.L.map(cpRowHTML).join('')}</div>`; }).join('');
@@ -36160,11 +36212,12 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
       `<div style="padding:12px 14px 30px;">
         ${tabs.length > 1 ? `<div class="nui-seg" style="margin-bottom:10px;">${tabs.map(([k, l]) => { const n = cpCount(k); return `<button class="${CP.tab === k ? 'on' : ''}" onclick="nuiCpTab('${k}')">${l}${n ? ` <span style="color:#fbbf24;">${n}</span>` : ''}</button>`; }).join('')}</div>` : ''}
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? (aiCertOnInsem() ? '授精証明書がまだの授精（授精した日に出します）' : '授精証明書がまだの子牛') : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書（発行済みの胚も選んで再発行できます）')}${I.length && CP.tab !== 'egg' ? `　${I.length}${CP.tab === 'egg' ? '個' : CP.tab === 'ai' && aiCertOnInsem() ? '件' : '頭'}` : ''}</span>
-          ${I.length && CP.tab !== 'req' ? `<button class="nui-chip" onclick="nuiCpAll()">${I.filter(it => okKeys.has(it.key)).every(it => CP.sel.has(it.key)) && CP.sel.size ? '選ぶのをやめる' : '全部えらぶ'}</button>` : ''}</div>
+          <span style="flex:1;font-size:12px;color:#94a3b8;">${CP.done ? 'この1年に発行したもの' : (CP.tab === 'req' ? 'ほかの術者に証明書を送ってもらう子牛（10/1から後に生まれた子）' : CP.tab === 'ai' ? (aiCertOnInsem() ? '授精証明書がまだの授精（授精した日に出します）' : '授精証明書がまだの子牛') : CP.tab === 'et' ? '移植証明書がまだの子牛（自分で移植した子）' : '受精卵証明書　ロットを開いて、発行する胚を選んでください')}${I.length && CP.tab !== 'egg' ? `　${I.length}${CP.tab === 'egg' ? '個' : CP.tab === 'ai' && aiCertOnInsem() ? '件' : '頭'}` : ''}</span>
+          ${I.length && CP.tab !== 'req' && !(CP.tab === 'egg' && !CP.done) ? `<button class="nui-chip" onclick="nuiCpAll()">${I.filter(it => okKeys.has(it.key)).every(it => CP.sel.has(it.key)) && CP.sel.size ? '選ぶのをやめる' : '全部えらぶ'}</button>` : ''}</div>
         ${CP.tab === 'et' && !CP.done ? '<div style="font-size:11px;color:#64748b;margin:-4px 0 8px;">証明書の番号は今までどおり自動で付きます</div>' : ''}
+        ${CP.tab === 'egg' && !CP.done ? `<input id="nui-egg-q" class="nui-in" type="search" value="${esc(CP.eq || '')}" placeholder="🔍 ドナー・種雄牛・ロットでさがす（例：にわか）" oninput="window._nuiEggQ(this.value)" style="width:100%;margin-bottom:10px;">` : ''}
         ${list}${other}
-        <button onclick="nuiCpDone()" style="display:block;margin:18px auto 0;background:none;border:none;color:#94a3b8;font-size:13px;cursor:pointer;font-family:inherit;">${CP.done ? '‹ まだのものに戻る' : CP.tab === 'req' ? '届いたものを見る ›' : '発行済みを見る ›'}</button>
+        ${CP.tab === 'egg' && !CP.done ? '' : `<button onclick="nuiCpDone()" style="display:block;margin:18px auto 0;background:none;border:none;color:#94a3b8;font-size:13px;cursor:pointer;font-family:inherit;">${CP.done ? '‹ まだのものに戻る' : CP.tab === 'req' ? '届いたものを見る ›' : '発行済みを見る ›'}</button>`}
         <button onclick="nuiClose();switchTab('insembook')" style="display:block;margin:8px auto 0;background:none;border:none;color:#64748b;font-size:12px;cursor:pointer;font-family:inherit;">📋 授精簿を開く（記録を見る・直す）</button>
       </div>`, cpFoot());
     if (st) { const s2 = document.querySelector('#nui-scr .sb'); if (s2) s2.scrollTop = st; }
@@ -36284,11 +36337,13 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
     else cpWithChecks('et-cert-check', rows, printSelectedEtCerts);
     if (modal && modal.classList.contains('open')) window._certPageAfter = { kind: CP.tab, ids: I.map(it => it.key) };
   };
+  window._nuiEggQ = function (v) { CP.eq = v; clearTimeout(window._nuiEggQT); window._nuiEggQT = setTimeout(() => { vCert(true); const q = document.getElementById('nui-egg-q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }, 250); };
+  window._nuiEggOpen = function (id) { CP.eggOpen = id; };
   window.nuiCertAfterPrint = function () {
     const h = window._certPageAfter; window._certPageAfter = null; if (!h) return;
     const n = h.kind === 'egg' ? h.L.length : h.ids.length;
     setTimeout(async () => {
-      if (!await appConfirm(`印刷できましたか？\n「はい」で ${n}枚を発行済みにして、一覧から消します。`)) return;
+      if (h.kind !== 'egg' && !await appConfirm(`印刷できましたか？\n「はい」で ${n}枚を発行済みにして、一覧から消します。`)) return;   // 受精卵は「まだ・発行済み」が無いので聞かない（発行した日だけ残す）
       const d = today();
       if (h.kind === 'egg') h.L.forEach(o => { const col = collectionRecordsNew.find(c => c.id === o.cid); if (col) { col.eggCertDone = col.eggCertDone || {}; col.eggCertDone[o.no] = d; } });
       else if (h.kind === 'ai' && aiCertOnInsem()) h.ids.forEach(k => { const [src, i] = String(k).split(':'); _setInsemCertAt(src, +i, d); });
@@ -37651,6 +37706,7 @@ html.nui #page-home #barn-board{margin-bottom:0 !important;}
         <div onclick="nuiPrintMenu()"><span>🖨 お産予定・授精簿の印刷</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('history')"><span>📝 変更履歴</span><span style="color:#64748b;">›</span></div>
         <div onclick="switchTab('calc')"><span>🧮 発情・分娩の日を計算</span><span style="color:#64748b;">›</span></div>
+        <div onclick="openTagManager()"><span>🏷 タグの管理（色・名前・消す）</span><span style="color:#64748b;">›</span></div>
         <div onclick="openModal('modal-settings')"><span>⚙ 設定・データ管理</span><span style="color:#64748b;">›</span></div>
       </div>
       <details style="margin-top:16px;" ${(() => { try { return localStorage.getItem('nuiFixOpen') === '1' ? 'open' : ''; } catch (e) { return ''; } })()} ontoggle="try{localStorage.setItem('nuiFixOpen',this.open?'1':'0')}catch(e){}">
