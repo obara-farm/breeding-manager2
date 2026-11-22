@@ -640,42 +640,6 @@ html.feat-barnlist .view-seg button{padding:5px 8px;}
 /* ===== スマホ版（430px以下）採卵モーダル・授精簿 ===== */
 @media (max-width: 430px) {
 
-  /* 採卵モーダル：テーブルを横スクロールで表示（PCと同じレイアウト） */
-  #col-frozen-tbody-wrap,
-  #col-fresh-tbody-wrap,
-  #col-culture-tbody-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-
-  #col-frozen-tbody-wrap table,
-  #col-fresh-tbody-wrap table,
-  #col-culture-tbody-wrap table { min-width: 600px; font-size: 11px; }
-
-  #col-frozen-tbody-wrap thead,
-  #col-fresh-tbody-wrap thead,
-  #col-culture-tbody-wrap thead { display: table-header-group !important; }
-
-  #col-frozen-tbody tr,
-  #col-fresh-tbody tr,
-  #col-culture-tbody tr { display: table-row !important; background: unset !important; border: none !important; border-radius: 0 !important; margin-bottom: 0 !important; padding: 0 !important; }
-
-  #col-frozen-tbody td,
-  #col-fresh-tbody td,
-  #col-culture-tbody td { display: table-cell !important; padding: 4px 3px !important; border: 1px solid var(--border) !important; }
-
-  #col-frozen-tbody .cf-no,
-  #col-frozen-tbody .cf-cane { width: auto !important; font-size: 11px !important; padding: 3px !important; }
-  #col-frozen-tbody .cf-stage,
-  #col-frozen-tbody .cf-rank { display: table-cell !important; width: auto !important; font-size: 11px !important; padding: 3px !important; }
-  #col-frozen-tbody .cf-comment { width: auto !important; font-size: 11px !important; padding: 3px !important; }
-
-  #col-culture-tbody .cul-embryo-no,
-  #col-culture-tbody .cul-cane-no { width: auto !important; font-size: 11px !important; padding: 3px !important; }
-  #col-culture-tbody .cul-stage,
-  #col-culture-tbody .cul-rank,
-  #col-culture-tbody .cul-next-stage,
-  #col-culture-tbody .cul-next-rank { display: table-cell !important; width: auto !important; font-size: 11px !important; padding: 3px !important; }
-  #col-culture-tbody .cul-action { width: auto !important; font-size: 11px !important; padding: 3px !important; }
-  #col-culture-tbody .cul-recip-search { width: 80px !important; font-size: 11px !important; padding: 3px !important; }
-
   /* 授精簿：行をタップで展開するためのスタイル */
   .insem-row-header {
     display: flex !important;
@@ -688,6 +652,51 @@ html.feat-barnlist .view-seg button{padding:5px 8px;}
   }
   .insem-row-detail { padding: 8px 10px; }
 }
+/* ★ 2026/11/22：スマホの採卵記録：胚を1個ずつカードにして、ステージ・ランクは押しボタン、個数は − ＋ */
+@media (max-width:720px){
+ #modal-collection .modal{padding:12px 10px 20px;}
+ #modal-collection input, #modal-collection select{font-size:16px!important;min-height:42px;}
+ #modal-collection .form-group label{font-size:12px!important;}
+ #modal-collection [style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr!important;}
+ #modal-collection [style*="grid-template-columns:repeat(4,1fr)"]{grid-template-columns:repeat(3,1fr)!important;gap:8px!important;}
+ #modal-collection [style*="grid-template-columns:repeat(4,1fr)"] input{text-align:center;font-weight:700;}
+ #col-embryo-outer{overflow:visible!important;}
+ #col-embryo-outer>div{width:auto!important;}
+ #col-embryo-outer table, #col-embryo-outer tbody{display:block;width:100%;}
+ #col-embryo-outer thead, #col-embryo-outer colgroup{display:none!important;}
+ #col-embryo-outer tbody tr{display:grid!important;grid-template-columns:1fr 1fr;gap:8px 10px;padding:12px 10px;margin-bottom:8px;border:1px solid var(--border)!important;border-radius:10px;}
+ #col-embryo-outer tbody td{display:block;padding:0!important;background:none!important;opacity:1!important;border:none!important;text-align:left!important;position:relative;}
+ #col-embryo-outer tbody td:not(:has(input,select,button)){display:none;}
+ #col-embryo-outer tbody td:first-child{display:block;grid-column:1/-1;font-size:13px!important;font-weight:900;color:var(--text)!important;}
+ #col-embryo-outer tbody td:first-child::before{content:'胚 ';color:var(--muted);font-weight:400;display:inline!important;font-size:13px!important;}
+ #col-embryo-outer tbody td:nth-child(4), #col-embryo-outer tbody td:nth-child(5), #col-embryo-outer tbody td:nth-child(6), #col-embryo-outer tbody td:nth-child(7){grid-column:1/-1;}
+ .colseg button{flex:1 1 0;}
+ #col-embryo-outer tbody td:nth-child(2), #col-embryo-outer tbody td:nth-child(3){grid-column:1/-1;}
+ #col-embryo-outer tbody td:nth-child(8), #col-embryo-outer tbody td:nth-child(9){grid-column:1/-1;}
+ #col-embryo-outer tbody td:nth-child(10){grid-column:1/-1;}
+ #col-embryo-outer tbody td input[type=text]{width:100%!important;box-sizing:border-box;font-size:16px!important;padding:8px 10px!important;border-radius:8px!important;}
+ #col-embryo-outer tbody td select{width:100%!important;}
+ #col-embryo-outer tbody td > *:not(.colseg):not(.cfr-recip-list):not(.cul-recip-list){max-width:100%;}
+ #col-embryo-outer tbody td::before{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;}
+ #col-embryo-outer tbody td:nth-child(2)::before{content:'胚番号';}
+ #col-embryo-outer tbody td:nth-child(3)::before{content:'ケーン番号';}
+ #col-embryo-outer tbody td:nth-child(4)::before{content:'ステージ（採卵日）';}
+ #col-embryo-outer tbody td:nth-child(5)::before{content:'ランク（採卵日）';}
+ #col-embryo-outer tbody td:nth-child(6)::before{content:'ステージ（翌日）';color:var(--purple);}
+ #col-embryo-outer tbody td:nth-child(7)::before{content:'ランク（翌日）';color:var(--purple);}
+ #col-fresh-tbody td:nth-child(8)::before, #col-frozen-tbody td:nth-child(8)::before{content:'メモ';}
+ #col-culture-tbody td:nth-child(8)::before{content:'処置';}
+ #col-embryo-outer tbody td:nth-child(9)::before{content:'移植先（受卵牛）';}
+ #col-embryo-outer tbody td:nth-child(10) button{width:100%;min-height:40px;font-size:13px!important;}
+ .colseg{display:flex;gap:4px;flex-wrap:wrap;}
+ .colseg button{flex:1;min-width:44px;min-height:42px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);color:var(--muted);font-size:15px;font-weight:800;font-family:inherit;cursor:pointer;}
+ .colseg button.on{border-color:#22c55e;background:#14532d;color:#4ade80;}
+ .colseg + select, select.colseg-src{display:none!important;}
+ .colcnt{display:flex;align-items:center;gap:6px;}
+ .colcnt button{width:44px;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:22px;font-weight:900;cursor:pointer;}
+ .colcnt input{width:56px!important;text-align:center;font-size:18px!important;font-weight:900;}
+}
+
 </style>
 </head>
 <body>
@@ -21413,6 +21422,34 @@ function onColFrozenCountInput(val, existing) {
   syncEmbryoGrades();
 }
 
+// スマホ：胚の行の「ステージ・ランク・処置」を押しボタンに、個数を − ＋ に
+(function(){
+  function seg(sel){
+    if (sel.dataset.seg) return; sel.dataset.seg='1';
+    const opts=[...sel.options].filter(o=>o.value!=='');
+    if (!opts.length || opts.length>6) return;
+    const box=document.createElement('div'); box.className='colseg';
+    const draw=()=>{ box.querySelectorAll('button').forEach(b=>b.classList.toggle('on', b.dataset.v===sel.value)); };
+    opts.forEach(o=>{ const b=document.createElement('button'); b.type='button'; b.dataset.v=o.value; b.textContent=o.textContent.replace(/（.*）/,'').trim(); b.onclick=()=>{ sel.value = sel.value===o.value ? '' : o.value; sel.dispatchEvent(new Event('change',{bubbles:true})); draw(); }; box.appendChild(b); });
+    sel.classList.add('colseg-src'); sel.parentNode.insertBefore(box, sel); draw();
+    sel.addEventListener('change', draw);
+  }
+  function cnt(inp){
+    if (!inp || inp.dataset.cnt) return; inp.dataset.cnt='1';
+    const w=document.createElement('span'); w.className='colcnt'; inp.parentNode.insertBefore(w, inp);
+    const mk=(t,d)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=t; b.onclick=()=>{ inp.value=Math.max(0,(parseInt(inp.value)||0)+d); inp.dispatchEvent(new Event('input',{bubbles:true})); inp.dispatchEvent(new Event('change',{bubbles:true})); }; return b; };
+    w.appendChild(mk('−',-1)); w.appendChild(inp); w.appendChild(mk('＋',1));
+  }
+  function run(){
+    if (window.innerWidth>720) return;
+    document.querySelectorAll('#col-embryo-outer tbody select').forEach(seg);
+    ['col-fresh-count','col-frozen-count','col-culture-count'].forEach(id=>cnt(document.getElementById(id)));
+  }
+  window._colMobile=run;
+  const init=()=>{ const root=document.getElementById('col-embryo-outer'); if (root && !root.dataset.mob) { root.dataset.mob='1'; new MutationObserver(()=>run()).observe(root,{childList:true,subtree:true}); } run(); };
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
 function onColFreshCountInput(val, existing) {
   const n = parseInt(val)||0;
   const wrap = document.getElementById('col-fresh-tbody-wrap');
@@ -34617,7 +34654,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112210';
+const APP_BUILD = '2026112211';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
