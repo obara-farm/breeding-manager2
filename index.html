@@ -108,6 +108,9 @@ html.no-etcert [data-feat="etcert"], html.no-etcert label:has(> .et-cert-check),
 .calf-sum { flex-wrap: wrap; row-gap: 6px; }
 .calf-sum-main { flex: 1 1 150px !important; }
 .calf-sum-tags { flex-shrink: 1 !important; flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; column-gap: 6px; margin-left: auto !important; }
+
+/* ★ 2026/11/24：スマホ用の行の見出し（番号・移植先）はPCでは出さない */
+@media (min-width:721px){ #col-embryo-outer .colno, #col-embryo-outer .colrc{display:none!important;} }
 </style>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -21241,20 +21244,61 @@ function selectPetRecip(idx, id, label) {
 }
 
 // 新鮮胚行の受卵牛検索
+// ===== ★ 2026/11/24：新鮮胚の移植先に、つないだ農家さんの牛（長島さんの牛など）も出す =====
+function _ofRecipOf(row) { const v = row && row.querySelector('.cfr-ofrecip')?.value; if (!v) return null; try { return JSON.parse(decodeURIComponent(v)); } catch (e) { return null; } }
+function _ofRecipLabel(o) { return o ? `🏠${String(o.farm || '').replace(/牧場$/, '')} ${o.id || ''} ${o.name || ''}`.trim() : ''; }
+function _ofHerdCached(f) { try { return JSON.parse(localStorage.getItem('herd_' + _syncHashLite(f.shareUrl)) || 'null'); } catch (e) { return null; } }
+function _ofHerdSearch(q) {
+  q = String(q || '').trim().toLowerCase().replace(/[-\s]/g, ''); if (!q) return [];
+  const out = [];
+  (otherFarms || []).filter(f => f.shareUrl).forEach(f => {
+    const h = _ofHerdCached(f);
+    if (!h || Date.now() - (h._at || 0) > 15 * 60000) { if (!f._herdLoading) { f._herdLoading = true; _farmHerd(f).finally(() => { f._herdLoading = false; }); } }
+    ((h && h.cows) || []).forEach(c => { const k = [c.id, c.name, c.nid].join(' ').toLowerCase().replace(/[-\s]/g, ''); if (k.includes(q)) out.push({ farm: f.name, feeder: f.feeder || '', id: c.id || '', name: c.name || '', nid: c.nid || '', dob: c.dob || '', breed: c.breed || '' }); });
+  });
+  return out.slice(0, 8);
+}
+function _ofHerdListHTML(L, ownN) {
+  if (!L.length) return '';
+  const farms = [...new Set(L.map(o => o.farm))];
+  return farms.map(fn => `<div style="padding:4px 8px;font-size:10px;color:var(--muted);background:var(--bg3);">🏠 ${fn}（農家さんのツールの牛）</div>` +
+    L.filter(o => o.farm === fn).map(o => `<div onclick="event.stopPropagation();selectFreshOfRecip(this,'${encodeURIComponent(JSON.stringify(o)).replace(/'/g, '%27')}')" style="padding:6px 8px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      <strong style="color:var(--purple);">${o.id}</strong> <span>${o.name}</span> <span style="color:var(--muted);font-size:10px;">${o.nid}${o.dob ? '・' + o.dob.replace(/-/g, '/') : ''}</span></div>`).join('')).join('');
+}
+function selectFreshOfRecip(el, enc) {
+  const row = el.closest('tr'); const o = JSON.parse(decodeURIComponent(enc));
+  row.querySelector('.cfr-recipient').value = '';
+  row.querySelector('.cfr-ofrecip').value = enc;
+  const inp = row.querySelector('.cfr-recip-search'); inp.value = _ofRecipLabel(o); inp.style.borderColor = 'var(--purple)';
+  const cm = row.querySelector('.cfr-comment'); if (cm && (!cm.value.trim() || /^[^\/]*牧場/.test(cm.value))) cm.value = `${o.farm}/${o.id}`;   // 譲渡先として使用レポートにも出る
+  row.querySelector('.cfr-recip-list').style.display = 'none';
+  _ofNote();
+}
+function _ofNote() {
+  const box = document.getElementById('cfr-ofnote'); if (!box) return;
+  const L = [...document.querySelectorAll('#col-fresh-tbody tr')].map(_ofRecipOf).filter(Boolean);
+  if (!L.length) { box.style.display = 'none'; return; }
+  const by = {}; L.forEach(o => { (by[o.farm] = by[o.farm] || []).push(o); });
+  box.style.display = '';
+  box.innerHTML = Object.entries(by).map(([fn, a]) => `🏠 <b>${fn}に ${a.length}個</b>（${[...new Set(a.map(o => o.id + ' ' + o.name))].join('／')}）`).join('<br>') +
+    '<br>保存すると ➡ <b>外部授精簿（渡した移植）</b>に入れて、<b>移植証明書</b>をすぐ出せます<br>　　　　　　➡ <b>農家さんの授精簿へ自動で届きます</b>（コピー不要）';
+}
 function onFreshRecipSearch(input) {
   const q = input.value;
   const row = input.closest('tr');
   if (!row) { console.error('row not found'); return; }
   const list = row.querySelector('.cfr-recip-list');
   if (!list) { console.error('cfr-recip-list not found'); return; }
+  // 文字を変えたら、選んであった他農家の牛は外す
+  const ofh = row.querySelector('.cfr-ofrecip'); if (ofh && ofh.value && q !== _ofRecipLabel(_ofRecipOf(row))) { ofh.value = ''; input.style.borderColor = 'var(--accent2)'; _ofNote(); }
   if (!q) { list.style.display='none'; return; }
   const results = searchCows(q, c => !['retired','dead'].includes(c.status));
-  console.log('検索結果:', q, results.length, '件');
-  if (!results.length) { list.style.display='none'; return; }
+  const ofRes = _ofHerdSearch(q);
+  if (!results.length && !ofRes.length) { list.style.display='none'; return; }
   // position:fixedで入力欄の直下に表示
   const rect = input.getBoundingClientRect();
   const spaceBelow = window.innerHeight - rect.bottom;
-  const listH = Math.min(200, results.length * 36);
+  const listH = Math.min(260, (results.length + ofRes.length) * 36 + (ofRes.length ? 24 : 0));
   if (spaceBelow < listH && rect.top > listH) {
     list.style.top = (rect.top - listH - 2) + 'px';
   } else {
@@ -21268,12 +21312,15 @@ function onFreshRecipSearch(input) {
     return `<div onclick="event.stopPropagation();selectFreshRecip(this,'${c.id}','${c.id} ${name}')" style="padding:6px 8px;cursor:pointer;font-size:11px;border-bottom:1px solid var(--border);" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
       <strong style="color:var(--accent);">${c.id}</strong> <span style="color:var(--muted);">${name}</span>
     </div>`;
-  }).join('');
+  }).join('') + _ofHerdListHTML(ofRes, results.length);
+  list.style.maxHeight = '260px';
 }
 
 function selectFreshRecip(el, id, label) {
   const row = el.closest('tr');
   row.querySelector('.cfr-recipient').value = id;
+  const ofh = row.querySelector('.cfr-ofrecip'); if (ofh) ofh.value = '';   // うちの牛を選んだら他農家の牛は外す
+  setTimeout(_ofNote, 0);
   const inp = row.querySelector('.cfr-recip-search');
   inp.value = label;
   inp.style.borderColor = 'var(--accent2)';
@@ -21588,6 +21635,72 @@ function onColFrozenCountInput(val, existing) {
   syncEmbryoGrades();
 }
 
+// ★ 2026/11/24：PCの凍結胚記録「まとめて入れる」（行の□でえらぶ・Shiftで範囲 → ステージ・ランク・ケーンを一度に）。スマホでは何もしない
+(function(){
+  let last = -1;
+  const rows = () => [...document.querySelectorAll('#col-frozen-tbody tr')];
+  const picked = () => rows().filter(tr => tr.querySelector('.cfpk')?.checked);
+  function paint() {
+    rows().forEach(tr => { const on = tr.querySelector('.cfpk')?.checked; tr.style.outline = on ? '1px solid var(--info)' : ''; tr.style.outlineOffset = '-1px'; });
+    const bar = document.getElementById('cfpc-bar'); if (!bar) return;
+    const n = picked().length;
+    bar.querySelector('.n').textContent = n ? `✔ ${n}個えらび中` : '□ で胚をえらぶ';
+    bar.querySelector('.go').disabled = !n;
+    bar.querySelector('.go').style.opacity = n ? '1' : '.45';
+  }
+  function bar(wrap) {
+    if (document.getElementById('cfpc-bar')) return;
+    const tb = document.getElementById('col-frozen-tbody'); const s0 = tb.querySelector('.cf-stage'), r0 = tb.querySelector('.cf-rank'); if (!s0 || !r0) return;
+    const b = document.createElement('div'); b.id = 'cfpc-bar';
+    b.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--info);border-radius:8px;padding:6px 10px;margin-bottom:6px;font-size:12px;';
+    const sel = 'background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12px;padding:3px 4px;border-radius:4px;';
+    const btn2 = 'background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:3px 9px;border-radius:5px;cursor:pointer;';
+    b.innerHTML = `<b class="n" style="min-width:110px;"></b><span style="color:var(--muted);font-size:11px;">（行の□をクリック。Shiftを押しながらで範囲）</span><span style="color:var(--muted);">➡</span>
+      <label style="color:var(--muted);">ステージ <select class="st" style="${sel}">${s0.innerHTML}</select></label>
+      <label style="color:var(--muted);">ランク <select class="rk" style="${sel}">${r0.innerHTML}</select></label>
+      <label style="color:var(--muted);">ケーン <input class="cn" list="cfpc-canes" placeholder="そのまま" style="${sel}width:110px;"></label><datalist id="cfpc-canes"></datalist>
+      <button type="button" class="go" style="background:var(--info);color:#0b1220;border:none;font-weight:700;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;">まとめて入れる</button>
+      <button type="button" class="all" style="${btn2}">全部えらぶ</button><button type="button" class="none" style="${btn2}">えらび解除</button>`;
+    b.querySelector('.st').value = ''; b.querySelector('.rk').value = '';
+    b.querySelector('.cn').addEventListener('focus', () => { const dl = document.getElementById('cfpc-canes'); dl.innerHTML = [...new Set(rows().map(tr => tr.querySelector('.cf-cane')?.value.trim()).filter(Boolean))].map(v => `<option value="${v}">`).join(''); });
+    b.querySelector('.all').onclick = () => { rows().forEach(tr => { const c = tr.querySelector('.cfpk'); if (c) c.checked = true; }); paint(); };
+    b.querySelector('.none').onclick = () => { rows().forEach(tr => { const c = tr.querySelector('.cfpk'); if (c) c.checked = false; }); last = -1; paint(); };
+    b.querySelector('.go').onclick = () => {
+      const st = b.querySelector('.st').value, rk = b.querySelector('.rk').value, cn = b.querySelector('.cn').value.trim();
+      if (!st && !rk && !cn) { alert('ステージ・ランク・ケーンのどれかを選んでください'); return; }
+      picked().forEach(tr => {
+        if (st) { const e = tr.querySelector('.cf-stage'); e.value = st; e.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (rk) { const e = tr.querySelector('.cf-rank'); e.value = rk; e.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (cn) { const e = tr.querySelector('.cf-cane'); if (e) { e.value = cn; e.dispatchEvent(new Event('input', { bubbles: true })); } }
+        tr.querySelector('.cfpk').checked = false;
+      });
+      last = -1; try { syncEmbryoGrades(); } catch (e) {} paint();
+    };
+    wrap.insertBefore(b, wrap.firstChild);
+  }
+  function run() {
+    const wrap = document.getElementById('col-frozen-tbody-wrap'); if (!wrap) return;
+    const old = document.getElementById('cfpc-bar');
+    if (window.innerWidth <= 720) { if (old) old.remove(); rows().forEach(tr => tr.querySelector('.cfpk')?.remove()); return; }
+    const R = rows(); if (!R.length) { if (old) old.remove(); return; }
+    R.forEach((tr, i) => {
+      const td = tr.firstElementChild; if (!td || td.querySelector('.cfpk')) return;
+      const c = document.createElement('input'); c.type = 'checkbox'; c.className = 'cfpk'; c.style.cssText = 'margin:0 4px 0 0;vertical-align:middle;cursor:pointer;';
+      c.addEventListener('click', ev => { const all = rows(), me = all.indexOf(tr);
+        if (ev.shiftKey && last >= 0 && last !== me) { const [a, z] = last < me ? [last, me] : [me, last]; for (let k = a; k <= z; k++) { const x = all[k].querySelector('.cfpk'); if (x) x.checked = c.checked; } }
+        last = me; paint(); });
+      td.insertBefore(c, td.firstChild); td.style.whiteSpace = 'nowrap';
+    });
+    bar(wrap); paint();
+  }
+  window._colPcBulk = run;
+  let busy = false;
+  const init = () => { const tb = document.getElementById('col-frozen-tbody'); if (!tb || tb.dataset.pcb) return; tb.dataset.pcb = '1';
+    new MutationObserver(() => { if (busy) return; busy = true; requestAnimationFrame(() => { run(); busy = false; }); }).observe(tb, { childList: true });
+    window.addEventListener('resize', () => run()); run(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+
 // ★ 2026/11/23：スマホの採卵記録（胚1個＝1行・「›」で開く・まとめて入れる）。PCでは何もしない
 (function(){
   const KIND = { 'col-fresh-tbody': { st: '.cfr-stage', rk: '.cfr-rank', no: '.cfr-embryo-no', cane: null, more: ['.cfr-comment', '.cfr-recipient'], rc: '.cfr-recip-search', rcId: '.cfr-recipient' },
@@ -21614,7 +21727,7 @@ function onColFrozenCountInput(val, existing) {
     let no=td1.querySelector('.colno'); if (!no){ no=document.createElement('span'); no.className='colno'; td1.appendChild(no); }
     const ni=tr.querySelector(K.no); let nv=(ni && ni.value) || ''; if (nv.length > 10) nv = '…' + nv.slice(-7); if (no.textContent !== nv) no.textContent = nv;   // 長い番号は後ろ（区別できるところ）を見せる。同じなら書かない（書くと見張りがまた動いて止まらなくなる）
     let rc=td1.querySelector('.colrc');
-    const rcv = K.rc && tr.querySelector(K.rcId) && tr.querySelector(K.rcId).value ? (tr.querySelector(K.rc).value || '') : '';
+    const rcv = K.rc && tr.querySelector(K.rcId) && (tr.querySelector(K.rcId).value || tr.querySelector('.cfr-ofrecip')?.value) ? (tr.querySelector(K.rc).value || '') : '';
     if (rcv) { if (!rc){ rc=document.createElement('span'); rc.className='colrc'; td1.appendChild(rc); } if (rc.textContent !== '→ '+rcv) rc.textContent='→ '+rcv; } else if (rc) rc.remove();
     const has = K.more.some(c => { const e=tr.querySelector(c); return e && String(e.value||'').trim(); });
     const mb=tr.querySelector('.colmore'); if (mb) mb.classList.toggle('has', !!has);
@@ -21664,6 +21777,7 @@ function onColFrozenCountInput(val, existing) {
     BULK[id] && BULK[id]();
   }
   function refreshAll(){
+    if (window.innerWidth>720) return;   // ★ 2026/11/24：PCでは何もしない（PCの1列目に番号がくっついて出ていた）
     Object.entries(KIND).forEach(([id,K])=>{ const tb=document.getElementById(id); if (!tb) return; tb.querySelectorAll('tr').forEach(tr=>rowInfo(tr,K)); BULK[id] && BULK[id](); });
   }
   function run(){
@@ -21695,6 +21809,7 @@ function onColFreshCountInput(val, existing) {
       comment:     r.querySelector('.cfr-comment')?.value || '',
       recipientId: r.querySelector('.cfr-recipient')?.value || '',
       recipLabel:  r.querySelector('.cfr-recip-search')?.value || '',
+      ofRecip:     _ofRecipOf(r),
       isDitto:     btn ? btn.textContent === '✓同上' : false,
     };
   });
@@ -21740,6 +21855,7 @@ function onColFreshCountInput(val, existing) {
         </td>
         <td style="padding:2px 3px;position:relative;overflow:visible;">
           <input type="hidden" class="cfr-recipient" value="${ex?.recipientId||''}">
+          <input type="hidden" class="cfr-ofrecip" value="${ex?.ofRecip ? encodeURIComponent(JSON.stringify(ex.ofRecip)) : ''}">
           <input type="text" class="cfr-recip-search" placeholder="受卵牛を検索..."
             oninput="onFreshRecipSearch(this)" onkeyup="onFreshRecipSearch(this)" autocomplete="off"
             style="background:var(--bg);border:1px solid var(--accent2);color:var(--text);font-size:11px;padding:3px 5px;border-radius:4px;width:150px;">
@@ -21761,6 +21877,8 @@ function onColFreshCountInput(val, existing) {
           searchInp.style.borderColor = 'var(--accent2)';
         }
       }
+      // ★ 2026/11/24：他農家の牛（長島さんの牛など）を復元
+      if (ex?.ofRecip && !recipId) { const si = tr.querySelector('.cfr-recip-search'); if (si) { si.value = _ofRecipLabel(ex.ofRecip); si.style.borderColor = 'var(--purple)'; } }
       // isDitto復元
       if (ex?.isDitto) {
         const dittoBtn = tr.querySelector('button[onclick*="setFreshSameAsAbove"]');
@@ -21774,6 +21892,8 @@ function onColFreshCountInput(val, existing) {
     }
   // 行を作り直したらA胚・B胚・回収卵を再集計（凍結胚側と同じ挙動に）
   syncEmbryoGrades();
+  // ★ 2026/11/24：他農家の牛の表示と、つないだ農家さんの牛の一覧の先読み
+  try { _ofNote(); (otherFarms || []).filter(f => f.shareUrl).forEach(f => _farmHerd(f)); } catch (e) {}
 }
 
 
@@ -21787,7 +21907,9 @@ function setFreshSameAsAbove(btn) {
   const prevRow = rows[idx - 1];
   const prevRecipId = prevRow.querySelector('.cfr-recipient')?.value || '';
   const prevRecipLabel = prevRow.querySelector('.cfr-recip-search')?.value || '';
-  if (!prevRecipId) { alert('直前の行に移植先が設定されていません'); return; }
+  const prevOf = prevRow.querySelector('.cfr-ofrecip')?.value || '';
+  if (!prevRecipId && !prevOf) { alert('直前の行に移植先が設定されていません'); return; }
+  { const o = row.querySelector('.cfr-ofrecip'); if (o) o.value = prevOf; const cm = row.querySelector('.cfr-comment'), pc = prevRow.querySelector('.cfr-comment'); if (prevOf && cm && !cm.value.trim() && pc) cm.value = pc.value; setTimeout(_ofNote, 0); }
   // この行にセット
   const recipHidden = row.querySelector('.cfr-recipient');
   const recipSearch = row.querySelector('.cfr-recip-search');
@@ -21964,6 +22086,7 @@ function getColFreshEmbryos() {
       comment:     r.querySelector('.cfr-comment')?.value.trim()||'',
       action:      'today',
       recipientId: r.querySelector('.cfr-recipient')?.value||'',
+      ofRecip:     _ofRecipOf(r),   // ★ 2026/11/24：他農家の受卵牛（このときは recipientId は空）
       isDitto:     isDitto,
     };
   });
@@ -22658,6 +22781,26 @@ function saveCollection() {
     }
   }
 
+  // ★ 2026/11/24：他農家の牛へ移植した新鮮胚 → 外部授精簿（渡した移植）に入れる（農家さんへは自動で届く）
+  const _ofDone = [];
+  try {
+    const donorNm = rec.isExternal ? (rec.externalCowName || '') : (cowDisplayName(donorId) || donorId);
+    const keep = new Set();
+    freshEmbryos.forEach((fe, i) => {
+      const o = fe.ofRecip; if (!o) return;
+      const no = fe.embryoNo || `${lot||date}-${i+1}`; keep.add(no);
+      const farm = (otherFarms || []).find(f => f.name === o.farm) || {};
+      let t = transferBook.find(x => x.colRecId === rec.id && x.embryoNo === no);
+      if (!t) { t = { id: 'tb_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7), recordedAt: today(), pregResult: '', pregDate: '', vet: FARM.vetName, vetLicense: FARM.license }; transferBook.push(t); }
+      Object.assign(t, { transferDate: date, farmName: o.farm, feeder: farm.feeder || o.feeder || '', recipientName: o.name, recipientNationalId: o.nid, recipientEarTag: o.id, recipientDob: o.dob,
+        donor: donorNm, sire: rec.sire || '', embryoNo: no, embryoType: '新鮮', stage: fe.stage || '', rank: fe.rank || '',
+        regOrg: t.regOrg || farm.regOrg || '日本あか牛登録協会', breed: t.breed || (/黒/.test((cows.find(c => c.id === donorId) || {}).breed || '') ? '黒毛和種' : '褐毛和種'),
+        colRecId: rec.id, auto: 'colFresh', _mt: Date.now() });
+      _ofDone.push(t);
+    });
+    // 移植先を他農家の牛から外した胚は、自動で入れた記録を消す
+    transferBook = transferBook.filter(x => !(x.auto === 'colFresh' && x.colRecId === rec.id && !keep.has(x.embryoNo)));
+  } catch (e) { console.error('ofFresh', e); }
   // 新鮮胚の処理
   freshEmbryos.forEach((fe, i) => {
     if (fe.recipientId) {
@@ -22854,6 +22997,7 @@ function saveCollection() {
   closeModal('modal-collection');
   renderCollectionTab();
   renderAll();
+  if (_ofDone.length) { try { if (typeof renderTransferBook === 'function') renderTransferBook(); setTimeout(() => { try { _shareTick(); } catch (e) {} }, 500); _ofDoneModal(_ofDone); } catch (e) { console.error(e); } }
   // バッジ更新
   const badge = document.getElementById('collection-pending-badge');
   if (badge) { badge.style.display = pendingEtList.length ? '' : 'none'; badge.textContent = pendingEtList.length; }
@@ -24020,6 +24164,22 @@ async function deleteTransferBookEntry(){
   if(!await appConfirm('この記録を削除しますか？')) return;
   transferBook = transferBook.filter(x=>x.id!==id);
   save(); closeModal('modal-tb-edit'); renderTransferBook();
+}
+// ★ 2026/11/24：採卵記録で他農家の牛へ移植したあと「証明書を出す」
+function _ofDoneModal(L) {
+  document.getElementById('ofdone-modal')?.remove();
+  const w = document.createElement('div'); w.id = 'ofdone-modal';
+  w.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9300;display:flex;align-items:center;justify-content:center;padding:12px;';
+  const linked = f => !!((otherFarms || []).find(x => x.name === f) || {}).shareKey;
+  const farms = [...new Set(L.map(t => t.farmName))];
+  w.innerHTML = `<div style="background:var(--bg2);border:1px solid var(--purple);border-radius:14px;padding:16px;width:100%;max-width:460px;max-height:90vh;overflow:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><b>🏠 他農家の牛への移植を記録しました</b><button class="modal-close" onclick="document.getElementById('ofdone-modal').remove()">✕</button></div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px;">外部授精簿（渡した移植）に入れました。${farms.map(f => linked(f) ? `${f}さんのツールへは自動で届きます。` : `${f}はまだツールとつないでいないので、届けるには「📤 農家に渡す」を使ってください。`).join('')}</div>
+    ${L.map(t => `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;border-top:1px solid var(--border);padding:8px 0;font-size:12px;">
+      <div><b>${t.recipientEarTag} ${t.recipientName}</b><div style="color:var(--muted);font-size:11px;">${t.farmName}・${t.embryoNo}（${t.stage || '—'}${t.rank || ''}）</div></div>
+      <button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;white-space:nowrap;" onclick="document.getElementById('tb-edit-id').value='${t.id}';reissueCertFromTransferBook()">🧬 証明書を出す</button></div>`).join('')}
+    <button class="btn btn-primary" style="width:100%;margin-top:10px;" onclick="document.getElementById('ofdone-modal').remove()">閉じる</button></div>`;
+  document.body.appendChild(w);
 }
 // 外部授精簿の記録から証明書を再発行
 function reissueCertFromTransferBook(){
@@ -34124,6 +34284,7 @@ try {
           </tr></thead>
           <tbody id="col-fresh-tbody"></tbody>
         </table>
+        <div id="cfr-ofnote" style="display:none;margin-top:8px;border:1px dashed var(--purple);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.7;"></div>
       </div>
     </div>
 
@@ -34139,7 +34300,7 @@ try {
       <div id="col-frozen-tbody-wrap" style="display:none;">
         <table style="width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed;">
           <colgroup>
-            <col style="width:28px"><col style="width:130px"><col style="width:90px">
+            <col style="width:46px"><col style="width:130px"><col style="width:90px">
             <col style="width:56px"><col style="width:48px"><col style="width:56px">
             <col style="width:48px"><col style="width:100px"><col style="width:160px"><col style="width:44px">
           </colgroup>
@@ -34949,7 +35110,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112307';
+const APP_BUILD = '2026112401';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
