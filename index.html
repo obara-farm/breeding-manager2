@@ -23818,7 +23818,7 @@ function saveOtherFarmEntry(){
   if (entry.shareUrl || true) { const i2 = idx !== '' ? parseInt(idx) : otherFarms.length - 1; editOtherFarm(i2); }   // 保存したら②のコードを見せる
   // ピッカーが開いていれば農家リストを更新
   const pick=document.getElementById('ofpick-farm');
-  if(pick) pick.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
+  if(pick){ const pv = pick.value; pick.innerHTML = otherFarms.map((f,i)=>`<option value="${i}">${f.name}</option>`).join(''); if (pv !== '' && otherFarms[pv]) pick.value = pv; try { onOtherFarmPick(); } catch (e) {} }   // 開いている発行画面も、つないだ後の形（検索欄）に切りかえる
 }
 // ===== 授精所の移植簿（他農家）=====
 let _tbView = 'month';
