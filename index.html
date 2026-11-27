@@ -16859,8 +16859,10 @@ function calfBirthSummaryHTML(thisYear, RR, OK, dueList) {
       const BK = ['褐毛', '黒毛', 'F1', '不明'].filter(k => nB(k, 1) + nB(k, 0) + nU(k, 1) + nU(k, 0));
       const BL = { '褐毛': '🟥 褐毛', '黒毛': '⬛ 黒毛', 'F1': 'F1', '不明': '❔ 不明' };
       const COLS = []; BK.forEach(k => { COLS.push([k, 1]); COLS.push([k, 0]); });
-      const sty = '<style>.bsum td,.bsum th{padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums;vertical-align:top;}.bsum th{color:var(--muted);font-weight:600;font-size:11px;}.bsum tbody tr:nth-child(odd) td{background:rgba(255,255,255,.045);}.bsum tbody tr.hl td{background:rgba(147,197,253,.18)!important;}.bsum td.l,.bsum th.l{text-align:left;white-space:nowrap;}.bsum .gs{border-left:1px solid var(--border);}.bsum .pl{font-size:10.5px;color:#93c5fd;line-height:1.2;white-space:nowrap;}.bsum tr.tot td{font-weight:700;border-top:1px solid var(--border);}</style>';
-      const hdr = (first) => '<thead><tr><th class="l" rowspan="2">' + first + '</th>' + BK.map(k => '<th colspan="2" class="gs" style="border-bottom:1px solid var(--border);">' + BL[k] + '</th>').join('') + '<th rowspan="2" class="gs">計</th></tr><tr>' + BK.map(() => '<th class="gs">ET</th><th>AI</th>').join('') + '</tr></thead>';
+      // ★ 2026/11/28：項目ごとの境目を見やすく（全部のマスに細い罫線、品種の切れ目と「計」の前は太い線、外枠あり、1行おきの色を少し濃く）
+      const sty = '<style>.bsum{border:1px solid var(--border);table-layout:fixed;}.bsum td,.bsum th{padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.10);border-left:1px solid rgba(255,255,255,.10);}.bsum th{color:var(--muted);font-weight:600;font-size:11px;background:rgba(255,255,255,.06);border-bottom:1px solid var(--border);}.bsum tbody tr:nth-child(odd) td{background:rgba(255,255,255,.07);}.bsum tbody tr.hl td{background:rgba(147,197,253,.22)!important;}.bsum td.l,.bsum th.l{text-align:left;white-space:nowrap;border-left:none;}.bsum .gs{border-left:2px solid var(--muted);}.bsum .pl{font-size:10.5px;color:#93c5fd;line-height:1.2;}.bsum tr.tot td{font-weight:700;border-top:2px solid var(--muted);}</style>';
+      // ★ 2026/11/28：上の表と「月ごと」の表で列の位置をそろえる（左の項目の列は同じ幅、残りの列は同じ幅で等分）
+      const hdr = (first) => '<colgroup><col style="width:24%;">' + '<col>'.repeat(COLS.length + 1) + '</colgroup><thead><tr><th class="l" rowspan="2">' + first + '</th>' + BK.map(k => '<th colspan="2" class="gs" style="border-bottom:1px solid var(--border);">' + BL[k] + '</th>').join('') + '<th rowspan="2" class="gs">計</th></tr><tr>' + BK.map(() => '<th class="gs">ET</th><th>AI</th>').join('') + '</tr></thead>';
       const trc = 'onclick="this.classList.toggle(\'hl\')" style="cursor:pointer;"';
       const cell = (v, i, bold) => '<td' + (i % 2 === 0 ? ' class="gs"' : '') + (bold ? ' style="font-weight:700;"' : '') + '>' + v + '</td>';
       const rowOf = (lab, f, cls, fmt) => { const vs = COLS.map(([k, e]) => f(k, e)), t = vs.reduce((a, b) => a + (+b || 0), 0);
@@ -16877,9 +16879,10 @@ function calfBirthSummaryHTML(thisYear, RR, OK, dueList) {
       const mU = (k, e, m) => nU(k, e, dueL.filter(c => +c.dueDate.slice(5, 7) === m));
       const MS = Array.from({ length: 12 }, (_, i) => i + 1).filter(m => COLS.some(([k, e]) => mB(k, e, m) + mU(k, e, m)));
       const mv = (b, u) => isFut ? (u || '') : ((b || '') + (u ? '<div class="pl">予定' + u + '</div>' : ''));
-      const mon2 = !MS.length || !COLS.length ? '' : '<div style="font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 4px;">' + (isFut ? '月ごとの見込み' : '月ごと') + '</div><table class="bsum" style="width:100%;border-collapse:collapse;font-size:13px;">' + hdr('月') + '<tbody>' +
+      // ★ 2026/11/28：「月ごと」の表は、内訳を開いたときもたたんだままにする（押すと開く。開いた・閉じたは画面を描き直しても覚えておく）
+      const mon2 = !MS.length || !COLS.length ? '' : '<details' + (window._bsumMonOpen ? ' open' : '') + ' ontoggle="window._bsumMonOpen=this.open" onclick="event.stopPropagation()" style="margin-top:14px;"><summary style="font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:6px 2px;">' + (isFut ? '月ごとの見込み' : '月ごと') + '（タップで表示）</summary><table class="bsum" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;">' + hdr('月') + '<tbody>' +
         MS.map(m => { let tb = 0, tu = 0; const cs = COLS.map(([k, e], i) => { const b = mB(k, e, m), u = mU(k, e, m); tb += b; tu += u; return cell(mv(b, u), i); }).join('');
-          return '<tr ' + trc + '><td class="l">' + m + '月</td>' + cs + '<td class="gs" style="font-weight:700;">' + mv(tb, tu) + '</td></tr>'; }).join('') + '</tbody></table>';
+          return '<tr ' + trc + '><td class="l">' + m + '月</td>' + cs + '<td class="gs" style="font-weight:700;">' + mv(tb, tu) + '</td></tr>'; }).join('') + '</tbody></table></details>';
       const etDet = !total ? '' : '<div style="margin-top:12px;cursor:pointer;font-size:12px;color:var(--muted);" onclick="window._etDetailOpen=!window._etDetailOpen;' + RR + '">' + (detailOpen ? '▲ ETの子牛の胚の内訳を閉じる' : '▼ ETの子牛の胚の内訳を見る（どの胚から生まれたか）') + '</div>' + detailHTML;
       if (sumOpen) return head + tbl2 + mon2 + etDet;
       return head;
