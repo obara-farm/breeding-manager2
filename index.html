@@ -7274,7 +7274,8 @@ function renderCowList() {
       const _sub = [[cow.sire, cow.maternalSire].filter(Boolean).join(' × '), _ageTxt, cow.lactation ? cow.lactation + '産' : ''].filter(Boolean).join(' ・ ');
       let _key = '';
       if (cow.status === 'pregnant' && cow.dueDate) { const dl = diffDays(cow.dueDate, today()); _key = `<div class="nui-cc-key">🍼 分娩予定 <b style="color:var(--purple);">${fmtDate(cow.dueDate)}</b> <span style="color:${dl < 0 ? 'var(--danger)' : 'var(--muted)'};">${dl < 0 ? '（' + (-dl) + '日超過）' : '（あと' + dl + '日）'}</span></div>`; }
-      else if (openDays !== null && cow.status === 'open' && !isPregWaiting) _key = `<div class="nui-cc-key">空胎 <b style="color:${openDays > 90 ? 'var(--danger)' : openDays > 60 ? 'var(--warn)' : 'var(--text)'};">${openDays}日</b>${nextEstrusLabel ? ' ・ ' + nextEstrusLabel.replace(/<\/?div[^>]*>/g, '') : ''}</div>`;
+      // ★ 2026/11/28：妊娠中でない経産牛は「最終分娩日（分娩後◯日）」を出す（空胎の牛は日数を色分け）
+      else if (openDays !== null && openDays >= 0) { const _op = cow.status === 'open' && !isPregWaiting; _key = `<div class="nui-cc-key">🐄 最終分娩 <b>${fmtDate(cow.calvingDate)}</b> <span style="color:var(--muted);">（分娩後</span><b style="color:${_op && openDays > 90 ? 'var(--danger)' : _op && openDays > 60 ? 'var(--warn)' : 'var(--text)'};">${openDays}日</b><span style="color:var(--muted);">）</span>${_op && nextEstrusLabel ? ' ・ ' + nextEstrusLabel.replace(/<\/?div[^>]*>/g, '') : ''}</div>`; }
       return `<div class="cow-card nui-cc" data-cowid="${cow.id}" style="${cardStyle}cursor:pointer;" onclick="cowCardClick('${cow.id}')">
         ${(cow.tags || []).length ? `<div class="nui-tags nui-tags-top" onclick="event.stopPropagation()">${sortTagsByColor(cow.tags).map(t => `<button class="nui-tagc" style="${nuiTagStyle(t)}" onclick="nuiTagFilter('${String(t).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;')}')">🏷 ${_stEsc(t)}</button>`).join('')}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -7284,7 +7285,7 @@ function renderCowList() {
         ${_sub ? `<div style="font-size:12px;color:var(--muted);margin-top:3px;">${_sub}</div>` : ''}
         ${_key}
         ${cowCalvingIntervalText(cow)}
-        ${cow.status === 'pregnant' ? '' : lastInsemLabel}
+        ${cow.status === 'pregnant' || (lastAiEt && cow.calvingDate && lastAiEt.date < cow.calvingDate) ? '' : lastInsemLabel}
         ${insemHistoryLabel}
         ${donorStopBanner(cow)}
         ${cow.memo ? `<div style="background:var(--bg3);border-left:3px solid var(--accent);padding:6px 10px;font-size:12px;color:var(--muted);margin:6px 0;border-radius:0 6px 6px 0;">📌 ${cow.memo}</div>` : ''}
@@ -17001,8 +17002,10 @@ function calfBirthSummaryHTML(thisYear, RR, OK, dueList) {
       const BK = ['褐毛', '黒毛', 'F1', '不明'].filter(k => nB(k, 1) + nB(k, 0) + nU(k, 1) + nU(k, 0));
       const BL = { '褐毛': '🟥 褐毛', '黒毛': '⬛ 黒毛', 'F1': 'F1', '不明': '❔ 不明' };
       const COLS = []; BK.forEach(k => { COLS.push([k, 1]); COLS.push([k, 0]); });
-      const sty = '<style>.bsum td,.bsum th{padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums;vertical-align:top;}.bsum th{color:var(--muted);font-weight:600;font-size:11px;}.bsum tbody tr:nth-child(odd) td{background:rgba(255,255,255,.045);}.bsum tbody tr.hl td{background:rgba(147,197,253,.18)!important;}.bsum td.l,.bsum th.l{text-align:left;white-space:nowrap;}.bsum .gs{border-left:1px solid var(--border);}.bsum .pl{font-size:10.5px;color:#93c5fd;line-height:1.2;white-space:nowrap;}.bsum tr.tot td{font-weight:700;border-top:1px solid var(--border);}</style>';
-      const hdr = (first) => '<thead><tr><th class="l" rowspan="2">' + first + '</th>' + BK.map(k => '<th colspan="2" class="gs" style="border-bottom:1px solid var(--border);">' + BL[k] + '</th>').join('') + '<th rowspan="2" class="gs">計</th></tr><tr>' + BK.map(() => '<th class="gs">ET</th><th>AI</th>').join('') + '</tr></thead>';
+      // ★ 2026/11/28：項目ごとの境目を見やすく（全部のマスに細い罫線、品種の切れ目と「計」の前は太い線、外枠あり、1行おきの色を少し濃く）
+      const sty = '<style>.bsum{border:1px solid var(--border);table-layout:fixed;}.bsum td,.bsum th{padding:6px 4px;text-align:center;font-variant-numeric:tabular-nums;vertical-align:top;border-bottom:1px solid rgba(255,255,255,.10);border-left:1px solid rgba(255,255,255,.10);}.bsum th{color:var(--muted);font-weight:600;font-size:11px;background:rgba(255,255,255,.06);border-bottom:1px solid var(--border);}.bsum tbody tr:nth-child(odd) td{background:rgba(255,255,255,.07);}.bsum tbody tr.hl td{background:rgba(147,197,253,.22)!important;}.bsum td.l,.bsum th.l{text-align:left;white-space:nowrap;border-left:none;}.bsum .gs{border-left:2px solid var(--muted);}.bsum .pl{font-size:10.5px;color:#93c5fd;line-height:1.2;}.bsum tr.tot td{font-weight:700;border-top:2px solid var(--muted);}</style>';
+      // ★ 2026/11/28：上の表と「月ごと」の表で列の位置をそろえる（左の項目の列は同じ幅、残りの列は同じ幅で等分）
+      const hdr = (first) => '<colgroup><col style="width:24%;">' + '<col>'.repeat(COLS.length + 1) + '</colgroup><thead><tr><th class="l" rowspan="2">' + first + '</th>' + BK.map(k => '<th colspan="2" class="gs" style="border-bottom:1px solid var(--border);">' + BL[k] + '</th>').join('') + '<th rowspan="2" class="gs">計</th></tr><tr>' + BK.map(() => '<th class="gs">ET</th><th>AI</th>').join('') + '</tr></thead>';
       const trc = 'onclick="this.classList.toggle(\'hl\')" style="cursor:pointer;"';
       const cell = (v, i, bold) => '<td' + (i % 2 === 0 ? ' class="gs"' : '') + (bold ? ' style="font-weight:700;"' : '') + '>' + v + '</td>';
       const rowOf = (lab, f, cls, fmt) => { const vs = COLS.map(([k, e]) => f(k, e)), t = vs.reduce((a, b) => a + (+b || 0), 0);
@@ -17019,9 +17022,10 @@ function calfBirthSummaryHTML(thisYear, RR, OK, dueList) {
       const mU = (k, e, m) => nU(k, e, dueL.filter(c => +c.dueDate.slice(5, 7) === m));
       const MS = Array.from({ length: 12 }, (_, i) => i + 1).filter(m => COLS.some(([k, e]) => mB(k, e, m) + mU(k, e, m)));
       const mv = (b, u) => isFut ? (u || '') : ((b || '') + (u ? '<div class="pl">予定' + u + '</div>' : ''));
-      const mon2 = !MS.length || !COLS.length ? '' : '<div style="font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 4px;">' + (isFut ? '月ごとの見込み' : '月ごと') + '</div><table class="bsum" style="width:100%;border-collapse:collapse;font-size:13px;">' + hdr('月') + '<tbody>' +
+      // ★ 2026/11/28：「月ごと」の表は、内訳を開いたときもたたんだままにする（押すと開く。開いた・閉じたは画面を描き直しても覚えておく）
+      const mon2 = !MS.length || !COLS.length ? '' : '<details' + (window._bsumMonOpen ? ' open' : '') + ' ontoggle="window._bsumMonOpen=this.open" onclick="event.stopPropagation()" style="margin-top:14px;"><summary style="font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;padding:6px 2px;">' + (isFut ? '月ごとの見込み' : '月ごと') + '（タップで表示）</summary><table class="bsum" style="width:100%;border-collapse:collapse;font-size:13px;margin-top:4px;">' + hdr('月') + '<tbody>' +
         MS.map(m => { let tb = 0, tu = 0; const cs = COLS.map(([k, e], i) => { const b = mB(k, e, m), u = mU(k, e, m); tb += b; tu += u; return cell(mv(b, u), i); }).join('');
-          return '<tr ' + trc + '><td class="l">' + m + '月</td>' + cs + '<td class="gs" style="font-weight:700;">' + mv(tb, tu) + '</td></tr>'; }).join('') + '</tbody></table>';
+          return '<tr ' + trc + '><td class="l">' + m + '月</td>' + cs + '<td class="gs" style="font-weight:700;">' + mv(tb, tu) + '</td></tr>'; }).join('') + '</tbody></table></details>';
       const etDet = !total ? '' : '<div style="margin-top:12px;cursor:pointer;font-size:12px;color:var(--muted);" onclick="window._etDetailOpen=!window._etDetailOpen;' + RR + '">' + (detailOpen ? '▲ ETの子牛の胚の内訳を閉じる' : '▼ ETの子牛の胚の内訳を見る（どの胚から生まれたか）') + '</div>' + detailHTML;
       if (sumOpen) return head + tbl2 + mon2 + etDet;
       return head;
@@ -32229,11 +32233,11 @@ function renderSemen() {
         return `
         <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:14px 0 6px;padding-left:2px;">${g.label} ${live.length}種${zero.length ? `<span style="font-weight:400;">（在庫0 ${zero.length}種）</span>` : ''}</div>
         ${g.breed === 'その他' ? live.map(renderCard).join('') : (() => {
-          // ★ 2026/11/27：品種の中を系統ごとにまとめる（折りたたみ）
+          // ★ 2026/11/27：品種の中を系統ごとにまとめる（見出しだけ。折りたたまず、いつも全部見せる）
           const by = {}; live.forEach(x => { const l = sireLineOf(x) || ''; (by[l] = by[l] || []).push(x); });
           const ord = [..._lnOrder(g.breed).filter(l => by[l]), ...Object.keys(by).filter(l => l && !_lnOrder(g.breed).includes(l)), ...(by[''] ? [''] : [])];
           return ord.map(l => { const a = by[l], st = a.reduce((t, x) => t + (Number(x.stock) || 0), 0);
-            return `<details ${l ? '' : 'open'} style="margin:0 0 6px;"><summary style="cursor:pointer;padding:7px 4px;font-size:13px;font-weight:700;color:${l ? 'var(--text)' : 'var(--warn)'};">${l ? _stEsc(l) : '系統が分からない'} <span style="font-weight:400;font-size:11.5px;color:var(--muted);">${a.length}種・在庫${st}本</span></summary>${a.map(renderCard).join('')}</details>`; }).join('');
+            return `<div style="margin:0 0 6px;"><div style="padding:7px 4px;font-size:13px;font-weight:700;color:${l ? 'var(--text)' : 'var(--warn)'};">${l ? _stEsc(l) : '系統が分からない'} <span style="font-weight:400;font-size:11.5px;color:var(--muted);">${a.length}種・在庫${st}本</span></div>${a.map(renderCard).join('')}</div>`; }).join('');
         })()}
         ${zero.length ? `<details style="margin:2px 0 8px;"><summary style="font-size:11px;color:var(--muted);cursor:pointer;padding:4px 2px;">📦 在庫0の種雄牛 ${zero.length}種（タップで表示）</summary>${zero.map(renderCard).join('')}</details>` : ''}`;
       }).join('');
@@ -36992,7 +36996,7 @@ function _syncAfterLocalChange() {
 }
 // ★ 2026/11/15：古い版の画面を開いたままの端末があると、その端末が古い記録で上書き・削除してしまうことがある。
 //   クラウドに「いちばん新しい版の番号」を置き、それより古い版の画面は自動で開き直す（10分に1回まで）
-const APP_BUILD = '2026112805';
+const APP_BUILD = '2026112806';
 window.APP_BUILD = APP_BUILD;   // 同期のようすの画面などで使う
 window._syncBaseOf = k => _syncBase[k];
 function _checkAppBuild(remote, dbRef) {
